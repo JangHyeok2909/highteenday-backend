@@ -1,7 +1,7 @@
 package com.example.highteenday_backend.domain.Token;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
+import com.example.highteenday_backend.domain.users.User;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -11,8 +11,12 @@ import lombok.Setter;
 @AllArgsConstructor
 public class Token {
     @Id
-    private String id;
+    @OneToOne
+    @JoinColumn(name = "id")
+    private User user;
+    @Column(name = "TNK_refresh", unique = true)
     private String refreshToken;
+    @Column(name = "TNK_access", unique = true)
     private String accessToken;
 
     public Token updateRefreshToken(String refreshToken){
