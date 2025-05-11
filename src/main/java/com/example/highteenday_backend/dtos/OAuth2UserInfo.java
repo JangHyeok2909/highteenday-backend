@@ -1,6 +1,5 @@
-package com.example.highteenday_backend.DTO;
+package com.example.highteenday_backend.dtos;
 
-import com.example.highteenday_backend.domain.users.User;
 import lombok.Builder;
 import org.springframework.security.core.AuthenticationException;
 

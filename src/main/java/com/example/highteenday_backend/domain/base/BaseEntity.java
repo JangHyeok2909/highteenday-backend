@@ -29,4 +29,8 @@ public abstract class BaseEntity {
     @Column(name = "is_Valid")
     private Boolean isValid = true;
 
+    public void setCreated(LocalDateTime localDateTime){
+        this.created = localDateTime;
+    }
+
 }

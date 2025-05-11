@@ -38,15 +38,15 @@ public class Comment extends BaseEntity {
     @Column(name = "CMT_is_anonymus", nullable = false)
     private boolean isAnonymous = true;
 
-    @Column(name = "CMT_content", columnDefinition = "TEXT", nullable = false)
+    @Column(name = "CMT_content", length = 10000, nullable = false)
     private String content;
+
+    @Column(name = "CMT_media_url",length =1000)
+    private String mediaUrl;
 
     @Column(name = "CMT_like_count")
     private Integer likeCount = 0;
 
     @Column(name = "CMT_report_count")
     private Integer reportCount = 0;
-
-    @Column(name = "CMT_image_url", columnDefinition = "TEXT")
-    private String imageUrl;
 }

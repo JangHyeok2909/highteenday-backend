@@ -1,6 +1,6 @@
 package com.example.highteenday_backend.security;
 
-import com.example.highteenday_backend.domain.Service.CustomOAuth2UserService;
+import com.example.highteenday_backend.services.security.CustomOAuth2UserService1;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -14,7 +14,7 @@ import org.springframework.security.config.Customizer;
 public class securityConfig {
 
     @Autowired
-    private CustomOAuth2UserService customOAuth2UserService;
+    private CustomOAuth2UserService1 customOAuth2UserService1;
     @Autowired
     private UserRepository userRepository;
 
