@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.Service;
 
 import com.example.highteenday_backend.DTO.OAuth2UserInfo;
+import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
@@ -40,8 +42,18 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         oAuth2UserAttributes.put("registrationId", registrationId);
         oAuth2UserAttributes.put("parsed_email", oAuth2UserInfo.email());
 
+        Optional<User> userOpt = userRepository.findByEmail(oAuth2UserInfo.email());
+
+        if(userOpt.isPresent()){
+            return new DefaultOAuth2User(
+                    Collections.singleton(new SimpleGrantedAuthority("ROLE_GUEST")),
+                    oAuth2UserAttributes,
+                    "parsed_email"
+            );
+        }
+
         return new DefaultOAuth2User(
-                Collections.singleton(new SimpleGrantedAuthority("USER")),
+                Collections.singleton(new SimpleGrantedAuthority("ROLE_USER")),
                 oAuth2UserAttributes,
                 "parsed_email"
         );
