@@ -3,11 +3,14 @@ package com.example.highteenday_backend.domain.posts;
 import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.dtos.PostDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
 
 @Builder
 @Getter
@@ -32,6 +35,7 @@ public class Post extends BaseEntity {
     @Column(name = "PST_title", length = 50, nullable = false)
     private String title;
 
+    //html 형식 그대로 저장
     @Column(name = "PST_content", columnDefinition = "TEXT", nullable = false)
     private String content;
 
@@ -45,8 +49,28 @@ public class Post extends BaseEntity {
     private int commentCount = 0;
 
     @Column(name = "PST_is_anonymous", nullable = false)
-    private boolean isAnonymous;
+    private boolean isAnonymous=true;
 
     @Column(name = "PST_report_count", nullable = false)
     private int reportCount = 0;
+
+
+    public void updateTitle(String title){
+        this.title = title;
+    }
+    public void updateContent(String content){
+        this.content = content;
+    }
+
+
+    public PostDto toDto() {
+        return PostDto.builder()
+                .author(user.getNickname())  // 또는 getUsername() 등으로 수정
+                .title(title)
+                .content(content)
+                .viewCount(viewCount)
+                .likeCount(likeCount)
+                .build();
+    }
+
 }

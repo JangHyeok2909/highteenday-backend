@@ -43,32 +43,32 @@ public class User extends BaseEntity {
     @Column(name = "USR_major", length = 30)
     private String major;
 
-    @Column(name = "USR_phone_num", length = 20, nullable = false)
+    @Column(name = "USR_phone_num", length = 20/*, nullable = false*/)
     private String phoneNum;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "USR_provider", nullable = false)
+    @Column(name = "USR_provider"/*, nullable = false*/)
     private Provider provider;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "USR_role", nullable = false)
+    @Column(name = "USR_role"/*, nullable = false*/)
     private Role role = Role.USER;
 
     @Column(name = "USR_profile_image_url", columnDefinition = "TEXT")
     private String profileImageUrl;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "USR_gender", nullable = false)
+    @Column(name = "USR_gender"/*, nullable = false*/)
     private Gender gender;
 
-    @Column(name = "USR_allow_admsg", nullable = false)
+    @Column(name = "USR_allow_admsg"/*, nullable = false*/)
     private Boolean allowAdMsg;
 
-    @Column(name = "USR_birth_date", nullable = false)
+    @Column(name = "USR_birth_date"/*, nullable = false*/)
     private LocalDate birthDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "SCH_id", nullable = false)
+    @JoinColumn(name = "SCH_id"/*, nullable = false*/)
     private School school;
 
 }
