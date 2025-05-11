@@ -2,15 +2,22 @@ package com.example.highteenday_backend.security;
 
 
 import com.example.highteenday_backend.Service.TokenService;
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.neo4j.Neo4jProperties;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
@@ -26,10 +33,21 @@ public class TokenProvider {
 
     private final TokenService tokenService;
 
+    @PostConstruct
+    private void settSecretKey() {
+        secretKey = Keys.hmacShaKeyFor(key.getBytes());
+    }
+
+    // accessToken 발급
     public String generateAccessToken(Authentication authentication){
         return generateToken(authentication, ACCESS_TOKEN_EXPIRE_TIME);
     }
-
+    // refreshToken 발급
+    public void generateRefreshToken(Authentication authentication, String accessToken){
+        String refreshToken = generateToken(authentication, REFRESH_TOKEN_EXPIRE_TIME);
+        tokenService.saveOrUpdate(authentication.getName(), refreshToken, accessToken);
+    }
+    // 생성 로직
     private String generateToken(Authentication authentication, long expireTime){
         Date now = new Date();
         Date expiredDate = new Date(now.getTime() + expireTime);
@@ -38,7 +56,39 @@ public class TokenProvider {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.joining());
 
-        return ;
+        return Jwts.builder()
+                .setSubject(authentication.getName())
+                .claim(KEY_ROLE, authorities)
+                .setIssuedAt(now)
+                .setExpiration(expiredDate)
+                .signWith(secretKey, SignatureAlgorithm.HS512)
+                .compact();
+    }
+
+    private List<SimpleGrantedAuthority> getAuthorities(Claims claims){
+        return Collections.singletonList(new SimpleGrantedAuthority(claims.get(KEY_ROLE).toString()));
+    }
+
+    public Authentication getAuthentication(String token){
+        Claims claims = parseClaims(token);
+        List<SimpleGrantedAuthority> authorities = getAuthorities(claims);
+        User principal = new User(claims.getSubject(), "", authorities);
+        return new UsernamePasswordAuthenticationToken(principal, token, authorities);
+    }
+
+
+    // JWT에 페이로드(Claims)를 추출하는 부분 에러면 에러 리턴
+    private Claims parseClaims(String token){
+        try {
+            return Jwts.parser().verifyWith(secretKey).build()
+                    .parseSignedClaims(token).getPayload();
+        } catch(ExpiredJwtException e){
+            return e.getClaims();
+        } catch(MalformedJwtException e){
+            throw new RuntimeException("INVALID_TOKEN");
+        } catch(SecurityException e){
+            throw new RuntimeException("INVALID_JWT_SIGNATURE");
+        }
     }
 
 }

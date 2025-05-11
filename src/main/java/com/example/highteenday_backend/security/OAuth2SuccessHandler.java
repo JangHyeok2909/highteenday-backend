@@ -10,6 +10,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 
@@ -19,6 +20,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private TokenProvider tokenProvider;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
@@ -28,15 +31,21 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         OAuth2User oaAuth2User = (OAuth2User) authentication.getPrincipal();
         String email = oaAuth2User.getAttribute("email");
 
-        boolean exists = userRepository.findByEmail(email).isPresent();
+        String accessToken = tokenProvider.generateAccessToken(authentication);
+        tokenProvider.generateRefreshToken(authentication, accessToken);
 
-        // 이부분 수정 필요
-        // 어디 포트 사용`하더라 (일단 개발 시점이니까 리액트 포트로 함)
-        if (exists) {
-            response.sendRedirect("http://주소/oauth2-redirect?email=" + email);
-        } else {
-            response.sendRedirect("http://주소/signup/oauth?email=" + email);
-        }
+        boolean isGuest = authentication.getAuthorities().stream()
+                .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
+
+        String redirectUrl = isGuest ? UriComponentsBuilder.fromUriString("http://주소:포트/signup/oauth")
+                .queryParam("email", email)
+                .queryParam("accessToken", accessToken)
+                .build().toUriString()
+                : UriComponentsBuilder.fromUriString("http//주소:포트/oauth2-redirect")
+                        .queryParam("email", email)
+                        .queryParam("accessToken", accessToken)
+                        .build().toUriString();
+        response.sendRedirect(redirectUrl);
 
     }
 }
