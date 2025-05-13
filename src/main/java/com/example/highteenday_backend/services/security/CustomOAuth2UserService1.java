@@ -14,21 +14,21 @@ import org.springframework.stereotype.Service;
 import java.util.Collections;
 
 @Service
-public class CustomOAuth2UserService1 implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {
+public class CustomOAuth2UserService1 /*implements OAuth2UserService<OAuth2UserRequest, OAuth2User>*/ {
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Override
-    public OAuth2User loadUser(OAuth2UserRequest request) throws OAuth2AuthenticationException {
-        OAuth2User oAuth2User = new DefaultOAuth2UserService().loadUser(request);
-        String email = oAuth2User.getAttribute("email");
-        String name = oAuth2User.getAttribute("name");
-
-        return new DefaultOAuth2User(
-                Collections.singleton(new SimpleGrantedAuthority("USER")),
-                oAuth2User.getAttributes(),
-                "email"
-        );
-    }
+//    @Autowired
+//    private UserRepository userRepository;
+//
+//    @Override
+//    public OAuth2User loadUser(OAuth2UserRequest request) throws OAuth2AuthenticationException {
+//        OAuth2User oAuth2User = new DefaultOAuth2UserService().loadUser(request);
+//        String email = oAuth2User.getAttribute("email");
+//        String name = oAuth2User.getAttribute("name");
+//
+//        return new DefaultOAuth2User(
+//                Collections.singleton(new SimpleGrantedAuthority("USER")),
+//                oAuth2User.getAttributes(),
+//                "email"
+//        );
+//    }
 }

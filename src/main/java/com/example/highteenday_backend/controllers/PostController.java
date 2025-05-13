@@ -47,8 +47,7 @@ public class PostController {
         try{
             mediaService.linkMediaToPostByUrls(urls,post);
         } catch (RuntimeException e) {return ResponseEntity.ok(URI.create("/api/posts/"+post.getId()));}
-
-        return ResponseEntity.ok(URI.create("/api/posts/"+post.getId()));
+        return ResponseEntity.created(URI.create("/api/posts/"+post.getId())).build();
     }
 
 

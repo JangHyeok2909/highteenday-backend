@@ -15,9 +15,9 @@ import java.io.IOException;
 
 @Component
 @RequiredArgsConstructor
-public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
+public class OAuth2SuccessHandler /*implements AuthenticationSuccessHandler*/ {
 
-    @Autowired
+    /*@Autowired
     private UserRepository userRepository;
 
     @Override
@@ -38,5 +38,5 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             response.sendRedirect("http://주소/signup/oauth?email=" + email);
         }
 
-    }
+    }*/
 }
