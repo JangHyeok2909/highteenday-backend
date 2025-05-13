@@ -19,7 +19,8 @@ public class MediaController {
     private final MediaService mediaService;
     @PostMapping
     public ResponseEntity<URI> createMedia(@RequestParam("file")MultipartFile multipartFile){
-        URI url = mediaService.save(multipartFile);
-        return ResponseEntity.ok(url);
+        URI url = mediaService.uploadS3andSave(multipartFile);
+        //201 Created 응답, Location 헤더에 url
+        return ResponseEntity.created(url).build();
     }
 }

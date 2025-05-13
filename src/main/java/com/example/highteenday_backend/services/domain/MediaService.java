@@ -24,7 +24,7 @@ public class MediaService {
     private final S3Service s3Service;
 
     @Transactional
-    public URI save(MultipartFile multipartFile){
+    public URI uploadS3andSave(MultipartFile multipartFile){
         UploadedResult uploadedResult = s3Service.upload(multipartFile);
         String fileName = uploadedResult.getFileName();
         String url = uploadedResult.getUrl();

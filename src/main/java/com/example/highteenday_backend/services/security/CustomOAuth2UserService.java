@@ -17,32 +17,32 @@ import java.util.Map;
 @Service
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Override
-    public OAuth2User loadUser(OAuth2UserRequest request) throws OAuth2AuthenticationException {
-        // 구글, 카카오 에서 받아온 사용자 정보 load
-        Map<String, Object> oAuth2UserAttributes = super.loadUser(request).getAttributes();
-
-        // 카카오인지 구글인지 id 들고오기
-        String registrationId = request.getClientRegistration().getRegistrationId();
-
-        String userNameAttributeName = request
-                .getClientRegistration()
-                .getProviderDetails()
-                .getUserInfoEndpoint()
-                .getUserNameAttributeName();
-
-        OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfo.of(registrationId, oAuth2UserAttributes);
-
-        oAuth2UserAttributes.put("registrationId", registrationId);
-        oAuth2UserAttributes.put("parsed_email", oAuth2UserInfo.email());
-
-        return new DefaultOAuth2User(
-                Collections.singleton(new SimpleGrantedAuthority("USER")),
-                oAuth2UserAttributes,
-                "parsed_email"
-        );
-    }
+//    @Autowired
+//    private UserRepository userRepository;
+//
+//    @Override
+//    public OAuth2User loadUser(OAuth2UserRequest request) throws OAuth2AuthenticationException {
+//        // 구글, 카카오 에서 받아온 사용자 정보 load
+//        Map<String, Object> oAuth2UserAttributes = super.loadUser(request).getAttributes();
+//
+//        // 카카오인지 구글인지 id 들고오기
+//        String registrationId = request.getClientRegistration().getRegistrationId();
+//
+//        String userNameAttributeName = request
+//                .getClientRegistration()
+//                .getProviderDetails()
+//                .getUserInfoEndpoint()
+//                .getUserNameAttributeName();
+//
+//        OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfo.of(registrationId, oAuth2UserAttributes);
+//
+//        oAuth2UserAttributes.put("registrationId", registrationId);
+//        oAuth2UserAttributes.put("parsed_email", oAuth2UserInfo.email());
+//
+//        return new DefaultOAuth2User(
+//                Collections.singleton(new SimpleGrantedAuthority("USER")),
+//                oAuth2UserAttributes,
+//                "parsed_email"
+//        );
+//    }
 }
