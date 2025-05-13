@@ -13,7 +13,7 @@ import org.springframework.security.config.Customizer;
 @Configuration
 public class securityConfig {
 
-    @Autowired
+    /*@Autowired
     private CustomOAuth2UserService1 customOAuth2UserService1;
     @Autowired
     private UserRepository userRepository;
@@ -49,5 +49,5 @@ public class securityConfig {
                 );
 
         return http.build();
-    }
+    }*/
 }

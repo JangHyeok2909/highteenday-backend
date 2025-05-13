@@ -2,18 +2,17 @@ package com.example.highteenday_backend.services.domain;
 
 import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.boards.BoardRepository;
+import com.example.highteenday_backend.domain.posts.PostLikeRepository;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
-import com.example.highteenday_backend.dtos.PostDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +22,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 @Service
 public class PostService {
+    private final PostLikeRepository postLikeRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final BoardRepository boardRepository;
@@ -59,6 +59,14 @@ public class PostService {
         Post post = findById(postId);
         post.updateTitle(title);
         post.updateContent(content);
+    }
+
+    @Transactional
+    public int updateLikeCount(Post post){
+        int updatedLikeCount = postLikeRepository.findRecentLikes(post).size();
+        post.updateLikeCount(updatedLikeCount);
+        log.info("update likeCount, postId={},likeCount={}",post.getId(),post.getLikeCount());
+        return updatedLikeCount;
     }
 
 
