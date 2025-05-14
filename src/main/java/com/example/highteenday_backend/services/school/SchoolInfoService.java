@@ -76,6 +76,7 @@ public class SchoolInfoService {
                             .code(code)
                             .name(row.path("SCHUL_NM").asText())
                             .location(row.path("LCTN_SC_NM").asText())
+                            .eduOfficeCode(row.path("ATPT_OFCDC_SC_CODE").asText()) // 교육청 코드
                             .category(category)
                             .build();
 

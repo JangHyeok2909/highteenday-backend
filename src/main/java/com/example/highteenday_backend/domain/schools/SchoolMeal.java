@@ -38,7 +38,8 @@ public class SchoolMeal extends BaseEntity {
     @Column(name = "SCH_ML_CAT", nullable = false)
     private SchoolMealCategory category;
 
-    @Column(name = "SCH_ML_dish_name", length = 128, nullable = false)
+//   스케쥴링 하기전이라 문자열 길이 TEXT로 일시적 변경
+    @Column(name = "SCH_ML_dish_name", columnDefinition = "TEXT", nullable = false)
     private String dishName;
 
     @Column(name = "SCH_ML_calorie", nullable = false)
