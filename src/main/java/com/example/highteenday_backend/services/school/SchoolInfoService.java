@@ -43,7 +43,20 @@ public class SchoolInfoService {
                 JsonNode rows = root.get("schoolInfo").get(1).get("row");
 
                 for (JsonNode row : rows) {
-                    Integer code = Integer.parseInt(row.path("SD_SCHUL_CODE").asText());
+                    String codeText = row.path("SD_SCHUL_CODE").asText().trim();
+                    if (codeText.isEmpty()) {
+                        System.out.println("빈 코드 발견: 건너뜀");
+                        continue;
+                    }
+
+                    Integer code;
+                    try {
+                        code = Integer.parseInt(codeText);
+                    } catch (NumberFormatException e) {
+                        System.out.println("숫자 아님: " + codeText + " → 건너뜀");
+                        continue;
+                    }
+
                     if (schoolRepository.existsByCode(code)) continue;
 
                     String categoryName = row.path("SCHUL_KND_SC_NM").asText();
