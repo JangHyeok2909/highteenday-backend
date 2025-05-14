@@ -29,6 +29,7 @@ public abstract class BaseEntity {
     @Column(name = "is_Valid")
     private Boolean isValid = true;
 
+//    HighteendayBackendApplication에 주석 처리 하는 이유 설명하였음
 //    public void setCreated(LocalDateTime localDateTime){
 //        this.created = localDateTime;
 //    }
