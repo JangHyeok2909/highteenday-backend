@@ -20,6 +20,9 @@ public class SchoolInfoService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${neis.api.key}")
+//    application.properties 파일에 주석 해제하시고 붙혀넣으시면 됩니다.
+//# NEIS API 인증키
+//neis.api.key=cee4ba90a5d34912a1e7c38edad08c01
     private String apiKey;
 
     public void loadAllSchools() {
