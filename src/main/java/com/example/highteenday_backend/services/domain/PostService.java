@@ -49,6 +49,7 @@ public class PostService {
         User user = userRepository.findById(userId).get();
         Board board = boardRepository.findById(boardId).get();
         Post post = Post.builder().user(user).board(board).isAnonymous(isAnonymous).title(title).content(content).build();
+//        HighteendayBackendApplication에 주석 처리 하는 이유 설명하였음
 //        post.setCreated(LocalDateTime.now());
         return postRepository.save(post);
     }
