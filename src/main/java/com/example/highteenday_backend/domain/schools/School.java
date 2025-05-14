@@ -29,6 +29,10 @@ public class School extends BaseEntity {
     @Column(name = "SCH_location", nullable = false)
     private String location;
 
+//    급식정보 받기 위해
+    @Column(name = "ATPT_OFCDC_SC_CODE", nullable = false) // 교육청 코드 필드 추가
+    private String eduOfficeCode;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "SCH_CAT", nullable = false)
     private SchoolCategory category;
