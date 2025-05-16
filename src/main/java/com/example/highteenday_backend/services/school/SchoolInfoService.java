@@ -52,7 +52,8 @@ public class SchoolInfoService {
                 if (page == 1) {
                     totalCount = schoolInfo.get(0).get("head").get(0).get("list_total_count").asInt();
                     totalPages = (int) Math.ceil(totalCount / (double) pageSize);
-                    System.out.println("총 학교 수: " + totalCount + ", 총 페이지 수: " + totalPages);
+//                    System.out.println("=== 전국 고등학교 데이터 초기 로딩 시작 1111===");
+//                    System.out.println("총 학교 수: " + totalCount + ", 총 페이지 수: " + totalPages);
                 }
 
                 JsonNode rows = schoolInfo.get(1).get("row");
@@ -102,6 +103,7 @@ public class SchoolInfoService {
             }
         }
 
-        System.out.println("전국 학교 데이터 저장 완료. 저장된 수: " + schoolRepository.count());
+//        System.out.println("전국 학교 데이터 저장 완료. 저장된 수: " + schoolRepository.count());
+//        System.out.println("=== 전국 고등학교 데이터 초기 로딩 완료 111 ===");
     }
 }

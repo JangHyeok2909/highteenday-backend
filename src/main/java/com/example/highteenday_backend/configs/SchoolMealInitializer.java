@@ -13,6 +13,7 @@ public class SchoolMealInitializer implements CommandLineRunner {
 
     private final SchoolMealService schoolMealService;
 
+//    현재 날짜 기준 1달 급식정보 얻기 위해 localdate 사용
     @Override
     public void run(String... args) {
         LocalDate now = LocalDate.now();
