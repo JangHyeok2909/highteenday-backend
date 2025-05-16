@@ -44,7 +44,7 @@ public class SchoolMeal extends BaseEntity {
     @Column(name = "SCH_ML_dish_name", columnDefinition = "TEXT", nullable = false)
     private String dishName;
 
-//    30일씩 데이터 받기 위해 date 설정
+//    현재 날짜 기준으로 30일씩 데이터 받기 위해 date 설정
     @Column(nullable = false)
     private LocalDate date;
 
