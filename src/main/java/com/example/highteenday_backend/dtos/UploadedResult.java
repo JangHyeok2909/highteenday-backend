@@ -7,5 +7,5 @@ import lombok.Data;
 @AllArgsConstructor
 public class UploadedResult {
     private String url;
-    private String fileName;
+    private String key;
 }

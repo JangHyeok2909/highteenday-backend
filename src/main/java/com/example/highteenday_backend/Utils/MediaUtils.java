@@ -16,4 +16,7 @@ public class MediaUtils {
                 .filter(src -> src != null && !src.isBlank())
                 .toList();
     }
+//    public static List<String> changeTmpUrlsToPostUrls(List<String> urls){
+//
+//    }
 }
