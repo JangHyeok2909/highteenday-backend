@@ -25,8 +25,8 @@ public class Media {
     @Column(name = "MDA_origin_name" ,nullable = false)
     private String originName;
 
-    @Column(name = "MDA_s3_name" ,nullable = false)
-    private String s3Name;
+    @Column(name = "MDA_s3_key" ,nullable = false)
+    private String s3Key;
 
     @Column(name = "MDA_url", length = 1000, nullable = false)
     private String url;
@@ -58,15 +58,4 @@ public class Media {
     public void setPost(Post post){
         this.post = post;
     }
-
-    /*
-    *  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    original_name VARCHAR(255),         -- 사용자가 업로드한 원래 이름
-    stored_name VARCHAR(255),           -- S3에 저장된 이름 (uuid.jpg 등)
-    url TEXT,                           -- S3 접근 경로
-    size BIGINT,                        -- 파일 크기 (byte)
-    content_type VARCHAR(100),          -- image/png 등
-    uploaded_at DATETIME DEFAULT NOW(),
-    post_id BIGINT,                     -- 해당 이미지가 속한 게시글 (nullable)
-    FOREIGN KEY (post_id) REFERENCES post(id)*/
 }

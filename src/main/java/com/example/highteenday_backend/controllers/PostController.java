@@ -1,16 +1,20 @@
 package com.example.highteenday_backend.controllers;
 
 import com.example.highteenday_backend.Utils.MediaUtils;
+import com.example.highteenday_backend.domain.medias.Media;
 import com.example.highteenday_backend.domain.posts.Post;
+import com.example.highteenday_backend.dtos.FileInfo;
 import com.example.highteenday_backend.dtos.PostDto;
 import com.example.highteenday_backend.dtos.PostRequestDto;
 import com.example.highteenday_backend.services.domain.MediaService;
 import com.example.highteenday_backend.services.domain.PostService;
+import com.example.highteenday_backend.services.global.S3Service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 
 
@@ -20,6 +24,7 @@ import java.util.List;
 public class PostController {
     private final PostService postService;
     private final MediaService mediaService;
+    private final S3Service s3Service;
 
 
     @GetMapping("/{postId}")
@@ -40,19 +45,37 @@ public class PostController {
         String title = postRequestDto.getTitle();
         String content = postRequestDto.getContent();
 
-        //post 생성후 content의 url을 파싱하여 해당 url의 media에 post를 링크
-        Post post = postService.createPost(userId, boardId, isAnonymous, title, content);
+        ResponseEntity<URI> responseUrl;
+        //게시글의 content의 url을 파싱.
         List<String> urls = MediaUtils.extractS3Urls(content);
-        if(urls.isEmpty()) return ResponseEntity.ok(URI.create("/api/posts/"+post.getId()));
-        try{
-            mediaService.linkMediaToPostByUrls(urls,post);
-        } catch (RuntimeException e) {return ResponseEntity.ok(URI.create("/api/posts/"+post.getId()));}
-        return ResponseEntity.created(URI.create("/api/posts/"+post.getId())).build();
+        Post post;
+        if(urls.isEmpty()) {
+            post = postService.createPost(userId, boardId, isAnonymous, title, content);
+        } else{
+            List<Media> mediaList =new ArrayList<>();
+            String replaceUrlContent=content;
+            //파싱 된 urls를 통해 tmp에 저장한 이미지를 post-file로 복사
+            for(String u : urls){
+                String postFileUrl = s3Service.copyToPostFileAndGetUrl(u);
+                //post-file의 postFileUrl 가져와서 content의 기존 url 대체
+                replaceUrlContent = replaceUrlContent.replace(u,postFileUrl);
+                FileInfo fileInfo = s3Service.getFileInfo(s3Service.getKeyByUrl(postFileUrl));
+                //media 저장
+                mediaList.add(mediaService.save(fileInfo));
+            }
+            //url이 대체된 content를 post에 저장, mediaList에 post 매핑
+            post = postService.createPost(userId, boardId, isAnonymous, title, replaceUrlContent);
+            for(Media m:mediaList){
+                m.setPost(post);
+            }
+            //유저의 tmp 전부 삭제
+            s3Service.deleteUserTmp(userId);
+        }
+
+        responseUrl = ResponseEntity.created(URI.create("/api/posts/"+post.getId())).build();
+        return responseUrl;
+
     }
-
-
-
-
 
 
 }
