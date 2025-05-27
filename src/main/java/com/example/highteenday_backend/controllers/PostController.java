@@ -5,10 +5,11 @@ import com.example.highteenday_backend.domain.medias.Media;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.dtos.FileInfo;
 import com.example.highteenday_backend.dtos.PostDto;
-import com.example.highteenday_backend.dtos.PostRequestDto;
+import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.example.highteenday_backend.services.domain.MediaService;
 import com.example.highteenday_backend.services.domain.PostService;
 import com.example.highteenday_backend.services.global.S3Service;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 
+
+@Tag(name = "게시글 API", description = "게시글 관련 조회,생성,수정,삭제 API")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/posts")
@@ -37,13 +40,13 @@ public class PostController {
     //userId 대신 스프링 시큐리티로 가져오기
     //파일 업로드하는 부분하여 분리하고 파싱해서 html content 전송할 것
     @PostMapping()
-    public ResponseEntity<URI> createPost(@RequestBody PostRequestDto postRequestDto){
+    public ResponseEntity<URI> createPost(@RequestBody RequestPostDto requestPostDto){
         //tmp request dto set
-        Long boardId = postRequestDto.getBoardId();
-        Long userId = postRequestDto.getUserId();
-        boolean isAnonymous = postRequestDto.isAnonymous();
-        String title = postRequestDto.getTitle();
-        String content = postRequestDto.getContent();
+        Long boardId = requestPostDto.getBoardId();
+        Long userId = requestPostDto.getUserId();
+        boolean isAnonymous = requestPostDto.isAnonymous();
+        String title = requestPostDto.getTitle();
+        String content = requestPostDto.getContent();
 
         ResponseEntity<URI> responseUrl;
         //게시글의 content의 url을 파싱.
