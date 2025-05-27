@@ -35,7 +35,7 @@ public class securityConfig {
 
                 // 권한 부분
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/login").permitAll()
+                        .requestMatchers("/", "/login", "/register").permitAll()
                         .requestMatchers("/api/**").authenticated()
                 )
 
