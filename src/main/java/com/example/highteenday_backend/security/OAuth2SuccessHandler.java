@@ -2,6 +2,7 @@ package com.example.highteenday_backend.security;
 
 import com.example.highteenday_backend.domain.users.UserRepository;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -18,10 +19,8 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
-    @Autowired
-    private UserRepository userRepository;
-    @Autowired
-    private TokenProvider tokenProvider;
+    private final UserRepository userRepository;
+    private final TokenProvider tokenProvider;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
@@ -34,17 +33,18 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         String accessToken = tokenProvider.generateAccessToken(authentication);
         tokenProvider.generateRefreshToken(authentication, accessToken);
 
+        Cookie accessTokenCookie = new Cookie("accessToken", accessToken);
+        accessTokenCookie.setHttpOnly(true);
+        accessTokenCookie.setSecure(true);
+        accessTokenCookie.setPath("/");
+        accessTokenCookie.setMaxAge(60*60);
+
+        response.addCookie(accessTokenCookie);
+
         boolean isGuest = authentication.getAuthorities().stream()
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
 
-        String redirectUrl = isGuest ? UriComponentsBuilder.fromUriString("http://주소:포트/signup/oauth")
-                .queryParam("email", email)
-                .queryParam("accessToken", accessToken)
-                .build().toUriString()
-                : UriComponentsBuilder.fromUriString("http//주소:포트/oauth2-redirect")
-                        .queryParam("email", email)
-                        .queryParam("accessToken", accessToken)
-                        .build().toUriString();
+        String redirectUrl = isGuest ? "회원가입 페이지" : "로그인 성공 페이지";
         response.sendRedirect(redirectUrl);
     }
 }

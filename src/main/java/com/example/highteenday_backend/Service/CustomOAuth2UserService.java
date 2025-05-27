@@ -31,12 +31,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         // 카카오인지 구글인지 id 들고오기
         String registrationId = request.getClientRegistration().getRegistrationId();
 
-        String userNameAttributeName = request
-                .getClientRegistration()
-                .getProviderDetails()
-                .getUserInfoEndpoint()
-                .getUserNameAttributeName();
-
         OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfo.of(registrationId, oAuth2UserAttributes);
 
         oAuth2UserAttributes.put("registrationId", registrationId);
@@ -44,7 +38,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         Optional<User> userOpt = userRepository.findByEmail(oAuth2UserInfo.email());
 
-        if(userOpt.isPresent()){
+        if(!userOpt.isPresent()){
             return new DefaultOAuth2User(
                     Collections.singleton(new SimpleGrantedAuthority("ROLE_GUEST")),
                     oAuth2UserAttributes,
