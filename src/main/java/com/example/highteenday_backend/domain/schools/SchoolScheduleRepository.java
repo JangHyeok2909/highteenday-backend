@@ -1,4 +1,6 @@
 package com.example.highteenday_backend.domain.schools;
 
-public interface SchoolScheduleRepository {
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface SchoolScheduleRepository extends JpaRepository<SchoolSchedule, Long> {
 }
