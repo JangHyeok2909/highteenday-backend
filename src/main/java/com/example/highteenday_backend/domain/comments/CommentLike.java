@@ -1,6 +1,8 @@
 package com.example.highteenday_backend.domain.comments;
 
 import com.example.highteenday_backend.domain.base.BaseEntity;
+import com.example.highteenday_backend.domain.comments.Comment;
+import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
