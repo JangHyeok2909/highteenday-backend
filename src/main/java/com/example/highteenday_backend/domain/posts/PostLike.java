@@ -2,6 +2,7 @@ package com.example.highteenday_backend.domain.posts;
 
 
 import com.example.highteenday_backend.domain.base.BaseEntity;
+import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -31,4 +32,8 @@ public class PostLike extends BaseEntity {
 
     @Column(name = "PST_LK_is_liked", nullable = false)
     private Boolean isLiked = true;
+
+    public void updateLikeFlag(){
+        this.isLiked = !this.isLiked;
+    }
 }

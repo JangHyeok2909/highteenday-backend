@@ -20,7 +20,6 @@ public class BoardPostController {
     private final PostService postService;
     static final int SIZE = 10;
 
-
     @GetMapping("/{boardId}/posts")
     public ResponseEntity<PagedPostsDto> getPostsByBoardId(@PathVariable Long boardId,
                                                            @RequestParam Integer page,

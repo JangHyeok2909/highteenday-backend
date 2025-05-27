@@ -51,10 +51,12 @@ public class Post extends BaseEntity {
     @Column(name = "PST_is_anonymous", nullable = false)
     private boolean isAnonymous=true;
 
-    @Column(name = "PST_report_count", nullable = false)
-    private int reportCount = 0;
+//    @Column(name = "PST_report_count")
+//    private int reportCount = 0;
 
-
+    public void updateLikeCount(int likeCount){
+        this.likeCount = likeCount;
+    }
     public void updateTitle(String title){
         this.title = title;
     }
@@ -72,5 +74,6 @@ public class Post extends BaseEntity {
                 .likeCount(likeCount)
                 .build();
     }
+
 
 }
