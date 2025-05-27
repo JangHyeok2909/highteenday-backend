@@ -9,7 +9,7 @@ import lombok.Data;
 @Builder
 @AllArgsConstructor
 @Data
-public class PostRequestDto {
+public class RequestPostDto {
     //tmp
     private Long userId;
     private Long boardId;
