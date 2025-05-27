@@ -16,6 +16,7 @@ public record OAuth2UserInfo(
         return switch(registrationId){
             case "google" -> ofGoogle(attributes);
             case "kakao" -> ofKakao(attributes);
+            case "naver" -> ofNaver(attributes);
             default -> throw new AuthenticationException("지원하지 않는 OAuth 제공자입니다."){};
         };
     }
@@ -28,13 +29,22 @@ public record OAuth2UserInfo(
                 .build();
     }
     private static OAuth2UserInfo ofKakao(Map<String, Object> attributes){
-        Map<String, Object> account = (Map<String, Object>) attributes.get("kakao_accout");
+        Map<String, Object> account = (Map<String, Object>) attributes.get("kakao_account");
         Map<String, Object> profile = (Map<String, Object>) account.get("profile");
 
         return OAuth2UserInfo.builder()
                 .name((String) profile.get("nickname"))
                 .email((String) account.get("email"))
                 .profile((String) profile.get("profile_image_url"))
+                .build();
+    }
+    private static OAuth2UserInfo ofNaver(Map<String, Object> attributes){
+        Map<String, Object> response = (Map<String, Object>) attributes.get("response");
+
+        return OAuth2UserInfo.builder()
+                .name((String) response.get("name"))
+                .email((String) response.get("email"))
+                .profile((String) response.get("profile_image"))
                 .build();
     }
 }
