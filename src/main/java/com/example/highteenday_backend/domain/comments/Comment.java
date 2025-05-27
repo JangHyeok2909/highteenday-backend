@@ -4,6 +4,7 @@ package com.example.highteenday_backend.domain.comments;
 import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.dtos.CommentDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -41,12 +42,20 @@ public class Comment extends BaseEntity {
     @Column(name = "CMT_content", length = 10000, nullable = false)
     private String content;
 
-    @Column(name = "CMT_media_url",length =1000)
-    private String mediaUrl;
-
     @Column(name = "CMT_like_count")
     private Integer likeCount = 0;
 
-    @Column(name = "CMT_report_count")
-    private Integer reportCount = 0;
+//    @Column(name = "CMT_report_count")
+//    private Integer reportCount = 0;
+
+    public CommentDto toDto(){
+        return CommentDto.builder()
+                .id(this.id)
+                .author(this.user.getNickname())
+                .content(this.content)
+                .likeCount(this.likeCount)
+                .isAnonymous(this.isAnonymous)
+                .createdAt(super.getCreated())
+                .build();
+    }
 }

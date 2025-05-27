@@ -2,12 +2,11 @@ package com.example.highteenday_backend;
 
 
 import com.example.highteenday_backend.Utils.MediaUtils;
-import com.example.highteenday_backend.dtos.PostRequestDto;
+import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.example.highteenday_backend.services.domain.MediaService;
 import com.example.highteenday_backend.services.domain.PostService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.assertj.core.api.Assertions;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,7 +84,7 @@ public class PostMediaFlowTest {
             <div>세번째 사진입니다.</div>
             """.formatted(urls.get(0), urls.get(1), urls.get(2));
 
-        PostRequestDto postRequestDto = PostRequestDto.builder()
+        RequestPostDto requestPostDto = RequestPostDto.builder()
                 .userId(1l)
                 .boardId(1l)
                 .title("안녕하세요.")
@@ -95,7 +94,7 @@ public class PostMediaFlowTest {
 
         mvcResult = mockMvc.perform(post("/api/posts")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(mapper.writeValueAsString(postRequestDto)))
+                        .content(mapper.writeValueAsString(requestPostDto)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
