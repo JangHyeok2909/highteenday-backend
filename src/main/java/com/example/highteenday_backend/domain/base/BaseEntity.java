@@ -21,7 +21,7 @@ public abstract class BaseEntity {
 
     @LastModifiedDate
     @Column(name = "UPT_Date")
-    private LocalDate updatedDate;
+    private LocalDateTime updatedDate;
 
     @Column(name = "UPT_id")
     private Long updatedBy;
