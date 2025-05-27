@@ -7,12 +7,12 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-public class SchoolScheduleInitializer implements CommandLineRunner {
+public class SchoolScheduleInitializer /*implements CommandLineRunner*/ {
 
     private final SchoolScheduleService schoolScheduleService;
 
-    @Override
-    public void run(String... args) {
-        schoolScheduleService.loadAllSchoolSchedules();
-    }
+//    @Override
+//    public void run(String... args) {
+//        schoolScheduleService.loadAllSchoolSchedules();
+//    }
 }
