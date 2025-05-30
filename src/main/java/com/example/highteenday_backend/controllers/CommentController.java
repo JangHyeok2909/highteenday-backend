@@ -5,6 +5,7 @@ import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.dtos.CommentDto;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
+import com.example.highteenday_backend.services.domain.CommentMediaService;
 import com.example.highteenday_backend.services.domain.CommentService;
 import com.example.highteenday_backend.services.domain.PostService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,6 +25,7 @@ import java.util.List;
 public class CommentController {
     private final PostService postService;
     private final CommentService commentService;
+    private final CommentMediaService commentMediaService;
     @GetMapping()
     public ResponseEntity<List<CommentDto>> getComments(@PathVariable Long postId){
         Post post = postService.findById(postId);
@@ -37,7 +39,7 @@ public class CommentController {
     }
     @GetMapping("/{commentId}")
     public ResponseEntity<CommentDto> getCommentById(@PathVariable Long commentId){
-        Comment comment = commentService.getCommentById(commentId);
+        Comment comment = commentService.findCommentById(commentId);
         return ResponseEntity.ok(comment.toDto());
     }
 
@@ -46,9 +48,23 @@ public class CommentController {
                                           @RequestBody RequestCommentDto dto){
         Post post = postService.findById(postId);
         Comment comment = commentService.creatComment(post, dto);
+        commentMediaService.processCreateCommentMedia(dto.getUserId(),comment,dto);
         URI location = URI.create("/api/posts/"+postId+"/comments/"+comment.getId());
         return ResponseEntity.created(location).build();
     }
 
+    @PutMapping("/{commentId}")
+    public ResponseEntity updateComment(@PathVariable Long commentId,
+                                        @RequestBody RequestCommentDto dto){
+        commentService.updateComment(commentId,dto);
+        return ResponseEntity.ok("수정 완료.");
+    }
+
+    @DeleteMapping("/{commentId}")
+    public ResponseEntity deleteComment(@PathVariable Long commentId,
+                                        @RequestBody Long userId){
+        commentService.deleteComment(commentId,userId);
+        return ResponseEntity.ok("삭제 완료.");
+    }
 
 }

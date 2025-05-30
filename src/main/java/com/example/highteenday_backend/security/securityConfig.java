@@ -1,13 +1,11 @@
 package com.example.highteenday_backend.security;
 
-import com.example.highteenday_backend.Service.CustomOAuth2UserService;
-import com.example.highteenday_backend.domain.users.UserRepository;
+import com.example.highteenday_backend.services.security.CustomOAuth2UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;

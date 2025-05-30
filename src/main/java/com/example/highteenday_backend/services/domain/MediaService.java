@@ -2,7 +2,6 @@ package com.example.highteenday_backend.services.domain;
 
 import com.example.highteenday_backend.domain.medias.Media;
 import com.example.highteenday_backend.domain.medias.MediaRepository;
-import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.dtos.FileInfo;
 import com.example.highteenday_backend.dtos.UploadedResult;
 import com.example.highteenday_backend.enums.MediaCategory;
@@ -14,36 +13,20 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URI;
+import java.util.Optional;
 
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class MediaService {
     private final MediaRepository mediaRepository;
-    private final S3Service s3Service;
 
-    @Transactional
-    public URI uploadS3andSave(Long userId,MultipartFile multipartFile){
-        UploadedResult uploadedResult = s3Service.tmpUpload(userId,multipartFile);
-        String key = uploadedResult.getKey();
-        String url = uploadedResult.getUrl();
-        String originalFilename = multipartFile.getOriginalFilename();
-        String contentType = multipartFile.getContentType();
-
-        Media media = Media.builder()
-                .originName(originalFilename)
-                .s3Key(key)
-                .url(url)
-                .size(multipartFile.getSize())
-                .contentType(contentType)
-                .mediaCategory(getCategory(contentType))
-                .build();
-
-        mediaRepository.save(media);
-        return URI.create(url);
+    public Media findByUrl(String url){
+        return mediaRepository.findByUrl(url)
+                .orElseThrow(()->new RuntimeException("media dose not exists. mediaUrl="+url));
     }
     @Transactional
-    public Media save(FileInfo dto){
+    public Media createMedia(FileInfo dto){
         Media media = Media.builder()
                 .originName(dto.getOriginalFilename())
                 .s3Key(dto.getKey())
@@ -55,24 +38,11 @@ public class MediaService {
 
         return mediaRepository.save(media);
     }
-
-    //로그 찍기
-//    @Transactional
-//    public List<Media> linkMediaToPostByUrls(List<String> urls, Post post){
-//        List<Media> mediaList = new ArrayList<>();
-//        for(String url : urls){
-//            Media media = mediaRepository.findByUrl(url)
-//                    .orElseThrow(() -> new RuntimeException("media does not exists, url = " + url));
-//            String postFileKey = s3Service.copyToPostFile(media.getS3Key());
-//            String postFileUrl = s3Service.findUrlToKey(postFileKey);
-//
-//            media.setPost(post);
-//            mediaList.add(media);
-//        }
-//        return mediaList;
-//    }
-
-
+    @Transactional
+    public void deleteMediaByUrl(String url){
+        Media media = findByUrl(url);
+        mediaRepository.delete(media);
+    }
 
     private MediaCategory getCategory(String contentType){
         if(contentType.startsWith("image")){
@@ -83,6 +53,5 @@ public class MediaService {
         } else {
             throw new IllegalArgumentException("content type is not supported, contentType = "+contentType);
         }
-
     }
 }
