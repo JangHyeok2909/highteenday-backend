@@ -19,4 +19,5 @@ public class CommentDto {
     private String content;
     private Integer likeCount;
     private LocalDateTime createdAt;
+    private String url;
 }

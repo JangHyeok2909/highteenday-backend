@@ -26,9 +26,18 @@ public abstract class BaseEntity {
     @Column(name = "UPT_id")
     private Long updatedBy;
 
-    @Column(name = "is_Valid")
+    @Column(name = "is_valid", nullable = false, columnDefinition = "BOOLEAN DEFAULT true")
     private Boolean isValid = true;
 
+    public void delete(){
+        this.isValid = false;
+    }
+    public void restore(){
+        this.isValid = true;
+    }
+    public void setUpdatedBy(Long userId){
+        this.updatedBy=userId;
+    }
 //    HighteendayBackendApplication에 주석 처리 하는 이유 설명하였음
 //    public void setCreated(LocalDateTime localDateTime){
 //        this.created = localDateTime;

@@ -11,5 +11,5 @@ public class RequestCommentDto {
     private Long parentId;
     private String content;
     private boolean isAnonymous;
-
+    private String url;
 }

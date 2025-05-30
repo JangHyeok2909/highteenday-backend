@@ -45,8 +45,21 @@ public class Comment extends BaseEntity {
     @Column(name = "CMT_like_count")
     private Integer likeCount = 0;
 
+    @Column(name = "CMT_image_url")
+    private String s3Url;
+
 //    @Column(name = "CMT_report_count")
 //    private Integer reportCount = 0;
+
+    public void updateContent(String content){
+        this.content = content;
+    }
+    public void updateImage(String updateUrl){
+        this.s3Url = updateUrl;
+    }
+    public void deleteImage(){
+
+    }
 
     public CommentDto toDto(){
         return CommentDto.builder()
@@ -56,6 +69,7 @@ public class Comment extends BaseEntity {
                 .likeCount(this.likeCount)
                 .isAnonymous(this.isAnonymous)
                 .createdAt(super.getCreated())
+                .url(s3Url)
                 .build();
     }
 }
