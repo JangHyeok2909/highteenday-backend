@@ -1,7 +1,7 @@
 package com.example.highteenday_backend.security;
 
 
-import com.example.highteenday_backend.Service.TokenService;
+import com.example.highteenday_backend.services.security.TokenService;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;

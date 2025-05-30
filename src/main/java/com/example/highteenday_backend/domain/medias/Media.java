@@ -58,4 +58,10 @@ public class Media {
     public void setPost(Post post){
         this.post = post;
     }
+    public void setComment(Comment comment){
+        this.comment = comment;
+    }
+    public void setProfileOwner(User user){
+        this.profileOwner = user;
+    }
 }

@@ -4,6 +4,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
 import com.example.highteenday_backend.dtos.FileInfo;
 import com.example.highteenday_backend.dtos.UploadedResult;
+import com.example.highteenday_backend.enums.MediaOwner;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,7 +14,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.util.UUID;
 
 @Service
@@ -56,6 +56,11 @@ public class S3Service {
             amazonS3.deleteObject(bucket, objectSummary.getKey());
         }
     }
+
+    public void delete(String key){
+        amazonS3.deleteObject(bucket,key);
+    }
+
     public FileInfo getFileInfo(String key){
         ObjectMetadata metadata = amazonS3.getObjectMetadata(bucket,key);
         String url = amazonS3.getUrl(bucket, key).toString();
@@ -78,26 +83,17 @@ public class S3Service {
         } catch (URISyntaxException e) {
             throw new RuntimeException("잘못된 url 형식, url="+url);
         }
-
-
     }
-    public String copyToPostFileAndGetUrl(String url){
-        String key = getKeyByUrl(url);
-        String postFileKey = copyToPostFile(key);
-        String postFileUrl = getUrlToKey(postFileKey);
-        return postFileUrl;
-    }
-    public String copyToPostFile(String key){
-        String postFileKey = "post-file"+key.substring(3);
-        CopyObjectRequest copyRequest = new CopyObjectRequest(bucket, key, bucket, postFileKey);
+    public String copyToFinalLocation(String url, Long entityId, MediaOwner mediaOwner){
+        String tmpKey = getKeyByUrl(url);
+//        String realKey = copyToRealPath(tmpKey,id,mediaOwner);
+        String copiedKey = mediaOwner.getField()+"-file/"+entityId+tmpKey.substring(3);
+        CopyObjectRequest copyRequest = new CopyObjectRequest(bucket, tmpKey, bucket, copiedKey);
         amazonS3.copyObject(copyRequest);
-        return postFileKey;
+        String realUrl = getUrlToKey(copiedKey);
+        return realUrl;
     }
     public String getUrlToKey(String key){
         return amazonS3.getUrl(bucket,key).toString();
-    }
-
-    private void deleteFile(){
-
     }
 }
