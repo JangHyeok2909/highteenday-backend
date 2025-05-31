@@ -34,6 +34,29 @@ jobs:
           overwrite: true
           strip_components: 0
 
+      - name: Install Java 17 on EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Java 17 설치 여부 확인
+            if ! java -version &>/dev/null; then
+              echo "Java not found. Installing OpenJDK 17..."
+              sudo apt update
+              sudo apt install -y openjdk-17-jdk
+            else
+              echo "Java is already installed."
+            fi
+
+            # 설치된 Java 경로 확인 및 환경 변수 설정
+            JAVA_PATH=$(readlink -f /usr/bin/java | sed "s:/bin/java::")
+            echo "Detected JAVA_HOME as $JAVA_PATH"
+            echo "export JAVA_HOME=$JAVA_PATH" >> ~/.bashrc
+            echo "export PATH=\$JAVA_HOME/bin:\$PATH" >> ~/.bashrc
+
+
       - name: Run Spring Boot on EC2
         uses: appleboy/ssh-action@master
         with:
@@ -41,9 +64,6 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-            export PATH=$JAVA_HOME/bin:$PATH
-
             mv ~/application.properties ~/highteenday-back-server/src/main/resources/
 
             cd ~/highteenday-back-server
