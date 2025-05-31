@@ -19,7 +19,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cp ~/highteenday-back-server/src/main/resources/application.properties ~/application.properties.bak || true
+            cp ~/highteenday-back-server/src/main/resources/application.properties ~/application.properties || true
             rm -rf ~/highteenday-back-server
 
       - name: Upload Spring Boot App to EC2
@@ -41,13 +41,14 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            mkdir -p ~/highteenday-back-server/src/main/resources
-            mv ~/application.properties.bak ~/highteenday-back-server/src/main/resources/application.properties || true
+            export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+            export PATH=$JAVA_HOME/bin:$PATH
+
+            mv ~/application.properties ~/highteenday-back-server/src/main/resources/
 
             cd ~/highteenday-back-server
             ./gradlew build
 
+            mv build/libs/*.jar ~/highteenday-back-server/
             pkill -f 'java -jar' || true
-
-            # jar 실행
-            nohup java -jar build/libs/*.jar > ~/highteenday-back-server/app.log 2>&1 &
+            nohup java -jar ~/highteenday-back-server/*.jar > ~/highteenday-back-server/app.log 2>&1 &
