@@ -1,5 +1,1 @@
 # HighteenDay Backend Server
-
-
-
-
