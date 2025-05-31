@@ -3,10 +3,12 @@ package com.example.highteenday_backend.configs;
 import com.example.highteenday_backend.services.school.SchoolMealService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 
+@Order(2)
 @Component
 @RequiredArgsConstructor
 public class SchoolMealInitializer implements CommandLineRunner {
