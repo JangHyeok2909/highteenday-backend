@@ -5,54 +5,134 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-deploy:
+#<<<<<<< HEAD
+#  build-and-deploy:
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#      # 1. GitHub 저장소 코드 가져오기
+#      - name: Checkout source code
+#        uses: actions/checkout@v3
+#
+#      # 2. Java 17 설치 (빌드용)
+#      - name: Set up JDK 17
+#        uses: actions/setup-java@v3
+#        with:
+#          distribution: 'temurin'
+#          java-version: '17'
+#
+#      # 3. gradlew 실행 권한 부여
+#      - name: Grant execute permission for gradlew
+#        run: chmod +x ./gradlew
+#
+#      # 4. Spring Boot 앱 빌드
+#      - name: Build with Gradle Wrapper
+#        run: ./gradlew build
+#
+#      # 5. EC2 서버에 JAR 전송
+#      - name: Upload jar to EC2
+#        uses: appleboy/scp-action@master
+#        with:
+#          host: ${{ secrets.EC2_HOST }}
+#          username: ${{ secrets.EC2_USER }}
+#          key: ${{ secrets.EC2_SSH_KEY }}
+#          source: "build/libs/*.jar"
+#          target: "~/app"
+#
+#      # 6. EC2에서 JAR 실행
+#      - name: Run jar on EC2
+#=======
+  deploy-backend:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. GitHub 저장소 코드 가져오기
-      - name: Checkout source code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      # 2. Java 17 설치 (빌드용)
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      # 3. gradlew 실행 권한 부여
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
-
-      # 4. Spring Boot 앱 빌드
-      - name: Build with Gradle Wrapper
-        run: ./gradlew build
-
-      # 5. EC2 서버에 JAR 전송
-      - name: Upload jar to EC2
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "build/libs/*.jar"
-          target: "~/app"
-
-      # 6. EC2에서 JAR 실행
-      - name: Run jar on EC2
+      - name: Remove old app directory but keep application.properties
+#>>>>>>> 1d6f12627039190f182f812d1897f1b85150c3a4
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "기존 앱 종료"
-            pkill -f 'java.*.jar' || true
+#<<<<<<< HEAD
+#            echo "기존 앱 종료"
+#            pkill -f 'java.*.jar' || true
+#
+#            echo "앱 디렉토리 이동"
+#            cd ~/app
+#
+#            echo "앱 재시작"
+#            nohup java -jar *.jar > nohup.out 2>&1 &
+#
+#            echo "배포 완료"
+#=======
+            cp ~/highteenday-back-server/src/main/resources/application.properties ~/application.properties || true
+            rm -rf ~/highteenday-back-server
 
-            echo "앱 디렉토리 이동"
-            cd ~/app
+      - name: Upload Spring Boot App to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "./*"
+          target: "~/highteenday-back-server"
+          rm: false
+          overwrite: true
+          strip_components: 0
 
-            echo "앱 재시작"
-            nohup java -jar *.jar > nohup.out 2>&1 &
+      - name: Install Java 17 and PM2 on EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            if ! java -version &>/dev/null; then
+              echo "Java not found. Installing OpenJDK 17..."
+              sudo apt update
+              sudo apt install -y openjdk-17-jdk
+            else
+              echo "Java is already installed."
+            fi
 
-            echo "배포 완료"
+            JAVA_PATH=$(readlink -f /usr/bin/java | sed "s:/bin/java::")
+            echo "Detected JAVA_HOME as $JAVA_PATH"
+            echo "export JAVA_HOME=$JAVA_PATH" >> ~/.bashrc
+            echo "export PATH=\$JAVA_HOME/bin:\$PATH" >> ~/.bashrc
+
+            if ! command -v pm2 &> /dev/null; then
+              echo "PM2 not found. Installing PM2..."
+              sudo apt install -y npm
+              sudo npm install -g pm2
+            else
+              echo "PM2 is already installed."
+            fi
+
+
+
+      - name: Run Spring Boot on EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            mv ~/application.properties ~/highteenday-back-server/src/main/resources/
+
+            cd ~/highteenday-back-server
+            chmod +x ./gradlew
+            
+            ./gradlew build -x test
+
+            pm2 delete highteenday-backend || true
+
+            pm2 start java --name "highteenday-backend" -- -jar build/libs/highteenday-backend-0.0.1-SNAPSHOT.jar -Dserver.address=0.0.0.0 -Dserver.port=8080
+
+            pm2 save
+
+            echo " Spring Boot 서버가 PM2로 실행되었습니다."
+#>>>>>>> 1d6f12627039190f182f812d1897f1b85150c3a4
