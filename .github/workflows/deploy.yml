@@ -5,43 +5,6 @@ on:
     branches: [ main ]
 
 jobs:
-#<<<<<<< HEAD
-#  build-and-deploy:
-#    runs-on: ubuntu-latest
-#
-#    steps:
-#      # 1. GitHub 저장소 코드 가져오기
-#      - name: Checkout source code
-#        uses: actions/checkout@v3
-#
-#      # 2. Java 17 설치 (빌드용)
-#      - name: Set up JDK 17
-#        uses: actions/setup-java@v3
-#        with:
-#          distribution: 'temurin'
-#          java-version: '17'
-#
-#      # 3. gradlew 실행 권한 부여
-#      - name: Grant execute permission for gradlew
-#        run: chmod +x ./gradlew
-#
-#      # 4. Spring Boot 앱 빌드
-#      - name: Build with Gradle Wrapper
-#        run: ./gradlew build
-#
-#      # 5. EC2 서버에 JAR 전송
-#      - name: Upload jar to EC2
-#        uses: appleboy/scp-action@master
-#        with:
-#          host: ${{ secrets.EC2_HOST }}
-#          username: ${{ secrets.EC2_USER }}
-#          key: ${{ secrets.EC2_SSH_KEY }}
-#          source: "build/libs/*.jar"
-#          target: "~/app"
-#
-#      # 6. EC2에서 JAR 실행
-#      - name: Run jar on EC2
-#=======
   deploy-backend:
     runs-on: ubuntu-latest
 
@@ -50,25 +13,12 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Remove old app directory but keep application.properties
-#>>>>>>> 1d6f12627039190f182f812d1897f1b85150c3a4
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-#<<<<<<< HEAD
-#            echo "기존 앱 종료"
-#            pkill -f 'java.*.jar' || true
-#
-#            echo "앱 디렉토리 이동"
-#            cd ~/app
-#
-#            echo "앱 재시작"
-#            nohup java -jar *.jar > nohup.out 2>&1 &
-#
-#            echo "배포 완료"
-#=======
             cp ~/highteenday-back-server/src/main/resources/application.properties ~/application.properties || true
             rm -rf ~/highteenday-back-server
 
@@ -134,5 +84,4 @@ jobs:
 
             pm2 save
 
-            echo " Spring Boot 서버가 PM2로 실행되었습니다."
-#>>>>>>> 1d6f12627039190f182f812d1897f1b85150c3a4
+            echo "✅ Spring Boot 서버가 PM2로 실행되었습니다."
