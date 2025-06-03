@@ -80,7 +80,7 @@ public class S3Service {
         try {
             String key = new URI(url).getPath().substring(1);
             return key;
-        } catch (URISyntaxException e) {
+        } catch (Exception e) {
             throw new RuntimeException("잘못된 url 형식, url="+url);
         }
     }
