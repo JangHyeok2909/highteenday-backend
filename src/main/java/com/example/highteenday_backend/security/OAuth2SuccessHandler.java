@@ -45,7 +45,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
 
         // "회원가입 페이지" : "로그인 성공 페이지"
-        String redirectUrl = isGuest ? "https://highteenday.duckdns.org" : "https://highteenday.duckdns.org";
+        String redirectUrl = isGuest ? "/" : "/";
 
 
         response.sendRedirect(redirectUrl);
