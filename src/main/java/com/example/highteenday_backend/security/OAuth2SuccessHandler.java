@@ -27,6 +27,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                                         HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
 
+        System.out.println("OAuth2 로그인 성공 핸들러 진입");
+
         OAuth2User oaAuth2User = (OAuth2User) authentication.getPrincipal();
         String email = oaAuth2User.getAttribute("email");
 
@@ -45,7 +47,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
 
         // "회원가입 페이지" : "로그인 성공 페이지"
-        String redirectUrl = isGuest ? "https://highteenday.duckdns.org/" : "https://highteenday.duckdns.org/";
+        String redirectUrl = isGuest ? "https://highteenday.duckdns.org/" : "https://highteenday.duckdns.org/post/view";
 
 
         response.sendRedirect(redirectUrl);
