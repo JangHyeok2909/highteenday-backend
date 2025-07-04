@@ -25,7 +25,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     @Override
     public OAuth2User loadUser(OAuth2UserRequest request) throws OAuth2AuthenticationException {
         // 구글, 카카오 에서 받아온 사용자 정보 load
-        Map<String, Object> oAuth2UserAttributes = super.loadUser(request).getAttributes();
+        Map<String, Object> originalAttributes = super.loadUser(request).getAttributes(); // << 수정 불가능한(UnmodifibaleMap) Map 이다
+        Map<String, Object> oAuth2UserAttributes = new java.util.HashMap<>(originalAttributes);
 
         // 카카오인지 구글인지 id 들고오기
         String registrationId = request.getClientRegistration().getRegistrationId();
