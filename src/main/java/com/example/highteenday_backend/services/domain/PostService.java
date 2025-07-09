@@ -55,19 +55,23 @@ public class PostService {
         return postRepository.save(post);
     }
     @Transactional
-    public void deletePost(Long postId,Long userId){
+    public void deletePost(Long postId,Long userId) {
         Post post = findById(postId);
         post.delete();
         post.setUpdatedBy(userId);
-        log.info("post delete. postId = {}, deletedBy = {}",post.getId(),userId);
+        log.info("post delete. postId = {}, deletedBy = {}", post.getId(), userId);
     }
 
     //로그 남기기,이미지 업로드
     @Transactional
     public void updatePost(Long postId,String title, String content){
+        log.info("[Post Update] request - postId={}, newTitle={}, newContent={}",postId,title,content);
+
         Post post = findById(postId);
+        log.debug("[Post Update] old post data - oldTitle={}, oldContent={}",post.getTitle(),post.getContent());
         post.updateTitle(title);
         post.updateContent(content);
+        log.info("[Post Update] success, postId={}, updateBy={}",post.getId(),post.getUpdatedBy());
     }
 
     @Transactional
