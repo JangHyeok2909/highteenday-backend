@@ -28,7 +28,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                                         Authentication authentication) throws IOException, ServletException {
 
         OAuth2User oaAuth2User = (OAuth2User) authentication.getPrincipal();
-        String email = oaAuth2User.getAttribute("email");
+        String email = oaAuth2User.getAttribute("parsed_email");
 
         boolean isGuest = authentication.getAuthorities().stream()
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
