@@ -31,7 +31,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         // 카카오인지 구글인지 id 들고오기
         String registrationId = request.getClientRegistration().getRegistrationId();
 
-        OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfo.of(registrationId, oAuth2UserAttributes);
+        OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfo.of(registrationId, oAuth2UserAttributes); // dto 호출
 
         oAuth2UserAttributes.put("registrationId", registrationId);
         oAuth2UserAttributes.put("parsed_email", oAuth2UserInfo.email());
