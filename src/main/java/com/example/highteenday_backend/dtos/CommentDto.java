@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 public class CommentDto {
     private Long id;
     private String author;
+    private Long userId;
     private boolean isAnonymous = true;
     private String content;
     private Integer likeCount;

@@ -25,12 +25,12 @@ INSERT INTO posts (
 
 -- 일반 댓글 (부모 없음)
 INSERT INTO comments (
-    USR_id, PST_id, CMT_parent_id, CMT_is_anonymus, CMT_content, CMT_like_count,created_at
+    USR_id, PST_id, CMT_parent_id, CMT_is_anonymus, CMT_content, CMT_like_count,created_at,CMT_image_url
 ) VALUES
-      (1, 1, NULL, false, '일반 댓글입니다.', 3,now()),
-      (2,1,NULL,true,'id=2인 유저의 댓글입니다.',1,now()),
-      (3,1,NULL,true,'id=3인 유저의 댓글입니다.',14,now()),
-      (1,1,NULL,true,'삭제된 댓글 입니다.',14,now());
+      (1, 1, NULL, false, '일반 댓글입니다.', 3,now(),''),
+      (2,1,NULL,true,'id=2인 유저의 댓글입니다.',1,now(),''),
+      (3,1,NULL,true,'id=3인 유저의 댓글입니다.',14,now(),''),
+      (1,1,NULL,true,'삭제된 댓글 입니다.',14,now(),'');
 
 --PST_id=4 인 게시글은 삭제
 UPDATE posts SET is_valid=false WHERE PST_id = 4;
