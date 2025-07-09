@@ -45,8 +45,8 @@ public class Comment extends BaseEntity {
     @Column(name = "CMT_like_count")
     private Integer likeCount = 0;
 
-    @Column(name = "CMT_image_url")
-    private String s3Url;
+    @Column(name = "CMT_image_url",columnDefinition = "LONGTEXT")
+    private String s3Url="";
 
 //    @Column(name = "CMT_report_count")
 //    private Integer reportCount = 0;
@@ -64,6 +64,7 @@ public class Comment extends BaseEntity {
     public CommentDto toDto(){
         return CommentDto.builder()
                 .id(this.id)
+                .userId(user.getId())
                 .author(this.user.getNickname())
                 .content(this.content)
                 .likeCount(this.likeCount)

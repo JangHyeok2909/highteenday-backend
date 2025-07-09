@@ -4,6 +4,7 @@ package com.example.highteenday_backend.controllers;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.dtos.CommentDto;
+import com.example.highteenday_backend.dtos.DeleteRequestDto;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.services.domain.CommentMediaService;
 import com.example.highteenday_backend.services.domain.CommentService;
@@ -26,6 +27,7 @@ public class CommentController {
     private final PostService postService;
     private final CommentService commentService;
     private final CommentMediaService commentMediaService;
+
     @GetMapping()
     public ResponseEntity<List<CommentDto>> getComments(@PathVariable Long postId){
         Post post = postService.findById(postId);
@@ -62,8 +64,8 @@ public class CommentController {
 
     @DeleteMapping("/{commentId}")
     public ResponseEntity deleteComment(@PathVariable Long commentId,
-                                        @RequestBody Long userId){
-        commentService.deleteComment(commentId,userId);
+                                        @RequestBody DeleteRequestDto dto){
+        commentService.deleteComment(commentId,dto.getUserId());
         return ResponseEntity.ok("삭제 완료.");
     }
 
