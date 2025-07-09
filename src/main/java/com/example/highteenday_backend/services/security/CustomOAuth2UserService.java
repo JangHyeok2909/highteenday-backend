@@ -3,6 +3,7 @@ package com.example.highteenday_backend.services.security;
 import com.example.highteenday_backend.dtos.OAuth2UserInfo;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
@@ -17,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Service
+@Slf4j
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     @Autowired
@@ -30,6 +32,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         // 카카오인지 구글인지 id 들고오기
         String registrationId = request.getClientRegistration().getRegistrationId();
+        log.info("==== [OAuth 로그인 시도] registrationId = {}", registrationId);
 
         OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfo.of(registrationId, oAuth2UserAttributes); // dto 호출
 
