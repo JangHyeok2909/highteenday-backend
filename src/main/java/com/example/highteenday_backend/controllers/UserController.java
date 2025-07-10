@@ -4,16 +4,22 @@ import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.OAuth2UserInfo;
 import com.example.highteenday_backend.dtos.RegisterUserDto;
+import com.example.highteenday_backend.dtos.TokenResponse;
 import com.example.highteenday_backend.enums.Provider;
+import com.example.highteenday_backend.security.TokenProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -23,6 +29,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class UserController {
     private final UserRepository userRepository;
+    private final TokenProvider tokenProvider;
 
     @GetMapping("/loginUser")
     public User getCurrentUser(Authentication authentication) {
@@ -45,7 +52,7 @@ public class UserController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<String> registerUser(
+    public ResponseEntity<TokenResponse> registerUser(
 //            @AuthenticationPrincipal OAuth2User oAuth2User, // RegisterUserDto 에 있지만 변조에 대비해서 원본 데이터를 사용
             @RequestBody  RegisterUserDto registerUserDto
             ){
@@ -63,6 +70,22 @@ public class UserController {
 
         userRepository.save(user);
 
-        return ResponseEntity.ok("회원가입 완료");
+        // 저장 후 토큰 발급하기 위한 처리 코드
+        UserDetails userDetails = new org.springframework.security.core.userdetails.User(
+                email,
+                "",
+                List.of(new SimpleGrantedAuthority("ROLE_USER"))
+        );
+
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                userDetails,
+                null,
+                userDetails.getAuthorities()
+        );
+
+        String accessToken = tokenProvider.generateAccessToken(authentication);
+        tokenProvider.generateRefreshToken(authentication, accessToken);
+
+        return ResponseEntity.ok(new TokenResponse(accessToken));
     }
 }
