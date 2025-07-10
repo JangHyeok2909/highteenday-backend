@@ -36,7 +36,10 @@ public class securityConfig {
                 .cors(cors -> cors
                         .configurationSource(request -> {
                             CorsConfiguration config = new CorsConfiguration();
-                            config.setAllowedOrigins(List.of("https://highteenday.duckdns.org"));
+                            config.setAllowedOrigins(List.of(
+                                    "https://highteenday.duckdns.org",
+                                    "http://localhost:3000"
+                            ));
                             config.setAllowCredentials(true);
                             config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                             config.setAllowedHeaders(List.of("*"));
