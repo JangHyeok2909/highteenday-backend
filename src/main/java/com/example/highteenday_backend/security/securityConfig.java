@@ -49,7 +49,7 @@ public class securityConfig {
                 // 권한 부분
                 .authorizeHttpRequests(auth -> auth
 //                                .requestMatchers("/api/user").authenticated()
-                                .requestMatchers("/", "/api/**", "/api/post/**", "/login/**", "/oauth2/**").permitAll()
+                                .requestMatchers("/", "/api/**", "/api/user/**", "/api/post/**", "/login/**", "/oauth2/**").permitAll()
                 )
 
                 // 로그인 부분
