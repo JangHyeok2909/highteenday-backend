@@ -52,7 +52,7 @@ public class UserController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<TokenResponse> registerUser(
+    public ResponseEntity<?> registerUser(
 //            @AuthenticationPrincipal OAuth2User oAuth2User, // RegisterUserDto 에 있지만 변조에 대비해서 원본 데이터를 사용
             @RequestBody  RegisterUserDto registerUserDto
             ){
