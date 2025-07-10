@@ -8,8 +8,8 @@ import java.util.Map;
 @Builder
 public record OAuth2UserInfo(
     String name,
-    String email,
-    String profile
+    String email
+//    String profile
 ){
     public static OAuth2UserInfo of(String registrationId, Map<String, Object> attributes){
         return switch(registrationId){
@@ -24,7 +24,7 @@ public record OAuth2UserInfo(
         return OAuth2UserInfo.builder()
                 .name((String) attributes.get("name"))
                 .email((String) attributes.get("email"))
-                .profile((String) attributes.get("picture"))
+//                .profile((String) attributes.get("picture"))
                 .build();
     }
     private static OAuth2UserInfo ofKakao(Map<String, Object> attributes){
@@ -34,7 +34,7 @@ public record OAuth2UserInfo(
         return OAuth2UserInfo.builder()
                 .name((String) profile.get("nickname"))
                 .email((String) account.get("email"))
-                .profile((String) profile.get("profile_image_url"))
+//                .profile((String) profile.get("profile_image_url"))
                 .build();
     }
     private static OAuth2UserInfo ofNaver(Map<String, Object> attributes){
@@ -43,7 +43,7 @@ public record OAuth2UserInfo(
         return OAuth2UserInfo.builder()
                 .name((String) response.get("name"))
                 .email((String) response.get("email"))
-                .profile((String) response.get("profile_image"))
+//                .profile((String) response.get("profile_image"))
                 .build();
     }
 }
