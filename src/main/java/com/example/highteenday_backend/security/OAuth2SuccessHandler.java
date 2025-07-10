@@ -30,10 +30,11 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                                         Authentication authentication) throws IOException, ServletException {
 
         log.info("successhandler 진입");
-        OAuth2User oaAuth2User = (OAuth2User) authentication.getPrincipal();
-        log.info("네이버 OAuth 전체 attributes: {}", oaAuth2User.getAttributes());
+        OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
+        log.info("네이버 OAuth 전체 attributes: {}", oAuth2User.getAttributes());
+        System.out.println("네이버 OAuth 전체 attributes: {}" + oAuth2User.getAttributes());
 
-        String email = oaAuth2User.getAttribute("parsed_email");
+        String email = oAuth2User.getAttribute("parsed_email");
 
         boolean isGuest = authentication.getAuthorities().stream()
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
