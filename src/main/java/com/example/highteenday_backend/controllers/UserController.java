@@ -46,10 +46,10 @@ public class UserController {
 
     @PostMapping("/register")
     public ResponseEntity<String> registerUser(
-            @AuthenticationPrincipal OAuth2User oAuth2User, // RegisterUserDto 에 있지만 변조에 대비해서 원본 데이터를 사용
+//            @AuthenticationPrincipal OAuth2User oAuth2User, // RegisterUserDto 에 있지만 변조에 대비해서 원본 데이터를 사용
             @RequestBody  RegisterUserDto registerUserDto
             ){
-        String email = oAuth2User.getAttribute("parsed_email");
+        String email = registerUserDto.email();
         Optional<User> userOpt = userRepository.findByEmail(email);
         if(!userOpt.isEmpty()){
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("이미 회원가입 한 유저");
