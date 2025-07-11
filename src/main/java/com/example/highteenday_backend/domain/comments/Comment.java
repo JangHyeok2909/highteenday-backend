@@ -48,7 +48,7 @@ public class Comment extends BaseEntity {
     private Integer dislikeCount = 0;
 
     @Column(name = "CMT_image_url",columnDefinition = "LONGTEXT")
-    private String s3Url="";
+    private String s3Url;
 
 //    @Column(name = "CMT_report_count")
 //    private Integer reportCount = 0;

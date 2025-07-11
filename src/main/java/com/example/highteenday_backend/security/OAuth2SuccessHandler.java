@@ -6,6 +6,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -17,6 +18,7 @@ import java.io.IOException;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private final UserRepository userRepository;
@@ -27,8 +29,21 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                                         HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
 
-        OAuth2User oaAuth2User = (OAuth2User) authentication.getPrincipal();
-        String email = oaAuth2User.getAttribute("email");
+        log.info("successhandler 진입");
+        OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
+        log.info("네이버 OAuth 전체 attributes: {}", oAuth2User.getAttributes());
+        System.out.println("네이버 OAuth 전체 attributes: {}" + oAuth2User.getAttributes());
+
+        String email = oAuth2User.getAttribute("parsed_email");
+
+        boolean isGuest = authentication.getAuthorities().stream()
+                .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
+
+        // "회원가입 페이지" : "로그인 성공 페이지"
+        if(isGuest){
+            response.sendRedirect("https://highteenday.duckdns.org/register");
+            return;
+        }
 
         String accessToken = tokenProvider.generateAccessToken(authentication);
         tokenProvider.generateRefreshToken(authentication, accessToken);
@@ -41,10 +56,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         response.addCookie(accessTokenCookie);
 
-        boolean isGuest = authentication.getAuthorities().stream()
-                .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
-
-        String redirectUrl = isGuest ? "회원가입 페이지" : "로그인 성공 페이지";
-        response.sendRedirect(redirectUrl);
+        response.sendRedirect("https://highteenday.duckdns.org/post/view");
     }
 }

@@ -67,7 +67,7 @@ public class CommentController {
                                           @RequestBody RequestCommentDto dto){
         Post post = postService.findById(postId);
         Comment comment = commentService.creatComment(post, dto);
-        commentMediaService.processCreateCommentMedia(dto.getUserId(),comment,dto);
+        if(!dto.getUrl().isEmpty()) commentMediaService.processCreateCommentMedia(dto.getUserId(),comment,dto);
         URI location = URI.create("/api/posts/"+postId+"/comments/"+comment.getId());
         return ResponseEntity.created(location).build();
     }
