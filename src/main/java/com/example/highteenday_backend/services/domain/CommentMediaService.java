@@ -19,6 +19,7 @@ public class CommentMediaService {
 
     @Transactional
     public void processCreateCommentMedia(Long userId, Comment comment, RequestCommentDto dto){
+        if(dto.getUrl().isEmpty()) return;
         String finalUrl = s3Service.copyToFinalLocation(dto.getUrl(), comment.getId(), MediaOwner.COMMENT);
         comment.updateImage(finalUrl);
 
@@ -33,7 +34,7 @@ public class CommentMediaService {
     //tmp 없이 바로 comment/commentId/postId로 저장
     @Transactional
     public void processUpdateCommentMedia(Long userId, Comment comment, RequestCommentDto dto){
-        if (dto.getUrl().isEmpty()){ //이미지 삭제
+        if (dto.getUrl()==null||dto.getUrl().isEmpty()){ //이미지 삭제
             String deleteUrl = comment.getS3Url();
             if(!deleteUrl.isEmpty()){
                 String deleteKey = s3Service.getKeyByUrl(deleteUrl);
