@@ -3,8 +3,10 @@ package com.example.highteenday_backend.configs;
 import com.example.highteenday_backend.services.school.SchoolInfoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+@Order(1)
 @Component
 @RequiredArgsConstructor
 public class SchoolInfoInitializer implements CommandLineRunner {

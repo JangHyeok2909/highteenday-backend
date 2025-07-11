@@ -7,15 +7,13 @@ import com.example.highteenday_backend.enums.Gender;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.enums.Role;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDate;
 
 @Builder
 @Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name="users")
