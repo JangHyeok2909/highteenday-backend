@@ -1,8 +1,7 @@
 package com.example.highteenday_backend.domain.comments;
 
+
 import com.example.highteenday_backend.domain.base.BaseEntity;
-import com.example.highteenday_backend.domain.comments.Comment;
-import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -14,12 +13,12 @@ import lombok.NoArgsConstructor;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name= "comments_likes")
+@Table(name= "comments_dislikes")
 @Entity
-public class CommentLike extends BaseEntity {
+public class CommentDislike extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "CMT_LK_id")
+    @Column(name = "CMT_DL_id")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -29,4 +28,5 @@ public class CommentLike extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "CMT_id", nullable = false)
     private Comment comment;
+
 }

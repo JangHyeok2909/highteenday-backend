@@ -44,6 +44,8 @@ public class Comment extends BaseEntity {
 
     @Column(name = "CMT_like_count")
     private Integer likeCount = 0;
+    @Column(name = "CMT_dislike_count")
+    private Integer dislikeCount = 0;
 
     @Column(name = "CMT_image_url",columnDefinition = "LONGTEXT")
     private String s3Url="";
@@ -56,6 +58,21 @@ public class Comment extends BaseEntity {
     }
     public void updateImage(String updateUrl){
         this.s3Url = updateUrl;
+    }
+    public void setParent(Comment parent){
+        this.parent = parent;
+    }
+    public void plusLikeCount(){
+        this.likeCount++;
+    }
+    public void plusDislikeCount(){
+        this.dislikeCount++;
+    }
+    public void minusLikeCount(){
+        this.likeCount--;
+    }
+    public void minusDislikeCount(){
+        this.dislikeCount--;
     }
     public void deleteImage(){
 
