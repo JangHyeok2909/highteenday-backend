@@ -45,7 +45,6 @@ public class PostController {
     public ResponseEntity updatePost(@PathVariable Long postId,
                                      @RequestBody String title,
                                      @RequestBody String content){
-        List<String> urls = MediaUtils.extractS3Urls(content);
         postService.updatePost(postId,title,content);
         return ResponseEntity.ok("수정 완료.");
     }
