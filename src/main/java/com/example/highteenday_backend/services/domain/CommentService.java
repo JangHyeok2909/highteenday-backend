@@ -39,7 +39,7 @@ public class CommentService {
                 .isAnonymous(dto.isAnonymous())
                 .s3Url(dto.getUrl())
                 .build();
-
+        if(dto.getParentId() != null) comment.setParent(findCommentById(dto.getParentId()));
 
         return commentRepository.save(comment);
     }

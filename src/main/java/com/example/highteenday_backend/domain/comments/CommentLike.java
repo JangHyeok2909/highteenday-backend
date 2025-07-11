@@ -29,7 +29,4 @@ public class CommentLike extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "CMT_id", nullable = false)
     private Comment comment;
-
-    @Column(name = "CMT_LK_is_liked", nullable = false)
-    private Boolean isLiked = true;
 }
