@@ -35,8 +35,7 @@ public class TokenService {
                     t.updateRefreshToken(refreshToken);
                     return t;
                 })
-                .orElseGet(() -> new Token(null,user, refreshToken, accessToken));
-
+                .orElseGet(() -> new Token(null, user, refreshToken, accessToken));
 
         tokenRepository.save(token);
     }
