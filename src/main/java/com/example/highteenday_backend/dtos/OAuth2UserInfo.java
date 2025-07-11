@@ -1,11 +1,13 @@
 package com.example.highteenday_backend.dtos;
 
 import lombok.Builder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.AuthenticationException;
 
 import java.util.Map;
 
 @Builder
+@Slf4j
 public record OAuth2UserInfo(
     String name,
     String email
@@ -28,6 +30,17 @@ public record OAuth2UserInfo(
                 .build();
     }
     private static OAuth2UserInfo ofKakao(Map<String, Object> attributes){
+        System.out.println("=============================================OAuth2UserInfo 카카오 입장=============================================");
+        log.info("=============================================OAuth2UserInfo 카카오 입장=============================================");
+        System.out.println("");
+        System.out.println("");
+        System.out.println("");
+        System.out.println("카카오 attributes : " + attributes);
+        System.out.println("");
+        System.out.println("");
+        System.out.println("");
+        System.out.println("=============================================카카오 퇴장=============================================");
+        log.info("=============================================카카오 퇴장=============================================");
         Map<String, Object> account = (Map<String, Object>) attributes.get("kakao_account");
         Map<String, Object> profile = (Map<String, Object>) account.get("profile");
 
@@ -38,6 +51,18 @@ public record OAuth2UserInfo(
                 .build();
     }
     private static OAuth2UserInfo ofNaver(Map<String, Object> attributes){
+        System.out.println("=============================================OAuth2UserInfo 네이버 입장=============================================");
+        log.info("=============================================OAuth2UserInfo 네이버 입장=============================================");
+        System.out.println("");
+        System.out.println("");
+        System.out.println("");
+        System.out.println("네이버 attributes : " + attributes);
+        System.out.println("");
+        System.out.println("");
+        System.out.println("");
+        System.out.println("=============================================네이버 퇴장=============================================");
+        log.info("=============================================네이버 퇴장=============================================");
+
         Map<String, Object> response = (Map<String, Object>) attributes.get("response");
 
         return OAuth2UserInfo.builder()
