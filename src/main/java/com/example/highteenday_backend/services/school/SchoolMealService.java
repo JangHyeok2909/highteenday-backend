@@ -4,6 +4,7 @@ import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.domain.schools.SchoolMeal;
 import com.example.highteenday_backend.domain.schools.SchoolMealRepository;
 import com.example.highteenday_backend.domain.schools.SchoolRepository;
+import com.example.highteenday_backend.dtos.SchoolMealDto;
 import com.example.highteenday_backend.enums.SchoolMealCategory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,9 +13,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.temporal.WeekFields;
-import java.util.Locale;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +27,39 @@ public class SchoolMealService {
     private final SchoolMealRepository schoolMealRepository;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public List<SchoolMealDto> getMealsByDate(LocalDate date, Long schoolId) {
+        School school = findSchoolById(schoolId);
+        List<SchoolMeal> meals = schoolMealRepository.findByDateAndSchool(date, school);
+        return SchoolMealDto.fromEntities(meals);
+    }
+
+    public List<SchoolMealDto> getMealsByWeek(LocalDate date, Long schoolId) {
+        School school = findSchoolById(schoolId);
+
+        LocalDate startOfWeek = date.with(DayOfWeek.MONDAY);
+        LocalDate endOfWeek = date.with(DayOfWeek.SUNDAY);
+
+        List<SchoolMeal> meals = schoolMealRepository.findByDateBetweenAndSchool(startOfWeek, endOfWeek, school);
+        return SchoolMealDto.fromEntities(meals);
+    }
+
+    public List<SchoolMealDto> getMealsByMonth(LocalDate date, Long schoolId) {
+        School school = findSchoolById(schoolId);
+
+        YearMonth ym = YearMonth.from(date);
+        LocalDate startOfMonth = ym.atDay(1);
+        LocalDate endOfMonth = ym.atEndOfMonth();
+
+        List<SchoolMeal> meals = schoolMealRepository.findByDateBetweenAndSchool(startOfMonth, endOfMonth, school);
+        return SchoolMealDto.fromEntities(meals);
+    }
+
+    private School findSchoolById(Long id) {
+        return schoolRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("School not found: " + id));
+    }
+
 
     @Value("${neis.api.key}")
     //    application.properties 파일에 주석 해제하시고 붙혀넣으시면 됩니다.

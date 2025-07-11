@@ -7,6 +7,7 @@ import com.example.highteenday_backend.services.global.S3Service;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,7 +26,7 @@ import java.net.URISyntaxException;
 @RequestMapping("/api/media")
 public class MediaController {
     private final S3Service s3Service;
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<URI> uploadS3(@RequestParam("userId") Long userId,
                                         @RequestParam("file")MultipartFile multipartFile) throws URISyntaxException {
         log.info("userId={} , file={}",userId,multipartFile.getOriginalFilename());
