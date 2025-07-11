@@ -7,6 +7,8 @@ import com.example.highteenday_backend.dtos.RegisterUserDto;
 import com.example.highteenday_backend.dtos.TokenResponse;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.security.TokenProvider;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -87,5 +89,17 @@ public class UserController {
         tokenProvider.generateRefreshToken(authentication, accessToken);
 
         return ResponseEntity.ok(new TokenResponse(accessToken));
+    }
+
+    @GetMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletResponse response){
+        Cookie accessTokenCookie = new Cookie("accessToken", null);
+        accessTokenCookie.setMaxAge(0);
+        accessTokenCookie.setPath("/");
+        accessTokenCookie.setHttpOnly(true);
+        accessTokenCookie.setSecure(true);
+        response.addCookie(accessTokenCookie);
+
+        return ResponseEntity.ok("로그아웃");
     }
 }
