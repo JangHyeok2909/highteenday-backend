@@ -2,10 +2,7 @@ package com.example.highteenday_backend.controllers;
 
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
-import com.example.highteenday_backend.dtos.LoginRequestDto;
-import com.example.highteenday_backend.dtos.RegisterUserDto;
-import com.example.highteenday_backend.dtos.TokenResponse;
-import com.example.highteenday_backend.dtos.UserInfoDto;
+import com.example.highteenday_backend.dtos.*;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.security.CustomUserDetails;
 import com.example.highteenday_backend.security.TokenProvider;
@@ -84,13 +81,13 @@ public class UserController {
 
         try {
             Authentication authentication = tokenProvider.getAuthentication(accessToken);
-            OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
+            OAuth2UserInfo oAuth2UserInfo = (OAuth2UserInfo) authentication.getPrincipal();
 
             Map<String, Object> getOAuthUser = new HashMap<>();
 
-            getOAuthUser.put("Email", oAuth2User.getAttribute("parsed_email"));
-            getOAuthUser.put("Name", oAuth2User.getAttribute("name"));
-            getOAuthUser.put("Provider", oAuth2User.getAttribute("registrationId"));
+            getOAuthUser.put("Email", oAuth2UserInfo.email());
+            getOAuthUser.put("Name", oAuth2UserInfo.name());
+            getOAuthUser.put("Provider", oAuth2UserInfo.provider());
 
             return ResponseEntity.ok(getOAuthUser);
         } catch(Exception e){
