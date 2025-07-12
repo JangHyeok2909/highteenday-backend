@@ -28,7 +28,7 @@ public class securityConfig {
     private TokenProvider tokenProvider;
 
     @Bean
-    public TokenAuthenticationFilter tokenAuthenticationFilter(r) {
+    public TokenAuthenticationFilter tokenAuthenticationFilter() {
         return new TokenAuthenticationFilter(tokenProvider);
     }
     @Bean
