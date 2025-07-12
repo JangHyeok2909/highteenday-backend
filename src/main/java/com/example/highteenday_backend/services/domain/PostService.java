@@ -73,12 +73,4 @@ public class PostService {
         post.updateContent(content);
         log.info("[Post Update] success, postId={}, updateBy={}",post.getId(),post.getUpdatedBy());
     }
-
-    @Transactional
-    public int updateLikeCount(Post post){
-        int updatedLikeCount = postLikeRepository.findRecentLikes(post).size();
-        post.updateLikeCount(updatedLikeCount);
-        log.info("update likeCount, postId={},likeCount={}",post.getId(),post.getLikeCount());
-        return updatedLikeCount;
-    }
 }

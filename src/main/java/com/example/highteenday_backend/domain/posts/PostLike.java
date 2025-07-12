@@ -29,11 +29,4 @@ public class PostLike extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "PST_id", nullable = false)
     private Post post;
-
-    @Column(name = "PST_LK_is_liked", nullable = false)
-    private Boolean isLiked = true;
-
-    public void updateLikeFlag(){
-        this.isLiked = !this.isLiked;
-    }
 }

@@ -12,7 +12,6 @@ import java.util.Optional;
 
 @Service
 public class TokenService {
-
     @Autowired
     private TokenRepository tokenRepository;
     @Autowired
@@ -36,7 +35,6 @@ public class TokenService {
                     return t;
                 })
                 .orElseGet(() -> new Token(null,user, refreshToken, accessToken));
-
 
         tokenRepository.save(token);
     }
