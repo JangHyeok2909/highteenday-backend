@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.security;
 
 
+import com.example.highteenday_backend.dtos.OAuth2UserInfo;
 import com.example.highteenday_backend.services.security.TokenService;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
@@ -13,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -65,9 +67,13 @@ public class TokenProvider {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.joining(","));
 
+        OAuth2UserInfo oAuth2User = (OAuth2UserInfo) authentication.getPrincipal();
+
         return Jwts.builder()
-                .setSubject(authentication.getName())
+                .setSubject(oAuth2User.email())
                 .claim(KEY_ROLE, authorities)
+                .claim("name", oAuth2User.name())
+                .claim("provider", oAuth2User.provider())
                 .setIssuedAt(now)
                 .setExpiration(expiredDate)
                 .signWith(secretKey, SignatureAlgorithm.HS512)
@@ -81,14 +87,14 @@ public class TokenProvider {
     public Authentication getAuthentication(String token){
         Claims claims = parseClaims(token);
 
-        log.debug("🔍 claims = " + claims);
-        log.debug("🔍 claims.get(KEY_ROLE) = " + claims.get(KEY_ROLE));
-        System.out.println("🔍 claims = " + claims);
-        System.out.println("🔍 claims.get(KEY_ROLE) = " + claims.get(KEY_ROLE));
-
+        OAuth2UserInfo oAuth2UserInfo = new OAuth2UserInfo(
+                claims.get("name", String.class),           // 이름
+                claims.getSubject(),                            // 이메일
+                claims.get("provider", String.class)        // 제공자
+        );
         List<SimpleGrantedAuthority> authorities = getAuthorities(claims);
-        User principal = new User(claims.getSubject(), "", authorities);
-        return new UsernamePasswordAuthenticationToken(principal, token, authorities);
+
+        return new UsernamePasswordAuthenticationToken(oAuth2UserInfo, token, authorities);
     }
 
 
