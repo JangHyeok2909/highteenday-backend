@@ -7,6 +7,9 @@ import lombok.Data;
 @Builder
 public class LikeStateDto {
     private Long commentId;
+    private Long postId;
+    private boolean isLiked;
+    private boolean isDisliked;
     private int likeCount;
     private int dislikeCount;
 }
