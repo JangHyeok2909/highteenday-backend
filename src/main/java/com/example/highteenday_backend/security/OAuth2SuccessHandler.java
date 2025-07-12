@@ -32,7 +32,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         log.info("successhandler 진입");
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         log.info(oAuth2User.getAttribute("registrationId") + "OAuth 전체 attributes: {}", oAuth2User.getAttributes());
-        System.out.println("네이버 OAuth 전체 attributes: {}" + oAuth2User.getAttributes());
 
         String email = oAuth2User.getAttribute("parsed_email");
 
