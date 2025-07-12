@@ -14,6 +14,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +34,7 @@ import java.util.Optional;
 @RequestMapping("/api/user") // 일단 user 로 해놨는데 변경해도 ㄱㅊ
 @RestController
 @RequiredArgsConstructor
+@Slf4j
 public class UserController {
     private final UserRepository userRepository;
     private final TokenProvider tokenProvider;
