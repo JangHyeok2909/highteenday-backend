@@ -6,6 +6,7 @@ import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class TokenProvider {
     @Value("${jwt.key}")
     private String key;
@@ -78,6 +80,10 @@ public class TokenProvider {
 
     public Authentication getAuthentication(String token){
         Claims claims = parseClaims(token);
+
+        log.debug("🔍 claims = " + claims);
+        log.debug("🔍 claims.get(KEY_ROLE) = " + claims.get(KEY_ROLE));
+
         List<SimpleGrantedAuthority> authorities = getAuthorities(claims);
         User principal = new User(claims.getSubject(), "", authorities);
         return new UsernamePasswordAuthenticationToken(principal, token, authorities);
