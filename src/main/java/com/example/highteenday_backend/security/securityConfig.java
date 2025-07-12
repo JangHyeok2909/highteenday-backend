@@ -24,8 +24,11 @@ public class securityConfig {
     private CustomOAuth2UserService customOAuth2UserService;
     @Autowired
     private OAuth2SuccessHandler oAuth2SuccessHandler;
+    @Autowired
+    private TokenProvider tokenProvider;
+
     @Bean
-    public TokenAuthenticationFilter tokenAuthenticationFilter(TokenProvider tokenProvider) {
+    public TokenAuthenticationFilter tokenAuthenticationFilter() {
         return new TokenAuthenticationFilter(tokenProvider);
     }
     @Bean
@@ -57,7 +60,9 @@ public class securityConfig {
                                 .requestMatchers(
                                         "/",
                                         "/login/**",
-                                        "/oauth2/**"
+                                        "/oauth2/**",
+                                        "/api/user/OAuth2UserInfo",
+                                        "/api/user/register"
                                 ).permitAll()
                                 .anyRequest().authenticated()
 
@@ -69,7 +74,7 @@ public class securityConfig {
                         .userInfoEndpoint(c -> c.userService(customOAuth2UserService))
                         .successHandler(oAuth2SuccessHandler))
 
-                .addFilterBefore(tokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(tokenAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new TokenExceptionFilter(), TokenAuthenticationFilter.class);
         return http.build();
     }
