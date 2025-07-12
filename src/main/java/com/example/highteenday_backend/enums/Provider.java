@@ -1,5 +1,5 @@
 package com.example.highteenday_backend.enums;
 
 public enum Provider {
-    KAKAO, GOOGLE, NAVER
+    KAKAO, GOOGLE, NAVER, DEFAULT
 }

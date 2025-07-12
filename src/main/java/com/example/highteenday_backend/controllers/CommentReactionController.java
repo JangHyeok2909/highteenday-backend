@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-@Tag(name = "좋아요 API", description = "좋아요,싫어요 실행 API")
+@Tag(name = "댓글 좋아요 API", description = "댓글 좋아요,싫어요 실행 API")
 @RequiredArgsConstructor
 @RequestMapping("/api/comment/{commentId}")
 @RestController
