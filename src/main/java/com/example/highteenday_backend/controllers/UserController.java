@@ -80,8 +80,13 @@ public class UserController {
         }
 
         try {
+            System.out.println("🔍 sout || 의심 1");
+            log.debug("🔍 log || 의심 1");
             Authentication authentication = tokenProvider.getAuthentication(accessToken);
             OAuth2UserInfo oAuth2UserInfo = (OAuth2UserInfo) authentication.getPrincipal();
+            System.out.println("🔍 sout || 의심 2");
+            log.debug("🔍 log || 의심 2");
+
 
             Map<String, Object> getOAuthUser = new HashMap<>();
 
