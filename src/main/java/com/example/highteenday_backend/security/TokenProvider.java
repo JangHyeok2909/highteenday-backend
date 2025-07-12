@@ -44,6 +44,13 @@ public class TokenProvider {
     }
     // refreshToken 발급
     public void generateRefreshToken(Authentication authentication, String accessToken){
+        boolean isGuest = authentication.getAuthorities().stream()
+                .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
+
+        if(isGuest){
+            return;
+        }
+
         String refreshToken = generateToken(authentication, REFRESH_TOKEN_EXPIRE_TIME);
         tokenService.saveOrUpdate(authentication.getName(), refreshToken, accessToken);
     }
