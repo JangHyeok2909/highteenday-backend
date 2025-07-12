@@ -54,19 +54,7 @@ public class securityConfig {
                             return config;
                         }))
 
-                // 권한 부분
-                .authorizeHttpRequests(auth -> auth
-//                                .requestMatchers("/api/user").authenticated()
-                                .requestMatchers(
-                                        "/",
-                                        "/login/**",
-                                        "/oauth2/**",
-                                        "/api/user/OAuth2UserInfo"
-                                ).permitAll()
-                                .anyRequest().authenticated()
 
-
-                )
 
                 // 로그인 부분
                 .oauth2Login(oauth -> oauth
