@@ -1,3 +1,4 @@
+
 package com.example.highteenday_backend.security;
 
 import jakarta.servlet.FilterChain;
@@ -29,7 +30,7 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
         log.debug("================================================ ✅ TokenAuthenticationFilter 진입 ================================================");
-
+        System.out.println("================================================ ✅ TokenAuthenticationFilter 진입 ================================================");
         String token = extractToken(request); // 쿠키에서 추출
 
         if (token != null) {
@@ -38,11 +39,17 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
 
                 log.debug("✅ JWT 인증 성공: " + authentication.getName());
                 log.debug("✅ 권한: " + authentication.getAuthorities());
+                System.out.println("✅ JWT 인증 성공: " + authentication.getName());
+                System.out.println("✅ 권한: " + authentication.getAuthorities());
+
+
+
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+
             } catch (RuntimeException e) {
                 // 예외 발생 시 여기서 안 막고 다음 필터(TokenExceptionFilter)로 넘겨도 됨
                 log.debug("❌ JWT 인증 실패: " + e.getMessage());
-
+                System.out.println("❌ JWT 인증 실패: " + e.getMessage());
             }
         }
 
