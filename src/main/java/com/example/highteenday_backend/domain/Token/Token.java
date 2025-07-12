@@ -17,9 +17,9 @@ public class Token {
     @OneToOne
     @JoinColumn(name = "id")
     private User user;
-    @Column(name = "TNK_refresh", unique = true)
+    @Column(name = "TNK_refresh", length = 1000, unique = true)
     private String refreshToken;
-    @Column(name = "TNK_access", unique = true)
+    @Column(name = "TNK_access", length = 1000, unique = true)
     private String accessToken;
 
     public Token updateRefreshToken(String refreshToken){
