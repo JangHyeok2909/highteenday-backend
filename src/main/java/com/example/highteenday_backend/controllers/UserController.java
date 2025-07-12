@@ -8,6 +8,7 @@ import com.example.highteenday_backend.dtos.TokenResponse;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.security.TokenProvider;
 import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -42,15 +43,40 @@ public class UserController {
     }
 
     @GetMapping("/OAuth2UserInfo")
-    public Map<String, Object> getOAuth2UserInfo(@AuthenticationPrincipal OAuth2User oAuth2User){
+    public ResponseEntity<?> getOAuth2UserInfo(
+//            @AuthenticationPrincipal OAuth2User oAuth2User
+            HttpServletRequest request
+    ){
+        String accessToken = null;
 
-        Map<String, Object> getOAuthUser = new HashMap<>();
+        // 쿠키에서 accessToken 추출
+        if(request.getCookies() != null){
+            for (Cookie cookie : request.getCookies()) {
+                if ("accessToken".equals((cookie.getName()))) {
+                    accessToken = cookie.getValue();
+                    break;
+                }
+            }
+        }
 
-        getOAuthUser.put("Email", oAuth2User.getAttribute("parsed_email"));
-        getOAuthUser.put("Name", oAuth2User.getAttribute("name"));
-        getOAuthUser.put("Provider", oAuth2User.getAttribute("registrationId"));
+        if(accessToken == null){
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "★☆Access Token가 쿠키에 없음★☆"));
+        }
 
-        return getOAuthUser;
+        try {
+            Authentication authentication = tokenProvider.getAuthentication(accessToken);
+            OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
+
+            Map<String, Object> getOAuthUser = new HashMap<>();
+
+            getOAuthUser.put("Email", oAuth2User.getAttribute("parsed_email"));
+            getOAuthUser.put("Name", oAuth2User.getAttribute("name"));
+            getOAuthUser.put("Provider", oAuth2User.getAttribute("registrationId"));
+
+            return ResponseEntity.ok(getOAuthUser);
+        } catch(Exception e){
+            return ResponseEntity.status((HttpStatus.UNAUTHORIZED)).body(Map.of("error", "허용 되지 않은 토큰 "));
+        }
     }
 
     @PostMapping("/register")
