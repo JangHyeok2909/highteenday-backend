@@ -31,7 +31,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         log.info("successhandler 진입");
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
-        log.info("네이버 OAuth 전체 attributes: {}", oAuth2User.getAttributes());
+        log.info(oAuth2User.getAttribute("registrationId") + "OAuth 전체 attributes: {}", oAuth2User.getAttributes());
         System.out.println("네이버 OAuth 전체 attributes: {}" + oAuth2User.getAttributes());
 
         String email = oAuth2User.getAttribute("parsed_email");
@@ -48,13 +48,10 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         String accessToken = tokenProvider.generateAccessToken(authentication);
         tokenProvider.generateRefreshToken(authentication, accessToken);
 
-        Cookie accessTokenCookie = new Cookie("accessToken", accessToken);
-        accessTokenCookie.setHttpOnly(true);
-        accessTokenCookie.setSecure(true);
-        accessTokenCookie.setPath("/");
-        accessTokenCookie.setMaxAge(60*60);
-
-        response.addCookie(accessTokenCookie);
+        // smaeSite 설정
+        String cookie = "accessToken=" + accessToken +
+                "; Path=/; Max-Age=3600; HttpOnly; Secure; SameSite=None";
+        response.addHeader("Set-Cookie", cookie);
 
         response.sendRedirect("https://highteenday.duckdns.org/post/view");
     }
