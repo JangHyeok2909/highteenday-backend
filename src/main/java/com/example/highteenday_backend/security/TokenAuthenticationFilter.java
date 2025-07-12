@@ -22,11 +22,12 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
 
     private final TokenProvider tokenProvider;
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain)
             throws ServletException, IOException {
 
         String token = extractToken(request); // 쿠키 또는 Authorization 헤더에서 추출
-
         if (token != null) {
             try {
                 Authentication authentication = tokenProvider.getAuthentication(token);

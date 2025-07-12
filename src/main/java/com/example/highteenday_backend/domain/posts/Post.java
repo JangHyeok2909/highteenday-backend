@@ -42,8 +42,10 @@ public class Post extends BaseEntity {
     @Column(name = "PST_view_count", nullable = false)
     private int viewCount = 0;
 
-    @Column(name = "PST_like_count", nullable = false)
+    @Column(name = "PST_like_count")
     private int likeCount = 0;
+    @Column(name = "PST_dislike_count")
+    private int dislikeCount = 0;
 
     @Column(name = "PST_comment_count", nullable = false)
     private int commentCount = 0;
@@ -64,6 +66,24 @@ public class Post extends BaseEntity {
         this.content = content;
     }
 
+    public void plusLikeCount(){
+        this.likeCount++;
+    }
+    public void minusLikeCount(){
+        this.likeCount--;
+    }
+    public void plusDislikeCount(){
+        this.dislikeCount++;
+    }
+    public void minusDislikeCount(){
+        this.dislikeCount--;
+    }
+    public void plusCommentCount(){
+        this.commentCount++;
+    }
+    public void minusCommentCount(){
+        this.commentCount--;
+    }
 
     public PostDto toDto() {
         return PostDto.builder()
