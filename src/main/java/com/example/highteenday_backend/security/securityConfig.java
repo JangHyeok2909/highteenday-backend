@@ -60,7 +60,8 @@ public class securityConfig {
                                 .requestMatchers(
                                         "/",
                                         "/login/**",
-                                        "/oauth2/**"
+                                        "/oauth2/**",
+                                        "/OAuth2UserInfo"
                                 ).permitAll()
                                 .anyRequest().authenticated()
 
