@@ -8,6 +8,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -34,6 +35,8 @@ public class securityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .cors(cors -> cors
                         .configurationSource(request -> {
                             CorsConfiguration config = new CorsConfiguration();
@@ -50,6 +53,7 @@ public class securityConfig {
                 // 권한 부분
                 .authorizeHttpRequests(auth -> auth
 //                                .requestMatchers("/api/user").authenticated()
+
                                 .requestMatchers(
 //                                        "/",
 //                                        "/api/**",
@@ -60,6 +64,7 @@ public class securityConfig {
                                         "/api/user/login",
                                         "/api/user/register"
                                 ).permitAll()
+
                 )
 
                 // 로그인 부분
