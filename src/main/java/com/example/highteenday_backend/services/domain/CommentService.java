@@ -30,8 +30,8 @@ public class CommentService {
     }
 
     @Transactional
-    public Comment creatComment(Post post, RequestCommentDto dto){
-        User user = userService.findById(dto.getUserId());
+    public Comment creatComment(Post post,User user, RequestCommentDto dto){
+
         Comment comment = Comment.builder()
                 .user(user)
                 .post(post)
@@ -44,13 +44,13 @@ public class CommentService {
         return commentRepository.save(comment);
     }
     @Transactional
-    public void updateComment(Long commentId,RequestCommentDto dto){
+    public void updateComment(Long commentId,Long userId,RequestCommentDto dto){
         Comment comment = findCommentById(commentId);
         comment.updateContent(dto.getContent());
-        comment.setUpdatedBy(dto.getUserId());
-        commentMediaService.processUpdateCommentMedia(dto.getUserId(),comment,dto);
+        comment.setUpdatedBy(userId);
+        commentMediaService.processUpdateCommentMedia(userId,comment,dto);
 
-        log.info("comment updated. commentId={}, updatedBy={}",commentId,dto.getUserId());
+        log.info("comment updated. commentId={}, updatedBy={}",commentId,userId);
     }
     @Transactional
     public void deleteComment(Long commentId,Long userId){

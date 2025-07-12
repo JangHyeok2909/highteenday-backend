@@ -1,4 +1,4 @@
-package com.example.highteenday_backend.domain.personalSchedule;
+package com.example.highteenday_backend.domain.schedule;
 
 import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.users.User;

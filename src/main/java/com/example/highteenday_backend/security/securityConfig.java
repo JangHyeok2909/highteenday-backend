@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.config.Customizer;
@@ -39,12 +40,12 @@ public class securityConfig {
                 .cors(cors -> cors
                         .configurationSource(request -> {
                             CorsConfiguration config = new CorsConfiguration();
-                            config.setAllowedOrigins(List.of(
+                            config.setAllowedOriginPatterns(List.of(
                                     "https://highteenday.duckdns.org",
                                     "http://localhost:3000"
                             ));
                             config.setAllowCredentials(true);
-                            config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                            config.setAllowedMethods(List.of("GET","POST"));
                             config.setAllowedHeaders(List.of("*"));
                             return config;
                         }))
@@ -52,12 +53,18 @@ public class securityConfig {
                 // 권한 부분
                 .authorizeHttpRequests(auth -> auth
 //                                .requestMatchers("/api/user").authenticated()
-                                .requestMatchers("/",
-                                        "/api/**",
-                                        "/api/user/**", "/api/user/logout", "/api/user/register", "/api/user/OAuth2UserInfo",
+
+                                .requestMatchers(
+//                                        "/",
+//                                        "/api/**",
+//                                        "/login/**",
+//                                        "/oauth2/**",
+//                                        "/api/user/**",
                                         "/api/post/**",
-                                        "/login/**",
-                                        "/oauth2/**").permitAll()
+                                        "/api/user/login",
+                                        "/api/user/register"
+                                ).permitAll()
+
                 )
 
                 // 로그인 부분
@@ -68,5 +75,10 @@ public class securityConfig {
                 .addFilterBefore(tokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new TokenExceptionFilter(), TokenAuthenticationFilter.class);
         return http.build();
+    }
+
+    @Bean
+    public BCryptPasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 }

@@ -1,4 +1,11 @@
 package com.example.highteenday_backend.dtos;
 
-public record UserInfoDto() {
-}
+import lombok.Builder;
+
+@Builder
+public record UserInfoDto(
+        String name,
+        String nickname,
+        String email,
+        String provider
+) {}

@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class RequestCommentDto {
-    private Long userId;
     private Long parentId;
     private String content;
     private boolean isAnonymous;
