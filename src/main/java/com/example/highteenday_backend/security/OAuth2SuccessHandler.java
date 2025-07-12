@@ -39,12 +39,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         boolean isGuest = authentication.getAuthorities().stream()
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
 
-        // "회원가입 페이지" : "로그인 성공 페이지"
-        if(isGuest){
-            response.sendRedirect("https://highteenday.duckdns.org/register");
-            return;
-        }
-
         String accessToken = tokenProvider.generateAccessToken(authentication);
         tokenProvider.generateRefreshToken(authentication, accessToken);
 
@@ -53,6 +47,12 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 "; Path=/; Max-Age=3600; HttpOnly; Secure; SameSite=None";
         response.addHeader("Set-Cookie", cookie);
 
-        response.sendRedirect("https://highteenday.duckdns.org/post/view");
+
+        // "회원가입 페이지" : "로그인 성공 페이지"
+        if(isGuest){
+            response.sendRedirect("https://highteenday.duckdns.org/register");
+        } else {
+            response.sendRedirect("https://highteenday.duckdns.org/post/view");
+        }
     }
 }
