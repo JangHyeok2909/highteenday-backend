@@ -14,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Component;
 
@@ -67,13 +68,16 @@ public class TokenProvider {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.joining(","));
 
-        OAuth2UserInfo oAuth2User = (OAuth2UserInfo) authentication.getPrincipal();
+        OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
+        String registrationId = ((OAuth2AuthenticationToken) authentication).getAuthorizedClientRegistrationId();
+
+        OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfo.of(registrationId, oAuth2User.getAttributes());
 
         return Jwts.builder()
-                .setSubject(oAuth2User.email())
+                .setSubject(oAuth2UserInfo.email())
                 .claim(KEY_ROLE, authorities)
-                .claim("name", oAuth2User.name())
-                .claim("provider", oAuth2User.provider())
+                .claim("name", oAuth2UserInfo.name())
+                .claim("provider", oAuth2UserInfo.provider())
                 .setIssuedAt(now)
                 .setExpiration(expiredDate)
                 .signWith(secretKey, SignatureAlgorithm.HS512)
