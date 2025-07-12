@@ -83,6 +83,8 @@ public class TokenProvider {
 
         log.debug("🔍 claims = " + claims);
         log.debug("🔍 claims.get(KEY_ROLE) = " + claims.get(KEY_ROLE));
+        System.out.println("🔍 claims = " + claims);
+        System.out.println("🔍 claims.get(KEY_ROLE) = " + claims.get(KEY_ROLE));
 
         List<SimpleGrantedAuthority> authorities = getAuthorities(claims);
         User principal = new User(claims.getSubject(), "", authorities);
