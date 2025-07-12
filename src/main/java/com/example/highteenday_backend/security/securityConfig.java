@@ -55,11 +55,11 @@ public class securityConfig {
 //                                .requestMatchers("/api/user").authenticated()
 
                                 .requestMatchers(
-//                                        "/",
-//                                        "/api/**",
-//                                        "/login/**",
-//                                        "/oauth2/**",
-//                                        "/api/user/**",
+                                        "/",
+                                        "/api/**",
+                                        "/login/**",
+                                        "/oauth2/**",
+                                        "/api/user/**",
                                         "/api/post/**",
                                         "/api/user/login",
                                         "/api/user/register"
