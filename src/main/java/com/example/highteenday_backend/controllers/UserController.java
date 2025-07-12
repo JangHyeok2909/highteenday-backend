@@ -10,6 +10,8 @@ import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.security.CustomUserDetails;
 import com.example.highteenday_backend.security.TokenProvider;
 import com.example.highteenday_backend.services.security.JwtCookieService;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
