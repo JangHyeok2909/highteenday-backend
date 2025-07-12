@@ -24,9 +24,10 @@ public class securityConfig {
     private CustomOAuth2UserService customOAuth2UserService;
     @Autowired
     private OAuth2SuccessHandler oAuth2SuccessHandler;
-    @Autowired
-    private TokenAuthenticationFilter tokenAuthenticationFilter;
-
+    @Bean
+    public TokenAuthenticationFilter tokenAuthenticationFilter(TokenProvider tokenProvider) {
+        return new TokenAuthenticationFilter(tokenProvider);
+    }
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
