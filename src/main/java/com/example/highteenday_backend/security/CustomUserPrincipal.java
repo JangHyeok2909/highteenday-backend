@@ -1,33 +1,44 @@
 package com.example.highteenday_backend.security;
 
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.dtos.OAuth2UserInfo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 public class CustomUserPrincipal implements UserDetails, OAuth2User {
     private final User user;
-    private Map<String, Object> attributes; // OAuth2 Attributes
-    private String role;
+    private final Map<String, Object> attributes; // OAuth2 Attributes
+    private final OAuth2UserInfo oAuth2UserInfo;
+    private final Collection<? extends GrantedAuthority> authorities;
 
-
-    public CustomUserPrincipal(User user){
+    // CustomUserPrincipal.java
+    public CustomUserPrincipal(User user) {
         this.user = user;
+        this.oAuth2UserInfo = null;
         this.attributes = Collections.emptyMap();
-        this.role = "ROLE_USER";
+        this.authorities = List.of(new SimpleGrantedAuthority(user.getRole().name()));
     }
-    public CustomUserPrincipal(User user, String role){
-        this(user);
-        this.role = role;
-    }
-    public CustomUserPrincipal(User user, Map<String, Object> attributes){
-        this(user);
+
+    public CustomUserPrincipal(User user, Map<String, Object> attributes, String role) {
+        this.user = user;
+        this.oAuth2UserInfo = null;
         this.attributes = attributes;
+        this.authorities = List.of(new SimpleGrantedAuthority(role));
+    }
+
+    public CustomUserPrincipal(OAuth2UserInfo oAuth2UserInfo, Map<String, Object> attributes, String role) {
+        this.user = null;
+        this.oAuth2UserInfo = oAuth2UserInfo;
+        this.attributes = attributes;
+        this.authorities = List.of(new SimpleGrantedAuthority(role));
     }
 
     @Override
