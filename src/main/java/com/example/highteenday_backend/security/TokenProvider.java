@@ -95,6 +95,16 @@ public class TokenProvider {
         String name = claims.get("name", String.class);
         String provider = claims.get("provider", String.class);
 
+        if ("ROLE_GUEST".equals(role)) {
+            Map<String, Object> attributes = new HashMap<>();
+            attributes.put("email", email);
+            attributes.put("name", name);
+            attributes.put("provider", provider);
+
+            CustomUserPrincipal principal = new CustomUserPrincipal(null, attributes, role);
+            return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+        }
+
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("유저 없음"));
 
