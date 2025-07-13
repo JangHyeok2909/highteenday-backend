@@ -15,9 +15,13 @@ public class CustomUserPrincipal implements UserDetails, OAuth2User {
     private final Map<String, Object> attributes; // OAuth2 Attributes
 
 
+    public CustomUserPrincipal(User user){
+        this.user = user;
+        this.attributes = Collections.emptyMap();
+    }
     public CustomUserPrincipal(User user, Map<String, Object> attributes){
         this.user = user;
-        this.attributes = (attributes.isEmpty())? Collections.emptyMap() : attributes;
+        this.attributes = attributes;
     }
     public User getUser() {
         return user;
