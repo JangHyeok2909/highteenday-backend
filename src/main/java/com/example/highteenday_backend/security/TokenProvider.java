@@ -95,7 +95,8 @@ public class TokenProvider {
         String email = claims.getSubject();
         String role = claims.get("role", String.class);
         String name = claims.get("name", String.class);
-        Provider provider = claims.get("provider", Provider.class);
+        String providerStr = claims.get("provider", String.class);
+        Provider provider = Provider.valueOf((providerStr));
 
         Map<String, Object> attributes = new HashMap<>();
         attributes.put("email", email);
