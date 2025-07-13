@@ -48,7 +48,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                     User guestUser = new User();
                     guestUser.setEmail(oAuth2UserInfo.email());
                     guestUser.setName(oAuth2UserInfo.name());
-                    guestUser.setProvider(Provider.valueOf(oAuth2UserInfo.provider()));
+                    guestUser.setProvider(Provider.valueOf(oAuth2UserInfo.provider().name()));
                     return guestUser;
                 });
 
@@ -57,7 +57,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             User guestUser = new User();
             guestUser.setEmail(oAuth2UserInfo.email());
             guestUser.setName(oAuth2UserInfo.name());
-            guestUser.setProvider(Provider.valueOf(oAuth2UserInfo.provider()));
+            guestUser.setProvider(Provider.valueOf(oAuth2UserInfo.provider().name()));
 
             return new CustomUserPrincipal(user, oAuth2UserAttributes, "ROLE_GUEST");
         } else {

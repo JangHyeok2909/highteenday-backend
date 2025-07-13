@@ -3,7 +3,6 @@ package com.example.highteenday_backend.security;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.OAuth2UserInfo;
 import com.example.highteenday_backend.enums.Provider;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
