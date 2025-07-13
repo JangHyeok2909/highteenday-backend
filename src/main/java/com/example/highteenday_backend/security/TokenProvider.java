@@ -1,7 +1,8 @@
 package com.example.highteenday_backend.security;
 
 
-import com.example.highteenday_backend.dtos.OAuth2UserInfo;
+import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.services.security.TokenService;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
@@ -13,17 +14,12 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
-import org.springframework.security.oauth2.core.user.OAuth2User;
+
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
-
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -37,6 +33,7 @@ public class TokenProvider {
     private static final String KEY_ROLE = "role";
 
     private final TokenService tokenService;
+    private final UserRepository userRepository;
 
     @PostConstruct
     private void settSecretKey() {
@@ -93,14 +90,23 @@ public class TokenProvider {
     public Authentication getAuthentication(String token){
         Claims claims = parseClaims(token);
 
-        OAuth2UserInfo oAuth2UserInfo = new OAuth2UserInfo(
-                claims.get("name", String.class),           // 이름
-                claims.getSubject(),                            // 이메일
-                claims.get("provider", String.class)        // 제공자
-        );
-        List<SimpleGrantedAuthority> authorities = getAuthorities(claims);
+        String email = claims.getSubject();
+        String role = claims.get("role", String.class);
+        String name = claims.get("name", String.class);
+        String provider = claims.get("provider", String.class);
 
-        return new UsernamePasswordAuthenticationToken(oAuth2UserInfo, token, authorities);
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("유저 없음"));
+
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put("email", email);
+        attributes.put("name", name);
+        attributes.put("provider", provider);
+
+        CustomUserPrincipal principal = new CustomUserPrincipal(user, attributes, role);
+
+
+        return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
     }
 
 

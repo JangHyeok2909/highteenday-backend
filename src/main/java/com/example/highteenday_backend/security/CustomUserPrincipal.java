@@ -16,30 +16,22 @@ import java.util.Map;
 public class CustomUserPrincipal implements UserDetails, OAuth2User {
     private final User user;
     private final Map<String, Object> attributes; // OAuth2 Attributes
-    private final OAuth2UserInfo oAuth2UserInfo;
     private final Collection<? extends GrantedAuthority> authorities;
 
     // CustomUserPrincipal.java
     public CustomUserPrincipal(User user) {
         this.user = user;
-        this.oAuth2UserInfo = null;
         this.attributes = Collections.emptyMap();
         this.authorities = List.of(new SimpleGrantedAuthority(user.getRole().name()));
     }
 
     public CustomUserPrincipal(User user, Map<String, Object> attributes, String role) {
         this.user = user;
-        this.oAuth2UserInfo = null;
         this.attributes = attributes;
         this.authorities = List.of(new SimpleGrantedAuthority(role));
     }
 
-    public CustomUserPrincipal(OAuth2UserInfo oAuth2UserInfo, Map<String, Object> attributes, String role) {
-        this.user = null;
-        this.oAuth2UserInfo = oAuth2UserInfo;
-        this.attributes = attributes;
-        this.authorities = List.of(new SimpleGrantedAuthority(role));
-    }
+
 
     @Override
     public Map<String, Object> getAttributes() {
