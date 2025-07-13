@@ -68,7 +68,7 @@ public class CustomUserPrincipal implements UserDetails, OAuth2User {
 
     @Override
     public String getName() {
-        return user.getId().toString();
+        return user.getEmail();
     }
 
     public String getUserEmail(){
