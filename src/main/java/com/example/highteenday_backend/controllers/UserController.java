@@ -108,6 +108,8 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("이미 회원가입 한 유저");
         }
 
+        System.out.println("✅ registerUserDto.nickname = " + registerUserDto.nickname());
+
         User user = new User();
         user.setName(registerUserDto.name());
         user.setNickname(registerUserDto.nickname());
