@@ -41,6 +41,11 @@ public class CustomUserPrincipal implements UserDetails, OAuth2User {
         this.authorities = List.of(new SimpleGrantedAuthority(role));
     }
 
+    public OAuth2UserInfo getoAuth2UserInfo() {
+        return this.oAuth2UserInfo;
+    }
+
+
     @Override
     public Map<String, Object> getAttributes() {
         return attributes;
