@@ -48,7 +48,7 @@ public class CustomUserPrincipal implements UserDetails, OAuth2User {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.singleton(() -> "ROLE_USER");
+        return authorities;
     }
 
     @Override
