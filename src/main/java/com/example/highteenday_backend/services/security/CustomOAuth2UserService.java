@@ -63,8 +63,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         } else {
             return new CustomUserPrincipal(user, oAuth2UserAttributes, "ROLE_USER");
         }
-    }
-}
+
+
 
 //        oAuth2UserAttributes.put("registrationId", registrationId);
 //        oAuth2UserAttributes.put("parsed_email", oAuth2UserInfo.email());
@@ -87,3 +87,5 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 //        );
 //    }
 
+    }
+}
