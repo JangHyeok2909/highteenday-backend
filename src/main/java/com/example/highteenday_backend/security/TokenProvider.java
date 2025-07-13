@@ -50,6 +50,7 @@ public class TokenProvider {
     // refreshToken 발급
     public void generateRefreshToken(Authentication authentication, String accessToken){
         System.out.println("auth.getAuthority() : " + authentication.getAuthorities());
+
         boolean isGuest = authentication.getAuthorities().stream()
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
 
