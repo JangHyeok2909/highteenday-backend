@@ -63,13 +63,26 @@ public class TokenProvider {
     private String generateToken(Authentication authentication, long expireTime){
         Date now = new Date();
         Date expiredDate = new Date(now.getTime() + expireTime);
+        String email = "", name = "", provider = "";
 
         String authorities = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.joining(","));
 
+        // 폼 로그인, OAuth2 로그인 구분
+        if(authentication.getPrincipal() instanceof OAuth2User oAuth2User) {
+            String registrationId = ((OAuth2AuthenticationToken) authentication).getAuthorizedClientRegistrationId();
+            OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfo.of(registrationId, oAuth2User.getAttributes());
+            email = oAuth2UserInfo.email();
+            name = oAuth2UserInfo.name();
+            provider = oAuth2UserInfo.provider();
+        } else if(authentication.getPrincipal() instanceof CustomUserPrincipal customUserDetails){
+        }
+
+
+
+
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
-        String registrationId = ((OAuth2AuthenticationToken) authentication).getAuthorizedClientRegistrationId();
 
         OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfo.of(registrationId, oAuth2User.getAttributes());
 
