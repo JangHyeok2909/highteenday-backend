@@ -2,7 +2,6 @@ package com.example.highteenday_backend.security;
 
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.OAuth2UserInfo;
-import com.example.highteenday_backend.enums.Provider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -17,22 +16,30 @@ import java.util.Map;
 public class CustomUserPrincipal implements UserDetails, OAuth2User {
     private final User user;
     private final Map<String, Object> attributes; // OAuth2 Attributes
+    private final OAuth2UserInfo oAuth2UserInfo;
     private final Collection<? extends GrantedAuthority> authorities;
 
     // CustomUserPrincipal.java
     public CustomUserPrincipal(User user) {
         this.user = user;
+        this.oAuth2UserInfo = null;
         this.attributes = Collections.emptyMap();
         this.authorities = List.of(new SimpleGrantedAuthority(user.getRole().name()));
     }
 
     public CustomUserPrincipal(User user, Map<String, Object> attributes, String role) {
         this.user = user;
+        this.oAuth2UserInfo = null;
         this.attributes = attributes;
         this.authorities = List.of(new SimpleGrantedAuthority(role));
     }
 
-
+    public CustomUserPrincipal(OAuth2UserInfo oAuth2UserInfo, Map<String, Object> attributes, String role) {
+        this.user = null;
+        this.oAuth2UserInfo = oAuth2UserInfo;
+        this.attributes = attributes;
+        this.authorities = List.of(new SimpleGrantedAuthority(role));
+    }
 
     @Override
     public Map<String, Object> getAttributes() {
@@ -51,13 +58,7 @@ public class CustomUserPrincipal implements UserDetails, OAuth2User {
 
     @Override
     public String getUsername() {
-        return user != null ? user.getName() : (String) attributes.get("name");
-    }
-    public String getUserEmail(){
-        return user != null ? user.getEmail() : (String) attributes.get("email");
-    }
-    public Provider getUserProvider(){
-        return user != null ? user.getProvider() : (Provider) attributes.get("provider");
+        return user.getEmail();
     }
 
     @Override
