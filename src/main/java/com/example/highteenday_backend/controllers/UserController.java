@@ -83,7 +83,8 @@ public class UserController {
         try {
 
             Authentication authentication = tokenProvider.getAuthentication(accessToken);
-            OAuth2UserInfo oAuth2UserInfo = (OAuth2UserInfo) authentication.getPrincipal();
+            CustomUserPrincipal principal = (CustomUserPrincipal) authentication.getPrincipal();
+            OAuth2UserInfo oAuth2UserInfo = principal.getoAuth2UserInfo();
 
             Map<String, Object> getOAuthUser = new HashMap<>();
 
