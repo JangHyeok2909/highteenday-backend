@@ -2,6 +2,7 @@ package com.example.highteenday_backend.security;
 
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.OAuth2UserInfo;
+import com.example.highteenday_backend.enums.Provider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -58,12 +59,20 @@ public class CustomUserPrincipal implements UserDetails, OAuth2User {
 
     @Override
     public String getUsername() {
-        return user.getEmail();
+        return user != null ? user.getName() : oAuth2UserInfo.name();
     }
 
     @Override
     public String getName() {
         return user.getId().toString();
+    }
+
+    public String getUserEmail(){
+        return user != null ? user.getEmail() : oAuth2UserInfo.email();
+    }
+
+    public Provider getUserProvider() {
+        return user != null ? user.getProvider() : (Provider) oAuth2UserInfo.provider();
     }
     public User getUser() {
         return user;

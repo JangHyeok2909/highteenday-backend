@@ -4,6 +4,7 @@ package com.example.highteenday_backend.security;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.OAuth2UserInfo;
+import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.services.security.TokenService;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
@@ -94,7 +95,7 @@ public class TokenProvider {
         String email = claims.getSubject();
         String role = claims.get("role", String.class);
         String name = claims.get("name", String.class);
-        String provider = claims.get("provider", String.class);
+        Provider provider = claims.get("provider", Provider.class);
 
         Map<String, Object> attributes = new HashMap<>();
         attributes.put("email", email);
