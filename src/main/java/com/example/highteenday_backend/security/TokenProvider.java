@@ -69,28 +69,13 @@ public class TokenProvider {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.joining(","));
 
-        // 폼 로그인, OAuth2 로그인 구분
-        if(authentication.getPrincipal() instanceof OAuth2User oAuth2User) {
-            String registrationId = ((OAuth2AuthenticationToken) authentication).getAuthorizedClientRegistrationId();
-            OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfo.of(registrationId, oAuth2User.getAttributes());
-            email = oAuth2UserInfo.email();
-            name = oAuth2UserInfo.name();
-            provider = oAuth2UserInfo.provider();
-        } else if(authentication.getPrincipal() instanceof CustomUserPrincipal customUserDetails){
-        }
-
-
-
-
-        OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
-
-        OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfo.of(registrationId, oAuth2User.getAttributes());
+        CustomUserPrincipal customUserPrincipal = (CustomUserPrincipal) authentication.getPrincipal();
 
         return Jwts.builder()
-                .setSubject(oAuth2UserInfo.email())
+                .setSubject(customUserPrincipal.getUser().getEmail())
                 .claim(KEY_ROLE, authorities)
-                .claim("name", oAuth2UserInfo.name())
-                .claim("provider", oAuth2UserInfo.provider())
+                .claim("name", customUserPrincipal.getUser().getName())
+                .claim("provider", customUserPrincipal.getUser().getProvider())
                 .setIssuedAt(now)
                 .setExpiration(expiredDate)
                 .signWith(secretKey, SignatureAlgorithm.HS512)
