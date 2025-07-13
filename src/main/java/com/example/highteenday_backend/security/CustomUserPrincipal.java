@@ -10,7 +10,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
-@RequiredArgsConstructor
 public class CustomUserPrincipal implements UserDetails, OAuth2User {
     private final User user;
     private final Map<String, Object> attributes; // OAuth2 Attributes
