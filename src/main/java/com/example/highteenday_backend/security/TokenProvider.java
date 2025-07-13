@@ -51,6 +51,8 @@ public class TokenProvider {
         System.out.println("Authorities: {}" + authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList()));
+        CustomUserPrincipal principal = (CustomUserPrincipal) authentication.getPrincipal();
+        String userKey = principal.getUser() != null ? principal.getUser().getEmail() : (String) principal.getAttributes().get("email");
 
         boolean isGuest = authentication.getAuthorities().stream()
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
@@ -60,7 +62,7 @@ public class TokenProvider {
         }
 
         String refreshToken = generateToken(authentication, REFRESH_TOKEN_EXPIRE_TIME);
-        tokenService.saveOrUpdate(authentication.getName(), refreshToken, accessToken);
+        tokenService.saveOrUpdate(userKey, refreshToken, accessToken);
     }
     // 생성 로직
     private String generateToken(Authentication authentication, long expireTime){
