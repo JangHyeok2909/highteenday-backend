@@ -3,6 +3,7 @@ package com.example.highteenday_backend.security;
 
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
+import com.example.highteenday_backend.dtos.OAuth2UserInfo;
 import com.example.highteenday_backend.services.security.TokenService;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
@@ -95,26 +96,22 @@ public class TokenProvider {
         String name = claims.get("name", String.class);
         String provider = claims.get("provider", String.class);
 
-        if ("ROLE_GUEST".equals(role)) {
-            Map<String, Object> attributes = new HashMap<>();
-            attributes.put("email", email);
-            attributes.put("name", name);
-            attributes.put("provider", provider);
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put("email", email);
+        attributes.put("name", name);
+        attributes.put("provider", provider);
 
-            CustomUserPrincipal principal = new CustomUserPrincipal(null, attributes, role);
+        if ("ROLE_GUEST".equals(role)) {
+            OAuth2UserInfo oAuth2UserInfo = new OAuth2UserInfo(name, email, provider);
+            CustomUserPrincipal principal = new CustomUserPrincipal(oAuth2UserInfo, attributes, role);
+
             return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
         }
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("유저 없음"));
 
-        Map<String, Object> attributes = new HashMap<>();
-        attributes.put("email", email);
-        attributes.put("name", name);
-        attributes.put("provider", provider);
-
         CustomUserPrincipal principal = new CustomUserPrincipal(user, attributes, role);
-
 
         return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
     }
