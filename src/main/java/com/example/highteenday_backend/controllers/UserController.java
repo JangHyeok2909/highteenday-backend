@@ -131,7 +131,7 @@ public class UserController {
 
         // 저장 후 토큰 발급하기 위한 처리 코드
         User savedUser = userRepository.save(user);
-        CustomUserPrincipal userDetails = new CustomUserPrincipal(savedUser, attributes);
+        CustomUserPrincipal userDetails = new CustomUserPrincipal(savedUser, attributes, "ROLE_USER");
 
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 userDetails,
@@ -150,7 +150,7 @@ public class UserController {
         if(!passwordEncoder.matches(dto.password(), user.getHashedPassword())){
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("비밀번호가 올바르지 않습니다.");
         }
-        CustomUserPrincipal userDetails = new CustomUserPrincipal(user);
+        CustomUserPrincipal userDetails = new CustomUserPrincipal(user, Collections.emptyMap(), "ROLE_USER");
         Authentication authentication=new UsernamePasswordAuthenticationToken(
                 userDetails,
                 null,
