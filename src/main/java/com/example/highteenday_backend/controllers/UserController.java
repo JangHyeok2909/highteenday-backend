@@ -51,6 +51,7 @@ public class UserController {
                 .nickname(user.getNickname())
                 .provider(user.getProvider().toString())
                 .build();
+
         return ResponseEntity.ok()
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .header(HttpHeaders.PRAGMA, "no-cache")
