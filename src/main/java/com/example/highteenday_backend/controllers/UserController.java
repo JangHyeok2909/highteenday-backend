@@ -134,7 +134,10 @@ public class UserController {
         }
 
         // 저장 후 토큰 발급하기 위한 처리 코드
-        User savedUser = userRepository.save(user);
+        User savedUser = userRepository.saveAndFlush(user);
+
+
+
         CustomUserPrincipal userDetails = new CustomUserPrincipal(savedUser, attributes, "ROLE_USER");
 
         Authentication authentication = new UsernamePasswordAuthenticationToken(
