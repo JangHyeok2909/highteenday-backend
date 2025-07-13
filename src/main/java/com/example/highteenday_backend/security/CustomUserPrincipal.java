@@ -12,19 +12,22 @@ import java.util.Map;
 
 public class CustomUserPrincipal implements UserDetails, OAuth2User {
     private final User user;
-    private final Map<String, Object> attributes; // OAuth2 Attributes
+    private Map<String, Object> attributes; // OAuth2 Attributes
+    private String role;
 
 
     public CustomUserPrincipal(User user){
         this.user = user;
         this.attributes = Collections.emptyMap();
+        this.role = "ROLE_USER";
+    }
+    public CustomUserPrincipal(User user, String role){
+        this(user);
+        this.role = role;
     }
     public CustomUserPrincipal(User user, Map<String, Object> attributes){
-        this.user = user;
+        this(user);
         this.attributes = attributes;
-    }
-    public User getUser() {
-        return user;
     }
 
     @Override
@@ -51,4 +54,16 @@ public class CustomUserPrincipal implements UserDetails, OAuth2User {
     public String getName() {
         return user.getId().toString();
     }
+    public User getUser() {
+        return user;
+    }
+
+    @Override
+    public boolean isAccountNonExpired() { return true; }
+    @Override
+    public boolean isAccountNonLocked() { return true; }
+    @Override
+    public boolean isCredentialsNonExpired() { return true; }
+    @Override
+    public boolean isEnabled() { return true; }
 }
