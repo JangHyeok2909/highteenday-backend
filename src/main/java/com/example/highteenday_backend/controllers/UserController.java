@@ -150,7 +150,7 @@ public class UserController {
         if(!passwordEncoder.matches(dto.password(), user.getHashedPassword())){
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("비밀번호가 올바르지 않습니다.");
         }
-        CustomUserPrincipal userDetails = new CustomUserPrincipal(user, Collections.emptyMap());
+        CustomUserPrincipal userDetails = new CustomUserPrincipal(user);
         Authentication authentication=new UsernamePasswordAuthenticationToken(
                 userDetails,
                 null,
