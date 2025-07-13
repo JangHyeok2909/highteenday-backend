@@ -10,6 +10,7 @@ import com.example.highteenday_backend.services.security.JwtCookieService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -98,6 +99,8 @@ public class UserController {
         }
     }
 
+
+    @Transactional
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(
 //            @AuthenticationPrincipal OAuth2User oAuth2User, // RegisterUserDto 에 있지만 변조에 대비해서 원본 데이터를 사용/ 하려고 했는데 로그인 전에는 이거 사용 불가
@@ -150,6 +153,8 @@ public class UserController {
 
         return ResponseEntity.ok("회원가입 성공");
     }
+
+
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody LoginRequestDto dto,HttpServletResponse response){
         User user = userRepository.findByEmail(dto.email())
