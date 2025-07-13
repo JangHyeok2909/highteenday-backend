@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.dtos;
 
+import com.example.highteenday_backend.enums.Provider;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.AuthenticationException;
@@ -11,7 +12,7 @@ import java.util.Map;
 public record OAuth2UserInfo(
     String name,
     String email,
-    String provider
+    Provider provider
 ){
     public static OAuth2UserInfo of(String registrationId, Map<String, Object> attributes){
         return switch(registrationId){
@@ -26,7 +27,7 @@ public record OAuth2UserInfo(
         return OAuth2UserInfo.builder()
                 .name((String) attributes.get("name"))
                 .email((String) attributes.get("email"))
-                .provider("GOOGLE")
+                .provider(Provider.GOOGLE)
 //                .profile((String) attributes.get("picture"))
                 .build();
     }
@@ -41,7 +42,7 @@ public record OAuth2UserInfo(
         return OAuth2UserInfo.builder()
                 .name((String) profile.get("nickname"))
                 .email((String) account.get("email"))
-                .provider("KAKAO")
+                .provider(Provider.KAKAO)
 //                .profile((String) profile.get("profile_image_url"))
                 .build();
     }
@@ -55,7 +56,7 @@ public record OAuth2UserInfo(
         return OAuth2UserInfo.builder()
                 .name((String) response.get("name"))
                 .email((String) response.get("email"))
-                .provider("NAVER")
+                .provider(Provider.NAVER)
 //                .profile((String) response.get("profile_image"))
                 .build();
     }
