@@ -1,11 +1,13 @@
 package com.example.highteenday_backend.services.domain;
 
+import com.example.highteenday_backend.Utils.MediaUtils;
 import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.posts.PostLikeRepository;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.RequestPostDto;
+import com.example.highteenday_backend.dtos.UpdatePostDto;
 import com.example.highteenday_backend.enums.PostSortType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,14 +18,16 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class PostService {
-    private final PostLikeRepository postLikeRepository;
     private final PostRepository postRepository;
     private final UserService userService;
     private final BoardService boardService;
+    private final PostMediaService postMediaService;
 
     public Post findById(Long postId){
         return postRepository.findById(postId)
@@ -52,7 +56,28 @@ public class PostService {
                 .title(dto.getTitle())
                 .content(dto.getContent())
                 .build();
-        return postRepository.save(post);
+        Post savedPost = postRepository.save(post);
+        postMediaService.processCreatePostMedia(user.getId(),post);
+        return savedPost;
+    }
+    //로그 남기기,이미지 업로드
+    @Transactional
+    public void updatePost(Long postId,Long userId, UpdatePostDto dto){
+        String newTile = dto.getTitle();
+        String newContent = dto.getContent();
+
+        Post post = findById(postId);
+        String oldTiltle = post.getTitle();
+        String oldContent = post.getContent();
+        if(!newTile.equals(oldTiltle)) {
+            post.updateTitle(newTile);
+        }
+        if(!newContent.equals(oldContent)) {
+            postMediaService.processUpdatePostMedia(userId,post,newContent,oldContent);
+        }
+        log.info("[Post Update] request - postId={}, newTitle={}, newContent={}",postId,newTile,newContent);
+        log.debug("[Post Update] old post data - oldTitle={}, oldContent={}",post.getTitle(),post.getContent());
+        log.info("[Post Update] success, postId={}, updateBy={}",post.getId(),post.getUpdatedBy());
     }
     @Transactional
     public void deletePost(Long postId,Long userId) {
@@ -62,15 +87,5 @@ public class PostService {
         log.info("post delete. postId = {}, deletedBy = {}", post.getId(), userId);
     }
 
-    //로그 남기기,이미지 업로드
-    @Transactional
-    public void updatePost(Long postId,String title, String content){
-        log.info("[Post Update] request - postId={}, newTitle={}, newContent={}",postId,title,content);
 
-        Post post = findById(postId);
-        log.debug("[Post Update] old post data - oldTitle={}, oldContent={}",post.getTitle(),post.getContent());
-        post.updateTitle(title);
-        post.updateContent(content);
-        log.info("[Post Update] success, postId={}, updateBy={}",post.getId(),post.getUpdatedBy());
-    }
 }

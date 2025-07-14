@@ -86,12 +86,17 @@ public class Post extends BaseEntity {
     }
 
     public PostDto toDto() {
+        String nickname="";
+        if (!this.isAnonymous) nickname = user.getNickname();
         return PostDto.builder()
-                .author(user.getNickname())  // 또는 getUsername() 등으로 수정
+                .author(nickname)
+                .userId(user.getId())
                 .title(title)
                 .content(content)
                 .viewCount(viewCount)
                 .likeCount(likeCount)
+                .commentCount(commentCount)
+                .createdAt(super.getCreated())
                 .build();
     }
 
