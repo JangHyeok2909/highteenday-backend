@@ -32,7 +32,7 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
         log.debug("================================================ ✅ TokenAuthenticationFilter 진입 ================================================");
         System.out.println("================================================ ✅ TokenAuthenticationFilter 진입 ================================================");
         String token = extractToken(request); // 쿠키에서 추출
-
+        System.out.println("token="+token);
         if (token != null) {
             try {
                 Authentication authentication = tokenProvider.getAuthentication(token);
@@ -58,9 +58,12 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
 
     private String extractToken(HttpServletRequest request) {
         // 쿠키에 먼저 JWT 토큰이 있는지 확인
+        System.out.println("request.getCookies() = " + request.getCookies() );
         if(request.getCookies() != null){
             for (Cookie cookie : request.getCookies()) {
-                if ("accessToken".equals(cookie.getName())) {
+                System.out.println("cookie.getName() = " + cookie.getName() );
+                System.out.println("cookie.getValue() = " + cookie.getValue() );
+                if (cookie.getName().equals("accessToken") && cookie.getValue() != null && !cookie.getValue().isEmpty()) {
                     return cookie.getValue();
                 }
             }
