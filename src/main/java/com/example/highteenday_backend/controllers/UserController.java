@@ -156,20 +156,26 @@ public class UserController {
 
 
     @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@RequestBody LoginRequestDto dto,HttpServletResponse response){
+    public ResponseEntity<?> loginUser(@RequestBody LoginRequestDto dto, HttpServletResponse response) {
+
+        System.out.println("/api/user/login/ 으로 진입 성공");
+
         User user = userRepository.findByEmail(dto.email())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 사용자 입니다."));
-        if(!passwordEncoder.matches(dto.password(), user.getHashedPassword())){
+        if (!passwordEncoder.matches(dto.password(), user.getHashedPassword())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("비밀번호가 올바르지 않습니다.");
         }
-        CustomUserPrincipal userDetails = new CustomUserPrincipal(user, Collections.emptyMap(), "ROLE_USER");
-        Authentication authentication=new UsernamePasswordAuthenticationToken(
+
+        System.out.println("유저 검증, 비밀번호 검증 완료");
+
+        CustomUserPrincipal userDetails = new CustomUserPrincipal(user, Collections.emptyMap(), user.getRole().name());
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
                 userDetails,
                 null,
                 userDetails.getAuthorities()
         );
 
-        jwtCookieService.setJwtCookie(authentication,response);
+        jwtCookieService.setJwtCookie(authentication, response);
         return ResponseEntity.ok("로그인 성공");
     }
 
