@@ -160,8 +160,13 @@ public class UserController {
 
         System.out.println("/api/user/login/ 으로 진입 성공");
 
-        User user = userRepository.findByEmail(dto.email())
-                .orElseThrow(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("존재하지 않는 사용자입니다.");
+        Optional<User> userOptional = userRepository.findByEmail(dto.email());
+        if(userOptional.isEmpty()){
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "존재하지 않는 사용자입니다."));
+        }
+
+        User user = userOptional.get();
+
         if (!passwordEncoder.matches(dto.password(), user.getHashedPassword())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("비밀번호가 올바르지 않습니다.");
         }
