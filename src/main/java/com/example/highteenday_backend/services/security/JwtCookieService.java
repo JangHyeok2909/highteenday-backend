@@ -17,7 +17,11 @@ public class JwtCookieService {
         tokenProvider.generateRefreshToken(authentication, accessToken);
 
         String cookie = "accessToken=" + accessToken +
-                "; Path=/; Max-Age=1800; HttpOnly; Secure; SameSite=None";
+                "; Path=/; Max-Age=1800; HttpOnly";
         response.addHeader("Set-Cookie", cookie);
     }
 }
+
+// 배포용 | Secure : Https 만 허용
+//String cookie = "accessToken=" + accessToken +
+//        "; Path=/; Max-Age=1800; HttpOnly; Secure;;

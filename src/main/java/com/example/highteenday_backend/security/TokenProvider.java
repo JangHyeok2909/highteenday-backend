@@ -135,4 +135,18 @@ public class TokenProvider {
         }
     }
 
+//    토큰 검증 메소드 수정중 // jjwt 빌드 문제인지 최신 메소드 : parserBuilder() 가 안떠서 코딩 보류 중
+//    public boolean validateToken(String token){
+//        try{
+//            Claims claims = Jwts.parser()
+//                    .setSigningKey(secretKey)
+//                    .parseClaimsJws(token)
+//                    .getBody();
+//
+//        }
+//
+//
+//        return false;
+//    }
+
 }
