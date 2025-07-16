@@ -67,9 +67,9 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         // "회원가입 페이지" : "로그인 성공 페이지"
         if(isGuest){
-            response.sendRedirect("https://highteenday.duckdns.org/register");
+            response.sendRedirect("/register");
         } else {
-            response.sendRedirect("https://highteenday.duckdns.org/post/view");
+            response.sendRedirect("/post/view");
         }
     }
 }
