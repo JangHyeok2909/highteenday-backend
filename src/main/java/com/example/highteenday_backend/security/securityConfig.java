@@ -62,6 +62,13 @@ public class securityConfig {
                             config.setAllowedHeaders(List.of("*"));
                             return config;
                         }))
+                .exceptionHandling(exceptionHandling ->
+                        exceptionHandling.authenticationEntryPoint(((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("{\"error\": \"Unauthorized\"}");
+                        }))
+                )
 
 
                         // 권한 부분(로그인 없이 이용 가능)
