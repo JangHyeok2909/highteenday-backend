@@ -80,8 +80,9 @@ public class securityConfig {
                                         "/swagger-ui/**",
                                         "/swagger-ui.html",
                                         "/api/comments/**",
-                                        "/api/boards/**"
+                                        "/api/boards/**",
 //                                        "/**"
+                                        "/error"
                                 ).permitAll()
                                 .anyRequest().authenticated()
 
