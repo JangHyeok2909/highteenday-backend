@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.security;
 
 import com.example.highteenday_backend.services.security.CustomOAuth2UserService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -53,6 +54,13 @@ public class securityConfig {
                             config.setAllowedHeaders(List.of("*"));
                             return config;
                         }))
+                .exceptionHandling(exceptionHandling ->
+                        exceptionHandling.authenticationEntryPoint(((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("{\"error\": \"Unauthorized\"}");
+                        }))
+                )
 
                 // 권한 부분
                 .authorizeHttpRequests(auth -> auth
