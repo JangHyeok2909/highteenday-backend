@@ -10,6 +10,7 @@ insert into boards (
     BRD_name,created_at
 ) values
       ("자유게시판",now()),
+      ("수능게시판",now()),
       ("이과게시판",now()),
       ("문과게시판",now());
 
@@ -18,9 +19,9 @@ INSERT INTO posts (
     USR_id, BRD_id, PST_title, PST_content,PST_view_count, PST_like_count,PST_dislike_count, PST_comment_count, PST_is_anonymous,created_at
 ) VALUES
       (1, 1, '안녕하세요', '<p>처음 올리는 글입니다</p>', 0, 0,0, 0, true,now()),
-      (2, 1, '질문 있어요', '<p>Spring Boot 관련 질문입니다.</p>', 0, 0,0, 0, false,now()),
-      (3, 1, '공지사항 테스트', '<p>테스트용 공지입니다.</p>', 0, 0,0, 0, false,now()),
-      (1, 1, '삭제된 게시글 테스트', '<p>삭제된 게시글 입니다.</p>', 0, 0,0, 0, false,now()),
+      (2, 2, '질문 있어요', '<p>Spring Boot 관련 질문입니다.</p>', 0, 0,0, 0, false,now()),
+      (3, 3, '공지사항 테스트', '<p>테스트용 공지입니다.</p>', 0, 0,0, 0, false,now()),
+      (1, 4, '삭제된 게시글 테스트', '<p>삭제된 게시글 입니다.</p>', 0, 0,0, 0, false,now()),
       (1, 1, '수정할 게시글 테스트', '<p>수정 전 내용의 게시글 입니다.</p>', 0, 0,0, 0, false,now());
 
 -- 일반 댓글 (부모 없음)

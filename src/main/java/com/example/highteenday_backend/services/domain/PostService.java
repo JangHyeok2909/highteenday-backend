@@ -35,7 +35,7 @@ public class PostService {
     }
 
     public Page<Post> getPosts(Long boardId, int page, int size, PostSortType postSortType){
-        Sort sort = Sort.by(postSortType.getField()).descending();
+        Sort sort = Sort.by(Sort.Direction.DESC, postSortType.getField());
 
         Board board = boardService.findById(boardId);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -86,6 +86,7 @@ public class PostService {
         post.setUpdatedBy(userId);
         log.info("post delete. postId = {}, deletedBy = {}", post.getId(), userId);
     }
+
 
 
 }
