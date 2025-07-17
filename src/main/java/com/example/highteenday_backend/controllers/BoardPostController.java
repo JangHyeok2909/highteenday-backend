@@ -6,6 +6,7 @@ import com.example.highteenday_backend.dtos.PagedPostsDto;
 import com.example.highteenday_backend.dtos.PostDto;
 import com.example.highteenday_backend.enums.PostSortType;
 import com.example.highteenday_backend.services.domain.PostService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.List;
 
+@Tag(name = "게시판 API", description = "특정 게시판의 게시글 한 페이지에 10개씩 조회가능")
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/boards")
