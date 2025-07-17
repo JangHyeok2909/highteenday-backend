@@ -10,8 +10,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
-
 @Builder
 @Getter
 @AllArgsConstructor
@@ -83,6 +81,9 @@ public class Post extends BaseEntity {
     }
     public void minusCommentCount(){
         this.commentCount--;
+    }
+    public void addViewCount(int increment){
+        this.viewCount+=increment;
     }
 
     public PostDto toDto() {

@@ -6,6 +6,7 @@ import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.example.highteenday_backend.dtos.UpdatePostDto;
 import com.example.highteenday_backend.services.domain.PostMediaService;
 import com.example.highteenday_backend.services.domain.PostService;
+import com.example.highteenday_backend.services.domain.ViewCountService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,10 +21,13 @@ import java.net.URI;
 @RequestMapping("/api/posts")
 public class PostController {
     private final PostService postService;
+    private final ViewCountService viewCountService;
 
     @GetMapping("/{postId}")
-    public ResponseEntity<PostDto> getPostByPostId(@PathVariable Long postId){
+    public ResponseEntity<PostDto> getPostByPostId(@PathVariable Long postId,
+                                                   @RequestParam Long userId){
         PostDto postDto = postService.findById(postId).toDto();
+        viewCountService.increaseViewCount(postId,userId);
         return ResponseEntity.ok(postDto);
     }
 
