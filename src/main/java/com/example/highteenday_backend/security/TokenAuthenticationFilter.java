@@ -1,6 +1,7 @@
 
 package com.example.highteenday_backend.security;
 
+import com.example.highteenday_backend.enums.ErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -37,14 +38,12 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
         System.out.println("uri=" + uri);
 
         if(token == null){
-            if(uri.startsWith("/api/user/login")){
+            if(isPublicUri(uri)){
                 filterChain.doFilter(request, response);
                 return;
             } else {
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.getWriter().write("Access Token 없음");
+                throw new TokenException(ErrorCode.TOKEN_NOT_FOUND);
             }
-            return;
         }
 
         if (token != null) {
@@ -78,5 +77,9 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
             }
         }
         return null;
+    }
+
+    private boolean isPublicUri(String uri){
+        return uri.startsWith("/api/user/login");
     }
 }
