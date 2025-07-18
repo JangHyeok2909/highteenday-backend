@@ -1,5 +1,9 @@
 package com.example.highteenday_backend.security;
 
-public class TokenException {
-//    private final ErrorCode errorCode;
+import com.example.highteenday_backend.enums.ErrorCode;
+
+public class TokenException extends CustomException {
+    public TokenException(ErrorCode errorCode) {
+        super(errorCode);
+    }
 }
