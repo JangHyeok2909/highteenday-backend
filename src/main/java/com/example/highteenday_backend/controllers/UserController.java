@@ -105,9 +105,9 @@ public class UserController {
             HttpServletResponse response
             ){
         String email = registerUserDto.email();
-        User ExistUser = userRepository.findByEmail(email)
-                .orElseThrow(() -> new CustomException(ErrorCode.ALREADY_EXISTS_USER));
-
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new CustomException(ErrorCode.ALREADY_EXISTS_USER);
+        }
 //        Optional<User> userOpt = userRepository.findByEmail(email);
 //        if(!userOpt.isEmpty()){
 //            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("이미 회원가입 한 유저");
@@ -138,8 +138,6 @@ public class UserController {
 
         // 저장 후 토큰 발급하기 위한 처리 코드
         User savedUser = userRepository.saveAndFlush(user);
-
-
 
         CustomUserPrincipal userDetails = new CustomUserPrincipal(savedUser, attributes, "ROLE_USER");
 
