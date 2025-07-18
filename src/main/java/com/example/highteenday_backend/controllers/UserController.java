@@ -3,8 +3,11 @@ package com.example.highteenday_backend.controllers;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.*;
+import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
+import com.example.highteenday_backend.security.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
+import com.example.highteenday_backend.security.TokenException;
 import com.example.highteenday_backend.security.TokenProvider;
 import com.example.highteenday_backend.services.security.JwtCookieService;
 import jakarta.servlet.http.Cookie;
@@ -76,25 +79,21 @@ public class UserController {
         }
 
         if(accessToken == null){
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "★☆Access Token가 쿠키에 없음★☆"));
+            throw new TokenException(ErrorCode.TOKEN_NOT_FOUND);
+//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Access Token이 쿠키에 없음"));
         }
 
-        try {
+        Authentication authentication = tokenProvider.getAuthentication(accessToken);
+        CustomUserPrincipal principal = (CustomUserPrincipal) authentication.getPrincipal();
+        OAuth2UserInfo oAuth2UserInfo = principal.getoAuth2UserInfo();
 
-            Authentication authentication = tokenProvider.getAuthentication(accessToken);
-            CustomUserPrincipal principal = (CustomUserPrincipal) authentication.getPrincipal();
-            OAuth2UserInfo oAuth2UserInfo = principal.getoAuth2UserInfo();
+        Map<String, Object> getOAuthUser = new HashMap<>();
 
-            Map<String, Object> getOAuthUser = new HashMap<>();
+        getOAuthUser.put("Email", oAuth2UserInfo.email());
+        getOAuthUser.put("Name", oAuth2UserInfo.name());
+        getOAuthUser.put("Provider", oAuth2UserInfo.provider());
 
-            getOAuthUser.put("Email", oAuth2UserInfo.email());
-            getOAuthUser.put("Name", oAuth2UserInfo.name());
-            getOAuthUser.put("Provider", oAuth2UserInfo.provider());
-
-            return ResponseEntity.ok(getOAuthUser);
-        } catch(Exception e){
-            return ResponseEntity.status((HttpStatus.UNAUTHORIZED)).body(Map.of("error", "허용 되지 않은 토큰 "));
-        }
+        return ResponseEntity.ok(getOAuthUser);
     }
 
 
@@ -106,10 +105,13 @@ public class UserController {
             HttpServletResponse response
             ){
         String email = registerUserDto.email();
-        Optional<User> userOpt = userRepository.findByEmail(email);
-        if(!userOpt.isEmpty()){
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("이미 회원가입 한 유저");
-        }
+        User ExistUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new CustomException(ErrorCode.ALREADY_EXISTS_USER));
+
+//        Optional<User> userOpt = userRepository.findByEmail(email);
+//        if(!userOpt.isEmpty()){
+//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("이미 회원가입 한 유저");
+//        }
 
         System.out.println("✅ registerUserDto.nickname = " + registerUserDto.nickname());
 
@@ -158,15 +160,19 @@ public class UserController {
 
         System.out.println("/api/user/login/ 으로 진입 성공");
 
-        Optional<User> userOptional = userRepository.findByEmail(dto.email());
-        if(userOptional.isEmpty()){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "존재하지 않는 사용자입니다."));
-        }
+        User user = userRepository.findByEmail(dto.email())
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        User user = userOptional.get();
+//        Optional<User> userOptional = userRepository.findByEmail(dto.email());
+//        if(userOptional.isEmpty()){
+//            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "존재하지 않는 사용자입니다."));
+//        }
+//        User user = userOptional.get();
+
 
         if (!passwordEncoder.matches(dto.password(), user.getHashedPassword())) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("비밀번호가 올바르지 않습니다.");
+            throw new CustomException(ErrorCode.INVALID_PASSWORD);
+//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("비밀번호가 올바르지 않습니다.");
         }
 
         System.out.println("유저 검증, 비밀번호 검증 완료");
