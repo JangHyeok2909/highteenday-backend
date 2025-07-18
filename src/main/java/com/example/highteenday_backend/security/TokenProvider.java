@@ -4,6 +4,7 @@ package com.example.highteenday_backend.security;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.OAuth2UserInfo;
+import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.services.security.TokenService;
 import io.jsonwebtoken.*;
@@ -122,14 +123,20 @@ public class TokenProvider {
     // JWT에 페이로드(Claims)를 추출하는 부분 에러면 에러 리턴
     private Claims parseClaims(String token){
         try {
-            return Jwts.parser().verifyWith(secretKey).build()
-                    .parseSignedClaims(token).getPayload();
-        } catch(ExpiredJwtException e){
-            return e.getClaims();
-        } catch(MalformedJwtException e){
-            throw new RuntimeException("INVALID_TOKEN");
-        } catch(SecurityException e){
-            throw new RuntimeException("INVALID_JWT_SIGNATURE");
+            return Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+
+        } catch (ExpiredJwtException e) {
+            throw new TokenException(ErrorCode.TOKEN_EXPIRED);
+        } catch (UnsupportedJwtException | MalformedJwtException e) {
+            throw new TokenException(ErrorCode.INVALID_TOKEN);
+        } catch (SignatureException e) {
+            throw new TokenException(ErrorCode.INVALID_JWT_SIGNATURE);
+        } catch (Exception e) {
+            throw new TokenException(ErrorCode.INVALID_TOKEN);
         }
     }
 
