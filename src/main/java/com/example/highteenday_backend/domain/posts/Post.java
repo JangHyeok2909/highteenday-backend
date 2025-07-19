@@ -10,8 +10,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
-
 @Builder
 @Getter
 @AllArgsConstructor
@@ -84,14 +82,22 @@ public class Post extends BaseEntity {
     public void minusCommentCount(){
         this.commentCount--;
     }
+    public void addViewCount(int increment){
+        this.viewCount+=increment;
+    }
 
     public PostDto toDto() {
+        String nickname="";
+        if (!this.isAnonymous) nickname = user.getNickname();
         return PostDto.builder()
-                .author(user.getNickname())  // 또는 getUsername() 등으로 수정
+                .author(nickname)
+                .userId(user.getId())
                 .title(title)
                 .content(content)
                 .viewCount(viewCount)
                 .likeCount(likeCount)
+                .commentCount(commentCount)
+                .createdAt(super.getCreated())
                 .build();
     }
 

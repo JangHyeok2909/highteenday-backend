@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "댓글 좋아요 API", description = "댓글 좋아요,싫어요 실행 API")
 @RequiredArgsConstructor
-@RequestMapping("/api/comment/{commentId}")
+@RequestMapping("/api/comments/{commentId}")
 @RestController
 public class CommentReactionController {
     private final CommentService commentService;
@@ -20,7 +20,7 @@ public class CommentReactionController {
 
 
     @PostMapping("/like")
-    public ResponseEntity<LikeStateDto> likeReact(@RequestParam Long commentId,
+    public ResponseEntity<LikeStateDto> likeReact(@PathVariable Long commentId,
                                                   @RequestParam Long userId){
         Comment comment = commentService.findCommentById(commentId);
         User user = userService.findById(userId);
@@ -35,7 +35,7 @@ public class CommentReactionController {
     }
 
     @PostMapping("/dislike")
-    public ResponseEntity disLikeReact(@RequestParam Long commentId,
+    public ResponseEntity disLikeReact(@PathVariable Long commentId,
                                        @RequestParam Long userId){
         Comment comment = commentService.findCommentById(commentId);
         User user = userService.findById(userId);
