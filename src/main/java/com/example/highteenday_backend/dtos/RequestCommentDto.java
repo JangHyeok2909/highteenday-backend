@@ -14,4 +14,5 @@ public class RequestCommentDto {
     private String content;
     private boolean isAnonymous;
     private String url;
+    private Long userId;
 }

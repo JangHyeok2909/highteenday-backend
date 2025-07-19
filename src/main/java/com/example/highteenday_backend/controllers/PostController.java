@@ -1,20 +1,18 @@
 package com.example.highteenday_backend.controllers;
 
-import com.example.highteenday_backend.Utils.MediaUtils;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.dtos.PostDto;
 import com.example.highteenday_backend.dtos.RequestPostDto;
-import com.example.highteenday_backend.services.domain.MediaService;
+import com.example.highteenday_backend.dtos.UpdatePostDto;
 import com.example.highteenday_backend.services.domain.PostMediaService;
 import com.example.highteenday_backend.services.domain.PostService;
-import com.example.highteenday_backend.services.global.S3Service;
+import com.example.highteenday_backend.services.domain.ViewCountService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
-import java.util.List;
 
 
 @Tag(name = "게시글 API", description = "게시글 관련 조회,생성,수정,삭제 API")
@@ -23,11 +21,13 @@ import java.util.List;
 @RequestMapping("/api/posts")
 public class PostController {
     private final PostService postService;
-    private final PostMediaService postMediaService;
+    private final ViewCountService viewCountService;
 
     @GetMapping("/{postId}")
-    public ResponseEntity<PostDto> getPostByPostId(@PathVariable Long postId){
+    public ResponseEntity<PostDto> getPostByPostId(@PathVariable Long postId,
+                                                   @RequestParam Long userId){
         PostDto postDto = postService.findById(postId).toDto();
+        viewCountService.increaseViewCount(postId,userId);
         return ResponseEntity.ok(postDto);
     }
 
@@ -37,15 +37,13 @@ public class PostController {
     @PostMapping()
     public ResponseEntity<URI> createPost(@RequestBody RequestPostDto requestPostDto){
         Post post = postService.createPost(requestPostDto);
-        postMediaService.processPostMedia(requestPostDto.getUserId(),post);
         return ResponseEntity.created(URI.create("/api/posts/"+post.getId())).build();
 
     }
     @PutMapping("/{postId}")
     public ResponseEntity updatePost(@PathVariable Long postId,
-                                     @RequestBody String title,
-                                     @RequestBody String content){
-        postService.updatePost(postId,title,content);
+                                     @RequestBody UpdatePostDto dto){
+        postService.updatePost(postId,dto.getUserId(),dto);
         return ResponseEntity.ok("수정 완료.");
     }
 
