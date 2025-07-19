@@ -2,6 +2,7 @@
 INSERT INTO users (
     USR_email, USR_nickname, USR_name, created_at
 ) VALUES
+      ('test@example.com', 'tester1', 'tester1', NOW()),
       ('tester@example.com', 'tester1', 'tester1', NOW()),
       ('bob@example.com', 'bobby', 'Bob', NOW()),
       ('carol@example.com', 'carolyn', 'Carol', NOW());

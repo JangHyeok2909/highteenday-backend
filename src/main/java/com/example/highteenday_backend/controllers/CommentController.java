@@ -32,42 +32,45 @@ public class CommentController {
     private final CommentDislikeService commentDislikeService;
 
 
-//    @GetMapping()
-//    public ResponseEntity<List<CommentDto>> getComments(@PathVariable Long postId,
-//                                                        @AuthenticationPrincipal CustomUserDetails userDetails){
-//        Post post = postService.findById(postId);
-//        List<Comment> comments = commentService.getCommentsByPost(post);
-//        List<CommentDto> dtos = new ArrayList<>();
-//
-//        for (Comment c : comments){
-//            CommentDto dto = c.toDto();
-//            if(userDetails != null) {
-//                User user = userDetails.getUser();
-//                if(commentLikeService.isLikedByUser(c,user)) dto.setLiked(true);
-//                else if(commentDislikeService.isDislikedByUser(c,user)) dto.setDisliked(true);
-//            }
-//            dtos.add(dto);
-//        }
-//
-//        return ResponseEntity.ok(dtos);
-//    }
     @GetMapping()
     public ResponseEntity<List<CommentDto>> getComments(@PathVariable Long postId,
-                                                        @RequestParam Long userId){
+                                                        @AuthenticationPrincipal CustomUserDetails userDetails){
         Post post = postService.findById(postId);
         List<Comment> comments = commentService.getCommentsByPost(post);
         List<CommentDto> dtos = new ArrayList<>();
 
         for (Comment c : comments){
             CommentDto dto = c.toDto();
-            User user = userService.findById(userId);
-            if(commentLikeService.isLikedByUser(c,user)) dto.setLiked(true);
-            else if(commentDislikeService.isDislikedByUser(c,user)) dto.setDisliked(true);
+            if(userDetails != null) {
+                System.out.println("userDetails.getUser()="+userDetails.getUser().toString());
+                User user = userDetails.getUser();
+                if(commentLikeService.isLikedByUser(c,user)) dto.setLiked(true);
+                else if(commentDislikeService.isDislikedByUser(c,user)) dto.setDisliked(true);
+            } else{
+                System.out.println("userDetails is null");
+            }
             dtos.add(dto);
         }
 
         return ResponseEntity.ok(dtos);
     }
+//    @GetMapping()
+//    public ResponseEntity<List<CommentDto>> getComments(@PathVariable Long postId,
+//                                                        @RequestParam Long userId){
+//        Post post = postService.findById(postId);
+//        List<Comment> comments = commentService.getCommentsByPost(post);
+//        List<CommentDto> dtos = new ArrayList<>();
+//
+//        for (Comment c : comments){
+//            CommentDto dto = c.toDto();
+//            User user = userService.findById(userId);
+//            if(commentLikeService.isLikedByUser(c,user)) dto.setLiked(true);
+//            else if(commentDislikeService.isDislikedByUser(c,user)) dto.setDisliked(true);
+//            dtos.add(dto);
+//        }
+//
+//        return ResponseEntity.ok(dtos);
+//    }
     @GetMapping("/{commentId}")
     public ResponseEntity<CommentDto> getCommentById(@PathVariable Long commentId){
         Comment comment = commentService.findCommentById(commentId);
