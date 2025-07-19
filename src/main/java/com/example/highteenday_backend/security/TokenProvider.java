@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.security;
 
 
+import com.example.highteenday_backend.services.security.CustomUserDetailsService;
 import com.example.highteenday_backend.services.security.TokenService;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
@@ -12,6 +13,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -32,6 +34,7 @@ public class TokenProvider {
     private static final String KEY_ROLE = "role";
 
     private final TokenService tokenService;
+    private final CustomUserDetailsService customUserDetailsService;
 
     @PostConstruct
     private void settSecretKey() {
@@ -72,8 +75,9 @@ public class TokenProvider {
     public Authentication getAuthentication(String token){
         Claims claims = parseClaims(token);
         List<SimpleGrantedAuthority> authorities = getAuthorities(claims);
-        User principal = new User(claims.getSubject(), "", authorities);
-        return new UsernamePasswordAuthenticationToken(principal, token, authorities);
+        String username = claims.getSubject();
+        UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
+        return new UsernamePasswordAuthenticationToken(userDetails, token, authorities);
     }
 
 
