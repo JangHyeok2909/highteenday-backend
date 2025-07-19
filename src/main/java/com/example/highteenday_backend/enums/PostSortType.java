@@ -1,7 +1,7 @@
 package com.example.highteenday_backend.enums;
 
 public enum PostSortType {
-    LIKE("likeCount"), VIEW("viewCount"), RECENT("createAt");
+    LIKE("likeCount"), VIEW("viewCount"), RECENT("created");
 
     private final String field;
 
