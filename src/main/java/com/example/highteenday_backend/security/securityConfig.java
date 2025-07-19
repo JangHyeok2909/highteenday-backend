@@ -8,6 +8,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -24,8 +25,12 @@ public class securityConfig {
     @Autowired
     private OAuth2SuccessHandler oAuth2SuccessHandler;
     @Autowired
-    private TokenAuthenticationFilter tokenAuthenticationFilter;
+    private TokenProvider tokenProvider;
 
+    @Bean
+    public TokenAuthenticationFilter tokenAuthenticationFilter() {
+        return new TokenAuthenticationFilter(tokenProvider);
+    }
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
@@ -34,6 +39,8 @@ public class securityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .cors(cors -> cors
                         .configurationSource(request -> {
                             CorsConfiguration config = new CorsConfiguration();
@@ -51,13 +58,19 @@ public class securityConfig {
                 .authorizeHttpRequests(auth -> auth
 //                                .requestMatchers("/api/user").authenticated()
                                 .requestMatchers(
-//                                        "/",
-//                                        "/login/**",
-//                                        "/oauth2/**",
-//                                        "/api/user/OAuth2UserInfo",
-//                                        "/api/user/register"
-                                        "/**"
+                                        "/",
+                                        "/login/**",
+                                        "/oauth2/**",
+                                        "/api/user/OAuth2UserInfo",
+                                        "/api/user/register",
+                                        "/api/user/login",
+                                        "/api/posts/**",
+                                        "/api/boards/**"
+//                                        "/**"
                                 ).permitAll()
+                                .anyRequest().authenticated()
+
+
                 )
 
                 // 로그인 부분
@@ -65,7 +78,7 @@ public class securityConfig {
                         .userInfoEndpoint(c -> c.userService(customOAuth2UserService))
                         .successHandler(oAuth2SuccessHandler))
 
-                .addFilterBefore(tokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(tokenAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new TokenExceptionFilter(), TokenAuthenticationFilter.class);
         return http.build();
     }
