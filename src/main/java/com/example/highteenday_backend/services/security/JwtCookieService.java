@@ -1,7 +1,7 @@
 package com.example.highteenday_backend.services.security;
 
 import com.example.highteenday_backend.security.TokenProvider;
-import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.Cookie; // 더 이상 안 쓰는 방식이라 수정함
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -14,14 +14,14 @@ public class JwtCookieService {
 
     public void setJwtCookie(Authentication authentication, HttpServletResponse response){
         String accessToken = tokenProvider.generateAccessToken(authentication);
-        tokenProvider.generateRefreshToken(authentication,accessToken);
+        tokenProvider.generateRefreshToken(authentication, accessToken);
 
-        Cookie cookie = new Cookie("accessToken", accessToken);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(false);
-        cookie.setPath("/");
-        cookie.setAttribute("SameSite", "Strict");
-        cookie.setMaxAge(60 * 30);
-        response.addCookie(cookie);
+        String cookie = "accessToken=" + accessToken +
+                "; Path=/; Max-Age=1800; HttpOnly";
+        response.addHeader("Set-Cookie", cookie);
     }
 }
+
+// 배포용 | Secure : Https 만 허용
+//String cookie = "accessToken=" + accessToken +
+//        "; Path=/; Max-Age=1800; HttpOnly; Secure;;

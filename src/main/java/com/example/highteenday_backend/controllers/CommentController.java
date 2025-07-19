@@ -6,7 +6,7 @@ import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.CommentDto;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
-import com.example.highteenday_backend.security.CustomUserDetails;
+import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.*;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +34,7 @@ public class CommentController {
 
     @GetMapping()
     public ResponseEntity<List<CommentDto>> getComments(@PathVariable Long postId,
-                                                        @AuthenticationPrincipal CustomUserDetails userDetails){
+                                                        @AuthenticationPrincipal CustomUserPrincipal userDetails){
         Post post = postService.findById(postId);
         List<Comment> comments = commentService.getCommentsByPost(post);
         List<CommentDto> dtos = new ArrayList<>();
@@ -78,11 +78,9 @@ public class CommentController {
     }
     @PostMapping()
     public ResponseEntity createComment(@PathVariable Long postId,
-                                        @RequestBody RequestCommentDto dto
-                                        /*@AuthenticationPrincipal CustomUserDetails userDetails*/){
-//        User user = userDetails.getUser();
-        Long userId = dto.getUserId();
-        User user = userService.findById(userId);
+                                        @RequestBody RequestCommentDto dto,
+                                        @AuthenticationPrincipal CustomUserPrincipal userDetails){
+        User user = userDetails.getUser();
         Post post = postService.findById(postId);
         Comment comment = commentService.creatComment(post, user,dto);
 //        if(!dto.getUrl().isEmpty()) commentMediaService.processCreateCommentMedia(user.getId(),comment,dto);
@@ -92,19 +90,15 @@ public class CommentController {
     @PutMapping("/{commentId}")
     public ResponseEntity updateComment(@PathVariable Long commentId,
                                         @RequestBody RequestCommentDto dto,
-                                        /*@AuthenticationPrincipal CustomUserDetails userDetails*/
-                                        @RequestParam Long userId){
-//        User user = userDetails.getUser();
-        User user = userService.findById(userId);
+                                        @AuthenticationPrincipal CustomUserPrincipal userDetails){
+        User user = userDetails.getUser();
         commentService.updateComment(commentId,user.getId(),dto);
         return ResponseEntity.ok("수정 완료.");
     }
     @DeleteMapping("/{commentId}")
     public ResponseEntity deleteComment(@PathVariable Long commentId,
-                                        /*@AuthenticationPrincipal CustomUserDetails userDetails*/
-                                        @RequestParam Long userId){
-        /*User user = userDetails.getUser();*/
-        User user = userService.findById(userId);
+                                        @AuthenticationPrincipal CustomUserPrincipal userDetails){
+        User user = userDetails.getUser();
         commentService.deleteComment(commentId, user.getId());
         return ResponseEntity.ok("삭제 완료.");
     }
