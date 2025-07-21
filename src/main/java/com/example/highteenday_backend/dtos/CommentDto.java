@@ -16,12 +16,14 @@ public class CommentDto {
     private Long id;
     private String author;
     private Long userId;
-    private boolean isAnonymous = true;
     private Long parentId;
     private String content;
     private Integer likeCount;
+    private Integer dislikeCount;
     private LocalDateTime createdAt;
     private String url;
+    private boolean isAnonymous = true;
     private boolean isLiked=false;
     private boolean isDisliked=false;
+    private boolean isOwner=false;
 }

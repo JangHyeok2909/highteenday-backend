@@ -37,17 +37,19 @@ public class Post extends BaseEntity {
     @Column(name = "PST_content", columnDefinition = "TEXT", nullable = false)
     private String content;
 
+    @Builder.Default
     @Column(name = "PST_view_count", nullable = false)
     private int viewCount = 0;
-
+    @Builder.Default
     @Column(name = "PST_like_count")
     private int likeCount = 0;
+    @Builder.Default
     @Column(name = "PST_dislike_count")
     private int dislikeCount = 0;
-
+    @Builder.Default
     @Column(name = "PST_comment_count", nullable = false)
     private int commentCount = 0;
-
+    @Builder.Default
     @Column(name = "PST_is_anonymous", nullable = false)
     private boolean isAnonymous=true;
 
@@ -85,6 +87,12 @@ public class Post extends BaseEntity {
     public void addViewCount(int increment){
         this.viewCount+=increment;
     }
+    public void updateCommentCount(int commentCount){
+        this.commentCount = commentCount;
+    }
+    public void updateAnonymous(boolean isAnonymous){
+        this.isAnonymous = isAnonymous;
+    }
 
     public PostDto toDto() {
         String nickname="";
@@ -97,6 +105,10 @@ public class Post extends BaseEntity {
                 .viewCount(viewCount)
                 .likeCount(likeCount)
                 .commentCount(commentCount)
+                .isAnonymous(isAnonymous)
+                .isLiked(false)
+                .isDisliked(false)
+                .isScraped(false)
                 .createdAt(super.getCreated())
                 .build();
     }

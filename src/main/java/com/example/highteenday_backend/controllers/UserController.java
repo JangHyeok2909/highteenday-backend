@@ -54,11 +54,9 @@ public class UserController {
                 .build();
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                .header(HttpHeaders.PRAGMA, "no-cache")
-                .header(HttpHeaders.EXPIRES, "0")
                 .body(userInfoDto);
     }
+
 
     @GetMapping("/OAuth2UserInfo")
     public ResponseEntity<?> getOAuth2UserInfo(
@@ -194,5 +192,24 @@ public class UserController {
         response.addCookie(accessTokenCookie);
 
         return ResponseEntity.ok("로그아웃");
+    }
+
+    @GetMapping("/test/loginUser")
+    public ResponseEntity<UserInfoDto> getCurrentUserTest(@RequestParam Long userId) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        UserInfoDto userInfoDto = UserInfoDto.builder()
+                .name(user.getName())
+                .email(user.getEmail())
+                .nickname(user.getNickname())
+                .profileUrl(user.getProfileUrl())
+                .userClass(user.getUserClass())
+                .userGrade(user.getGrade())
+                .phoneNum(user.getPhoneNum())
+//                .schoolName()
+                .provider(user.getProvider().toString())
+                .build();
+
+        return ResponseEntity.ok()
+                .body(userInfoDto);
     }
 }

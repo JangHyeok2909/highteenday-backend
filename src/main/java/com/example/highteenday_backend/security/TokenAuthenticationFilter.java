@@ -37,7 +37,15 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
         System.out.println("uri=" + uri);
 
         if(token == null){
-            if(uri.startsWith("/api/user/login")){
+            //로그인 없이 접근가능 url
+            if(uri.startsWith("/api/user/login")
+                    ||uri.startsWith("/swagger-ui")
+                    ||uri.startsWith("/v3/api-docs")
+                    ||uri.startsWith("/swagger-ui.html")
+                    ||uri.startsWith("/api/posts")
+                    ||uri.startsWith("/api/user/register")
+                    ||uri.startsWith("/api/boards/")
+            ){
                 filterChain.doFilter(request, response);
                 return;
             } else {
@@ -52,9 +60,14 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
                 Authentication authentication = tokenProvider.getAuthentication(token);
 
                 System.out.println("✅ JWT 인증 성공: " + authentication.getName());
-                System.out.println("✅ 권한: " + authentication.getAuthorities());
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                // 바로 직후 인증 상태 확인
+                Authentication contextAuth = SecurityContextHolder.getContext().getAuthentication();
+                System.out.println("🧩 최종 인증 상태: " + contextAuth);
+                System.out.println("🧩 인증 여부: " + contextAuth.isAuthenticated());
+                System.out.println("🧩 권한: " + contextAuth.getAuthorities());
 
             } catch (RuntimeException e) {
                 // 예외 발생 시 여기서 안 막고 다음 필터(TokenExceptionFilter)로 넘겨도 됨

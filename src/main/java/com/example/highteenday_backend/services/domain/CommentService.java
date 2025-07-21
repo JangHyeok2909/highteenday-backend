@@ -16,7 +16,6 @@ import java.util.List;
 @Service
 public class CommentService {
     private final CommentRepository commentRepository;
-    private final UserService userService;
     private final CommentMediaService commentMediaService;
 
 
@@ -39,12 +38,15 @@ public class CommentService {
                 .isAnonymous(dto.isAnonymous())
                 .s3Url(dto.getUrl())
                 .build();
+        System.out.println("likecount="+comment.getLikeCount()+"dislike count="+comment.getDislikeCount());
         if(dto.getParentId() != null) comment.setParent(findCommentById(dto.getParentId()));
+        int commentCount = commentRepository.findByPost(post).size();
+        post.updateCommentCount(commentCount);
 
         return commentRepository.save(comment);
     }
     @Transactional
-    public void updateComment(Long commentId,Long userId,RequestCommentDto dto){
+    public void updateComment(Long commentId, Long userId, RequestCommentDto dto){
         Comment comment = findCommentById(commentId);
         comment.updateContent(dto.getContent());
         comment.setUpdatedBy(userId);
