@@ -30,9 +30,9 @@ public class PostController {
 
     @Operation(summary = "게시글 조회")
     @GetMapping("/{postId}")
-    public ResponseEntity<PostDto> getPostByPostId(@PathVariable Long postId,
-                                                   @AuthenticationPrincipal CustomUserPrincipal userPrincipal){
-
+    public ResponseEntity<PostDto> getPostByPostId(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+                                                   @PathVariable Long postId
+                                                   ){
         Post post = postService.findById(postId);
         PostDto postDto = post.toDto();
         if(userPrincipal != null) {
@@ -49,21 +49,27 @@ public class PostController {
     }
 
     @PostMapping()
-    public ResponseEntity<URI> createPost(@RequestBody RequestPostDto requestPostDto){
-        Post post = postService.createPost(requestPostDto);
+    public ResponseEntity<URI> createPost(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+                                          @RequestBody RequestPostDto requestPostDto){
+        User user = userPrincipal.getUser();
+        Post post = postService.createPost(user,requestPostDto);
         return ResponseEntity.created(URI.create("/api/posts/"+post.getId())).build();
 
     }
     @PutMapping("/{postId}")
-    public ResponseEntity updatePost(@PathVariable Long postId,
+    public ResponseEntity updatePost(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+                                     @PathVariable Long postId,
                                      @RequestBody UpdatePostDto dto){
-        postService.updatePost(postId,dto.getUserId(),dto);
+        User user = userPrincipal.getUser();
+        postService.updatePost(postId,user.getId(),dto);
         return ResponseEntity.ok("수정 완료.");
     }
 
     @DeleteMapping("/{postId}")
-    public ResponseEntity deletePost(@PathVariable Long postId,Long userId){
-        postService.deletePost(postId,userId);
+    public ResponseEntity deletePost(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+                                     @PathVariable Long postId){
+        User user = userPrincipal.getUser();
+        postService.deletePost(postId,user.getId());
         return ResponseEntity.ok("삭제 완료.");
     }
 
