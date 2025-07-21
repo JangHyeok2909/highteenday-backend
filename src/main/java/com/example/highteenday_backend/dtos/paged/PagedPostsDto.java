@@ -1,5 +1,6 @@
-package com.example.highteenday_backend.dtos;
+package com.example.highteenday_backend.dtos.paged;
 
+import com.example.highteenday_backend.dtos.PostDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
