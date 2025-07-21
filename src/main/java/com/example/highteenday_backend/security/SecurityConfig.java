@@ -8,20 +8,17 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.web.access.ExceptionTranslationFilter;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 
 import java.util.List;
 
 // 설정 클래스로 Bean 등록 하라는 어노테이션
 @Configuration
-public class securityConfig {
+public class SecurityConfig {
 
     @Autowired
     private CustomOAuth2UserService customOAuth2UserService;
@@ -70,14 +67,12 @@ public class securityConfig {
                             response.getWriter().write("{\"error\": \"Unauthorized\"}");
                         }))
                 )
-
-
-
                 .authorizeHttpRequests(auth -> auth
                                 //Get 요청 비로그인시 401
                                 .requestMatchers(HttpMethod.GET,
                                         "/api/user/OAuth2UserInfo",
-                                        "/api/user/loginUser"
+                                        "/api/user/loginUser",
+                                        "/api/mypage/**"
                                 ).authenticated()
                                 //Post 요청 비로그인 허용
                                 .requestMatchers(HttpMethod.POST,
@@ -85,8 +80,7 @@ public class securityConfig {
                                         "/api/user/login"
                                 ).permitAll()
                                 //Get 요청 비로그인 허용
-                                .requestMatchers(
-                                        HttpMethod.GET,
+                                .requestMatchers(HttpMethod.GET,
                                         "/**"
                                 ).permitAll()
                                 .anyRequest().authenticated()
