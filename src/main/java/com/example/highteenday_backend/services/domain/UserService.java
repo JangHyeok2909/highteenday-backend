@@ -31,7 +31,11 @@ public class UserService {
 
     public User findById(Long userId){
         return userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("user does not exists, userId=" + userId));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+    }
+    public User findByEmail(String email){
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND,"존재하지 않는 유저, email="+email));
     }
 
     @Transactional
