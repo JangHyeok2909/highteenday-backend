@@ -36,14 +36,17 @@ public class Comment extends BaseEntity {
     @JoinColumn(name = "CMT_parent_id")
     private Comment parent;
 
-    @Column(name = "CMT_is_anonymus", nullable = false)
+    @Builder.Default
+    @Column(name = "CMT_is_anonymous", nullable = false)
     private boolean isAnonymous = true;
 
     @Column(name = "CMT_content", length = 10000, nullable = false)
     private String content;
 
+    @Builder.Default
     @Column(name = "CMT_like_count")
     private Integer likeCount = 0;
+    @Builder.Default
     @Column(name = "CMT_dislike_count")
     private Integer dislikeCount = 0;
 
@@ -85,6 +88,7 @@ public class Comment extends BaseEntity {
                 .author(this.user.getNickname())
                 .content(this.content)
                 .likeCount(this.likeCount)
+                .dislikeCount(this.dislikeCount)
                 .isAnonymous(this.isAnonymous)
                 .createdAt(super.getCreated())
                 .url(s3Url)

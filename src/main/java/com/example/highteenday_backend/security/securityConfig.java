@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.security;
 
 import com.example.highteenday_backend.services.security.CustomOAuth2UserService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +12,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.web.access.ExceptionTranslationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 
@@ -41,6 +43,13 @@ public class securityConfig {
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+//                .exceptionHandling(eh -> eh
+//                        .authenticationEntryPoint((request, response, authException) -> {
+//                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+//                            response.setContentType("application/json");
+//                            response.getWriter().write("{\"error\": \"global error.\"}");
+//                        })
+//                )
                 .cors(cors -> cors
                         .configurationSource(request -> {
                             CorsConfiguration config = new CorsConfiguration();
@@ -54,7 +63,8 @@ public class securityConfig {
                             return config;
                         }))
 
-                // 권한 부분
+
+                        // 권한 부분(로그인 없이 이용 가능)
                 .authorizeHttpRequests(auth -> auth
 //                                .requestMatchers("/api/user").authenticated()
                                 .requestMatchers(
@@ -65,6 +75,11 @@ public class securityConfig {
                                         "/api/user/register",
                                         "/api/user/login",
                                         "/api/posts/**",
+                                        "/api/boards/**",
+                                        "/v3/api-docs/**",
+                                        "/swagger-ui/**",
+                                        "/swagger-ui.html",
+                                        "/api/comments/**",
                                         "/api/boards/**"
 //                                        "/**"
                                 ).permitAll()
@@ -78,7 +93,7 @@ public class securityConfig {
                         .userInfoEndpoint(c -> c.userService(customOAuth2UserService))
                         .successHandler(oAuth2SuccessHandler))
 
-                .addFilterBefore(tokenAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(tokenAuthenticationFilter(), ExceptionTranslationFilter.class)
                 .addFilterBefore(new TokenExceptionFilter(), TokenAuthenticationFilter.class);
         return http.build();
     }

@@ -40,6 +40,9 @@ public class PostService {
         Board board = boardService.findById(boardId);
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<Post> postPages = postRepository.findByBoard(board, pageable);
+        if(postPages.isEmpty()) {
+            throw new RuntimeException("post is empty. boardId={}, page={}, size={}");
+        }
         return postPages;
     }
 

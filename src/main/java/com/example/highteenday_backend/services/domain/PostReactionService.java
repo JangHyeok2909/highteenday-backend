@@ -2,6 +2,7 @@ package com.example.highteenday_backend.services.domain;
 
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.dtos.LikeStateDto;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -55,5 +56,15 @@ public class PostReactionService {
             postDislikeService.createDislike(post, user);
             post.plusDislikeCount();
         }
+    }
+    public LikeStateDto getLikeSatateDto(Post post, User user){
+        boolean isLiked = postLikeService.isLikedByUser(post, user);
+        boolean isDisliked = postDislikeService.isDislikedByUser(post, user);
+        return LikeStateDto.builder()
+                    .postId(post.getId())
+                    .isLiked(isLiked)
+                    .isDisliked(isDisliked)
+                    .likeCount(post.getLikeCount())
+                    .build();
     }
 }
