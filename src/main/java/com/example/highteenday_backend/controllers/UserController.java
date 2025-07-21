@@ -38,7 +38,6 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Slf4j
 public class UserController {
-    private final UserRepository userRepository;
     private final UserService userService;
     private final TokenProvider tokenProvider;
     private final PasswordEncoder passwordEncoder;
@@ -116,9 +115,7 @@ public class UserController {
     public ResponseEntity<?> loginUser(@RequestBody LoginRequestDto dto, HttpServletResponse response) {
 
         System.out.println("/api/user/login/ 으로 진입 성공");
-
-        User user = userRepository.findByEmail(dto.email())
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        User user = userService.findByEmail(dto.email());
 
 //        Optional<User> userOptional = userRepository.findByEmail(dto.email());
 //        if(userOptional.isEmpty()){
@@ -154,24 +151,5 @@ public class UserController {
         response.addCookie(accessTokenCookie);
 
         return ResponseEntity.ok("로그아웃");
-    }
-
-    @GetMapping("/test/loginUser")
-    public ResponseEntity<UserInfoDto> getCurrentUserTest(@RequestParam Long userId) {
-        User user = userRepository.findById(userId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        UserInfoDto userInfoDto = UserInfoDto.builder()
-                .name(user.getName())
-                .email(user.getEmail())
-                .nickname(user.getNickname())
-                .profileUrl(user.getProfileUrl())
-                .userClass(user.getUserClass())
-                .userGrade(user.getGrade())
-                .phoneNum(user.getPhoneNum())
-//                .schoolName()
-                .provider(user.getProvider().toString())
-                .build();
-
-        return ResponseEntity.ok()
-                .body(userInfoDto);
     }
 }

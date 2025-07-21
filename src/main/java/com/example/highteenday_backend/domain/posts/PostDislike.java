@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.domain.posts;
 
+import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.users.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -13,7 +14,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Table(name= "posts_dislikes")
 @Entity
-public class PostDislike {
+public class PostDislike extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "PST_DL_id")

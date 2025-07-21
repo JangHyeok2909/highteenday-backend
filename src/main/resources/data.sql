@@ -13,7 +13,8 @@ insert into boards (
       ("자유게시판",now()),
       ("수능게시판",now()),
       ("이과게시판",now()),
-      ("문과게시판",now());
+      ("문과게시판",now()),
+      ("질문게시판",now());
 
 -- 게시글 생성
 INSERT INTO posts (
@@ -71,9 +72,9 @@ INSERT INTO comments (
       (1,1,NULL,true,'삭제된 댓글 입니다.',0,0,now(),'');
 
 --PST_id=4 인 게시글은 삭제
-UPDATE posts SET is_valid=false WHERE PST_id = 4;
---CMT_id=4 인 게시글은 삭제
-UPDATE comments SET is_valid=false WHERE CMT_id = 4;
+-- UPDATE posts SET is_valid=false WHERE PST_id = 4;
+--CMT_id=4 인 댓글은 삭제
+-- UPDATE comments SET is_valid=false WHERE CMT_id = 4;
 --좋아요 생성
 
 
