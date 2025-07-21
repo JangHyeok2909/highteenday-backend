@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
@@ -58,7 +59,7 @@ public class securityConfig {
                                     "http://localhost:3000"
                             ));
                             config.setAllowCredentials(true);
-                            config.setAllowedMethods(List.of("GET","POST"));
+                            config.setAllowedMethods(List.of("GET"));
                             config.setAllowedHeaders(List.of("*"));
                             return config;
                         }))
@@ -71,25 +72,22 @@ public class securityConfig {
                 )
 
 
-                        // 권한 부분(로그인 없이 이용 가능)
+
                 .authorizeHttpRequests(auth -> auth
-//                                .requestMatchers("/api/user").authenticated()
-                                .requestMatchers(
-                                        "/",
-                                        "/login/**",
-                                        "/oauth2/**",
+                                //Get 요청 비로그인시 401
+                                .requestMatchers(HttpMethod.GET,
                                         "/api/user/OAuth2UserInfo",
+                                        "/api/user/loginUser"
+                                ).authenticated()
+                                //Post 요청 비로그인 허용
+                                .requestMatchers(HttpMethod.POST,
                                         "/api/user/register",
-                                        "/api/user/login",
-                                        "/api/posts/**",
-                                        "/api/boards/**",
-                                        "/v3/api-docs/**",
-                                        "/swagger-ui/**",
-                                        "/swagger-ui.html",
-                                        "/api/comments/**",
-                                        "/api/boards/**",
-//                                        "/**"
-                                        "/error"
+                                        "/api/user/login"
+                                ).permitAll()
+                                //Get 요청 비로그인 허용
+                                .requestMatchers(
+                                        HttpMethod.GET,
+                                        "/**"
                                 ).permitAll()
                                 .anyRequest().authenticated()
 
