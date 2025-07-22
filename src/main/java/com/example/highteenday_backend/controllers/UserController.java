@@ -136,8 +136,6 @@ public class UserController {
     public ResponseEntity<?> loginUser(@RequestBody LoginRequestDto dto, HttpServletResponse response) {
 
         System.out.println("/api/user/login/ 으로 진입 성공");
-        User user = userService.findByEmail(dto.email());
-
         User user = getLoginUser(dto.email());
 
         if (!passwordEncoder.matches(dto.password(), user.getHashedPassword())) {
