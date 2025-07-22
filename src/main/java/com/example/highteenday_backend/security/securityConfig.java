@@ -47,7 +47,8 @@ public class securityConfig {
                             CorsConfiguration config = new CorsConfiguration();
                             config.setAllowedOriginPatterns(List.of(
                                     "https://highteenday.duckdns.org",
-                                    "http://localhost:3000"
+                                    "http://localhost:3000",
+                                    "http://localhost:8080"
                             ));
                             config.setAllowCredentials(true);
                             config.setAllowedMethods(List.of("GET","POST"));
@@ -58,7 +59,7 @@ public class securityConfig {
                         exceptionHandling.authenticationEntryPoint(((request, response, authException) -> {
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             response.setContentType("application/json;charset=UTF-8");
-                            response.getWriter().write("{\"error\": \"Unauthorized\"}");
+                            response.getWriter().write("{\"error\": \"Global error\"}");
                         }))
                 )
 
