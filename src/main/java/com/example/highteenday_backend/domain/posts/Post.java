@@ -98,17 +98,19 @@ public class Post extends BaseEntity {
         String nickname="";
         if (!this.isAnonymous) nickname = user.getNickname();
         return PostDto.builder()
+                .id(this.id)
                 .author(nickname)
                 .userId(user.getId())
                 .title(title)
                 .content(content)
                 .viewCount(viewCount)
                 .likeCount(likeCount)
+                .dislikeCount(dislikeCount)
                 .commentCount(commentCount)
                 .isAnonymous(isAnonymous)
                 .isLiked(false)
                 .isDisliked(false)
-                .isScraped(false)
+                .isScrapped(false)
                 .createdAt(super.getCreated())
                 .build();
     }

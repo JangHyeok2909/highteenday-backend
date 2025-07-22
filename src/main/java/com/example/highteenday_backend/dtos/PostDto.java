@@ -21,7 +21,7 @@ public class PostDto {
     private int commentCount = 0;
     private boolean isLiked=false;
     private boolean isDisliked=false;
-    private boolean isScraped=false;
+    private boolean isScrapped =false;
     private boolean isAnonymous=true;
     private boolean isOwner=false;
     private LocalDateTime createdAt;
