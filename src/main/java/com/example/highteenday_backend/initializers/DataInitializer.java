@@ -1,18 +1,12 @@
 package com.example.highteenday_backend.initializers;
 
-import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.services.domain.*;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.context.event.EventListener;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,22 +24,16 @@ public class DataInitializer {
     private final ScrapService scrapService;
     private final UserService userService;
 
-    @Autowired
-    @Lazy
-    private DataInitializer self;
-
-    @EventListener(ApplicationReadyEvent.class)
+    @Transactional
     public void dataInit() {
-        // 트랜잭션이 걸린 public 메서드 호출을 위해 self 사용
-        self.userDataInit();
+        userDataInit();
         User testUser = userService.findByEmail("test1@gmail.com");
-        self.postDataInit(testUser);
-        self.commentDataInit(testUser);
-        self.likeAndDislikeDataInit(testUser);
-        self.scrapDataInit(testUser);
+        postDataInit(testUser);
+        commentDataInit(testUser);
+        likeAndDislikeDataInit(testUser);
+        scrapDataInit(testUser);
     }
 
-    @Transactional
     public void userDataInit(){
         int userCount = 5;
         for(int i=1;i<=userCount;i++){
@@ -63,7 +51,6 @@ public class DataInitializer {
         }
     }
 
-    @Transactional
     public void postDataInit(User user){
         int postCount = 15;
         for(int i=1;i<=postCount;i++){
@@ -79,7 +66,6 @@ public class DataInitializer {
         System.out.println("테스트 게시글 생성완료");
     }
 
-    @Transactional
     public void commentDataInit(User user){
         int commentCount = 11;
         for(int i=1;i<=commentCount;i++){
@@ -87,12 +73,11 @@ public class DataInitializer {
                     .content("testUser1이 postId=" + i + "인 게시글에 다는 댓글" + i)
                     .isAnonymous(false)
                     .build();
-            commentService.creatComment(postService.findById((long)i),user,dto);
+            commentService.createComment(postService.findById((long)i),user,dto);
         }
         System.out.println("테스트 댓글 생성완료");
     }
 
-    @Transactional
     public void likeAndDislikeDataInit(User user){
         int likeCount = 23;
         for(int i=1;i<=likeCount;i++){
@@ -102,7 +87,6 @@ public class DataInitializer {
         System.out.println("테스트 좋아요/싫어요 생성완료");
     }
 
-    @Transactional
     public void scrapDataInit(User user){
         int scrapCount= 33;
         for (int i = 1; i <= scrapCount; i++) {
