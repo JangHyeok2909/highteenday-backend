@@ -43,7 +43,7 @@ public class CommentService {
     }
 
     @Transactional
-    public Comment creatComment(Post post,User user, RequestCommentDto dto){
+    public Comment createComment(Post post, User user, RequestCommentDto dto){
 
         Comment comment = Comment.builder()
                 .user(user)
