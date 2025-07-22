@@ -4,6 +4,7 @@ import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.domain.schools.SchoolRepository;
 import com.example.highteenday_backend.domain.schools.SchoolSchedule;
 import com.example.highteenday_backend.domain.schools.SchoolScheduleRepository;
+import com.example.highteenday_backend.dtos.SchoolScheduleResponseDto;
 import com.example.highteenday_backend.enums.SchoolCategory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,7 +16,9 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -100,5 +103,46 @@ public class SchoolScheduleService {
                 break;
             }
         }
+    }
+
+
+    public List<SchoolScheduleResponseDto> getDailySchedule(Long schoolId, Integer grade, Integer classNumber, String major, LocalDate date) {
+        return schoolScheduleRepository.findBySchoolIdAndGradeAndClassNumberAndMajorAndDate(
+                        schoolId, grade, classNumber, major, date)
+                .stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
+
+    public List<SchoolScheduleResponseDto> getWeeklySchedule(Long schoolId, Integer grade, Integer classNumber, String major, LocalDate dateInWeek) {
+        LocalDate start = dateInWeek.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+        LocalDate end = dateInWeek.with(TemporalAdjusters.nextOrSame(java.time.DayOfWeek.SUNDAY));
+
+        return schoolScheduleRepository.findBySchoolIdAndGradeAndClassNumberAndMajorAndDateBetween(
+                        schoolId, grade, classNumber, major, start, end)
+                .stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
+
+    public List<SchoolScheduleResponseDto> getMonthlySchedule(Long schoolId, Integer grade, Integer classNumber, String major, LocalDate dateInMonth) {
+        LocalDate start = dateInMonth.withDayOfMonth(1);
+        LocalDate end = dateInMonth.withDayOfMonth(dateInMonth.lengthOfMonth());
+
+        return schoolScheduleRepository.findBySchoolIdAndGradeAndClassNumberAndMajorAndDateBetween(
+                        schoolId, grade, classNumber, major, start, end)
+                .stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
+
+    private SchoolScheduleResponseDto convertToDto(SchoolSchedule schedule) {
+        return SchoolScheduleResponseDto.builder()
+                .subject(schedule.getSubject())
+                .period(schedule.getPeriod())
+                .date(schedule.getDate())
+                .week(schedule.getWeek())
+                .day(schedule.getDay())
+                .build();
     }
 }
