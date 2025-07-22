@@ -80,6 +80,6 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private boolean isPublicUri(String uri){
-        return uri.startsWith("/api/user/login");
+        return uri.startsWith("/api/user/login") || uri.startsWith("/api/user/register");
     }
 }
