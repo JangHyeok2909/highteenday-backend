@@ -8,8 +8,8 @@ import lombok.Data;
 public class LikeStateDto {
     private Long commentId;
     private Long postId;
-    private boolean isLiked;
-    private boolean isDisliked;
-    private int likeCount;
-    private int dislikeCount;
+    private boolean isLiked=false;
+    private boolean isDisliked=false;
+    private int likeCount=0;
+    private int dislikeCount=0;
 }

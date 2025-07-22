@@ -5,8 +5,13 @@ import com.example.highteenday_backend.domain.comments.CommentRepository;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
+import com.example.highteenday_backend.enums.SortType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -16,9 +21,7 @@ import java.util.List;
 @Service
 public class CommentService {
     private final CommentRepository commentRepository;
-    private final UserService userService;
     private final CommentMediaService commentMediaService;
-
 
     public Comment findCommentById(Long commentId){
         return commentRepository.findById(commentId).
@@ -27,6 +30,16 @@ public class CommentService {
     public List<Comment> getCommentsByPost(Post post){
         List<Comment> comments = commentRepository.findByPost(post);
         return comments;
+    }
+    public Page<Comment> getCommentsByUser(User user, int page, int size, SortType sortType){
+        Sort sort = Sort.by(Sort.Direction.DESC, sortType.getField());
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<Comment> commentPages = commentRepository.findByUser(user, pageable);
+        if(commentPages.isEmpty()) {
+            throw new RuntimeException(String.format("comment is empty. userId=%d, page=%d, size=%d",user.getId(),page,size));
+        }
+        return commentPages;
     }
 
     @Transactional
@@ -40,11 +53,13 @@ public class CommentService {
                 .s3Url(dto.getUrl())
                 .build();
         if(dto.getParentId() != null) comment.setParent(findCommentById(dto.getParentId()));
+        int commentCount = commentRepository.findByPost(post).size();
+        post.updateCommentCount(commentCount);
 
         return commentRepository.save(comment);
     }
     @Transactional
-    public void updateComment(Long commentId,Long userId,RequestCommentDto dto){
+    public void updateComment(Long commentId, Long userId, RequestCommentDto dto){
         Comment comment = findCommentById(commentId);
         comment.updateContent(dto.getContent());
         comment.setUpdatedBy(userId);

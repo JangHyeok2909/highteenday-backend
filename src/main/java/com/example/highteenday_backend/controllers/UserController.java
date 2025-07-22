@@ -62,9 +62,6 @@ public class UserController {
                 .build();
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                .header(HttpHeaders.PRAGMA, "no-cache")
-                .header(HttpHeaders.EXPIRES, "0")
                 .body(userInfoDto);
     }
 
@@ -115,10 +112,6 @@ public class UserController {
             HttpServletResponse response
             ){
 
-        log.debug("/register 진입 debug");
-        log.info("/register 진입 info");
-        System.out.println("/register 진입 sout");
-
         userService.register(registerUserDto, response);
 
         return ResponseEntity.ok("회원가입 성공");
@@ -143,6 +136,7 @@ public class UserController {
     public ResponseEntity<?> loginUser(@RequestBody LoginRequestDto dto, HttpServletResponse response) {
 
         System.out.println("/api/user/login/ 으로 진입 성공");
+        User user = userService.findByEmail(dto.email());
 
         User user = getLoginUser(dto.email());
 

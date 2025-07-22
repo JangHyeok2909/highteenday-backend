@@ -17,7 +17,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -94,7 +93,6 @@ public class TokenProvider {
 
     public Authentication getAuthentication(String token){
         Claims claims = parseClaims(token);
-
         String email = claims.getSubject();
         String role = claims.get("role", String.class);
         String name = claims.get("name", String.class);
