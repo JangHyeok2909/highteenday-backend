@@ -9,18 +9,19 @@ import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.services.domain.*;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
 public class DataInitializer {
+
     private final UserRepository userRepository;
     private final PostService postService;
     private final PasswordEncoder passwordEncoder;
@@ -29,17 +30,23 @@ public class DataInitializer {
     private final ScrapService scrapService;
     private final UserService userService;
 
+    @Autowired
+    @Lazy
+    private DataInitializer self;
+
     @EventListener(ApplicationReadyEvent.class)
     public void dataInit() {
-        userDataInit();
+        // 트랜잭션이 걸린 public 메서드 호출을 위해 self 사용
+        self.userDataInit();
         User testUser = userService.findByEmail("test1@gmail.com");
-        postDataInit(testUser);
-        commentDataInit(testUser);
-        likeAndDislikeDataInit(testUser);
-        scrapDataInit(testUser);
+        self.postDataInit(testUser);
+        self.commentDataInit(testUser);
+        self.likeAndDislikeDataInit(testUser);
+        self.scrapDataInit(testUser);
     }
 
-    private void userDataInit(){
+    @Transactional
+    public void userDataInit(){
         int userCount = 5;
         for(int i=1;i<=userCount;i++){
             String email = "test"+i+"@gmail.com";
@@ -54,9 +61,10 @@ public class DataInitializer {
                 System.out.println("초기 테스트 유저 설정, user email: " + email);
             }
         }
-
     }
-    private void postDataInit(User user){
+
+    @Transactional
+    public void postDataInit(User user){
         int postCount = 15;
         for(int i=1;i<=postCount;i++){
             long boardId = (i-1)%5+1;
@@ -67,11 +75,12 @@ public class DataInitializer {
                     .isAnonymous(false)
                     .build();
             postService.createPost(user,requestPostDto);
-
         }
         System.out.println("테스트 게시글 생성완료");
     }
-    private void commentDataInit(User user){
+
+    @Transactional
+    public void commentDataInit(User user){
         int commentCount = 11;
         for(int i=1;i<=commentCount;i++){
             RequestCommentDto dto = RequestCommentDto.builder()
@@ -81,9 +90,10 @@ public class DataInitializer {
             commentService.creatComment(postService.findById((long)i),user,dto);
         }
         System.out.println("테스트 댓글 생성완료");
-
     }
-    private void likeAndDislikeDataInit(User user){
+
+    @Transactional
+    public void likeAndDislikeDataInit(User user){
         int likeCount = 23;
         for(int i=1;i<=likeCount;i++){
             if(i%2==0) postReactionService.likeReact(postService.findById((long)i),user);
@@ -91,14 +101,14 @@ public class DataInitializer {
         }
         System.out.println("테스트 좋아요/싫어요 생성완료");
     }
-    private void scrapDataInit(User user){
+
+    @Transactional
+    public void scrapDataInit(User user){
         int scrapCount= 33;
         for (int i = 1; i <= scrapCount; i++) {
             scrapService.createScrap(postService.findById((long) i), user);
         }
         System.out.println("테스트 스크랩 생성완료");
-
     }
-
 }
 
