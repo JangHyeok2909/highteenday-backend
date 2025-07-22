@@ -56,7 +56,7 @@ public class User extends BaseEntity {
     private Role role = Role.USER;
 
     @Column(name = "USR_profile_image_url", columnDefinition = "TEXT")
-    private String profileImageUrl;
+    private String profileUrl;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "USR_gender"/*, nullable = false*/)
