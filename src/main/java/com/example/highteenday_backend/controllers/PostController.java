@@ -41,7 +41,7 @@ public class PostController {
             postDto.setLiked(likestate.isLiked());
             postDto.setDisliked(likestate.isDisliked());
             postDto.setOwner(post.getUser().getId() == user.getId());
-            postDto.setScraped(scrapService.isScraped(post, user));
+            postDto.setScrapped(scrapService.isScraped(post, user));
             viewCountService.increaseViewCount(postId,user.getId());
         }
 
