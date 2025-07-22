@@ -3,6 +3,8 @@ package com.example.highteenday_backend.services.domain;
 
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
+import com.example.highteenday_backend.dtos.ChangeNicknameDto;
+import com.example.highteenday_backend.dtos.ChangePasswordDto;
 import com.example.highteenday_backend.dtos.RegisterUserDto;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
@@ -12,7 +14,10 @@ import com.example.highteenday_backend.services.security.JwtCookieService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,6 +29,7 @@ import java.util.Map;
 
 @RequiredArgsConstructor
 @Service
+@Slf4j
 public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -34,6 +40,7 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("user does not exists, userId=" + userId));
     }
 
+    // 회원가입
     @Transactional
     public void register(RegisterUserDto registerUserDto, HttpServletResponse response) {
         String email = registerUserDto.email();
@@ -47,6 +54,7 @@ public class UserService {
 //        }
 
         System.out.println("✅ registerUserDto.nickname = " + registerUserDto.nickname());
+        log.debug("✅ registerUserDto.nickname = " + registerUserDto.nickname());
 
         User user = new User();
         user.setName(registerUserDto.name());
@@ -82,4 +90,74 @@ public class UserService {
         jwtCookieService.setJwtCookie(authentication,response);
     }
 
+    // 회원 탈퇴
+    @Transactional
+    public void deleteAccount(User user){
+        // 두번 검사하는거임, 하지말까 유난인가?
+        User findUser = userRepository.findByEmail(user.getEmail())
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        try{
+            userRepository.delete(findUser);
+        } catch (DataIntegrityViolationException e) {
+            // 외래 키 충돌, 무결성 위반 (예: 참조된 댓글, 게시글이 남아있을 때)
+            throw new CustomException(ErrorCode.DATA_INTEGRITY_ERROR);
+        } catch (JpaSystemException e) {
+            // JPA 내부 오류
+            throw new CustomException(ErrorCode.DATABASE_ERROR);
+        } catch (Exception e) {
+            // 그 외 예외
+            throw new CustomException(ErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+    // 비밀번호 변경 | 정규표현식 적용 가능
+    @Transactional
+    public void modifyPassword(User user, ChangePasswordDto passwordDto) {
+        if (!passwordEncoder.matches(passwordDto.pastPassword(), user.getHashedPassword())) {
+            throw new CustomException(ErrorCode.INVALID_PASSWORD);
+        } else if (passwordDto.pastPassword().equals(passwordDto.newPassword())) {
+            throw new CustomException(ErrorCode.SAME_AS_CURRENT_PASSWORD);
+        }
+
+        try {
+            String newHashedPassword = passwordEncoder.encode(passwordDto.newPassword());
+            user.setHashedPassword(newHashedPassword);
+            userRepository.save(user);
+        } catch (Exception e) {
+            throw new CustomException(ErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+    // 닉네임 변경
+    @Transactional
+    public void modifyNickname(User user, ChangeNicknameDto nicknameDto) {
+        // 이전과 같은지 검사
+        if (nicknameDto.pastNickname().equals(nicknameDto.newNickname())) {
+            throw new CustomException(ErrorCode.SAME_AS_NICKNAME);
+        } else if(userRepository.existsByNickname(nicknameDto.newNickname())) { // 닉네임이 존재하는지 검사
+            throw new CustomException(ErrorCode.DUPLICATE_NICKNAME);
+        } else if(nicknameDto.newNickname().length() > 12) { // 닉네임 길이 제한
+            throw new CustomException(ErrorCode.INVALID_NICKNAME_FORMAT);
+        }
+
+        try {
+            String newNickname = nicknameDto.newNickname();
+            user.setNickname(newNickname);
+            userRepository.save(user);
+        } catch (Exception e){
+            throw new CustomException(ErrorCode.INTERNAL_ERROR);
+        }
+    }
 }
+
+
+
+
+
+
+
+
+
+
+
