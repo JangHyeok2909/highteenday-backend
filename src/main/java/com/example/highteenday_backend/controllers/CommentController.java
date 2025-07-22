@@ -72,7 +72,7 @@ public class CommentController {
                                         @AuthenticationPrincipal CustomUserPrincipal userPrincipal){
         User user = userPrincipal.getUser();
         Post post = postService.findById(postId);
-        Comment comment = commentService.creatComment(post, user,dto);
+        Comment comment = commentService.createComment(post, user,dto);
         if(!dto.getUrl().isEmpty()) commentMediaService.processCreateCommentMedia(user.getId(),comment,dto);
         URI location = URI.create("/api/posts/"+postId+"/comments/"+comment.getId());
         return ResponseEntity.created(location).build();
