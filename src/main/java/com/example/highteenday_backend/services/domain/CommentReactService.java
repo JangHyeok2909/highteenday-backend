@@ -3,6 +3,7 @@ package com.example.highteenday_backend.services.domain;
 
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.dtos.LikeStateDto;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -57,5 +58,15 @@ public class CommentReactService {
             commentDislikeService.createDislike(comment, user);
             comment.plusDislikeCount();
         }
+    }
+    public LikeStateDto getLikeSatateDto(Comment comment, User user){
+        boolean isLiked = commentLikeService.isLikedByUser(comment, user);
+        boolean isDisliked = commentDislikeService.isDislikedByUser(comment, user);
+        return LikeStateDto.builder()
+                    .commentId(comment.getId())
+                    .isLiked(isLiked)
+                    .isDisliked(isDisliked)
+                    .likeCount(comment.getLikeCount())
+                    .build();
     }
 }

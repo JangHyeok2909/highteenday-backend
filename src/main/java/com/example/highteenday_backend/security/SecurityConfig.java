@@ -5,21 +5,20 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.config.Customizer;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.access.ExceptionTranslationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 
 import java.util.List;
 
 // 설정 클래스로 Bean 등록 하라는 어노테이션
 @Configuration
-public class securityConfig {
+public class SecurityConfig {
 
     @Autowired
     private CustomOAuth2UserService customOAuth2UserService;
@@ -42,6 +41,13 @@ public class securityConfig {
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+//                .exceptionHandling(eh -> eh
+//                        .authenticationEntryPoint((request, response, authException) -> {
+//                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+//                            response.setContentType("application/json");
+//                            response.getWriter().write("{\"error\": \"global error.\"}");
+//                        })
+//                )
                 .cors(cors -> cors
                         .configurationSource(request -> {
                             CorsConfiguration config = new CorsConfiguration();
@@ -51,7 +57,7 @@ public class securityConfig {
                                     "http://localhost:8080"
                             ));
                             config.setAllowCredentials(true);
-                            config.setAllowedMethods(List.of("GET","POST"));
+                            config.setAllowedMethods(List.of("GET"));
                             config.setAllowedHeaders(List.of("*"));
                             return config;
                         }))
@@ -59,21 +65,25 @@ public class securityConfig {
                         exceptionHandling.authenticationEntryPoint(((request, response, authException) -> {
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             response.setContentType("application/json;charset=UTF-8");
-                            response.getWriter().write("{\"error\": \"Global error\"}");
+                            response.getWriter().write("{\"error\": \"Unauthorized\"}");
                         }))
                 )
-
-                // 권한 부분
                 .authorizeHttpRequests(auth -> auth
-//                                .requestMatchers("/api/user").authenticated()
-                                .requestMatchers(
-                                        "/",
-                                        "/login/**",
-                                        "/oauth2/**",
+                                //Get 요청 비로그인시 401
+                                .requestMatchers(HttpMethod.GET,
                                         "/api/user/OAuth2UserInfo",
+                                        "/api/user/loginUser",
+                                        "/api/mypage/**"
+                                ).authenticated()
+                                //Post 요청 비로그인 허용
+                                .requestMatchers(HttpMethod.POST,
                                         "/api/user/register",
                                         "/api/user/login",
                                         "/error"
+                                ).permitAll()
+                                //Get 요청 비로그인 허용
+                                .requestMatchers(HttpMethod.GET,
+                                        "/**"
                                 ).permitAll()
                                 .anyRequest().authenticated()
 
@@ -85,7 +95,7 @@ public class securityConfig {
                         .userInfoEndpoint(c -> c.userService(customOAuth2UserService))
                         .successHandler(oAuth2SuccessHandler))
 
-                .addFilterBefore(tokenAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(tokenAuthenticationFilter(), ExceptionTranslationFilter.class)
                 .addFilterBefore(new TokenExceptionFilter(), TokenAuthenticationFilter.class);
         return http.build();
     }
