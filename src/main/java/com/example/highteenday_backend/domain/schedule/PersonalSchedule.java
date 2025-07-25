@@ -3,15 +3,13 @@ package com.example.highteenday_backend.domain.schedule;
 import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.users.User;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDate;
 
 @Builder
 @Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name= "personal_schedule")

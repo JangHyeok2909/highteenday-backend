@@ -46,6 +46,13 @@ public class CustomUserPrincipal implements UserDetails, OAuth2User {
     }
 
 
+    public Long getId() {
+        if (user != null) {
+            return user.getId();
+        }
+        throw new IllegalStateException("User is null in CustomUserPrincipal");
+    }
+
     @Override
     public Map<String, Object> getAttributes() {
         return attributes;
