@@ -112,6 +112,8 @@ public class Post extends BaseEntity {
                 .isDisliked(false)
                 .isScrapped(false)
                 .createdAt(super.getCreated())
+                .updatedAt(super.getUpdatedDate())
+                .isUpdated(super.getUpdatedBy() !=null)
                 .build();
     }
 
