@@ -38,6 +38,9 @@ public abstract class BaseEntity {
     public void setUpdatedBy(Long userId){
         this.updatedBy=userId;
     }
+    public void setUpdatedDate(LocalDateTime localDateTime){
+        this.updatedDate = localDateTime;
+    }
 //    HighteendayBackendApplication에 주석 처리 하는 이유 설명하였음
 //    public void setCreated(LocalDateTime localDateTime){
 //        this.created = localDateTime;

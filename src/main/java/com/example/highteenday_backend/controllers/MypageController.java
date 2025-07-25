@@ -13,6 +13,8 @@ import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.CommentService;
 import com.example.highteenday_backend.services.domain.PostService;
 import com.example.highteenday_backend.services.domain.ScrapService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.ArrayList;
 import java.util.List;
 
-
+@Tag(name = "마이페이지 API", description = "내가쓴 게시글,내가 쓴 댓글, 내가 스크랩한 게시글 조회")
 @RequiredArgsConstructor
 @RequestMapping("/api/mypage")
 @RestController
@@ -37,8 +39,9 @@ public class MypageController {
     private final ScrapService scrapService;
     private final int PAGE_SIZE = 10;
 
+    @Operation(summary = "내가쓴 게시글 페이징된 리스트 가져오기")
     @GetMapping("/posts")
-    public ResponseEntity<?> getUserPosts(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+    public ResponseEntity<PagedPostsDto> getUserPosts(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                           @RequestParam Integer page,
                                           @RequestParam SortType sortType){
         User user = userPrincipal.getUser();
@@ -46,8 +49,9 @@ public class MypageController {
         PagedPostsDto pagedPostsDto = PageUtils.postsToDto(pagedPosts);
         return ResponseEntity.ok(pagedPostsDto);
     }
+    @Operation(summary = "내가쓴 댓글 페이징된 리스트 가져오기")
     @GetMapping("/comments")
-    public ResponseEntity<?> getUserComments(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+    public ResponseEntity<PagedCommentsDto> getUserComments(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                              @RequestParam Integer page,
                                              @RequestParam SortType sortType){
         User user = userPrincipal.getUser();
@@ -55,8 +59,9 @@ public class MypageController {
         PagedCommentsDto pagedCommentsDto = PageUtils.commentsToDto(pagedComments);
         return ResponseEntity.ok(pagedCommentsDto);
     }
+    @Operation(summary = "내가 스크랩한 게시글 페이징된 리스트 가져오기")
     @GetMapping("/scraps")
-    public ResponseEntity<?> getUserScraps(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+    public ResponseEntity<PagedPostsDto> getUserScraps(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                            @RequestParam Integer page
                                            ){
         User user = userPrincipal.getUser();

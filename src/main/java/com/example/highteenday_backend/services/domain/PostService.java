@@ -21,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PostService {
     private final PostRepository postRepository;
-    private final UserService userService;
     private final BoardService boardService;
     private final PostMediaService postMediaService;
 
@@ -68,6 +67,7 @@ public class PostService {
                 .build();
         Post savedPost = postRepository.save(post);
         postMediaService.processCreatePostMedia(user.getId(),post);
+        post.setUpdatedDate(null);
         return savedPost;
     }
     //로그 남기기,이미지 업로드

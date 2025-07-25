@@ -28,7 +28,6 @@ import java.util.List;
 public class CommentController {
     private final PostService postService;
     private final CommentService commentService;
-    private final CommentMediaService commentMediaService;
     private final CommentReactService commentReactService;
 
     @Operation(summary = "댓글 리스트 조회",description = "postId에 해당하는 게시글의 댓글 리스트 조회")
@@ -67,13 +66,13 @@ public class CommentController {
 
     @Operation(summary = "댓글 생성")
     @PostMapping()
-    public ResponseEntity createComment(@PathVariable Long postId,
-                                        @RequestBody RequestCommentDto dto,
-                                        @AuthenticationPrincipal CustomUserPrincipal userPrincipal){
+    public ResponseEntity createComment(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+                                        @PathVariable Long postId,
+                                        @RequestBody RequestCommentDto dto
+                                        ){
         User user = userPrincipal.getUser();
         Post post = postService.findById(postId);
         Comment comment = commentService.createComment(post, user,dto);
-        if(!dto.getUrl().isEmpty()) commentMediaService.processCreateCommentMedia(user.getId(),comment,dto);
         URI location = URI.create("/api/posts/"+postId+"/comments/"+comment.getId());
         return ResponseEntity.created(location).build();
     }
