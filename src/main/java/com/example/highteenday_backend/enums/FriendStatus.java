@@ -7,8 +7,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum FriendStatus{
 
-    FRIEND("FRIEND"),
-    BLOCKED("BLOCKED");
+    FRIEND("FRIEND")
+    , BLOCKED("BLOCKED")
+//    , DELETE("DELETE")
+    ;
 
     private final String key;
 }

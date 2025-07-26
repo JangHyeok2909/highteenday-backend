@@ -6,13 +6,18 @@ import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.scraps.Scrap;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.domain.users.UserRepository;
+import com.example.highteenday_backend.dtos.UserInfoDto;
 import com.example.highteenday_backend.dtos.paged.PagedCommentsDto;
 import com.example.highteenday_backend.dtos.paged.PagedPostsDto;
+import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.SortType;
+import com.example.highteenday_backend.security.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.CommentService;
 import com.example.highteenday_backend.services.domain.PostService;
 import com.example.highteenday_backend.services.domain.ScrapService;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -35,7 +40,12 @@ public class MypageController {
     private final PostService postService;
     private final CommentService commentService;
     private final ScrapService scrapService;
+    private final UserRepository userRepository;
     private final int PAGE_SIZE = 10;
+    private User getLoginUser(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+    }
 
     @GetMapping("/posts")
     public ResponseEntity<?> getUserPosts(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
@@ -67,6 +77,25 @@ public class MypageController {
         Page<Post> pagedPosts = PageUtils.createPage(posts, pageable);
         PagedPostsDto pagedPostsDto = PageUtils.postsToDto(pagedPosts);
         return ResponseEntity.ok(pagedPostsDto);
+    }
+
+
+    // 마이페이지 | 로그인 유저 정보
+    @Operation(summary = "현재 로그인한 사용자 정보 반환")
+    @GetMapping("/userInfo")
+    public ResponseEntity<UserInfoDto> getCurrentUser(@AuthenticationPrincipal CustomUserPrincipal user) {
+
+        User findUser = getLoginUser(user.getUser().getEmail());
+
+        UserInfoDto userInfoDto = UserInfoDto.builder()
+                .name(findUser.getName())
+                .email(findUser.getEmail())
+                .nickname(findUser.getNickname())
+                .provider(findUser.getProvider().toString())
+                .build();
+
+        return ResponseEntity.ok()
+                .body(userInfoDto);
     }
 
 }
