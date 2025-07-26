@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.services.domain;
 
+import com.example.highteenday_backend.domain.friends.Friend;
 import com.example.highteenday_backend.domain.friends.FriendRepository;
 import com.example.highteenday_backend.domain.friends.FriendReq;
 import com.example.highteenday_backend.domain.friends.FriendReqRepository;
@@ -9,8 +10,10 @@ import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.FriendsInfoDto;
 import com.example.highteenday_backend.dtos.RequestFriendsDto;
+import com.example.highteenday_backend.dtos.RespondFriendRequestDto;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.FriendRequestStatus;
+import com.example.highteenday_backend.enums.FriendStatus;
 import com.example.highteenday_backend.enums.NotificationCategory;
 import com.example.highteenday_backend.security.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
@@ -29,6 +32,7 @@ public class FriendsService {
     private final FriendReqRepository friendReqRepository;
     private final NotificationRepository notificationRepository;
 
+    // 친구 목록
     @Transactional
    public List<FriendsInfoDto> getFriendsList(Long id) {
 
@@ -47,6 +51,43 @@ public class FriendsService {
         return friendsListDto;
     }
 
+    // 내가 친구 신청한 목록 || 내가 보낸거
+    @Transactional
+    public List<FriendsInfoDto> getSentFriendsRequestList(User user) {
+
+        List<FriendReq> findSentFriendsRequestList = friendReqRepository.findSentFriendsRequest(user.getId());
+
+        return findSentFriendsRequestList.stream()
+                .map(req -> FriendsInfoDto.builder()
+                        .id(req.getReceiver().getId())
+                        .name(req.getReceiver().getName())
+                        .nickname(req.getReceiver().getNickname())
+                        .email(req.getReceiver().getEmail())
+                        .build()
+                ).toList();
+    }
+
+    // 누가 나한테 친구 요청한 목록 | 누군가 나한테 신청한 목록
+    @Transactional
+    public List<FriendsInfoDto> getReceivedFriendsList(User user){
+        List<FriendReq> findReceivedFriendsList = friendReqRepository.findReceivedFriendRequests(user.getId());
+
+        return findReceivedFriendsList.stream()
+                .map(req -> FriendsInfoDto.builder()
+                        .id(req.getRequester().getId())
+                        .name(req.getRequester().getName())
+                        .nickname(req.getRequester().getNickname())
+                        .email(req.getRequester().getEmail())
+                        .build()
+                ).toList();
+    }
+
+
+
+
+
+
+    // 친구 요청
     @Transactional
     public void sendFriendsRequest(CustomUserPrincipal requestUser, RequestFriendsDto receiverDto){
         User requester = userRepository.findByEmail(requestUser.getUserEmail())
@@ -79,41 +120,45 @@ public class FriendsService {
 
     }
 
-//    @Transactional
-//    public void respondToFriendRequest(CustomUserPrincipal receiver, RespondFriendRequestDto status) {
-//        FriendReq friendReq = friendReqRepository.findById(dto.friendReq().getId())
-//                .orElseThrow(() -> new CustomException(ErrorCode.REQUEST_NOT_FOUND));
-//
-//        // 요청 거절시 아무 응답 없음
-//        if(status.toUpperCase().equals(FriendRequestStatus.ACCEPTED.name())){
-//            User request = friendReq.getRequester();
-//            User receiver = friendReq.getReceiver();
-//
-//            friendRepository.save(Friend.builder()
-//                    .user(request)
-//                    .friend(receiver)
-//                    .status(FriendStatus.FRIEND)
-//                    .build());
-//
-//            friendRepository.save(Friend.builder()
-//                    .user(receiver)
-//                    .friend(request)
-//                    .status(FriendStatus.FRIEND)
-//                    .build());
-//
-//            friendReqRepository.delete(dto.friendReq());
-//        } else if (status.toUpperCase().equals(FriendRequestStatus.BLOCKED.name())) { // 응답자가 차단 했을거니까 응다자만 차단 상태 요청자는 모름
-//            User request = friendReq.getRequester();
-//            User receiver = friendReq.getReceiver();
-//
-//            friendRepository.save(Friend.builder()
-//                    .user(receiver)
-//                    .friend(request)
-//                    .status(FriendStatus.BLOCKED)
-//                    .build());
-//        } else if (status.equalsIgnoreCase(FriendRequestStatus.DECLINED.name())) {
-//            friendReqRepository.delete(friendReq);
-//        }
-//
-//    }
+    // 친구 응답
+    @Transactional
+    public void respondToFriendRequest(CustomUserPrincipal receiverInfo, RespondFriendRequestDto friendReqDto) {
+        FriendReq friendReq = friendReqRepository.findById(friendReqDto.id())
+                .orElseThrow(() -> new CustomException(ErrorCode.REQUEST_NOT_FOUND));
+        User request = friendReq.getRequester();
+        User receiver = friendReq.getReceiver();
+
+        if(friendReqDto.status().toUpperCase().equals(FriendRequestStatus.ACCEPTED.name())){
+
+
+            // 보낸사람 저장
+            friendRepository.save(Friend.builder()
+                    .user(request)
+                    .friend(receiver)
+                    .status(FriendStatus.FRIEND)
+                    .build());
+
+            // 받는사람 저장
+            friendRepository.save(Friend.builder()
+                    .user(receiver)
+                    .friend(request)
+                    .status(FriendStatus.FRIEND)
+                    .build());
+
+            friendReqRepository.delete(friendReq);
+
+        } else if (friendReqDto.status().toUpperCase().equals(FriendRequestStatus.BLOCKED.name())) { // 응답자가 차단 했을거니까 응답자만 차단 상태 요청자는 모름 | 친구 요청 보낸사람도 차단 됐는지 알게 할까?
+
+            friendRepository.save(Friend.builder()
+                    .user(receiver)
+                    .friend(request)
+                    .status(FriendStatus.BLOCKED)
+                    .build());
+
+        } else if (friendReqDto.status().equalsIgnoreCase(FriendRequestStatus.DECLINED.name())) { // 요청 거절시 아무 응답 없음
+            friendReqRepository.delete(friendReq);
+        }
+    }
+
+
 }
