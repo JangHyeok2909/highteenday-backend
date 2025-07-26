@@ -47,29 +47,11 @@ public class UserController {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
     }
 
-    // 마이페이지 | 로그인 유저 정보
-    @Operation(summary = "현재 로그인한 사용자 정보 반환")
-    @GetMapping("/loginUser")
-    public ResponseEntity<UserInfoDto> getCurrentUser(@AuthenticationPrincipal CustomUserPrincipal user) {
-
-        User findUser = getLoginUser(user.getUser().getEmail());
-        
-        UserInfoDto userInfoDto = UserInfoDto.builder()
-                .name(findUser.getName())
-                .email(findUser.getEmail())
-                .nickname(findUser.getNickname())
-                .provider(findUser.getProvider().toString())
-                .build();
-
-        return ResponseEntity.ok()
-                .body(userInfoDto);
-    }
 
     // 테스트 코드
     @Operation(summary = "OAuth2 로그인한 사용자 정보 조회 (accessToken 쿠키 기반)")
     @GetMapping("/OAuth2UserInfo")
     public ResponseEntity<?> getOAuth2UserInfo(
-//            @AuthenticationPrincipal OAuth2User oAuth2User
             HttpServletRequest request
     ){
         String accessToken = null;
@@ -86,7 +68,6 @@ public class UserController {
 
         if(accessToken == null){
             throw new TokenException(ErrorCode.TOKEN_NOT_FOUND);
-//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Access Token이 쿠키에 없음"));
         }
 
         Authentication authentication = tokenProvider.getAuthentication(accessToken);
@@ -107,7 +88,6 @@ public class UserController {
     @Operation(summary = "회원가입")
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(
-//            @AuthenticationPrincipal OAuth2User oAuth2User, // RegisterUserDto 에 있지만 변조에 대비해서 원본 데이터를 사용/ 하려고 했는데 로그인 전에는 이거 사용 불가
             @RequestBody  RegisterUserDto registerUserDto,
             HttpServletResponse response
             ){
@@ -207,6 +187,4 @@ public class UserController {
         boolean isDuplicated = userRepository.existsByNickname(nicknameDto.nickname());
         return ResponseEntity.ok(Map.of("중복 여부", isDuplicated));
     }
-
-
 }
