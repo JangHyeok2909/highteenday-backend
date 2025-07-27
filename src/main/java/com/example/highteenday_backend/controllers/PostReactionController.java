@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 public class PostReactionController {
     private final PostService postService;
-    private final UserService userService;
     private final PostReactionService postReactionService;
 
 
