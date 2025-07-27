@@ -48,5 +48,4 @@ public class ScrapService {
         Scrap scrap = getByPostAndUser(post, user);
         scrapRepository.delete(scrap);
     }
-
 }

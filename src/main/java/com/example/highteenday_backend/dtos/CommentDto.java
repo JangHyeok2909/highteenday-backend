@@ -22,10 +22,18 @@ public class CommentDto {
     private String content;
     private Integer likeCount;
     private Integer dislikeCount;
-    private LocalDateTime createdAt;
     private String url;
+    @Builder.Default
     private boolean isAnonymous = true;
+    @Builder.Default
     private boolean isLiked=false;
+    @Builder.Default
     private boolean isDisliked=false;
+    @Builder.Default
     private boolean isOwner=false;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    @Builder.Default
+    private boolean isUpdated=false;
+
 }

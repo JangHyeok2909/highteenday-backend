@@ -90,8 +90,10 @@ public class Comment extends BaseEntity {
                 .likeCount(this.likeCount)
                 .dislikeCount(this.dislikeCount)
                 .isAnonymous(this.isAnonymous)
-                .createdAt(super.getCreated())
                 .url(s3Url)
+                .createdAt(super.getCreated())
+                .updatedAt(super.getUpdatedDate())
+                .isUpdated(super.getUpdatedBy() !=null)
                 .build();
     }
 }

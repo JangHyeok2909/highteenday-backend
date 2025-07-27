@@ -19,7 +19,7 @@ public class CommentMediaService {
 
     @Transactional
     public void processCreateCommentMedia(Long userId, Comment comment, RequestCommentDto dto){
-        if(dto.getUrl().isEmpty()) return;
+        if(dto.getUrl() == null ||dto.getUrl().isEmpty()) return;
         String finalUrl = s3Service.copyToFinalLocation(dto.getUrl(), comment.getId(), MediaOwner.COMMENT);
         comment.updateImage(finalUrl);
 
@@ -29,6 +29,7 @@ public class CommentMediaService {
 
         media.setComment(comment);
         s3Service.deleteUserTmp(userId);
+
     }
 
     //tmp 없이 바로 comment/commentId/postId로 저장
