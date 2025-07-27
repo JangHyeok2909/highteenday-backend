@@ -5,7 +5,6 @@ import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.PostService;
 import com.example.highteenday_backend.services.domain.ScrapService;
-import com.example.highteenday_backend.services.domain.UserService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,8 +20,10 @@ public class ScrapController {
     private final ScrapService scrapService;
 
     @PostMapping()
-    public ResponseEntity<?> scrap(@PathVariable Long postId,
-                                   @AuthenticationPrincipal CustomUserPrincipal userPrincipal){
+    public ResponseEntity<?> scrap(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+                                   @PathVariable Long postId
+                                   ){
+        if(userPrincipal ==null) System.out.println("userPrincipal = null");
         User user = userPrincipal.getUser();
         Post post = postService.findById(postId);
         boolean scraped = scrapService.isScraped(post, user);

@@ -43,7 +43,7 @@ public class CommentService {
     }
 
     @Transactional
-    public Comment creatComment(Post post,User user, RequestCommentDto dto){
+    public Comment createComment(Post post, User user, RequestCommentDto dto){
 
         Comment comment = Comment.builder()
                 .user(user)
@@ -56,7 +56,12 @@ public class CommentService {
         int commentCount = commentRepository.findByPost(post).size();
         post.updateCommentCount(commentCount);
 
-        return commentRepository.save(comment);
+        comment = commentRepository.save(comment);
+        Long userId = user.getId();
+        if(dto.getUrl() != null && !dto.getUrl().isEmpty()) commentMediaService.processCreateCommentMedia(userId,comment,dto);
+        comment.setUpdatedBy(userId);
+        comment.setUpdatedDate(null);
+        return comment;
     }
     @Transactional
     public void updateComment(Long commentId, Long userId, RequestCommentDto dto){
