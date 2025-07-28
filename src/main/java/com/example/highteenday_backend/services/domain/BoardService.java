@@ -2,6 +2,7 @@ package com.example.highteenday_backend.services.domain;
 
 import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.boards.BoardRepository;
+import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -12,7 +13,7 @@ public class BoardService {
 
     public Board findById(Long boardId){
         return boardRepository.findById(boardId)
-                .orElseThrow(()->new RuntimeException("post does not exist, boardId="+boardId));
+                .orElseThrow(()->new ResourceNotFoundException("post does not exist, boardId="+boardId));
     }
 
 }

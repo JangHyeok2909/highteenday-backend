@@ -1,11 +1,9 @@
 package com.example.highteenday_backend.controllers;
 
 import com.example.highteenday_backend.domain.users.User;
-import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.*;
 import com.example.highteenday_backend.enums.ErrorCode;
-import com.example.highteenday_backend.enums.Provider;
-import com.example.highteenday_backend.security.CustomException;
+import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.security.TokenException;
 import com.example.highteenday_backend.security.TokenProvider;
@@ -14,10 +12,8 @@ import com.example.highteenday_backend.services.security.JwtCookieService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -25,12 +21,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 
 @RequestMapping("/api/user") // 일단 user 로 해놨는데 변경해도 ㄱㅊ

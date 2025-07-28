@@ -29,7 +29,7 @@ public class DataInitializer {
         userDataInit();
         User testUser = userService.findByEmail("test1@gmail.com");
         postDataInit(testUser);
-        commentDataInit(testUser);
+//        commentDataInit(testUser);
         likeAndDislikeDataInit(testUser);
         scrapDataInit(testUser);
     }
@@ -52,7 +52,7 @@ public class DataInitializer {
     }
 
     public void postDataInit(User user){
-        int postCount = 15;
+        int postCount = 10;
         for(int i=1;i<=postCount;i++){
             long boardId = (i-1)%5+1;
             RequestPostDto requestPostDto = RequestPostDto.builder()
@@ -79,7 +79,7 @@ public class DataInitializer {
     }
 
     public void likeAndDislikeDataInit(User user){
-        int likeCount = 23;
+        int likeCount = 11;
         for(int i=1;i<=likeCount;i++){
             if(i%2==0) postReactionService.likeReact(postService.findById((long)i),user);
             else postReactionService.dislikeReact(postService.findById((long)i),user);
@@ -88,7 +88,7 @@ public class DataInitializer {
     }
 
     public void scrapDataInit(User user){
-        int scrapCount= 33;
+        int scrapCount= 12;
         for (int i = 1; i <= scrapCount; i++) {
             scrapService.createScrap(postService.findById((long) i), user);
         }

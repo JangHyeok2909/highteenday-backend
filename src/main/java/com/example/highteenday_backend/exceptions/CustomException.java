@@ -1,4 +1,4 @@
-package com.example.highteenday_backend.security;
+package com.example.highteenday_backend.exceptions;
 
 
 import com.example.highteenday_backend.enums.ErrorCode;

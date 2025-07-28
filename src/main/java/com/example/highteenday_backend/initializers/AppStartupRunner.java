@@ -11,7 +11,7 @@ public class AppStartupRunner {
 
     private final DataInitializer dataInitializer;
 
-//    @EventListener(ApplicationReadyEvent.class)
+    @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
         dataInitializer.dataInit();
     }
