@@ -4,13 +4,11 @@ import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.enums.FriendStatus;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @Builder
 @Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name= "friends")
