@@ -1,4 +1,4 @@
-package com.example.highteenday_backend.dtos;
+package com.example.highteenday_backend.dtos.Friends;
 
 import com.example.highteenday_backend.domain.friends.FriendReq;
 import lombok.Builder;
