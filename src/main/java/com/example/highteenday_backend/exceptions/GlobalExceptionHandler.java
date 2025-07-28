@@ -1,5 +1,6 @@
-package com.example.highteenday_backend.security;
+package com.example.highteenday_backend.exceptions;
 
+import com.amazonaws.services.kms.model.NotFoundException;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.persistence.EntityNotFoundException;
@@ -58,6 +59,7 @@ public class GlobalExceptionHandler {
     }
     // 404 Not Found
     @ExceptionHandler({
+            ResourceNotFoundException.class,
             NoSuchElementException.class,
             EntityNotFoundException.class,
             AmazonS3Exception.class,

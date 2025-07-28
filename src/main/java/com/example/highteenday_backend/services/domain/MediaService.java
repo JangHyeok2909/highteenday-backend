@@ -5,6 +5,7 @@ import com.example.highteenday_backend.domain.medias.MediaRepository;
 import com.example.highteenday_backend.dtos.FileInfo;
 import com.example.highteenday_backend.dtos.UploadedResult;
 import com.example.highteenday_backend.enums.MediaCategory;
+import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.services.global.S3Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +24,7 @@ public class MediaService {
 
     public Media findByUrl(String url){
         return mediaRepository.findByUrl(url)
-                .orElseThrow(()->new RuntimeException("media dose not exists. mediaUrl="+url));
+                .orElseThrow(()->new ResourceNotFoundException("media dose not exists. mediaUrl="+url));
     }
     @Transactional
     public Media createMedia(FileInfo dto){

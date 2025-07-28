@@ -3,7 +3,6 @@ package com.example.highteenday_backend.services.domain;
 import com.example.highteenday_backend.services.global.RedisService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @RequiredArgsConstructor
 @Service
@@ -15,16 +14,16 @@ public class ViewCountService {
         String dedupKey="viewed:"+postId+":"+userId;
         String countKey="post:views:"+postId;
 
-        Boolean isNew = redisService.set(dedupKey, 1, expireTime);
+        Boolean isNew = redisService.set(dedupKey, "1", expireTime);
         System.out.println("create redis ="+dedupKey);
         if(isNew){
-            redisService.increaseCount(countKey, 1);
+            redisService.increaseCount(countKey);
         }
 
     }
     public int getViewCount(Long postId){
         String countKey="post:views:"+postId;
-        Integer increment = (Integer) redisService.get(countKey);
+        Integer increment = (Integer) redisService.getValue(countKey);
         if(increment==null) increment=0;
         return increment;
     }

@@ -1,11 +1,13 @@
 package com.example.highteenday_backend.services.domain;
 
+import com.amazonaws.services.kms.model.NotFoundException;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.comments.CommentRepository;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.enums.SortType;
+import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -25,7 +27,7 @@ public class CommentService {
 
     public Comment findCommentById(Long commentId){
         return commentRepository.findById(commentId).
-                orElseThrow(()->new RuntimeException("does not exists Comment, commentId="+commentId));
+                orElseThrow(()->new ResourceNotFoundException("does not exists Comment, commentId="+commentId));
     }
     public List<Comment> getCommentsByPost(Post post){
         List<Comment> comments = commentRepository.findByPost(post);
@@ -37,7 +39,7 @@ public class CommentService {
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<Comment> commentPages = commentRepository.findByUser(user, pageable);
         if(commentPages.isEmpty()) {
-            throw new RuntimeException(String.format("comment is empty. userId=%d, page=%d, size=%d",user.getId(),page,size));
+            throw new ResourceNotFoundException(String.format("comment is empty. userId=%d, page=%d, size=%d",user.getId(),page,size));
         }
         return commentPages;
     }

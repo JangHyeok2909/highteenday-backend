@@ -26,13 +26,16 @@ public class ScrapController {
         if(userPrincipal ==null) System.out.println("userPrincipal = null");
         User user = userPrincipal.getUser();
         Post post = postService.findById(postId);
+        System.out.println(post.getScrapCount());
         boolean scraped = scrapService.isScraped(post, user);
         String message;
         if(!scraped){
             scrapService.createScrap(post,user);
+            post.plusScrapCount();
             message ="스크랩 완료.";
         } else{
             scrapService.cancelScrap(post,user);
+            post.minusScrapCount();
             message ="스크랩 취소.";
         }
         return ResponseEntity.ok(message);
