@@ -6,7 +6,7 @@ import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.ChangeNicknameDto;
 import com.example.highteenday_backend.dtos.ChangePasswordDto;
 
-import com.example.highteenday_backend.dtos.RegisterUserDto;
+import com.example.highteenday_backend.dtos.Login.RegisterUserDto;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.security.CustomException;
