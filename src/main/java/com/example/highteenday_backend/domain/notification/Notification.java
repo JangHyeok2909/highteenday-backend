@@ -36,9 +36,8 @@ public class Notification extends BaseEntity {
     @Column(name = "NT_CAT", nullable = false)
     private NotificationCategory category;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "FRD_REQ_id")
-    private FriendReq firendReq;
+    @Column(name = "FRD_REQ_id")
+    private Long firendReqId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "PST_LK_id")
@@ -54,6 +53,7 @@ public class Notification extends BaseEntity {
     @Column(name = "NT_msg", length = 255)
     private String message;
 
+    @Builder.Default
     @Column(name = "NT_is_read", nullable = false)
     private Boolean isRead = false;
 }

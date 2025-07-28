@@ -36,6 +36,9 @@ public enum ErrorCode {
     SAME_AS_NICKNAME(BAD_REQUEST, "현재 닉네임과 동일한 닉네임입니다."),
     DUPLICATE_NICKNAME(CONFLICT, "이미 사용 중인 닉네임입니다."),
     INVALID_NICKNAME_FORMAT(BAD_REQUEST, "올바르지 않은 닉네임 형식입니다."),
+
+    // friend
+    FRIEND_NOT_FOUND(NOT_FOUND, "친구 관계가 아닙니다.")
     ;
 
     private final HttpStatus httpStatus;
