@@ -38,7 +38,7 @@ public class Post extends BaseEntity {
     private String content;
 
     @Builder.Default
-    @Column(name = "PST_view_count", nullable = false)
+    @Column(name = "PST_view_count")
     private int viewCount = 0;
     @Builder.Default
     @Column(name = "PST_like_count")
@@ -47,10 +47,13 @@ public class Post extends BaseEntity {
     @Column(name = "PST_dislike_count")
     private int dislikeCount = 0;
     @Builder.Default
-    @Column(name = "PST_comment_count", nullable = false)
+    @Column(name = "PST_comment_count")
     private int commentCount = 0;
     @Builder.Default
-    @Column(name = "PST_is_anonymous", nullable = false)
+    @Column(name = "PST_scrap_count")
+    private int scrapCount = 0;
+    @Builder.Default
+    @Column(name = "PST_is_anonymous")
     private boolean isAnonymous=true;
 
 //    @Column(name = "PST_report_count")
@@ -92,6 +95,18 @@ public class Post extends BaseEntity {
     }
     public void updateAnonymous(boolean isAnonymous){
         this.isAnonymous = isAnonymous;
+    }
+    public void plusScrapCount(){
+        this.scrapCount++;
+    }
+    public void minusScrapCount(){
+        this.scrapCount--;
+    }
+    public void updateScrapCount(){
+        this.scrapCount+=scrapCount;
+    }
+    public void minusScrapCount(int scrapCount){
+        this.scrapCount-=scrapCount;
     }
 
     public PostDto toDto() {

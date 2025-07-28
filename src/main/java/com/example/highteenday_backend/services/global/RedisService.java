@@ -10,24 +10,24 @@ import java.util.Set;
 @RequiredArgsConstructor
 @Service
 public class RedisService {
-    private final RedisTemplate<String,Object> redisTemplate;
+    private final RedisTemplate<String,String> redisTemplate;
 
-    public Set<String> keys(String pattern){
+    public Set<String> getKeysByPattern(String pattern){
         return redisTemplate.keys(pattern);
     }
-    public void set(String key, Object value){
+    public void set(String key, String value){
         redisTemplate.opsForValue().set(key, value);
     }
-    public Boolean set(String key, Object value,long expireTime){
+    public Boolean set(String key, String value,long expireTime){
         return redisTemplate.opsForValue().setIfAbsent(key, value, Duration.ofHours(expireTime));
     }
-    public Object get(String key){
+    public Object getValue(String key){
         return redisTemplate.opsForValue().get(key);
     }
     public void delete(String key){
         redisTemplate.delete(key);
     }
-    public Long increaseCount(String key, long value){
+    public Long increaseCount(String key){
         return redisTemplate.opsForValue().increment(key);
     }
 }

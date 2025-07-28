@@ -21,6 +21,7 @@ import java.time.LocalDate;
 public class User extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Id
+    @Column(name = "USR_id")
     private Long id;
 
     @Column(name = "USR_email", length = 48, nullable = false, unique = true)

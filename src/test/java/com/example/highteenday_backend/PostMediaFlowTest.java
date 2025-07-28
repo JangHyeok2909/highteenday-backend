@@ -83,7 +83,6 @@ public class PostMediaFlowTest {
             """.formatted(urls.get(0), urls.get(1), urls.get(2));
 
         RequestPostDto requestPostDto = RequestPostDto.builder()
-                .userId(1l)
                 .boardId(1l)
                 .title("게시글 사진 올리기 테스트.")
                 .content(htmlContent)
@@ -165,7 +164,6 @@ public class PostMediaFlowTest {
             """.formatted(addedUrls.get(0), addedUrls.get(1), addedUrls.get(2));
 
             RequestPostDto requestPostDto = RequestPostDto.builder()
-                    .userId(1l)
                     .boardId(1l)
                     .title("게시글 사진 올리기 테스트.")
                     .content(updatedContent)

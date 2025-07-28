@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.services.domain;
 
+import com.amazonaws.services.kms.model.NotFoundException;
 import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.posts.PostRepository;
@@ -7,6 +8,7 @@ import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.example.highteenday_backend.dtos.UpdatePostDto;
 import com.example.highteenday_backend.enums.SortType;
+import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -26,7 +28,7 @@ public class PostService {
 
     public Post findById(Long postId) {
         return postRepository.findById(postId)
-                .orElseThrow(() -> new RuntimeException("post does not exist, postId=" + postId));
+                .orElseThrow(() -> new ResourceNotFoundException("post does not exist, postId=" + postId));
     }
 
     public Page<Post> getPagedPostsByUser(User user, int page, int size, SortType sortType){
@@ -35,7 +37,7 @@ public class PostService {
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<Post> postPages = postRepository.findByUser(user, pageable);
         if(postPages.isEmpty()) {
-            throw new RuntimeException(String.format("post is empty. userId=%d, page=%d, size=%d",user.getId(),page,size));
+            throw new ResourceNotFoundException(String.format("post is empty. userId=%d, page=%d, size=%d",user.getId(),page,size));
         }
         return postPages;
     }
@@ -48,7 +50,7 @@ public class PostService {
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<Post> postPages = postRepository.findByBoard(board, pageable);
         if(postPages.isEmpty()) {
-            throw new RuntimeException(String.format("post is empty. boardId=%d, page=%d, size=%d",boardId,page,size));
+            throw new ResourceNotFoundException(String.format("post is empty. boardId=%d, page=%d, size=%d",boardId,page,size));
         }
         return postPages;
     }

@@ -19,14 +19,14 @@ public class ViewCountScheduler {
     @Transactional
     @Scheduled(fixedRate = 60000) //1분마다 db 반영
     public void syncViewsToDB(){
-        Set<String> keys = redisService.keys("post:views:*");
+        Set<String> keys = redisService.getKeysByPattern("post:views:*");
         if(keys == null) return;
         for(String redisKey:keys){
-            String incrementStr = redisService.get(redisKey).toString();
-            if(incrementStr == null) continue;
+            String incremenValuetStr = redisService.getValue(redisKey).toString();
+            if(incremenValuetStr == null) continue;
             String postIdStr = redisKey.replace("post:views:", "");
             long postId = Long.parseLong(postIdStr);
-            long increment = Long.parseLong(incrementStr);
+            long increment = Long.parseLong(incremenValuetStr);
 
             Post post = postService.findById(postId);
             post.addViewCount((int)increment);
