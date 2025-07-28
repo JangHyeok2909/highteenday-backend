@@ -1,8 +1,9 @@
 package com.example.highteenday_backend.security;
 
 import com.example.highteenday_backend.domain.users.User;
-import com.example.highteenday_backend.dtos.OAuth2UserInfo;
+import com.example.highteenday_backend.dtos.Login.OAuth2UserInfo;
 import com.example.highteenday_backend.enums.Provider;
+import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -13,7 +14,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class CustomUserPrincipal implements UserDetails, OAuth2User {
+public class CustomUserPrincipal implements UserDetails, OAuth2User{
     private final User user;
     private final Map<String, Object> attributes; // OAuth2 Attributes
     private final OAuth2UserInfo oAuth2UserInfo;

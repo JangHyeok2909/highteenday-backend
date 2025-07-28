@@ -83,7 +83,6 @@ public class MypageController {
         return ResponseEntity.ok(pagedPostsDto);
     }
 
-
     // 마이페이지 | 로그인 유저 정보
     @Operation(summary = "현재 로그인한 사용자 정보 반환")
     @GetMapping("/userInfo")
