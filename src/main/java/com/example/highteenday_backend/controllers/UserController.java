@@ -84,6 +84,22 @@ public class UserController {
         return ResponseEntity.ok(getOAuthUser);
     }
 
+    // 테스트 코드
+    @GetMapping("/userInfo")
+    public ResponseEntity<?> userInfo(
+            @AuthenticationPrincipal CustomUserPrincipal user
+    ) {
+        User findUser = getLoginUser(user.getUser().getEmail());
+
+        Map<String, Object> getUserInfo = new HashMap<>();
+
+        getUserInfo.put("email", findUser.getEmail());
+        getUserInfo.put("nickname", findUser.getNickname());
+        getUserInfo.put("name", findUser.getName());
+        getUserInfo.put("provider", findUser.getProvider());
+
+        return ResponseEntity.ok(getUserInfo);
+    }
 
     // 회원가입
     @Operation(summary = "회원가입")
