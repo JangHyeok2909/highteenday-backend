@@ -3,10 +3,10 @@ package com.example.highteenday_backend.security;
 
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
-import com.example.highteenday_backend.dtos.OAuth2UserInfo;
+import com.example.highteenday_backend.dtos.Login.OAuth2UserInfo;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
-import com.example.highteenday_backend.services.security.TokenService;
+import com.example.highteenday_backend.services.domain.TokenService;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;

@@ -3,6 +3,9 @@ package com.example.highteenday_backend.controllers;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.*;
+import com.example.highteenday_backend.dtos.Login.LoginRequestDto;
+import com.example.highteenday_backend.dtos.Login.OAuth2UserInfo;
+import com.example.highteenday_backend.dtos.Login.RegisterUserDto;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.security.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
@@ -17,8 +20,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -88,7 +89,7 @@ public class UserController {
     @Operation(summary = "회원가입")
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(
-            @RequestBody  RegisterUserDto registerUserDto,
+            @RequestBody RegisterUserDto registerUserDto,
             HttpServletResponse response
             ){
 
