@@ -17,7 +17,7 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @Table(name= "schools_meals")
 @Entity
-public class SchoolMeal extends BaseEntity {
+public class SchoolMeal{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "SCH_ML_id")

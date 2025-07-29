@@ -1,4 +1,4 @@
-package com.example.highteenday_backend.services.school;
+package com.example.highteenday_backend.api;
 
 import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.domain.schools.SchoolMeal;

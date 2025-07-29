@@ -1,6 +1,5 @@
-package com.example.highteenday_backend.configs;
+package com.example.highteenday_backend.api;
 
-import com.example.highteenday_backend.services.school.SchoolInfoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
