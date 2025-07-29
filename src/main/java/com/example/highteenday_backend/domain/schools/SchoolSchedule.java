@@ -16,7 +16,7 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @Table(name= "schools_schedule")
 @Entity
-public class SchoolSchedule extends BaseEntity {
+public class SchoolSchedule  {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "SCH_SD_id")

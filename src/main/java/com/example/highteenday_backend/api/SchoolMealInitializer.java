@@ -1,12 +1,8 @@
-package com.example.highteenday_backend.configs;
+package com.example.highteenday_backend.api;
 
-import com.example.highteenday_backend.services.school.SchoolMealService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
-
-import java.time.LocalDate;
 
 @Order(2)
 @Component
