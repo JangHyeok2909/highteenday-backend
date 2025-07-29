@@ -13,7 +13,7 @@ import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.FriendRequestStatus;
 import com.example.highteenday_backend.enums.FriendStatus;
 import com.example.highteenday_backend.enums.NotificationCategory;
-import com.example.highteenday_backend.security.CustomException;
+import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
