@@ -5,6 +5,7 @@ import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
@@ -16,12 +17,11 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 import java.util.Optional;
 
+@RequiredArgsConstructor
 @Service
 @Slf4j
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
-
-    @Autowired
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
 
     @Override
     public CustomUserPrincipal loadUser(OAuth2UserRequest request) throws OAuth2AuthenticationException {

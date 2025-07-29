@@ -3,9 +3,7 @@ package com.example.highteenday_backend.domain.users;
 
 import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.schools.School;
-import com.example.highteenday_backend.enums.Gender;
-import com.example.highteenday_backend.enums.Provider;
-import com.example.highteenday_backend.enums.Role;
+import com.example.highteenday_backend.enums.*;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -40,7 +38,10 @@ public class User extends BaseEntity {
     private Integer userClass;
 
     @Column(name = "USR_grade")
-    private Integer grade;
+    private Grade grade;
+
+    @Column(name="USR_semester")
+    private Semester semester;
 
     @Column(name = "USR_major", length = 30)
     private String major;

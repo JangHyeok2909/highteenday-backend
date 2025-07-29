@@ -8,5 +8,5 @@ import lombok.Data;
 @AllArgsConstructor
 @Data
 public class RequestSubjectDto {
-    private String subject;
+    private String subjectName;
 }
