@@ -78,20 +78,20 @@ public class UserController {
     }
 
     // 테스트 코드
+    @Operation(summary = "현재 로그인한 사용자 정보 반환")
     @GetMapping("/userInfo")
-    public ResponseEntity<?> userInfo(
+    public ResponseEntity<UserInfoDto> userInfo(
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
         User findUser = userService.findByEmail(user.getUser().getEmail());
+        UserInfoDto userInfoDto = UserInfoDto.builder()
+                .name(findUser.getName())
+                .email(findUser.getEmail())
+                .nickname(findUser.getNickname())
+                .provider(findUser.getProvider().toString())
+                .build();
 
-        Map<String, Object> getUserInfo = new HashMap<>();
-
-        getUserInfo.put("email", findUser.getEmail());
-        getUserInfo.put("nickname", findUser.getNickname());
-        getUserInfo.put("name", findUser.getName());
-        getUserInfo.put("provider", findUser.getProvider());
-
-        return ResponseEntity.ok(getUserInfo);
+        return ResponseEntity.ok().body(userInfoDto);
     }
 
     // 회원가입

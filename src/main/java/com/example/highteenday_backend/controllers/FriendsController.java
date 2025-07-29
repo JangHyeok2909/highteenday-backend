@@ -3,10 +3,10 @@ package com.example.highteenday_backend.controllers;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.Friends.*;
-import com.example.highteenday_backend.enums.ErrorCode;
-import com.example.highteenday_backend.security.CustomException;
+import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.FriendsService;
+import com.example.highteenday_backend.services.domain.UserService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,11 +23,10 @@ import java.util.List;
 public class FriendsController {
 
     private final FriendsService friendsService;
-    private final UserRepository userRepository;
+    private final UserService userService;
 
     private User getUserData(String email) {
-        return userRepository.findByEmail(email)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        return userService.findByEmail(email);
     }
 
     // 친구 목록
