@@ -42,7 +42,7 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
                 filterChain.doFilter(request, response);
                 return;
             } else {
-                throw new TokenException(ErrorCode.TOKEN_NOT_FOUND);
+//                throw new TokenException(ErrorCode.TOKEN_NOT_FOUND);
             }
         }
 

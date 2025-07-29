@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -57,7 +58,7 @@ public class SecurityConfig {
                                     "http://localhost:8080"
                             ));
                             config.setAllowCredentials(true);
-                            config.setAllowedMethods(List.of("GET"));
+                            config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                             config.setAllowedHeaders(List.of("*"));
                             return config;
                         }))
@@ -69,26 +70,25 @@ public class SecurityConfig {
                         }))
                 )
                 .authorizeHttpRequests(auth -> auth
-                                //Get 요청 비로그인시 401
-                                .requestMatchers(HttpMethod.GET,
-                                        "/api/user/OAuth2UserInfo",
-                                        "/api/user/loginUser",
-                                        "/api/mypage/**"
-                                ).authenticated()
-                                //Post 요청 비로그인 허용
-                                .requestMatchers(HttpMethod.POST,
-                                        "/api/user/register",
-                                        "/api/user/login",
-                                        "/error"
-                                ).permitAll()
-                                //Get 요청 비로그인 허용
-                                .requestMatchers(HttpMethod.GET,
-                                        "/**"
-                                ).permitAll()
-                                .anyRequest().authenticated()
+                        // GET 요청 중 인증 필요 경로
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/user/OAuth2UserInfo",
+                                "/api/user/loginUser",
+                                "/api/mypage/**"
+                        ).authenticated()
 
-
+                        // POST 요청 중 인증 없이 허용하는 경로
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/user/register",
+                                "/api/user/login",
+                                "/error"
+                        ).permitAll()
+                        // 그 외 모든 GET 요청은 허용
+                        .requestMatchers(HttpMethod.GET, "/**").permitAll()
+                        // 그 외 모든 요청은 인증 필요
+                        .anyRequest().authenticated()
                 )
+
 
                 // 로그인 부분
                 .oauth2Login(oauth -> oauth
@@ -103,5 +103,15 @@ public class SecurityConfig {
     @Bean
     public BCryptPasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+    @Bean
+    public WebSecurityCustomizer securityCustomizer() {
+        return (web) -> web.ignoring().requestMatchers(
+                "/swagger-ui/**",
+                "/swagger-resources/**",
+                "/v3/api-docs/**",
+                "/webjars/**",
+                "/favicon.ico"
+        );
     }
 }
