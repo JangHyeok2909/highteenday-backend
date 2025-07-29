@@ -10,6 +10,7 @@ import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.TimetableTemplateService;
 import com.example.highteenday_backend.services.UserTimetableService;
 import com.example.highteenday_backend.services.domain.SubjectService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,8 @@ public class SubjectController {
     private final SubjectService subjectService;
     private final TimetableTemplateService templateService;
     private final UserTimetableService timetableService;
+
+    @Operation(summary = "해당 시간표에 존재하는 과목 리스트 조회")
     @GetMapping
     public ResponseEntity<List<SubjectDto>> getSubjects(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                          @PathVariable Long timetableTemplatesId){
@@ -41,6 +44,7 @@ public class SubjectController {
         }
         return ResponseEntity.ok(subjectDtos);
     }
+    @Operation(summary = "과목 생성")
     @PostMapping
     public ResponseEntity<SubjectDto> addSubject(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                         @PathVariable Long timetableTemplatesId,
@@ -57,6 +61,7 @@ public class SubjectController {
         Subject save = subjectService.save(subject);
         return ResponseEntity.ok(save.toDto());
     }
+    @Operation(summary = "과목명 수정")
     @PutMapping("/{subjectId}")
     public ResponseEntity<SubjectDto> updateSubject(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                                     @PathVariable Long subjectId,
@@ -71,6 +76,7 @@ public class SubjectController {
         }
         return ResponseEntity.ok(subject.toDto());
     }
+    @Operation(summary = "과목 삭제")
     @DeleteMapping("/{subjectId}")
     public ResponseEntity<String> deleteSubject(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                                 @PathVariable Long subjectId){
