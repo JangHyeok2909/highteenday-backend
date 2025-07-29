@@ -4,17 +4,21 @@ import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.domain.schools.SchoolRepository;
 import com.example.highteenday_backend.enums.SchoolCategory;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -109,6 +113,35 @@ public class SchoolInfoService {
         } catch (IOException e) {
             System.out.println("JSON 저장 실패: " + e.getMessage());
             e.printStackTrace();        }
+    }
+    @Transactional
+    public void importSchoolsFromJson() {
+        try {
+            // resources 폴더 내 schools_no_id.json 파일 읽기
+            InputStream inputStream = getClass().getClassLoader().getResourceAsStream("schools_no_id.json");
+
+            if (inputStream == null) {
+                throw new IllegalArgumentException("schools_no_id.json 리소스 파일을 찾을 수 없습니다.");
+            }
+
+            // JSON 파일을 School 객체 리스트로 역직렬화
+            List<School> schools = objectMapper.readValue(
+                    inputStream,
+                    new TypeReference<List<School>>() {}
+            );
+            //중복 제거하여 한번에 저장
+            List<School> filtered = schools.stream()
+                    .filter(sc -> !schoolRepository.existsByCode(sc.getCode()))
+                    .collect(Collectors.toList());
+            schoolRepository.saveAll(filtered);
+
+
+            System.out.println("schools_no_id.json 파일에서 학교 정보를 DB에 저장했습니다.");
+
+        } catch (IOException e) {
+            System.out.println("JSON 로드 실패: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
 }
