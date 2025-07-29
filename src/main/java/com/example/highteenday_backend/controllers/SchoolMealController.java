@@ -1,11 +1,9 @@
 package com.example.highteenday_backend.controllers;
 
 import com.example.highteenday_backend.dtos.SchoolMealDto;
-import com.example.highteenday_backend.enums.SchoolMealCategory;
-import com.example.highteenday_backend.services.school.SchoolMealService;
+import com.example.highteenday_backend.api.SchoolMealService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;

@@ -1,4 +1,4 @@
-package com.example.highteenday_backend.services.school;
+package com.example.highteenday_backend.api;
 
 import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.domain.schools.SchoolRepository;
@@ -10,6 +10,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -26,10 +31,12 @@ public class SchoolInfoService {
     private String apiKey;
 
     public void loadAllSchools() {
+        List<School> schoolList = new ArrayList<>();  // 여기에 모든 학교 저장
+
         int pageSize = 1000;
         int page = 1;
         int totalCount = 0;
-        int totalPages = Integer.MAX_VALUE; // 매우 크게 설정
+        int totalPages = Integer.MAX_VALUE;
 
         while (page <= totalPages) {
             String url = String.format(
@@ -41,26 +48,17 @@ public class SchoolInfoService {
                 String response = restTemplate.getForObject(url, String.class);
                 JsonNode root = objectMapper.readTree(response);
 
-                if (!root.has("schoolInfo")) {
-                    System.out.println("응답에 schoolInfo 없음. 중단.");
-                    break;
-                }
+                if (!root.has("schoolInfo")) break;
 
                 JsonNode schoolInfo = root.get("schoolInfo");
 
-                // 전체 개수 추출 (page == 1일 때만 하면 됨)
                 if (page == 1) {
                     totalCount = schoolInfo.get(0).get("head").get(0).get("list_total_count").asInt();
                     totalPages = (int) Math.ceil(totalCount / (double) pageSize);
-//                    System.out.println("=== 전국 고등학교 데이터 초기 로딩 시작 1111===");
-//                    System.out.println("총 학교 수: " + totalCount + ", 총 페이지 수: " + totalPages);
                 }
 
                 JsonNode rows = schoolInfo.get(1).get("row");
-                if (rows == null || rows.isEmpty()) {
-                    System.out.println("페이지 " + page + "에 데이터 없음 → 중단");
-                    break;
-                }
+                if (rows == null || rows.isEmpty()) break;
 
                 for (JsonNode row : rows) {
                     String codeText = row.path("SD_SCHUL_CODE").asText().trim();
@@ -92,18 +90,25 @@ public class SchoolInfoService {
                             .build();
 
                     schoolRepository.save(school);
+                    schoolList.add(school);  // 목록에 추가
                 }
 
                 page++;
 
             } catch (Exception e) {
-                System.out.println("예외 발생: " + e.getMessage());
                 e.printStackTrace();
                 break;
             }
         }
 
-//        System.out.println("전국 학교 데이터 저장 완료. 저장된 수: " + schoolRepository.count());
-//        System.out.println("=== 전국 고등학교 데이터 초기 로딩 완료 111 ===");
+        // JSON 파일로 저장
+        try {
+            File outputFile = new File("schools.json");
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, schoolList);
+            System.out.println("학교 정보가 schools.json 파일로 저장되었습니다.");
+        } catch (IOException e) {
+            System.out.println("JSON 저장 실패: " + e.getMessage());
+            e.printStackTrace();        }
     }
+
 }
