@@ -37,14 +37,14 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
         System.out.println("token=" + token);
         System.out.println("uri=" + uri);
 
-//        if(token == null){
-//            if(isPublicUri(uri)){
-//                filterChain.doFilter(request, response);
-//                return;
-//            } else {
-//                throw new TokenException(ErrorCode.TOKEN_NOT_FOUND);
-//            }
-//        }
+        if(token == null){
+            if(isPublicUri(uri)){
+                filterChain.doFilter(request, response);
+                return;
+            } else {
+                throw new TokenException(ErrorCode.TOKEN_NOT_FOUND);
+            }
+        }
 
         if (token != null) {
             try {
@@ -82,5 +82,9 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
             }
         }
         return null;
+    }
+
+    private boolean isPublicUri(String uri){
+        return uri.startsWith("/api/user/login") || uri.startsWith("/api/user/register");
     }
 }

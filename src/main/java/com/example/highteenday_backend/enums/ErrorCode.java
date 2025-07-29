@@ -22,12 +22,24 @@ public enum ErrorCode {
     NO_ACCESS(FORBIDDEN, "접근 권한이 없습니다."),
     RESOURCE_NOT_FOUND(NOT_FOUND, "요청한 자원을 찾을 수 없습니다."),
     INVALID_REQUEST(BAD_REQUEST, "올바르지 않은 요청입니다."),
-    INTERNAL_ERROR(INTERNAL_SERVER_ERROR, "예상치못한 에러가 발생했습니다."),
+    INTERNAL_ERROR(INTERNAL_SERVER_ERROR, "예상치못한 내부 에러가 발생했습니다."),
 
     // user
     INVALID_PASSWORD(UNAUTHORIZED, "비밀번호가 올바르지 않습니다."),
     ALREADY_EXISTS_USER(CONFLICT, "이미 가입된 유저입니다."),
-    USER_NOT_FOUND(NOT_FOUND, "존재하지 않는 사용자입니다.");
+    USER_NOT_FOUND(NOT_FOUND, "존재하지 않는 사용자입니다."),
+    ALREADY_SENT_FRIEND_REQUEST(CONFLICT, "이미 친구신청을 보냈습니다."),
+    REQUEST_NOT_FOUND(NOT_FOUND, "친구 요청이 존재하지 않습니다."),
+    DATA_INTEGRITY_ERROR(CONFLICT, "데이터 무결성 위반"),
+    DATABASE_ERROR(INTERNAL_SERVER_ERROR, "데이터베이스 오류"),
+    SAME_AS_CURRENT_PASSWORD(BAD_REQUEST, "현재 비밀번호와 동일한 비밀번호입니다."),
+    SAME_AS_NICKNAME(BAD_REQUEST, "현재 닉네임과 동일한 닉네임입니다."),
+    DUPLICATE_NICKNAME(CONFLICT, "이미 사용 중인 닉네임입니다."),
+    INVALID_NICKNAME_FORMAT(BAD_REQUEST, "올바르지 않은 닉네임 형식입니다."),
+
+    // friend
+    FRIEND_NOT_FOUND(NOT_FOUND, "친구 관계가 아닙니다.")
+    ;
 
     private final HttpStatus httpStatus;
     private final String message;
