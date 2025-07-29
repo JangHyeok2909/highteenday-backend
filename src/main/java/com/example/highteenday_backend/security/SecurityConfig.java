@@ -57,7 +57,7 @@ public class SecurityConfig {
                                     "http://localhost:8080"
                             ));
                             config.setAllowCredentials(true);
-                            config.setAllowedMethods(List.of("GET", "POST"));
+                            config.setAllowedMethods(List.of("GET"));
                             config.setAllowedHeaders(List.of("*"));
                             return config;
                         }))
