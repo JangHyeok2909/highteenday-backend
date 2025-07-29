@@ -1,4 +1,4 @@
-package com.example.highteenday_backend.services.security;
+package com.example.highteenday_backend.services.domain;
 
 import com.example.highteenday_backend.domain.Token.Token;
 import com.example.highteenday_backend.domain.Token.TokenRepository;

@@ -26,6 +26,13 @@ INSERT INTO users (
       ('tester@example.com', 'tester1', 'tester1', NOW()),
       ('bob@example.com', 'bobby', 'Bob', NOW()),
       ('carol@example.com', 'carolyn', 'Carol', NOW());
+
+-- 유저 생성
+INSERT INTO users (
+    USR_email, USR_nickname, USR_name, created_at, USR_hashed_password, USR_provider, USR_role
+) VALUES
+    ('test@test.com','테스트닉네임','테스트이름', NOW(), '$2a$10$1JDzV5xwEgU4YnztiMB6aOh0s6VlVn47cpf6sI/Cgy0zdyWJo3V1W', "DEFAULT", "USER");
+
 -- 게시판 생성
 insert into boards (
     BRD_name,created_at
