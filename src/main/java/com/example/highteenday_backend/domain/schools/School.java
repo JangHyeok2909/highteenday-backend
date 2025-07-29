@@ -36,4 +36,9 @@ public class School {
     @Enumerated(EnumType.STRING)
     @Column(name = "SCH_CAT", nullable = false)
     private SchoolCategory category;
+
+    public School setId(Long id){
+        this.id = id;
+        return this;
+    }
 }
