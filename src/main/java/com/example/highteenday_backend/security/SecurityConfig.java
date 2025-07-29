@@ -53,10 +53,11 @@ public class SecurityConfig {
                             CorsConfiguration config = new CorsConfiguration();
                             config.setAllowedOriginPatterns(List.of(
                                     "https://highteenday.duckdns.org",
-                                    "http://localhost:3000"
+                                    "http://localhost:3000",
+                                    "http://localhost:8080"
                             ));
                             config.setAllowCredentials(true);
-                            config.setAllowedMethods(List.of("GET"));
+                            config.setAllowedMethods(List.of("GET", "POST"));
                             config.setAllowedHeaders(List.of("*"));
                             return config;
                         }))
@@ -77,7 +78,8 @@ public class SecurityConfig {
                                 //Post 요청 비로그인 허용
                                 .requestMatchers(HttpMethod.POST,
                                         "/api/user/register",
-                                        "/api/user/login"
+                                        "/api/user/login",
+                                        "/error"
                                 ).permitAll()
                                 //Get 요청 비로그인 허용
                                 .requestMatchers(HttpMethod.GET,

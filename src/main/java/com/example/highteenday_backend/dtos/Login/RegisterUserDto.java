@@ -1,4 +1,4 @@
-package com.example.highteenday_backend.dtos;
+package com.example.highteenday_backend.dtos.Login;
 
 import lombok.Builder;
 
