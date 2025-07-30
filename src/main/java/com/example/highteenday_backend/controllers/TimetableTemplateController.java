@@ -40,7 +40,7 @@ public class TimetableTemplateController {
     @Operation(summary = "시간표 템플릿 생성")
     @PostMapping
     public ResponseEntity<TimetableTemplateDto> createTimetableTemplate(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-                                                                        RequestTimetableTemplateDto dto){
+                                                                        @RequestBody RequestTimetableTemplateDto dto){
         User user = userPrincipal.getUser();
         TimetableTemplate template = TimetableTemplate.builder()
                 .user(user)
@@ -52,39 +52,33 @@ public class TimetableTemplateController {
         TimetableTemplate save = templateService.save(template);
         return ResponseEntity.created(null).body(save.toDto());
     }
-    @Operation(summary = "시간표 템플릿 생성", description = "바꿀값만 할당하여 전달, 바꾸지 않을 값은 null 전달.")
+    @Operation(summary = "시간표 템플릿 수정", description = "바꿀값만 할당하여 전달, 바꾸지 않을 값은 null 전달.")
     @PutMapping("/{timetableTemplateId}")
     public ResponseEntity<TimetableTemplateDto> updateTimetableTemplate(
             @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-            RequestTimetableTemplateDto dto,
+            @RequestBody RequestTimetableTemplateDto dto,
             @PathVariable Long timetableTemplateId
     ){
         User user = userPrincipal.getUser();
         TimetableTemplate template = templateService.findById(timetableTemplateId);
         if(template.getUser().getId() == user.getId()){
-            String changedName = dto.getTemplateName();
-            Grade changedGrade = dto.getGrade();
-            Semester changedSemester = dto.getSemester();
-            if(changedName !=null||!changedName.isEmpty()) template.updateTemplateName(changedName);
-            if(changedGrade !=null) template.updateGrade(changedGrade);
-            if(changedSemester !=null) template.updateSemester(changedSemester);
-            return ResponseEntity.ok(template.toDto());
+            TimetableTemplate updatedTemplate = templateService.update(template, dto);
+            return ResponseEntity.ok(updatedTemplate.toDto());
         } else{
             return ResponseEntity.badRequest().build();
         }
     }
     @Operation(summary = "시간표 템플릿 삭제")
     @DeleteMapping("/{timetableTemplateId}")
-    public ResponseEntity<?> deleteTimetableTemplate(
+    public ResponseEntity<String> deleteTimetableTemplate(
             @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-            RequestTimetableTemplateDto dto,
             @PathVariable Long timetableTemplateId
     ){
         User user = userPrincipal.getUser();
         TimetableTemplate template = templateService.findById(timetableTemplateId);
         if(template.getUser().getId() == user.getId()){
             templateService.delete(template);
-            return ResponseEntity.ok().build();
+            return ResponseEntity.ok("시간표 템플릿 삭제 완료.");
         } else{
             return ResponseEntity.badRequest().build();
         }
