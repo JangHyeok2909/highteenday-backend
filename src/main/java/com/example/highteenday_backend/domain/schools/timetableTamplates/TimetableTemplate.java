@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.domain.schools.timetableTamplates;
 
 import com.example.highteenday_backend.domain.schools.UserTimetables.UserTimetable;
+import com.example.highteenday_backend.domain.schools.subjects.Subject;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.TimetableTemplateDto;
 import com.example.highteenday_backend.enums.Grade;
@@ -33,8 +34,10 @@ public class TimetableTemplate {
     private Grade grade;
     @Column(name = "TTT_semester", nullable = false)
     private Semester semester;
-    @OneToMany(mappedBy = "timetableTemplate", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "timetableTemplate", fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
     private List<UserTimetable> timetables;
+    @OneToMany(mappedBy = "timetableTemplate", fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
+    private List<Subject> subjects;
 
     public TimetableTemplateDto toDto(){
         return TimetableTemplateDto.builder()

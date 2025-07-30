@@ -11,4 +11,5 @@ import lombok.Data;
 public class SubjectDto {
     private Long id;
     private String subjectName;
+    private Integer HoursPerWeek;
 }
