@@ -1,5 +1,7 @@
 package com.example.highteenday_backend.initializers;
 
+import com.example.highteenday_backend.domain.posts.Post;
+import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
@@ -23,6 +25,7 @@ public class DataInitializer {
     private final PostReactionService postReactionService;
     private final ScrapService scrapService;
     private final UserService userService;
+    private final PostRepository postRepository;
 
     @Transactional
     public void dataInit() {
@@ -30,12 +33,13 @@ public class DataInitializer {
         User testUser = userService.findByEmail("test1@gmail.com");
         postDataInit(testUser);
 //        commentDataInit(testUser);
-        likeAndDislikeDataInit(testUser);
+//        likeAndDislikeDataInit(testUser);
+        hotPostLikeDataInit();
         scrapDataInit(testUser);
     }
 
     public void userDataInit(){
-        int userCount = 5;
+        int userCount = 10;
         for(int i=1;i<=userCount;i++){
             String email = "test"+i+"@gmail.com";
             if (userRepository.findByEmail(email).isEmpty()) {
@@ -85,6 +89,16 @@ public class DataInitializer {
             else postReactionService.dislikeReact(postService.findById((long)i),user);
         }
         System.out.println("테스트 좋아요/싫어요 생성완료");
+    }
+
+    public void hotPostLikeDataInit(){
+        int likeCount = 10;
+        Post post = postService.findById(1l);
+        for (int i=1;i<=likeCount;i++){
+            User user = userService.findByEmail("test" + i + "@gmail.com");
+            postReactionService.likeReact(post,user);
+        }
+        System.out.println("postId=1인 게시글 좋아요 10개 생성.");
     }
 
     public void scrapDataInit(User user){
