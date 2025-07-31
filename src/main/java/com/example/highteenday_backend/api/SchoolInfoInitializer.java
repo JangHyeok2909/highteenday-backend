@@ -17,5 +17,6 @@ public class SchoolInfoInitializer implements CommandLineRunner {
     public void run(String... args) throws Exception {
 //        schoolInfoService.loadAllSchools();
         schoolInfoService.importSchoolsFromJson();
+
     }
 }
