@@ -1,6 +1,5 @@
 package com.example.highteenday_backend.controllers;
 
-import com.example.highteenday_backend.domain.schools.UserTimetables.UserTimetable;
 import com.example.highteenday_backend.domain.schools.subjects.Subject;
 import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
 import com.example.highteenday_backend.domain.users.User;
@@ -8,7 +7,6 @@ import com.example.highteenday_backend.dtos.RequestSubjectDto;
 import com.example.highteenday_backend.dtos.SubjectDto;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.TimetableTemplateService;
-import com.example.highteenday_backend.services.UserTimetableService;
 import com.example.highteenday_backend.services.domain.SubjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,40 +21,37 @@ import java.util.List;
 
 @Tag(name = "과목 API")
 @RequiredArgsConstructor
-@RequestMapping("/api/timetableTemplates/{timetableTemplatesId}/userTimetables/{userTimetableId}/subjects")
+@RequestMapping("/api/timetableTemplates/{timetableTemplatesId}/subjects")
 @RestController
 public class SubjectController {
     private final SubjectService subjectService;
     private final TimetableTemplateService templateService;
-    private final UserTimetableService timetableService;
 
-    @Operation(summary = "해당 시간표에 존재하는 과목 리스트 조회")
+    @Operation(summary = "해당 시간표 템플릿에 존재하는 모든 과목 리스트 조회")
     @GetMapping
     public ResponseEntity<List<SubjectDto>> getSubjects(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-                                         @PathVariable Long timetableTemplatesId){
+                                                        @PathVariable Long timetableTemplatesId){
         User user = userPrincipal.getUser();
         TimetableTemplate template = templateService.findById(timetableTemplatesId);
         if(user.getId() != template.getUser().getId()) return ResponseEntity.badRequest().build();
-        List<UserTimetable> timetables = template.getTimetables();
+        List<Subject> subjects = template.getSubjects();
         List<SubjectDto> subjectDtos = new ArrayList<>();
-        for(UserTimetable utt:timetables){
-            subjectDtos.add(utt.getSubject().toDto());
+        for(Subject subject:subjects){
+            subjectDtos.add(subject.toDto());
         }
         return ResponseEntity.ok(subjectDtos);
     }
     @Operation(summary = "과목 생성")
     @PostMapping
     public ResponseEntity<SubjectDto> addSubject(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-                                        @PathVariable Long timetableTemplatesId,
-                                        @PathVariable Long userTimetableId,
-                                        RequestSubjectDto dto){
+                                                 @PathVariable Long timetableTemplatesId,
+                                                 @RequestBody RequestSubjectDto dto){
         User user = userPrincipal.getUser();
         TimetableTemplate template = templateService.findById(timetableTemplatesId);
         if(user.getId() != template.getUser().getId()) return ResponseEntity.badRequest().build();
-        UserTimetable timetable = timetableService.findById(userTimetableId);
         Subject subject = Subject.builder()
                 .subjectName(dto.getSubjectName())
-                .userTimetable(timetable)
+                .timetableTemplate(template)
                 .build();
         Subject save = subjectService.save(subject);
         return ResponseEntity.ok(save.toDto());
@@ -65,16 +60,14 @@ public class SubjectController {
     @PutMapping("/{subjectId}")
     public ResponseEntity<SubjectDto> updateSubject(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                                     @PathVariable Long subjectId,
-                                                    RequestSubjectDto dto
+                                                    @RequestBody RequestSubjectDto dto
                                                     ){
         User user = userPrincipal.getUser();
         Subject subject = subjectService.findById(subjectId);
-        Long ownerId = subject.getUserTimetable().getTimetableTemplate().getUser().getId();
+        Long ownerId = subject.getTimetableTemplate().getUser().getId();
         if(user.getId() != ownerId) return ResponseEntity.badRequest().build();
-        if(!dto.getSubjectName().equals(subject.getSubjectName())){
-            subject.updateName(dto.getSubjectName());
-        }
-        return ResponseEntity.ok(subject.toDto());
+        Subject updatedSubject = subjectService.update(subject, dto);
+        return ResponseEntity.ok(updatedSubject.toDto());
     }
     @Operation(summary = "과목 삭제")
     @DeleteMapping("/{subjectId}")
@@ -82,7 +75,7 @@ public class SubjectController {
                                                 @PathVariable Long subjectId){
         User user = userPrincipal.getUser();
         Subject subject = subjectService.findById(subjectId);
-        Long ownerId = subject.getUserTimetable().getTimetableTemplate().getUser().getId();
+        Long ownerId = subject.getTimetableTemplate().getUser().getId();
         if(user.getId() != ownerId) return ResponseEntity.badRequest().build();
         subjectService.delete(subject);
         return ResponseEntity.ok("과목 삭제 완료.");
