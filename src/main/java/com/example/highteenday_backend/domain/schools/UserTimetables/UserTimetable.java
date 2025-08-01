@@ -24,11 +24,11 @@ public class UserTimetable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "UTT_id")
     private Long id;
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "SBJ_id")
     private Subject subject;
 
-    @ManyToOne(fetch = FetchType.LAZY,cascade = CascadeType.ALL)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "TTT_id", nullable = false)
     private TimetableTemplate timetableTemplate;
 
