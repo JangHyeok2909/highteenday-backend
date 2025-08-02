@@ -11,4 +11,6 @@ public interface SchoolRepository extends JpaRepository<School,Long> {
     List<School> findByCategory(SchoolCategory category);
     Optional<School> findByCode(Integer code);
     boolean existsByCode(Integer code);  // 중복 학교 코드 확인
+
+    List<School> findByNameContaining(String name);
 }
