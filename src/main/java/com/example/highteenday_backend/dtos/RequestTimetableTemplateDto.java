@@ -14,9 +14,12 @@ public class RequestTimetableTemplateDto {
     private String templateName;
     private Grade grade;
     private Semester semester;
+    @Builder.Default
+    private boolean isDefault=false;
 
     public String getTemplateName() {
         if(templateName ==null || templateName.isEmpty()) return grade.getField()+" "+semester;
         else return templateName;
     }
+
 }

@@ -26,8 +26,14 @@ public class TimetableTemplateService {
     public List<TimetableTemplate> findByUser(User user){
         return timetableTemplateRepository.findByUser(user);
     }
+
+    public TimetableTemplate getDefaultTemplate(User user){
+        return timetableTemplateRepository.findByUserAndIsDefaultTrue(user)
+                .orElseThrow(()-> new ResourceNotFoundException("default template is not exists."));
+    }
     @Transactional
     public TimetableTemplate save(TimetableTemplate template){
+        if(template.isDefault()) selectDefaultTemplate(template.getUser(),template);
         return timetableTemplateRepository.save(template);
     }
     @Transactional
@@ -35,9 +41,11 @@ public class TimetableTemplateService {
         String changedName = dto.getTemplateName();
         Grade changedGrade = dto.getGrade();
         Semester changedSemester = dto.getSemester();
+        boolean changedDefault = dto.isDefault();
         if(changedName !=null||!changedName.isEmpty()) template.updateTemplateName(changedName);
         if(changedGrade !=null) template.updateGrade(changedGrade);
         if(changedSemester !=null) template.updateSemester(changedSemester);
+        if(changedDefault==true) selectDefaultTemplate(template.getUser(),template);
         return template;
     }
     @Transactional
@@ -45,4 +53,13 @@ public class TimetableTemplateService {
         timetableTemplateRepository.delete(template);
     }
 
+    @Transactional
+    public void selectDefaultTemplate(User user, TimetableTemplate template){
+        List<TimetableTemplate> templates = timetableTemplateRepository.findByUser(user);
+        for(TimetableTemplate t: templates){
+            t.updateDefault(false);
+        }
+        template.updateDefault(true);
+        timetableTemplateRepository.saveAll(templates);
+    }
 }

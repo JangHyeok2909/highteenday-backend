@@ -25,14 +25,14 @@ public class DataInitializer {
     private final PostReactionService postReactionService;
     private final ScrapService scrapService;
     private final UserService userService;
-    private final PostRepository postRepository;
+    private final SchoolService schoolService;
 
     @Transactional
     public void dataInit() {
         userDataInit();
         User testUser = userService.findByEmail("test1@gmail.com");
         postDataInit(testUser);
-//        commentDataInit(testUser);
+        commentDataInit(testUser);
 //        likeAndDislikeDataInit(testUser);
         hotPostLikeDataInit();
         scrapDataInit(testUser);
@@ -49,6 +49,7 @@ public class DataInitializer {
                 user.setNickname("TestUser" + i);
                 user.setProvider(Provider.DEFAULT);
                 user.setHashedPassword(passwordEncoder.encode("asd"));
+                user.setSchool(schoolService.findById((long)i));
                 userRepository.save(user);
                 System.out.println("초기 테스트 유저 설정, user email: " + email);
             }

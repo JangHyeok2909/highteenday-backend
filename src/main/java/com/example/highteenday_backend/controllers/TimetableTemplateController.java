@@ -5,8 +5,6 @@ import com.example.highteenday_backend.domain.schools.timetableTamplates.Timetab
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.RequestTimetableTemplateDto;
 import com.example.highteenday_backend.dtos.TimetableTemplateDto;
-import com.example.highteenday_backend.enums.Grade;
-import com.example.highteenday_backend.enums.Semester;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.TimetableTemplateService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -41,12 +39,15 @@ public class TimetableTemplateController {
     @PostMapping
     public ResponseEntity<TimetableTemplateDto> createTimetableTemplate(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                                                         @RequestBody RequestTimetableTemplateDto dto){
+
+
         User user = userPrincipal.getUser();
         TimetableTemplate template = TimetableTemplate.builder()
                 .user(user)
                 .templateName(dto.getTemplateName())
                 .grade(dto.getGrade())
                 .semester(dto.getSemester())
+                .isDefault(dto.isDefault())
                 .build();
 
         TimetableTemplate save = templateService.save(template);

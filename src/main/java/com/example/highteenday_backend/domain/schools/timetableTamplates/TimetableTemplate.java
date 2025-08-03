@@ -38,6 +38,9 @@ public class TimetableTemplate {
     private List<UserTimetable> timetables;
     @OneToMany(mappedBy = "timetableTemplate", fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
     private List<Subject> subjects;
+    @Builder.Default
+    @Column(name = "TTT_is_default", nullable = false)
+    private boolean isDefault = false;
 
     public TimetableTemplateDto toDto(){
         return TimetableTemplateDto.builder()
@@ -45,6 +48,7 @@ public class TimetableTemplate {
                 .templateName(templateName)
                 .grade(grade)
                 .semester(semester)
+                .isDefault(isDefault)
                 .build();
     }
 
@@ -57,5 +61,8 @@ public class TimetableTemplate {
     }
     public void updateSemester(Semester semester){
         this.semester = semester;
+    }
+    public void updateDefault(boolean isDefault){
+        this.isDefault = isDefault;
     }
 }
