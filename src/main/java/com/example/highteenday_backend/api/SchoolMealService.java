@@ -4,11 +4,13 @@ import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.domain.schools.SchoolMeal;
 import com.example.highteenday_backend.domain.schools.SchoolMealRepository;
 import com.example.highteenday_backend.domain.schools.SchoolRepository;
+import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.SchoolMealDto;
 import com.example.highteenday_backend.enums.SchoolMealCategory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -19,6 +21,7 @@ import java.time.YearMonth;
 import java.time.temporal.WeekFields;
 import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SchoolMealService {
@@ -28,8 +31,8 @@ public class SchoolMealService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public List<SchoolMealDto> getMealsByDate(LocalDate date, Long schoolId) {
-        School school = findSchoolById(schoolId);
+    public List<SchoolMealDto> getMealsByDate(User user, LocalDate date) {
+        School school = findSchoolById(user.getSchool().getId());
         List<SchoolMeal> meals = schoolMealRepository.findByDateAndSchool(date, school);
         return SchoolMealDto.fromEntities(meals);
     }
@@ -75,7 +78,6 @@ public class SchoolMealService {
         int pageSize = 100;
         String startDate = String.format("%04d%02d01", year, month);
         String endDate = String.format("%04d%02d31", year, month); // 유효하지 않은 날짜는 NEIS에서 자동 제외
-
         while (true) {
             String url = String.format(
                     "https://open.neis.go.kr/hub/mealServiceDietInfo?KEY=%s&Type=json&pSize=%d&pIndex=%d&ATPT_OFCDC_SC_CODE=%s&SD_SCHUL_CODE=%s&MLSV_FROM_YMD=%s&MLSV_TO_YMD=%s",
@@ -158,7 +160,7 @@ public class SchoolMealService {
                         year, month
                 );
             } catch (Exception e) {
-                System.err.printf("학교 [%s] 급식 정보 수집 실패: %s%n", school.getName(), e.getMessage());
+                log.error("학교 [%s] 급식 정보 수집 실패: %s%n", school.getName(), e.getMessage());
             }
         });
     }
