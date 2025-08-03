@@ -37,7 +37,7 @@ public class Notification extends BaseEntity {
     private NotificationCategory category;
 
     @Column(name = "FRD_REQ_id")
-    private Long firendReqId;
+    private Long friendReqId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "PST_LK_id")
