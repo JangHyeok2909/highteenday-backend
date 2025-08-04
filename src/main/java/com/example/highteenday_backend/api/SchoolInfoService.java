@@ -106,10 +106,16 @@ public class SchoolInfoService {
                 break;
             }
         }
+        File file = new File(SchoolFileConstants.SCHOOL_JSON_PATH);
+        // 경로의 부모 디렉토리 존재 여부 확인
+        File parentDir = file.getParentFile();
+        if (!parentDir.exists()) {
+            parentDir.mkdirs();  // 디렉토리 없으면 자동 생성
+        }
 
         // JSON 파일로 저장
         try {
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(new File(SchoolFileConstants.SCHOOL_JSON_PATH), schoolDtos);
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(file, schoolDtos);
             log.info("학교 정보가 schools.json 파일로 저장되었습니다.");
         } catch (IOException e) {
             log.warn("JSON 저장 실패: " + e.getMessage());
