@@ -18,7 +18,7 @@ public class SchoolInfoInitializer {
     @EventListener(ApplicationReadyEvent.class)
     public void schoolInit() {
 
-//        schoolInfoService.loadAllSchools();
+        schoolInfoService.loadAllSchools();
         schoolInfoService.importSchoolsFromJson();
 
     }
