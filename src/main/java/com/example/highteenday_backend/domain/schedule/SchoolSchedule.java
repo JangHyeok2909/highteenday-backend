@@ -1,7 +1,7 @@
-package com.example.highteenday_backend.domain.schools;
+package com.example.highteenday_backend.domain.schedule;
 
 
-import com.example.highteenday_backend.domain.base.BaseEntity;
+import com.example.highteenday_backend.domain.schools.School;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

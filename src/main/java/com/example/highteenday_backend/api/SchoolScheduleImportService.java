@@ -1,8 +1,8 @@
 package com.example.highteenday_backend.api;
 
 import com.example.highteenday_backend.domain.schools.SchoolRepository;
-import com.example.highteenday_backend.domain.schools.SchoolSchedule;
-import com.example.highteenday_backend.domain.schools.SchoolScheduleRepository;
+import com.example.highteenday_backend.domain.schedule.SchoolSchedule;
+import com.example.highteenday_backend.domain.schedule.SchoolScheduleRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;

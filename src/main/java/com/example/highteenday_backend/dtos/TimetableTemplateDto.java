@@ -15,4 +15,6 @@ public class TimetableTemplateDto {
     private String templateName;
     private Grade grade;
     private Semester semester;
+    @Builder.Default
+    private boolean isDefault=false;
 }
