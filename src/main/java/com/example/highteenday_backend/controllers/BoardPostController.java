@@ -15,16 +15,19 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-@Tag(name = "게시판 API", description = "특정 게시판의 게시글 한 페이지에 10개씩 조회가능")
+import java.util.List;
+
+@Tag(name = "게시판의 게시글 페이징 API", description = "특정 게시판의 게시글 한 페이지에 10개씩 조회가능")
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/api/boards")
+@RequestMapping("/api/boards/{boardId}/posts")
 public class BoardPostController {
     private final BoardService boardService;
     private final PostService postService;
     static final int PAGE_SIZE = 10;
+
     @Operation(summary = "게시글 리스트 조회",description = "boardId의 게시판에 해당되는 게시글 리스트 조회")
-    @GetMapping("/{boardId}/posts")
+    @GetMapping()
     public ResponseEntity<PagedPostsDto> getPostsByBoardId(@PathVariable Long boardId,
                                                            @RequestParam Integer page,
                                                            @RequestParam SortType sortType){

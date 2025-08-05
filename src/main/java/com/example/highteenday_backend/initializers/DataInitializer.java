@@ -1,17 +1,27 @@
 package com.example.highteenday_backend.initializers;
 
 import com.example.highteenday_backend.domain.posts.Post;
-import com.example.highteenday_backend.domain.posts.PostRepository;
+import com.example.highteenday_backend.domain.schools.UserTimetables.UserTimetable;
+import com.example.highteenday_backend.domain.schools.subjects.Subject;
+import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.dtos.RequestPostDto;
+import com.example.highteenday_backend.enums.Grade;
 import com.example.highteenday_backend.enums.Provider;
+import com.example.highteenday_backend.enums.Semester;
+import com.example.highteenday_backend.services.TimetableTemplateService;
+import com.example.highteenday_backend.services.UserTimetableService;
 import com.example.highteenday_backend.services.domain.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.DayOfWeek;
+import java.util.ArrayList;
+import java.util.List;
 
 
 @Component
@@ -26,6 +36,10 @@ public class DataInitializer {
     private final ScrapService scrapService;
     private final UserService userService;
     private final SchoolService schoolService;
+    private final TimetableTemplateService templateService;
+    private final UserTimetableService timetableService;
+    private final SubjectService subjectService;
+    private final TimetableSubjectService timetableSubjectService;
 
     @Transactional
     public void dataInit() {
@@ -36,6 +50,7 @@ public class DataInitializer {
 //        likeAndDislikeDataInit(testUser);
         hotPostLikeDataInit();
         scrapDataInit(testUser);
+        dafultTimetableDatasInit(testUser);
     }
 
     public void userDataInit(){
@@ -108,6 +123,39 @@ public class DataInitializer {
             scrapService.createScrap(postService.findById((long) i), user);
         }
         System.out.println("테스트 스크랩 생성완료");
+    }
+
+    public void dafultTimetableDatasInit(User user){
+        TimetableTemplate template = TimetableTemplate.builder()
+                .user(user)
+                .templateName("test default template")
+                .grade(Grade.JUNIOR)
+                .semester(Semester.FIRST)
+                .isDefault(true)
+                .build();
+        TimetableTemplate savedTemplate= templateService.save(template);
+
+        List<Subject> subjects = new ArrayList<>();
+        for(int i=1;i<=7;i++){
+            Subject subject = Subject.builder()
+                    .subjectName("test subject" + i)
+                    .timetableTemplate(savedTemplate)
+                    .build();
+            subjects.add(subjectService.save(subject));
+        }
+        for (int i=1;i<7;i++) {
+            for(int j=0;j<7;j++){
+                UserTimetable timetable = UserTimetable.builder()
+                        .timetableTemplate(savedTemplate)
+                        .subject(subjects.get(j))
+                        .period(String.valueOf(j+1))
+                        .day(DayOfWeek.of(i))
+                        .build();
+                timetableService.save(timetable);
+            }
+        }
+        System.out.println("기본 시간표 생성완료");
+
     }
 }
 

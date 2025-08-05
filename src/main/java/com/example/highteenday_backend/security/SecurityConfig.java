@@ -74,7 +74,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/api/user/OAuth2UserInfo",
                                 "/api/user/loginUser",
-                                "/api/mypage/**"
+                                "/api/mypage/**",
+                                "/api/timetableTemplates/**"
                         ).authenticated()
 
                         // POST 요청 중 인증 없이 허용하는 경로
