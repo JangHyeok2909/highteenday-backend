@@ -106,7 +106,7 @@ public class FriendsService {
                 Notification.builder()
                         .receiver(receiver)
                         .sender(requester)
-                        .firendReqId(friendReq.getId())
+                        .friendReqId(friendReq.getId())
                         .message(receiver.getNickname() + "님이 친구 요청을 보냈습니다.")
                         .category(NotificationCategory.FRIEND_REQ)
                         .build()
