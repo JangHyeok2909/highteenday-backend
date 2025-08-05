@@ -14,13 +14,13 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
     // 모든 친구 관계 검색
     @Query(value = """
             SELECT u.*
-            FROM friends f JOIN users u ON f.USR_frd_id = u.id
+            FROM friends f JOIN users u ON f.USR_frd_id = u.USR_id
             WHERE f.USR_id = :id AND f.FRD_status = 'FRIEND'
             
             UNION
             
             SELECT u.*
-            FROM friends f JOIN users u ON f.USR_id = u.id
+            FROM friends f JOIN users u ON f.USR_id = u.USR_id
             WHERE f.USR_frd_id = :id AND f.FRD_status = 'FRIEND'
             """, nativeQuery = true)
     List<User> findAllFriends(@Param("id") Long userId);
