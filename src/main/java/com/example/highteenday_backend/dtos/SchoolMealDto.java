@@ -1,6 +1,8 @@
 package com.example.highteenday_backend.dtos;
 
+import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.domain.schools.SchoolMeal;
+import com.example.highteenday_backend.enums.SchoolMealCategory;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -16,6 +18,9 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 public class SchoolMealDto {
     private String schoolName;
+    private String month;
+    private String week;
+    private String day;
     private LocalDate date;
     private String dishName;
     private String category;

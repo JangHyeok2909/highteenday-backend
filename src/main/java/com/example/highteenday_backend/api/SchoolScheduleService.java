@@ -2,7 +2,7 @@ package com.example.highteenday_backend.api;
 
 import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.domain.schools.SchoolRepository;
-import com.example.highteenday_backend.domain.schools.SchoolSchedule;
+import com.example.highteenday_backend.domain.schedule.SchoolSchedule;
 import com.example.highteenday_backend.enums.SchoolCategory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

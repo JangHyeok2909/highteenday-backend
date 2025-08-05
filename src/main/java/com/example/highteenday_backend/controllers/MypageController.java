@@ -38,7 +38,6 @@ public class MypageController {
     private final PostService postService;
     private final CommentService commentService;
     private final ScrapService scrapService;
-    private final UserService userService;
     private final int PAGE_SIZE = 10;
 
     @Operation(summary = "내가쓴 게시글 페이징된 리스트 가져오기")
