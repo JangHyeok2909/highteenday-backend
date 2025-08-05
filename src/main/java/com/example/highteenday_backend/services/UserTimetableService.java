@@ -35,6 +35,10 @@ public class UserTimetableService {
         return timetableRepository.save(timetable);
     }
     @Transactional
+    public UserTimetable save(UserTimetable timetable){
+        return timetableRepository.save(timetable);
+    }
+    @Transactional
     public void delete(UserTimetable timetable){
         timetableRepository.delete(timetable);
     }
