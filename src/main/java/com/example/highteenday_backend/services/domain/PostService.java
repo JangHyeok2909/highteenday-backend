@@ -18,6 +18,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Slf4j
 @RequiredArgsConstructor
 @Service
@@ -29,6 +31,12 @@ public class PostService {
     public Post findById(Long postId) {
         return postRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("post does not exist, postId=" + postId));
+    }
+    public List<Post> getPostsByUser(User user){
+        return postRepository.findByUser(user);
+    }
+    public List<Post> findAll(){
+        return postRepository.findAll();
     }
 
     public Page<Post> getPagedPostsByUser(User user, int page, int size, SortType sortType){

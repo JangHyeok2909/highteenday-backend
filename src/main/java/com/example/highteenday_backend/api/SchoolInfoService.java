@@ -1,13 +1,16 @@
 package com.example.highteenday_backend.api;
 
+import com.example.highteenday_backend.constants.SchoolFileConstants;
 import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.domain.schools.SchoolRepository;
+import com.example.highteenday_backend.dtos.SchoolDto;
 import com.example.highteenday_backend.enums.SchoolCategory;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SchoolInfoService {
@@ -35,7 +39,7 @@ public class SchoolInfoService {
     private String apiKey;
 
     public void loadAllSchools() {
-        List<School> schoolList = new ArrayList<>();  // 여기에 모든 학교 저장
+        List<SchoolDto> schoolDtos = new ArrayList<>();  // 여기에 모든 학교 저장
 
         int pageSize = 1000;
         int page = 1;
@@ -85,16 +89,14 @@ public class SchoolInfoService {
                         continue;
                     }
 
-                    School school = School.builder()
+                    SchoolDto schoolDto = SchoolDto.builder()
                             .code(code)
                             .name(row.path("SCHUL_NM").asText())
                             .location(row.path("LCTN_SC_NM").asText())
                             .eduOfficeCode(row.path("ATPT_OFCDC_SC_CODE").asText())
                             .category(category)
                             .build();
-
-                    schoolRepository.save(school);
-                    schoolList.add(school);  // 목록에 추가
+                    schoolDtos.add(schoolDto);  // 목록에 추가
                 }
 
                 page++;
@@ -104,44 +106,61 @@ public class SchoolInfoService {
                 break;
             }
         }
+        File file = new File(SchoolFileConstants.SCHOOL_JSON_PATH);
+        // 경로의 부모 디렉토리 존재 여부 확인
+        File parentDir = file.getParentFile();
+        if (!parentDir.exists()) {
+            parentDir.mkdirs();  // 디렉토리 없으면 자동 생성
+        }
 
         // JSON 파일로 저장
         try {
-            File outputFile = new File("schools.json");
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, schoolList);
-            System.out.println("학교 정보가 schools.json 파일로 저장되었습니다.");
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(file, schoolDtos);
+            log.info("학교 정보가 schools.json 파일로 저장되었습니다.");
         } catch (IOException e) {
-            System.out.println("JSON 저장 실패: " + e.getMessage());
+            log.warn("JSON 저장 실패: " + e.getMessage());
             e.printStackTrace();        }
     }
     @Transactional
     public void importSchoolsFromJson() {
+        File jsonFile = new File(SchoolFileConstants.SCHOOL_JSON_PATH);
+
+        if (!jsonFile.exists()) {
+            System.out.println("❌ schools.json 파일이 존재하지 않습니다: " + SchoolFileConstants.SCHOOL_JSON_PATH);
+            return;
+        }
+
         try {
-            // resources 폴더 내 schools_no_id.json 파일 읽기
-            InputStream inputStream = getClass().getClassLoader().getResourceAsStream("schools_no_id.json");
-
-            if (inputStream == null) {
-                throw new IllegalArgumentException("schools_no_id.json 리소스 파일을 찾을 수 없습니다.");
-            }
-
-            // JSON 파일을 School 객체 리스트로 역직렬화
-            List<School> schools = objectMapper.readValue(
-                    inputStream,
-                    new TypeReference<List<School>>() {}
+            //schools.json 읽어 리스트로 역직렬화
+            List<SchoolDto> dtoList = objectMapper.readValue(
+                    jsonFile,
+                    new TypeReference<List<SchoolDto>>() {}
             );
-            //중복 제거하여 한번에 저장
-            List<School> filtered = schools.stream()
-                    .filter(sc -> !schoolRepository.existsByCode(sc.getCode()))
-                    .collect(Collectors.toList());
-            schoolRepository.saveAll(filtered);
 
+            // 2. School 엔티티로 변환 + 저장
+            for (SchoolDto dto : dtoList) {
+                // 이미 존재하면 건너뜀
+                if (schoolRepository.existsByCode(dto.getCode())) {
+                    continue;
+                }
 
-            System.out.println("schools_no_id.json 파일에서 학교 정보를 DB에 저장했습니다.");
+                School school = School.builder()
+                        .code(dto.getCode())
+                        .name(dto.getName())
+                        .location(dto.getLocation())
+                        .eduOfficeCode(dto.getEduOfficeCode())
+                        .category(dto.getCategory())
+                        .build();
+
+                schoolRepository.save(school);
+            }
+            log.info("✅ schools.json으로 학교 정보를 DB에 성공적으로 저장했습니다.");
 
         } catch (IOException e) {
-            System.out.println("JSON 로드 실패: " + e.getMessage());
+            log.warn("❌ schools.json 읽기 실패: " + e.getMessage());
             e.printStackTrace();
         }
     }
+
 
 }

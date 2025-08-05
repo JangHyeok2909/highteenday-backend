@@ -28,5 +28,8 @@ public interface PostRepository extends JpaRepository<Post,Long> {
     @Query("select p from Post p where p.isValid = true and p.user =:user ")
     public Page<Post> findByUser(User user, Pageable pageable);
 
+    public List<Post> findByUser(User user);
+
+
 
 }
