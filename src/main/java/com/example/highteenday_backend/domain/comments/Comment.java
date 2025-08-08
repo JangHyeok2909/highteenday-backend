@@ -85,6 +85,7 @@ public class Comment extends BaseEntity {
         return CommentDto.builder()
                 .id(this.id)
                 .userId(user.getId())
+                .parentId(this.parent != null ? this.parent.getId() : null)
                 .author(this.user.getNickname())
                 .content(this.content)
                 .likeCount(this.likeCount)
