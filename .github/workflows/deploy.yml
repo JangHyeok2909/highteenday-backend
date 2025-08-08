@@ -42,7 +42,9 @@ jobs:
           key: ${{ secrets.RASP_SSH_KEY }}
           port: ${{ secrets.RASP_PORT }}
           script: |
+            sudo mv /home/rasp-user/back-end/build/libs/highteenday-backend-0.0.1-SNAPSHOT.jar /home/rasp-user/back-end/highteenday-backend-0.0.1-SNAPSHOT.jar
             sudo systemctl daemon-reexec
             sudo systemctl daemon-reload
             sudo systemctl restart highteenday-backend.service
             sudo systemctl status highteenday-backend.service --no-pager
+            echo "✅ Spring Boot 서버 실행 완료"
