@@ -107,6 +107,14 @@ public class SchoolInfoService {
             }
         }
         File file = new File(SchoolFileConstants.SCHOOL_JSON_PATH);
+
+        // 현재 경로 출력
+        log.info("=== School JSON Path Debug ===");
+        log.info("user.dir: { ", System.getProperty("user.dir") , "}");
+        log.info("Current absolute path: { ", new File(".").getAbsolutePath() , "}");
+        log.info("Target JSON absolute path: { ", file.getAbsolutePath() , "}");
+        log.info("==============================");
+
         // 경로의 부모 디렉토리 존재 여부 확인
         File parentDir = file.getParentFile();
         if (!parentDir.exists()) {
