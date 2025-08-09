@@ -106,7 +106,7 @@ public class SchoolInfoService {
                 break;
             }
         }
-        File file = new File(SchoolFileConstants.getSchoolJsonPath());
+        File file = new File(SchoolFileConstants.SCHOOL_JSON_PATH);
         // 경로의 부모 디렉토리 존재 여부 확인
         File parentDir = file.getParentFile();
         if (!parentDir.exists()) {
@@ -123,10 +123,10 @@ public class SchoolInfoService {
     }
     @Transactional
     public void importSchoolsFromJson() {
-        File jsonFile = new File(SchoolFileConstants.getSchoolJsonPath());
+        File jsonFile = new File(SchoolFileConstants.SCHOOL_JSON_PATH);
 
         if (!jsonFile.exists()) {
-            System.out.println("❌ schools.json 파일이 존재하지 않습니다: " + SchoolFileConstants.getSchoolJsonPath());
+            System.out.println("❌ schools.json 파일이 존재하지 않습니다: " + SchoolFileConstants.SCHOOL_JSON_PATH);
             return;
         }
 
