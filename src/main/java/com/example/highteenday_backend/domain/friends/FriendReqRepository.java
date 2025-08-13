@@ -14,7 +14,10 @@ public interface FriendReqRepository extends JpaRepository<FriendReq, Long> {
 
     // 내가 요청 받은 목록 | receiver 가 id
     @Query(value = """
-            SELECT fq.*
+            SELECT  fq.FRD_REQ_id AS FRD_REQ_id,
+                    fq.USR_req_id      AS USR_req_id,
+                    fq.USR_rec_id      AS USR_rec_id,
+                    fq.FRD_REQ_status  AS FRD_REQ_status
             FROM friends_requests fq
             WHERE fq.USR_rec_id = :id
             """, nativeQuery = true)
@@ -23,7 +26,10 @@ public interface FriendReqRepository extends JpaRepository<FriendReq, Long> {
     // 내가 신청 보낸 목록 | requester 가 id
 
     @Query(value = """
-            SELECT fq.*
+            SELECT  fq.FRD_REQ_id AS FRD_REQ_id,
+                    fq.USR_req_id      AS USR_req_id,
+                    fq.USR_rec_id      AS USR_rec_id,
+                    fq.FRD_REQ_status  AS FRD_REQ_status
             FROM friends_requests fq
             WHERE fq.USR_req_id = :id
             """, nativeQuery = true)
