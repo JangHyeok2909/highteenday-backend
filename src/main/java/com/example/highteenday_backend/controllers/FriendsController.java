@@ -48,7 +48,7 @@ public class FriendsController {
     ) {
         User findUser = getUserData(user.getUser().getEmail());
 
-        List<FriendsInfoDto> friendsListDto = friendsService.getSentFriendsRequestList(findUser);
+        List<FriendsInfoListDto> friendsListDto = friendsService.getSentFriendsRequestList(findUser);
 
         return ResponseEntity.ok(friendsListDto);
     }
@@ -60,7 +60,7 @@ public class FriendsController {
     ) {
         User findUser = getUserData(user.getUser().getEmail());
 
-        List<FriendsInfoDto> friendsListDto = friendsService.getReceivedFriendsList(findUser);
+        List<FriendsInfoListDto> friendsListDto = friendsService.getReceivedFriendsList(findUser);
 
         return ResponseEntity.ok(friendsListDto);
     }
