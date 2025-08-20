@@ -52,8 +52,8 @@ public class MediaController {
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestParam(required = false) UpdateProfileImageDto updateProfileImageDto
     ){
-        User findUser = userService.findByEmail(user.getUser().getEmail());
-
+        User findUser = userService.findById(user.getUser().getId());
+        
         userMediaService.updateProfileImage(findUser, updateProfileImageDto.url());
 
         return ResponseEntity.ok("프로필 이미지 변경 완료");

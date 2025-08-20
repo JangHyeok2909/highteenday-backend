@@ -70,7 +70,7 @@ public class CommentService {
         Comment comment = findCommentById(commentId);
         comment.updateContent(dto.getContent());
         comment.setUpdatedBy(userId);
-        commentMediaService.processUpdateCommentMedia(userId,comment,dto);
+        commentMediaService.processUpdateCommentMedia(comment,dto);
 
         log.info("comment updated. commentId={}, updatedBy={}",commentId,userId);
     }

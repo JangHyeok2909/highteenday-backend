@@ -15,6 +15,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SchoolDto {
+    private Long id;
     private Integer code;
     private String name;
     private String location;
