@@ -22,7 +22,7 @@ public class UserMediaService {
     public void updateProfileImage(User user, String newImage){
 
         String currentUrl = user.getProfileUrl();
-
+        //기존 이미지 존재하면 삭제
         if (currentUrl != null && !currentUrl.isEmpty()) {
             String pastKey = s3Service.getKeyByUrl(currentUrl);
             s3Service.delete(pastKey);
@@ -33,15 +33,13 @@ public class UserMediaService {
             user.setProfileUrl(null); // 기본 프사 변경인데 일단 null 넣음
             return;
         }
-
+        //이미지 업데이트
         String finalUrl = s3Service.copyToFinalLocation(newImage, user.getId(), MediaOwner.PROFILE);
         String newKey = s3Service.getKeyByUrl(finalUrl);
         FileInfo newFileInfo = s3Service.getFileInfo(newKey);
         Media media = mediaService.createMedia(newFileInfo);
         media.setProfileOwner(user);
-
         user.setProfileUrl(finalUrl);
-        s3Service.deleteUserTmp(user.getId());
     }
 
 }

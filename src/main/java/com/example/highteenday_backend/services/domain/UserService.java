@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.services.domain;
 
 
+import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.ChangeNicknameDto;
@@ -46,6 +47,12 @@ public class UserService {
     public boolean existsByNickname(String nickname){
         return userRepository.existsByNickname(nickname);
     }
+    public boolean existsByEmail(String email){
+        return userRepository.existsByEmail(email);
+    }
+    public boolean existsByPhone(String phone){
+        return userRepository.existsByPhoneNum(phone);
+    }
 
     @Transactional
     public void register(RegisterUserDto registerUserDto, HttpServletResponse response) {
@@ -61,12 +68,13 @@ public class UserService {
 
         System.out.println("✅ registerUserDto.nickname = " + registerUserDto.nickname());
         log.debug("✅ registerUserDto.nickname = " + registerUserDto.nickname());
-
         User user = new User();
         user.setName(registerUserDto.name());
         user.setNickname(registerUserDto.nickname());
-        user.setProvider(Provider.valueOf(registerUserDto.provider().toUpperCase()));
         user.setEmail(registerUserDto.email());
+
+        if(registerUserDto.provider()==null) user.setProvider(Provider.DEFAULT);
+        else user.setProvider(Provider.valueOf(registerUserDto.provider().toUpperCase()));
 
         user.setHashedPassword(passwordEncoder.encode(registerUserDto.password()));
 
@@ -74,7 +82,7 @@ public class UserService {
 
         System.out.println("✅ 현재 제공자 : " + registerUserDto.provider());
 
-        if (registerUserDto.provider().equalsIgnoreCase("DEFAULT")) {
+        if (user.getProvider()==Provider.DEFAULT) {
             attributes = Collections.emptyMap();
         } else {
             attributes.put("email", email);
@@ -156,6 +164,8 @@ public class UserService {
             throw new CustomException(ErrorCode.INTERNAL_ERROR);
         }
     }
+
+
 }
 
 
