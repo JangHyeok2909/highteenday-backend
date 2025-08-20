@@ -82,6 +82,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/user/register",
                                 "/api/user/login",
+                                "/api/user/check/nickname",
+                                "/api/user/check/email",
                                 "/error"
                         ).permitAll()
                         // 그 외 모든 GET 요청은 허용
