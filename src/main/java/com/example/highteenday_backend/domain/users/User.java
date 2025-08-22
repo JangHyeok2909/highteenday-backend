@@ -46,9 +46,6 @@ public class User extends BaseEntity {
     @Column(name = "USR_major", length = 30)
     private String major;
 
-    @Column(name = "USR_phone_num", length = 20/*, nullable = false*/)
-    private String phoneNum;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "USR_provider"/*, nullable = false*/)
     private Provider provider;
@@ -73,5 +70,17 @@ public class User extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "SCH_id"/*, nullable = false*/)
     private School school;
+
+//    폰번호 저장 방식은 +8210 1234 5678 방식으로
+    @Column(name = "USR_phone_num", length = 20/*, nullable = false*/)
+    private String phoneNum;
+
+//    인증 했냐 안 했냐
+    @Column(name = "USR_phone_verified")
+    private boolean phoneVerified = false;
+
+//    인증 한 시간
+    @Column(name = "USER_phone_verified_at")
+    private java.time.LocalDateTime phoneVerifiedAt;
 
 }
