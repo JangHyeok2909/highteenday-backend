@@ -7,9 +7,17 @@ import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.FriendsService;
 import com.example.highteenday_backend.services.domain.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +28,8 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Friends", description = "친구 목록/요청/차단 등 친구 관련 API")
+
 public class FriendsController {
 
     private final FriendsService friendsService;
@@ -29,46 +39,73 @@ public class FriendsController {
         return userService.findByEmail(email);
     }
 
-    // 친구 목록
+
+    @Operation(summary = "내 친구 목록 조회")
+    @ApiResponse(responseCode = "200",
+            description = "친구 목록",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    array = @ArraySchema(schema = @Schema(implementation = FriendsInfoDto.class))))
     @GetMapping("/list")
-    public ResponseEntity<?> getFriendsList(
+    public ResponseEntity<List<FriendsInfoDto>> getFriendsList(
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
         User findUser = getUserData(user.getUser().getEmail());
-
         List<FriendsInfoDto> friendsListDto = friendsService.getFriendsList(findUser.getId());
 
         return ResponseEntity.ok(friendsListDto);
     }
 
-    // 내가 친구 신청한 목록 || 내가 보낸거
+
+    @Operation(summary = "내가 보낸 친구 요청 목록")
+    @ApiResponse(responseCode = "200",
+            description = "보낸 요청 목록",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    array = @ArraySchema(schema = @Schema(implementation = FriendsInfoListDto.class))))
     @GetMapping("/requests/sent")
-    public ResponseEntity<?> getSentFriendsRequestList(
+    public ResponseEntity<List<FriendsInfoListDto>> getSentFriendsRequestList(
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
         User findUser = getUserData(user.getUser().getEmail());
 
-        List<FriendsInfoDto> friendsListDto = friendsService.getSentFriendsRequestList(findUser);
+        List<FriendsInfoListDto> friendsListDto = friendsService.getSentFriendsRequestList(findUser);
 
         return ResponseEntity.ok(friendsListDto);
     }
 
     // 누가 나한테 친구 요청한 목록 | 누군가 나한테 신청한 목록
+    @Operation(summary = "나에게 온 친구 요청 목록")
+    @ApiResponse(responseCode = "200",
+            description = "받은 요청 목록",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    array = @ArraySchema(schema = @Schema(implementation = FriendsInfoListDto.class))))
     @GetMapping("/requests/received")
-    public ResponseEntity<?> getReceivedFriendsList(
+    public ResponseEntity<List<FriendsInfoListDto>> getReceivedFriendsList(
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
         User findUser = getUserData(user.getUser().getEmail());
-
-        List<FriendsInfoDto> friendsListDto = friendsService.getReceivedFriendsList(findUser);
+        List<FriendsInfoListDto> friendsListDto = friendsService.getReceivedFriendsList(findUser);
 
         return ResponseEntity.ok(friendsListDto);
     }
 
     // 친구 삭제
-    @PostMapping("/delete")
-    public ResponseEntity<?> deleteFriends(
+    @Operation(summary = "친구 삭제")
+    @ApiResponse(responseCode = "200", description = "삭제 완료")
+    @PostMapping(value = "/delete", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> deleteFriends(
             @AuthenticationPrincipal CustomUserPrincipal user,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    content = @Content(
+                            schema = @Schema(implementation = DeleteFriendDto.class),
+                            examples = @ExampleObject(name = "기본 예시", value = """
+                                    {   
+                                        "id": 1,
+                                        "email": "test1@gmail.com" 
+                                    }
+                                    """)
+                    )
+            )
             @RequestBody DeleteFriendDto deleteFriendDto
     ) {
 
@@ -86,24 +123,56 @@ public class FriendsController {
     // A가 B의 정보를 볼 수는 있지만, B는 A의 정보를 볼 수 없음
     // A와 B의 친구관계는 A만 삭제
     // A -> B || B -> A 2개 있을 때 A -> B 관계만 삭제
-    @PostMapping("/block")
-    public ResponseEntity<?> blockUser(
+    @Operation(summary = "유저 차단", description = """
+            A가 B를 차단 시, B는 차단 사실을 모름. 
+            A<-B 메시지는 오지만 A는 알림/표시가 되지 않도록 처리.
+            A<->B 친구관계는 A->B만 삭제.
+            """)
+    @ApiResponse(responseCode = "200", description = "차단 완료")
+    @PostMapping(value = "/block", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> blockUser(
             @AuthenticationPrincipal CustomUserPrincipal user,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    content = @Content(
+                            schema = @Schema(implementation = BlockUserDto.class),
+                            examples = @ExampleObject(value = """
+                                    { 
+                                        "id": 1,
+                                        "email": "badguy@example.com" 
+                                    }
+                                    """)
+                    )
+            )
             @RequestBody BlockUserDto blockUserDto
     ) {
         User findUser = getUserData(user.getUser().getEmail());
         User findBlockUser = getUserData(blockUserDto.email());
 
         friendsService.blockUser(findUser, findBlockUser);
-        
+
         return ResponseEntity.ok("유저 차단 완료");
     }
 
     // 차단 해제
+    @Operation(summary = "차단 해제")
+    @ApiResponse(responseCode = "200", description = "차단 해제 완료")
     @Transactional
-    @PostMapping("/unBlock")
-    public ResponseEntity<?> unBlockUser(
+    @PostMapping(value = "/unBlock", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> unBlockUser(
             @AuthenticationPrincipal CustomUserPrincipal user,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    content = @Content(
+                            schema = @Schema(implementation = UnBlockUserDto.class),
+                            examples = @ExampleObject(value = """
+                                    { 
+                                        "id": 1,
+                                        "email": "badguy@example.com" 
+                                    }
+                                    """)
+                    )
+            )
             @RequestBody UnBlockUserDto unBlockUserDto
     ) {
         User findUser = getUserData(user.getUser().getEmail());
@@ -115,10 +184,19 @@ public class FriendsController {
     }
 
     // 친구 검색
+    @Operation(summary = "친구 검색")
+    @ApiResponse(responseCode = "200",
+            description = "검색된 유저 리스트",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    array = @ArraySchema(schema = @Schema(implementation = User.class))))
     @Transactional
-    @PostMapping("/select")
-    public ResponseEntity<?> selectFriend(
+    @PostMapping(value = "/select", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<User>> selectFriend(
             @AuthenticationPrincipal CustomUserPrincipal user,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    content = @Content(schema = @Schema(implementation = SelectFriendDto.class))
+            )
             @RequestBody SelectFriendDto selectFriendDto
     ){
         User findUser = getUserData(user.getUser().getEmail());
@@ -129,10 +207,15 @@ public class FriendsController {
     }
 
     // 친구 신청
-    @PostMapping("/request")
-
-    public ResponseEntity<?> requestFriends(
+    @Operation(summary = "친구 신청 보내기")
+    @ApiResponse(responseCode = "200", description = "신청 완료")
+    @PostMapping(value = "/request", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> requestFriends(
             @AuthenticationPrincipal CustomUserPrincipal requesterPrincipal,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    content = @Content(schema = @Schema(implementation = RequestFriendsDto.class))
+            )
             @RequestBody RequestFriendsDto receiverDto
     ) {
 
@@ -142,9 +225,15 @@ public class FriendsController {
     }
 
     // 친구 신청 응답
-    @PostMapping("/respond")
-    public ResponseEntity<?> respondFriends(
+    @Operation(summary = "친구 신청 응답(수락/거절)")
+    @ApiResponse(responseCode = "200", description = "응답 완료")
+    @PostMapping(value = "/respond", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> respondFriends(
             @AuthenticationPrincipal CustomUserPrincipal receiver,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    content = @Content(schema = @Schema(implementation = RespondFriendRequestDto.class))
+            )
             @RequestBody RespondFriendRequestDto friendReqDto
     ) {
 

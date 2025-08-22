@@ -1,87 +1,104 @@
-name: Spring Boot CI/CD
+name: Spring Boot CI/CD (Build on Ubuntu Server)
 
 on:
   push:
     branches: [ feature/user-security-action ]
 
 jobs:
-  deploy-backend:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Remove old app directory but keep application.properties
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cp ~/highteenday-back-server/src/main/resources/application.properties ~/application.properties || true
-            rm -rf ~/highteenday-back-server
-
-      - name: Upload Spring Boot App to EC2
+      - name: Upload project files to Ubuntu server
         uses: appleboy/scp-action@master
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./*"
-          target: "~/highteenday-back-server"
-          rm: false
-          overwrite: true
-          strip_components: 0
+          host: ${{ secrets.RASP_HOST }}
+          username: ${{ secrets.RASP_USER }}
+          key: ${{ secrets.RASP_SSH_KEY }}
+          port: ${{ secrets.RASP_PORT }}
+          source: "."  # 전체 프로젝트 전송
+          target: "/home/rasp-user/back-end/highteenday-backend"
 
-      - name: Install Java 17 and PM2 on EC2
+      - name: Build and Restart Spring Boot service on Ubuntu
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          host: ${{ secrets.RASP_HOST }}
+          username: ${{ secrets.RASP_USER }}
+          key: ${{ secrets.RASP_SSH_KEY }}
+          port: ${{ secrets.RASP_PORT }}
           script: |
-            if ! java -version &>/dev/null; then
-              echo "Java not found. Installing OpenJDK 17..."
-              sudo apt update
-              sudo apt install -y openjdk-17-jdk
-            else
-              echo "Java is already installed."
-            fi
+            cd /home/rasp-user/back-end/highteenday-backend
 
-            JAVA_PATH=$(readlink -f /usr/bin/java | sed "s:/bin/java::")
-            echo "Detected JAVA_HOME as $JAVA_PATH"
-            echo "export JAVA_HOME=$JAVA_PATH" >> ~/.bashrc
-            echo "export PATH=\$JAVA_HOME/bin:\$PATH" >> ~/.bashrc
+            echo "✅ properties 복사"
+            cp /home/rasp-user/application.properties src/main/resources/application.properties
 
-            if ! command -v pm2 &> /dev/null; then
-              echo "PM2 not found. Installing PM2..."
-              sudo apt install -y npm
-              sudo npm install -g pm2
-            else
-              echo "PM2 is already installed."
-            fi
-
-
-
-      - name: Run Spring Boot on EC2
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            mv ~/application.properties ~/highteenday-back-server/src/main/resources/
-
-            cd ~/highteenday-back-server
+            echo "✅ 실행 권한 부여"
             chmod +x ./gradlew
-            
+
+            echo "✅ Gradle 빌드 시작"
             ./gradlew build -x test
 
-            pm2 delete highteenday-backend || true
+            echo "✅ JAR 이동 및 서비스 재시작"
+            cp build/libs/highteenday-backend-0.0.1-SNAPSHOT.jar /home/rasp-user/back-end/highteenday-backend-0.0.1-SNAPSHOT.jar
 
-            pm2 start "java -jar -Dserver.address=0.0.0.0 -Dserver.port=8080 build/libs/highteenday-backend-0.0.1-SNAPSHOT.jar" --name highteenday-backend
+            sudo systemctl daemon-reexec
+            sudo systemctl daemon-reload
+            sudo systemctl restart highteenday-backend.service
+            sudo systemctl status highteenday-backend.service --no-pager
 
-            pm2 save
+            echo "✅ Spring Boot 서버 실행 완료"
 
-            echo "✅ Spring Boot 서버가 PM2로 실행되었습니다."
+
+# name: Spring Boot CI/CD
+
+# on:
+#   push:
+#     branches: [ feature/user-security-action ]
+
+# jobs:
+#   build-and-deploy:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout Code
+#         uses: actions/checkout@v3
+
+#       - name: Setup Java 17
+#         uses: actions/setup-java@v3
+#         with:
+#           distribution: 'temurin'
+#           java-version: '17'
+
+#       - name: Grant execute permission for gradlew
+#         run: chmod +x ./gradlew
+
+#       - name: Build Spring Boot JAR
+#         run: ./gradlew build -x test
+
+#       - name: Upload .jar to server
+#         uses: appleboy/scp-action@master
+#         with:
+#           host: ${{ secrets.RASP_HOST }}
+#           username: ${{ secrets.RASP_USER }}
+#           key: ${{ secrets.RASP_SSH_KEY }}
+#           port: ${{ secrets.RASP_PORT }}
+#           source: "build/libs/highteenday-backend-0.0.1-SNAPSHOT.jar"
+#           target: "/home/rasp-user/back-end"
+
+#       - name: Restart backend service with systemctl
+#         uses: appleboy/ssh-action@master
+#         with:
+#           host: ${{ secrets.RASP_HOST }}
+#           username: ${{ secrets.RASP_USER }}
+#           key: ${{ secrets.RASP_SSH_KEY }}
+#           port: ${{ secrets.RASP_PORT }}
+#           script: |
+#             sudo mv /home/rasp-user/back-end/build/libs/highteenday-backend-0.0.1-SNAPSHOT.jar /home/rasp-user/back-end/highteenday-backend-0.0.1-SNAPSHOT.jar
+#             sudo systemctl daemon-reexec
+#             sudo systemctl daemon-reload
+#             sudo systemctl restart highteenday-backend.service
+#             sudo systemctl status highteenday-backend.service --no-pager
+#             echo "✅ Spring Boot 서버 실행 완료"

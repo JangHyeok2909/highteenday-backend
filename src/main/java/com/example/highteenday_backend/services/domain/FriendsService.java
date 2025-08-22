@@ -43,6 +43,7 @@ public class FriendsService {
                         .name(friend.getName())
                         .nickname(friend.getNickname())
                         .email(friend.getEmail())
+
 //                        .school(friend.getSchool().getName())
                         .build())
                 .toList();
@@ -52,31 +53,33 @@ public class FriendsService {
 
     // 내가 친구 신청한 목록 || 내가 보낸거
     @Transactional
-    public List<FriendsInfoDto> getSentFriendsRequestList(User user) {
+    public List<FriendsInfoListDto> getSentFriendsRequestList(User user) {
 
         List<FriendReq> findSentFriendsRequestList = friendReqRepository.findSentFriendsRequest(user.getId());
 
         return findSentFriendsRequestList.stream()
-                .map(req -> FriendsInfoDto.builder()
+                .map(req -> FriendsInfoListDto.builder()
                         .id(req.getReceiver().getId())
                         .name(req.getReceiver().getName())
                         .nickname(req.getReceiver().getNickname())
                         .email(req.getReceiver().getEmail())
+                        .friendsReqId(req.getId())
                         .build()
                 ).toList();
     }
 
     // 누가 나한테 친구 요청한 목록 | 누군가 나한테 신청한 목록
     @Transactional
-    public List<FriendsInfoDto> getReceivedFriendsList(User user){
+    public List<FriendsInfoListDto> getReceivedFriendsList(User user){
         List<FriendReq> findReceivedFriendsList = friendReqRepository.findReceivedFriendRequests(user.getId());
 
         return findReceivedFriendsList.stream()
-                .map(req -> FriendsInfoDto.builder()
+                .map(req -> FriendsInfoListDto.builder()
                         .id(req.getRequester().getId())
                         .name(req.getRequester().getName())
                         .nickname(req.getRequester().getNickname())
                         .email(req.getRequester().getEmail())
+                        .friendsReqId(req.getId())
                         .build()
                 ).toList();
     }
