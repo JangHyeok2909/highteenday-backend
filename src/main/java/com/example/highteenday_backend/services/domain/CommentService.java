@@ -61,8 +61,7 @@ public class CommentService {
         comment = commentRepository.save(comment);
         Long userId = user.getId();
         if(dto.getUrl() != null && !dto.getUrl().isEmpty()) commentMediaService.processCreateCommentMedia(userId,comment,dto);
-        comment.setUpdatedBy(userId);
-        comment.setUpdatedDate(null);
+        comment.setUpdatedBy(null);
         return comment;
     }
     @Transactional

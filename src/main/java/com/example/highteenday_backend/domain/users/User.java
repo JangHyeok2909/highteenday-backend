@@ -70,7 +70,7 @@ public class User extends BaseEntity {
     @Column(name = "USR_birth_date"/*, nullable = false*/)
     private LocalDate birthDate;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "SCH_id"/*, nullable = false*/)
     private School school;
 

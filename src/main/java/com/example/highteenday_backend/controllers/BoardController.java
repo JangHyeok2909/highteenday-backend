@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.controllers;
 
 import com.example.highteenday_backend.domain.boards.Board;
+import com.example.highteenday_backend.dtos.BoardDto;
 import com.example.highteenday_backend.services.domain.BoardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.List;
 
 
@@ -23,6 +25,10 @@ public class BoardController {
     @GetMapping()
     public ResponseEntity<?> getBoards(){
         List<Board> all = boardService.findAll();
-        return ResponseEntity.ok(all);
+        List<BoardDto> dtos = new ArrayList<>();
+        for(Board b:all){
+            dtos.add(b.toDto());
+        }
+        return ResponseEntity.ok(dtos);
     }
 }

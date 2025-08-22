@@ -129,6 +129,7 @@ public class Post extends BaseEntity {
                 .createdAt(super.getCreated())
                 .updatedAt(super.getUpdatedDate())
                 .isUpdated(super.getUpdatedBy() !=null)
+                .board(this.board.toDto())
                 .build();
     }
 

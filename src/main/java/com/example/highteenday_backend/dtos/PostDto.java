@@ -1,5 +1,7 @@
 package com.example.highteenday_backend.dtos;
 
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -37,6 +39,7 @@ public class PostDto {
     private LocalDateTime updatedAt;
     @Builder.Default
     private boolean isUpdated=false;
+    private BoardDto board;
     /*
     private User user; // 작성자
     private String title;
