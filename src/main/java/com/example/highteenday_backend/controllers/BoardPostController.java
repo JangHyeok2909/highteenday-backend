@@ -36,7 +36,6 @@ public class BoardPostController {
         Page<Post> pagedPosts = postService.getPagedPostsByBoardId(boardId, page, PAGE_SIZE,sortType);
 
         PagedPostsDto pagedPostsDto = PageUtils.postsToDto(pagedPosts);
-        pagedPostsDto.setBoardName(board.getName());
         return ResponseEntity.ok(pagedPostsDto);
     }
 

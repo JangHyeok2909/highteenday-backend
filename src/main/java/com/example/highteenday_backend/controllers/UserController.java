@@ -6,6 +6,8 @@ import com.example.highteenday_backend.dtos.Login.LoginRequestDto;
 import com.example.highteenday_backend.dtos.Login.OAuth2UserInfo;
 import com.example.highteenday_backend.dtos.Login.RegisterUserDto;
 import com.example.highteenday_backend.enums.ErrorCode;
+import com.example.highteenday_backend.enums.Grade;
+import com.example.highteenday_backend.enums.Semester;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.security.TokenException;
@@ -32,6 +34,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 
 @Tag(name="User Relation API", description = "User 관련 API")
@@ -92,6 +95,11 @@ public class UserController {
                 .email(findUser.getEmail())
                 .nickname(findUser.getNickname())
                 .provider(findUser.getProvider().toString())
+                .schoolName(findUser.getSchool().getName())
+                .phoneNum(findUser.getPhoneNum())
+                .userGrade(Optional.ofNullable(findUser.getGrade()).map(Grade::getField).orElse(null))
+                .userClass(Optional.ofNullable(findUser.getUserClass()).map(Object::toString).orElse(null))
+                .semester(Optional.ofNullable(findUser.getSemester()).map(Semester::getField).orElse(null))
                 .build();
 
         return ResponseEntity.ok().body(userInfoDto);

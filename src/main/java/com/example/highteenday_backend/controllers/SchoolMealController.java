@@ -2,6 +2,7 @@ package com.example.highteenday_backend.controllers;
 
 import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.dtos.ResponseMealDto;
 import com.example.highteenday_backend.dtos.SchoolMealDto;
 import com.example.highteenday_backend.api.SchoolMealService;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
@@ -57,8 +58,10 @@ public class SchoolMealController {
 
     @Operation(summary = "월단위 급식표 조회", description = "중/석식 월단위 조회")
     @GetMapping("/month")
-    public List<SchoolMealDto> getMealsByMonth(@AuthenticationPrincipal CustomUserPrincipal userPrincipal) {
+    public ResponseEntity<ResponseMealDto> getMealsByMonth(@AuthenticationPrincipal CustomUserPrincipal userPrincipal) {
         School school = userPrincipal.getUser().getSchool();
-        return schoolMealService.getMealsByMonth(LocalDate.now(), school.getId());
+        List<SchoolMealDto> mealdtos = schoolMealService.getMealsByMonth(LocalDate.now(), school.getId());
+        ResponseMealDto responseDto = ResponseMealDto.builder().schoolId(school.getId()).schoolName(school.getName()).mealdtos(mealdtos).build();
+        return ResponseEntity.ok(responseDto);
     }
 }
