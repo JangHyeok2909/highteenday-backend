@@ -25,15 +25,19 @@ import java.time.ZoneId;
 @RequiredArgsConstructor
 @Service
 public class VerificationService {
-    private final StateStore stateStore;
-    private final RestTemplate restTemplate;
-    private final UserRepository userRepository;
+    private static  StateStore stateStore;
+    private static RestTemplate restTemplate;
+    private static UserRepository userRepository;
 
-    @Value("${oauth.network.key}") String clientId;
-    @Value("${oauth.network.secret}") String secretKey;
-    @Value("${oauth.network.redirect-url}") String redirectUrl;
+    @Value("${oauth.network.key}")
+    static String clientId;
+    @Value("${oauth.network.secret}")
+    static String secretKey;
+    @Value("${oauth.network.redirect-url}")
+    static String redirectUrl;
     @Value("${oauth.network.scopes}") String scopes;
-    @Value("${oauth.network.base-url}") String baseUrl;
+    @Value("${oauth.network.base-url}")
+    static String baseUrl;
 
     @Data
     public record UserInfoResponse(String email, String phone) {}
@@ -107,7 +111,7 @@ public class VerificationService {
                     }
 
                     u.setPhoneVerified(true);
-                    u.setPhoneVerifiedAt(LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+                    u.setPhoneVerifiedAt(LocalDateTime.now(ZoneId.of("Asia/Seoul")));
 
                     userRepository.save(u);
                 }

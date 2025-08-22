@@ -38,7 +38,7 @@ public class VerificationController {
             @RequestParam String code,
             @RequestParam String state
     ){
-        String returnTo = VerificationService.handleCallbackAndGetReturnTo(code, state);
+        String returnTo = verificationService.handleCallbackAndGetReturnTo(code, state);
 
         return ResponseEntity.status(302).header("Location", returnTo).build();
     }
