@@ -1,4 +1,4 @@
-package com.example.highteenday_backend.controllers;
+package com.example.highteenday_backend.dtos;
 
 public record RequestEmailDto(
         String email

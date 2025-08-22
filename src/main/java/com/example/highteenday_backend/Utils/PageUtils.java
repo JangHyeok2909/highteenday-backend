@@ -19,18 +19,9 @@ public class PageUtils {
         List<Post> posts = pagedPosts.getContent();
         List<PostDto> postDtos =new ArrayList<>();
         for(Post p:posts){
-            PostDto postDto = PostDto.builder()
-                    .id(p.getId())
-                    .author(p.getUser().getNickname())
-                    .title(p.getTitle())
-                    .content(p.getContent())
-                    .viewCount(p.getViewCount())
-                    .likeCount(p.getLikeCount())
-                    .dislikeCount(p.getDislikeCount())
-                    .createdAt(p.getCreated())
-                    .build();
+            PostDto dto = p.toDto();
 
-            postDtos.add(postDto);
+            postDtos.add(dto);
         }
         PagedPostsDto pagedDto = PagedPostsDto.builder()
                 .page(pagedPosts.getNumber())

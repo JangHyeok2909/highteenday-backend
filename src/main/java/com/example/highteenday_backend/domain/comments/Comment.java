@@ -95,6 +95,8 @@ public class Comment extends BaseEntity {
                 .createdAt(super.getCreated())
                 .updatedAt(super.getUpdatedDate())
                 .isUpdated(super.getUpdatedBy() !=null)
+                .postId(this.post.getId())
+                .postTitle(this.post.getTitle())
                 .build();
     }
 }
