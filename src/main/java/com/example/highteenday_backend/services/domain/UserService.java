@@ -1,7 +1,6 @@
 package com.example.highteenday_backend.services.domain;
 
 
-import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.ChangeNicknameDto;
@@ -51,7 +50,7 @@ public class UserService {
         return userRepository.existsByEmail(email);
     }
     public boolean existsByPhone(String phone){
-        return userRepository.existsByPhoneNum(phone);
+        return userRepository.existsByPhone(phone);
     }
 
     @Transactional
@@ -68,10 +67,15 @@ public class UserService {
 
         System.out.println("✅ registerUserDto.nickname = " + registerUserDto.nickname());
         log.debug("✅ registerUserDto.nickname = " + registerUserDto.nickname());
-        User user = new User();
-        user.setName(registerUserDto.name());
-        user.setNickname(registerUserDto.nickname());
-        user.setEmail(registerUserDto.email());
+        User user = User.builder()
+                .nickname(registerUserDto.nickname())
+                .name(registerUserDto.name())
+                .email(registerUserDto.email())
+                .hashedPassword(passwordEncoder.encode(registerUserDto.password()))
+                .gender(registerUserDto.gender())
+                .provider(Provider.DEFAULT)
+                .phone(registerUserDto.phone())
+                .build();
 
         if(registerUserDto.provider()==null) user.setProvider(Provider.DEFAULT);
         else user.setProvider(Provider.valueOf(registerUserDto.provider().toUpperCase()));

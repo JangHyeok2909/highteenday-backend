@@ -22,8 +22,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -96,7 +94,7 @@ public class UserController {
                 .nickname(findUser.getNickname())
                 .provider(findUser.getProvider().toString())
                 .schoolName(findUser.getSchool().getName())
-                .phoneNum(findUser.getPhoneNum())
+                .phoneNum(findUser.getPhone())
                 .userGrade(Optional.ofNullable(findUser.getGrade()).map(Grade::getField).orElse(null))
                 .userClass(Optional.ofNullable(findUser.getUserClass()).map(Object::toString).orElse(null))
                 .semester(Optional.ofNullable(findUser.getSemester()).map(Semester::getField).orElse(null))

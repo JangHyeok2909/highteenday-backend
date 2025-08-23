@@ -46,8 +46,8 @@ public class User extends BaseEntity {
     @Column(name = "USR_major", length = 30)
     private String major;
 
-    @Column(name = "USR_phone_num", length = 20/*, nullable = false*/)
-    private String phoneNum;
+    @Column(name = "USR_phone", length = 20/*, nullable = false*/)
+    private String phone;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "USR_provider"/*, nullable = false*/)
