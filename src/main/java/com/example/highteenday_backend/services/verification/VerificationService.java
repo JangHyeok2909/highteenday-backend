@@ -30,14 +30,14 @@ public class VerificationService {
     private final UserRepository userRepository;
 
     @Value("${oauth.network.key}")
-    static String clientId;
+    String clientId;
     @Value("${oauth.network.secret}")
-    static String secretKey;
+    String secretKey;
     @Value("${oauth.network.redirect-url}")
-    static String redirectUrl;
+    String redirectUrl;
     @Value("${oauth.network.scopes}") String scopes;
     @Value("${oauth.network.base-url}")
-    static String baseUrl;
+    String baseUrl;
 
     public record UserInfoResponse(String email, String phone) {}
 
