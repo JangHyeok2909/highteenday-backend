@@ -16,6 +16,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.URI;
+
 @Tag(name ="SMS/Email 인증 API")
 @RequiredArgsConstructor
 @RequestMapping("/api/verification")
@@ -82,9 +84,9 @@ public class VerificationController {
 
     @GetMapping("/test/start")
     public ResponseEntity<?> testStart(@RequestParam String returnTo) {
-        String url = UriComponentsBuilder.fromHttpUrl("https://highteenday.duckdns.org")
-                .queryParam("redirect_uri", returnTo)
-                .build(true).toUriString();
+
+        String base = "https://highteenday.duckdns.org";
+        String url = URI.create(base).resolve(returnTo).toString();
 
         return ResponseEntity.status(302)
                 .header("Location", url)
