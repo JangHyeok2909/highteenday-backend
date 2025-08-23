@@ -62,7 +62,7 @@ public class VerificationService {
     }
 
     @Transactional
-    public String handleCallbackAndGetReturnTo(String code, String state){
+    public String handleCallbackAndGetReturnTo(String code, String state, String error, String errorDesc){
         System.out.println("state 값: " + state);
         System.out.println("state 값: " + state);
         System.out.println("state 값: " + state);
@@ -71,8 +71,16 @@ public class VerificationService {
         System.out.println("code 값: " + code);
 
         StateStore.Payload payload = stateStore.consume(state);
-
         String returnTo = payload.returnTo() == null ? "/" : payload.returnTo();
+
+        if(error != null || code == null || code.isBlank() ){
+            System.out.println("error, code 부분 진입");
+            System.out.println("error : " + error);
+            System.out.println("error_Description : " + errorDesc);
+            System.out.println("code : " + code);
+            String next = UriComponentsBuilder.fromPath("/NotFound").build(true).toUriString();
+            return next;
+        }
 
         HttpHeaders tokenHeaders = new HttpHeaders();
         tokenHeaders.setContentType(MediaType.APPLICATION_FORM_URLENCODED);

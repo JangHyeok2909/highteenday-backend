@@ -76,11 +76,13 @@ public class VerificationController {
     @GetMapping("/oauth-net/callback")
     public ResponseEntity<?> oauthNetCallback(
             @Parameter(description = "외부 인증 서버가 내려주는 코드", example = "AUTH_CODE_123", required = true)
-            @RequestParam String code,
+            @RequestParam(required=false) String code,
             @Parameter(description = "CSRF 방지를 위한 상태 값", example = "state_nonce_abc", required = true)
-            @RequestParam String state
+            @RequestParam String state,
+            @RequestParam(required=false) String error,
+            @RequestParam(name="error_description", required=false) String errorDesc
     ){
-        String returnTo = verificationService.handleCallbackAndGetReturnTo(code, state);
+        String returnTo = verificationService.handleCallbackAndGetReturnTo(code, state, error, errorDesc);
         return ResponseEntity.status(302).header("Location", returnTo).build();
     }
 
