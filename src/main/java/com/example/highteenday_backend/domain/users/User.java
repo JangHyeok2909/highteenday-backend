@@ -6,6 +6,7 @@ import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.enums.*;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDate;
 
@@ -77,6 +78,7 @@ public class User extends BaseEntity {
 
 //    인증 했냐 안 했냐
     @Column(name = "USR_phone_verified")
+    @ColumnDefault("false")
     private boolean phoneVerified = false;
 
 //    인증 한 시간
