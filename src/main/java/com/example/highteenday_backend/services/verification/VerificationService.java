@@ -39,7 +39,6 @@ public class VerificationService {
     @Value("${oauth.network.base-url}")
     static String baseUrl;
 
-    @Data
     public record UserInfoResponse(String email, String phone) {}
 
     @Transactional
