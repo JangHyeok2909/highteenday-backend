@@ -25,9 +25,9 @@ import java.time.ZoneId;
 @RequiredArgsConstructor
 @Service
 public class VerificationService {
-    private StateStore stateStore;
-    private RestTemplate restTemplate;
-    private UserRepository userRepository;
+    private final StateStore stateStore;
+    private final RestTemplate restTemplate;
+    private final UserRepository userRepository;
 
     @Value("${oauth.network.key}")
     static String clientId;
