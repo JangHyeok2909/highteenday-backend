@@ -54,6 +54,8 @@ public class VerificationController {
         userService.findByEmail(user.getUser().getEmail());
 
         String url = verificationService.buildAuthRedirectUrl(returnTo, user.getUser());
+
+        System.out.println("/oauth-net/start - url : " + url);
         return ResponseEntity.status(302).header("Location", url).build();
     }
 

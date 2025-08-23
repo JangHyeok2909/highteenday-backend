@@ -57,7 +57,7 @@ public class VerificationService {
                 .queryParam("redirect_uri", redirectUrl)
                 .queryParam("response_type", "code")
 //                .queryParam("scopes", scopes)
-//                .queryParam("state", state)
+                .queryParam("state", state)
                 .build(true).toUriString();
     }
 
