@@ -46,6 +46,12 @@ public class VerificationService {
     @Transactional
     public String buildAuthRedirectUrl(String returnTo, User user) {
         String state = stateStore.issue(returnTo, user);
+
+        System.out.println("문제 없습니다");
+        System.out.println("Client_id : " + clientId);
+        System.out.println("redirect_uri : " + redirectUrl);
+        System.out.println("base_url : " + baseUrl);
+
         return UriComponentsBuilder.fromHttpUrl(baseUrl)
                 .queryParam("client_id", clientId)
                 .queryParam("redirect_uri", redirectUrl)

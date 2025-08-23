@@ -7,6 +7,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.RedisSystemException;
@@ -21,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class StateStore {
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -31,9 +33,13 @@ public class StateStore {
     public record Payload(String returnTo, Long userId) {}
 
     public String issue(String returnTo, User user){
+
+        System.out.println("1. returnTo : " + returnTo);
         if(returnTo == null || !returnTo.startsWith("/")){
             returnTo = "/";
         }
+        System.out.println("2. returnTo : " + returnTo);
+
 
         String state = UUID.randomUUID().toString();
         try{
@@ -44,6 +50,7 @@ public class StateStore {
             ));
             redis.opsForValue().set(key(state), json, ttlSeconds, TimeUnit.SECONDS);
 
+            System.out.println("state 값 : " + state);
             return state;
         } catch (JsonProcessingException e) {
             // JSON 직렬화 실패

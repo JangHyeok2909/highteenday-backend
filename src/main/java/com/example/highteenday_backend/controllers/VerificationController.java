@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Tag(name ="SMS/Email 인증 API")
 @RequiredArgsConstructor
@@ -77,5 +78,14 @@ public class VerificationController {
     ){
         String returnTo = verificationService.handleCallbackAndGetReturnTo(code, state);
         return ResponseEntity.status(302).header("Location", returnTo).build();
+    }
+
+    @GetMapping("/test/start")
+    public String testStart(
+            @RequestParam String returnTo
+    ){
+        return UriComponentsBuilder.fromHttpUrl("https://highteenday.duckdns.org")
+                .queryParam("redirect_uri", returnTo)
+                .build(true).toUriString();
     }
 }
