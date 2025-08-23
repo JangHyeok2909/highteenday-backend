@@ -9,6 +9,7 @@ import com.example.highteenday_backend.exceptions.CustomException;
 import jakarta.transaction.Transactional;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ import java.time.ZoneId;
 
 @RequiredArgsConstructor
 @Service
+@Slf4j
 public class VerificationService {
     private final StateStore stateStore;
     private final RestTemplate restTemplate;
@@ -55,7 +57,15 @@ public class VerificationService {
 
     @Transactional
     public String handleCallbackAndGetReturnTo(String code, String state){
+        System.out.println("state 값: " + state);
+        System.out.println("state 값: " + state);
+        System.out.println("state 값: " + state);
+        System.out.println("code 값: " + code);
+        System.out.println("code 값: " + code);
+        System.out.println("code 값: " + code);
+
         StateStore.Payload payload = stateStore.consume(state);
+
         String returnTo = payload.returnTo() == null ? "/" : payload.returnTo();
 
         HttpHeaders tokenHeaders = new HttpHeaders();
@@ -64,9 +74,9 @@ public class VerificationService {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "authorization_code");
         form.add("client_id", clientId);
-        form.add("client_secret", secretKey);
         form.add("redirect_uri", redirectUrl);
         form.add("code", code);
+        form.add("client_secret", secretKey);
 
         OAuthNetTokenResponse token;
         try {
@@ -74,6 +84,8 @@ public class VerificationService {
                     baseUrl, new HttpEntity<>(form, tokenHeaders), OAuthNetTokenResponse.class);
             token = res.getBody();
         } catch (RestClientException e){
+
+            System.out.println("Call Back 부분에서 에러 터짐요");
             throw new CustomException(ErrorCode.INVALID_REQUEST);
         }
 
