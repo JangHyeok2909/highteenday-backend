@@ -6,10 +6,13 @@ import com.example.highteenday_backend.dtos.Login.LoginRequestDto;
 import com.example.highteenday_backend.dtos.Login.OAuth2UserInfo;
 import com.example.highteenday_backend.dtos.Login.RegisterUserDto;
 import com.example.highteenday_backend.enums.ErrorCode;
+import com.example.highteenday_backend.enums.Grade;
+import com.example.highteenday_backend.enums.Semester;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.security.TokenException;
 import com.example.highteenday_backend.security.TokenProvider;
+import com.example.highteenday_backend.services.domain.SchoolService;
 import com.example.highteenday_backend.services.domain.UserService;
 import com.example.highteenday_backend.services.security.JwtCookieService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,6 +22,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -29,6 +34,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 
 @Tag(name="User Relation API", description = "User 관련 API")
@@ -41,6 +47,7 @@ public class UserController {
     private final TokenProvider tokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final JwtCookieService jwtCookieService;
+    private final SchoolService schoolService;
 
     // 테스트 코드
     @Operation(summary = "OAuth2 로그인한 사용자 정보 조회 (accessToken 쿠키 기반)")
@@ -49,7 +56,6 @@ public class UserController {
             HttpServletRequest request
     ){
         String accessToken = null;
-
         // 쿠키에서 accessToken 추출
         if(request.getCookies() != null){
             for (Cookie cookie : request.getCookies()) {
@@ -89,6 +95,11 @@ public class UserController {
                 .email(findUser.getEmail())
                 .nickname(findUser.getNickname())
                 .provider(findUser.getProvider().toString())
+                .schoolName(findUser.getSchool().getName())
+                .phoneNum(findUser.getPhoneNum())
+                .userGrade(Optional.ofNullable(findUser.getGrade()).map(Grade::getField).orElse(null))
+                .userClass(Optional.ofNullable(findUser.getUserClass()).map(Object::toString).orElse(null))
+                .semester(Optional.ofNullable(findUser.getSemester()).map(Semester::getField).orElse(null))
                 .build();
 
         return ResponseEntity.ok().body(userInfoDto);
@@ -101,9 +112,7 @@ public class UserController {
             @RequestBody RegisterUserDto registerUserDto,
             HttpServletResponse response
             ){
-
         userService.register(registerUserDto, response);
-
         return ResponseEntity.ok("회원가입 성공");
     }
 
@@ -182,19 +191,48 @@ public class UserController {
             @RequestBody ChangeNicknameDto nicknameDto
     ){
         User findUser = userService.findByEmail(user.getUser().getEmail());
-
         userService.modifyNickname(findUser, nicknameDto);
-
         return ResponseEntity.ok("닉네임 변경 완료");
+    }
+    @Operation(summary = "학교 변경")
+    @PutMapping("/modify/school")
+    public ResponseEntity<?> modifySchool(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+                                          @RequestBody SchoolIdDto dto){
+        User user = userPrincipal.getUser();
+        user.setSchool(schoolService.findById(Long.parseLong(dto.schoolId())));
+        return ResponseEntity.ok().build();
     }
 
     // 닉네임 중복 체크
     @Operation(summary = "닉네임 중복 확인")
-    @PostMapping("/check/nickname")
-    public ResponseEntity<?> checkNickname(
-            @RequestBody RequestNicknameDto nicknameDto
+    @GetMapping("/check/nickname")
+    public ResponseEntity<Boolean> checkNickname(
+            @RequestParam String nickname
     ) {
-        boolean isDuplicated = userService.existsByNickname(nicknameDto.nickname());
-        return ResponseEntity.ok(Map.of("중복 여부", isDuplicated));
+        boolean duplCheck = !userService.existsByNickname(nickname);
+        return ResponseEntity.ok(duplCheck);
     }
+    @Operation(summary = "이메일 중복 확인")
+    @GetMapping("/check/email")
+    public ResponseEntity<Boolean> checkEmail(
+            @RequestParam String email
+    ){
+        boolean duplCheck = !userService.existsByEmail(email);
+        return ResponseEntity.ok(duplCheck);
+    }
+    @Operation(summary = "전화번호 중복 확인")
+    @GetMapping("/check/phone")
+    public ResponseEntity<Boolean> checkPhone(
+            @RequestParam String phone
+    ){
+        boolean duplCheck = !userService.existsByPhone(phone);
+        return ResponseEntity.ok(duplCheck);
+    }
+
+//    @PostMapping("/authentication/phone")
+//    public ResponseEntity<?> authenticationPhone(
+//            @RequestBody RequestPhoneDto phoneDto
+//    ){
+//        phoneDto.phoneNum()
+//    }
 }

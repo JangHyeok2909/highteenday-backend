@@ -13,7 +13,6 @@ import java.util.List;
 @Data
 public class PagedPostsDto {
     //page, totalPages, totalElements
-    private String boardName;
     private int page;
     private int totalPages;
     private long totalElements;
