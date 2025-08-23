@@ -8,6 +8,7 @@ import lombok.Builder;
 public record RegisterUserDto(
     String name,
     String nickname,
+    String phone,
     String email,
     Grade grade,
     Gender gender,

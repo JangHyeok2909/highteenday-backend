@@ -58,6 +58,11 @@ public class DataInitializer {
         for(int i=1;i<=userCount;i++){
             String email = "test"+i+"@gmail.com";
             if (userRepository.findByEmail(email).isEmpty()) {
+                String phone;
+                if(i>=10) phone = "+8210"+String.valueOf(i).repeat(8).substring(0,13);
+                else phone = "+8210"+String.valueOf(i).repeat(8);
+
+
                 User user = new User();
                 user.setEmail(email);
                 user.setName("tester" + i);
@@ -65,6 +70,7 @@ public class DataInitializer {
                 user.setProvider(Provider.DEFAULT);
                 user.setHashedPassword(passwordEncoder.encode("asd"));
                 user.setSchool(schoolService.findById((long)i));
+                user.setPhone(phone);
                 userRepository.save(user);
                 System.out.println("초기 테스트 유저 설정, user email: " + email);
             }
