@@ -81,11 +81,13 @@ public class VerificationController {
     }
 
     @GetMapping("/test/start")
-    public String testStart(
-            @RequestParam String returnTo
-    ){
-        return UriComponentsBuilder.fromHttpUrl("https://highteenday.duckdns.org")
+    public ResponseEntity<?> testStart(@RequestParam String returnTo) {
+        String url = UriComponentsBuilder.fromHttpUrl("https://highteenday.duckdns.org")
                 .queryParam("redirect_uri", returnTo)
                 .build(true).toUriString();
+
+        return ResponseEntity.status(302)
+                .header("Location", url)
+                .build();
     }
 }
