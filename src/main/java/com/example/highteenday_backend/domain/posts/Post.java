@@ -115,6 +115,7 @@ public class Post extends BaseEntity {
         return PostDto.builder()
                 .id(this.id)
                 .author(nickname)
+                .profileUrl(user.getProfileUrl())
                 .userId(user.getId())
                 .title(title)
                 .content(content)
