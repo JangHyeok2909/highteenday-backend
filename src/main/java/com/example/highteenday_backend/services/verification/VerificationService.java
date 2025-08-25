@@ -55,10 +55,10 @@ public class VerificationService {
         String uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
                 .queryParam("client_id", clientId)
                 .queryParam("redirect_uri", redirectUrl)
-                .queryParam("response_type", "code")
                 .queryParam("scopes", scopes)
                 .queryParam("state", state)
-                .build(true).toUriString();
+                .queryParam("response_type", "code")
+                .build().toUriString();
 
         System.out.println("uri : " + uri);
         return uri;
