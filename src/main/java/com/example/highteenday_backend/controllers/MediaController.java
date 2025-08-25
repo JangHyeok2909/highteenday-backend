@@ -37,10 +37,14 @@ public class MediaController {
     private final UserService userService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<URI> uploadS3(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-                                        @RequestParam("file")MultipartFile multipartFile) throws URISyntaxException {
+    public ResponseEntity<URI> uploadS3(
+            @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+            @RequestParam("file")MultipartFile multipartFile
+    ) throws URISyntaxException {
         User user = userPrincipal.getUser();
         log.info("userId={} , file={}",user.getId(),multipartFile.getOriginalFilename());
+
+
         UploadedResult uploadedResult = s3Service.tmpUpload(user.getId(), multipartFile);
         URI uri = new URI(uploadedResult.getUrl());
         //201 Created 응답, Location 헤더에 url

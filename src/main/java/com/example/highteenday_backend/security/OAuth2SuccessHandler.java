@@ -31,11 +31,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                                         Authentication authentication) throws IOException, ServletException {
 
         log.info("successhandler 진입");
-//        CustomUserPrincipal customUserPrincipal = (CustomUserPrincipal) authentication.getPrincipal();
-//        log.info(customUserPrincipal.getAttribute("registrationId") + " OAuth 전체 attributes: {}", customUserPrincipal.getAttributes());
-
-//        String email = customUserPrincipal.getAttribute("parsed_email");
-//
         OAuth2AuthenticationToken authToken = (OAuth2AuthenticationToken) authentication;
         String registrationId = authToken.getAuthorizedClientRegistrationId();
         System.out.println("registrationId = { " + registrationId + " }");

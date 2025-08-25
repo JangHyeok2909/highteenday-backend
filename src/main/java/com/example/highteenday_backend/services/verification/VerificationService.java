@@ -52,13 +52,16 @@ public class VerificationService {
         System.out.println("redirect_uri : " + redirectUrl);
         System.out.println("base_url : " + baseUrl);
 
-        return UriComponentsBuilder.fromHttpUrl(baseUrl)
+        String uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
                 .queryParam("client_id", clientId)
                 .queryParam("redirect_uri", redirectUrl)
                 .queryParam("response_type", "code")
                 .queryParam("scopes", scopes)
                 .queryParam("state", state)
                 .build(true).toUriString();
+
+        System.out.println("uri : " + uri);
+        return uri;
     }
 
     @Transactional
