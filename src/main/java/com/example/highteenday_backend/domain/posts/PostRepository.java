@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.domain.posts;
 
 import com.example.highteenday_backend.domain.boards.Board;
+import com.example.highteenday_backend.domain.posts.queryDsl.PostRepositoryCustom;
 import com.example.highteenday_backend.domain.users.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface PostRepository extends JpaRepository<Post,Long> {
+public interface PostRepository extends JpaRepository<Post,Long>, PostRepositoryCustom {
 
     @Query("select p from Post p where p.isValid = true and p.id = :postId ")
     public Optional<Post> findById(Long postId);

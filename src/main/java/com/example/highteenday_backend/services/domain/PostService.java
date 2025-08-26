@@ -1,11 +1,9 @@
 package com.example.highteenday_backend.services.domain;
 
-import com.amazonaws.services.kms.model.NotFoundException;
 import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.users.User;
-import com.example.highteenday_backend.dtos.PostDto;
 import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.example.highteenday_backend.dtos.UpdatePostDto;
 import com.example.highteenday_backend.enums.PostSearchType;
@@ -21,7 +19,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -31,6 +28,7 @@ public class PostService {
     private final PostRepository postRepository;
     private final BoardService boardService;
     private final PostMediaService postMediaService;
+    private final static int SIZE = 10;
 
     public Post findById(Long postId) {
         return postRepository.findById(postId)
@@ -43,16 +41,12 @@ public class PostService {
         return postRepository.findAll();
     }
 
-    public List<Post> searchPosts(@RequestParam String query, PostSearchType searchType){
-        List<Post> posts;
-        if(searchType == PostSearchType.CONTENT){
-            posts = postRepository.findByContentContaining(query);
-        } else if(searchType == PostSearchType.CONTENT_AND_TITLE){
-            posts = postRepository.findByTitleContainingOrContentContaining(query,query);
-        } else{//null이면 기본으로 제목으로 검색
-            posts = postRepository.findByTitleContaining(query);
-        }
-        return posts;
+    public Page<Post> searchPagedPosts(String query,int page, PostSearchType searchType){
+        Sort sort = Sort.by(Sort.Direction.ASC, "createdAt").descending();
+        Pageable pageable = PageRequest.of(page,SIZE, sort);
+        Page<Post> pagedPost;
+        pagedPost = postRepository.searchKeywords(query, searchType,pageable);
+        return pagedPost;
     }
 
     public Page<Post> getPagedPostsByUser(User user, int page, int size, SortType sortType){
