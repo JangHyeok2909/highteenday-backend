@@ -5,7 +5,6 @@ import net.nurigo.sdk.NurigoApp;
 import net.nurigo.sdk.message.exception.NurigoMessageNotReceivedException;
 import net.nurigo.sdk.message.model.Message;
 import net.nurigo.sdk.message.service.DefaultMessageService;
-import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.Verification.VerifyCodeDto;
 
 import jakarta.transaction.Transactional;
@@ -13,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
 import java.util.Random;
@@ -63,10 +61,10 @@ public class VerificationService {
         try{
             messageService.send(message);
         } catch(NurigoMessageNotReceivedException e){
-            System.out.println(e.getFailedMessageList());
-            System.out.println(e.getMessage());
+            System.out.println("Nurigo 1 : " + e.getFailedMessageList());
+            System.out.println("Nurigo 2 : " + e.getMessage());
         } catch (Exception e) {
-            System.out.println(e.getMessage());
+            System.out.println("Nurigo 3 : " + e.getMessage());
         }
         hm.put("data", "전송 성공");
         return hm;
