@@ -29,7 +29,7 @@ public class VerificationService {
     String clientId;
     @Value("${cool-sms.secret}")
     String secretKey;
-    @Value("${from-phone-num}")
+    @Value("${cool-sms.from-phone-num}")
     String fromPhoneNum;
 
     private String generateVerificationCode() {
