@@ -91,7 +91,6 @@ public class DataInitializer {
         }
         System.out.println("테스트 게시글 생성완료");
     }
-
     public void commentDataInit(User user){
         int commentCount = 11;
         for(int i=1;i<=commentCount;i++){
@@ -103,7 +102,6 @@ public class DataInitializer {
         }
         System.out.println("테스트 댓글 생성완료");
     }
-
     public void likeAndDislikeDataInit(User user){
         int likeCount = 11;
         for(int i=1;i<=likeCount;i++){
