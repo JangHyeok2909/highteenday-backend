@@ -5,8 +5,10 @@ import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.dtos.PostDto;
 import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.example.highteenday_backend.dtos.UpdatePostDto;
+import com.example.highteenday_backend.enums.PostSearchType;
 import com.example.highteenday_backend.enums.SortType;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +19,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -37,6 +41,18 @@ public class PostService {
     }
     public List<Post> findAll(){
         return postRepository.findAll();
+    }
+
+    public List<Post> searchPosts(@RequestParam String query, PostSearchType searchType){
+        List<Post> posts;
+        if(searchType == PostSearchType.CONTENT){
+            posts = postRepository.findByContentContaining(query);
+        } else if(searchType == PostSearchType.CONTENT_AND_TITLE){
+            posts = postRepository.findByTitleContainingOrContentContaining(query,query);
+        } else{//null이면 기본으로 제목으로 검색
+            posts = postRepository.findByTitleContaining(query);
+        }
+        return posts;
     }
 
     public Page<Post> getPagedPostsByUser(User user, int page, int size, SortType sortType){

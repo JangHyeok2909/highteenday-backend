@@ -30,6 +30,12 @@ public interface PostRepository extends JpaRepository<Post,Long> {
 
     public List<Post> findByUser(User user);
 
+    public List<Post> findByTitleContaining(String title);
+    public List<Post> findByContentContaining(String content);
+
+    List<Post> findByTitleContainingOrContentContaining(String title, String content);
+
+
 
 
 }
