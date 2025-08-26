@@ -6,6 +6,7 @@ import com.example.highteenday_backend.dtos.LikeStateDto;
 import com.example.highteenday_backend.dtos.PostDto;
 import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.example.highteenday_backend.dtos.UpdatePostDto;
+import com.example.highteenday_backend.enums.PostSearchType;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.*;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +17,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.List;
+import java.util.stream.Collectors;
 
 
 @Tag(name = "게시글 API", description = "게시글 관련 조회,생성,수정,삭제 API")
@@ -81,4 +84,12 @@ public class PostController {
 //        viewCountService.increaseViewCount(postId,userId);
 //        return ResponseEntity.ok(postDto);
 //    }
+    @Operation(summary = "게시글 검색")
+    @GetMapping("/search")
+    public ResponseEntity<List<PostDto>> searchPost(@RequestParam String query,
+                                                    @RequestParam PostSearchType searchType){
+        List<Post> posts = postService.searchPosts(query, searchType);
+        List<PostDto> postDtos = posts.stream().map(post -> post.toDto()).collect(Collectors.toList());
+        return ResponseEntity.ok(postDtos);
+    }
 }

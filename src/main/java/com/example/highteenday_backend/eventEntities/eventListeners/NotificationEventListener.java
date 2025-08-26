@@ -1,4 +1,4 @@
-package com.example.highteenday_backend.eventListner;
+package com.example.highteenday_backend.eventEntities.eventListeners;
 
 import com.example.highteenday_backend.domain.notification.NotificationRepository;
 import lombok.RequiredArgsConstructor;

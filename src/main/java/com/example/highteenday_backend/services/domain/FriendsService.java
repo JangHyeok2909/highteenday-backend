@@ -9,10 +9,7 @@ import com.example.highteenday_backend.domain.notification.NotificationRepositor
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.Friends.*;
-import com.example.highteenday_backend.enums.ErrorCode;
-import com.example.highteenday_backend.enums.FriendRequestStatus;
-import com.example.highteenday_backend.enums.FriendStatus;
-import com.example.highteenday_backend.enums.NotificationCategory;
+import com.example.highteenday_backend.enums.*;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import jakarta.transaction.Transactional;
@@ -106,9 +103,10 @@ public class FriendsService {
                 Notification.builder()
                         .receiver(receiver)
                         .sender(requester)
-                        .friendReqId(friendReq.getId())
-                        .message(receiver.getNickname() + "님이 친구 요청을 보냈습니다.")
-                        .category(NotificationCategory.FRIEND_REQ)
+                        .category(NotificationCategory.FRIEND_REQUEST)
+                        .entityType(EntityType.USER)
+                        .entityId(requester.getId())
+                        .message(receiver.getNickname() + "님에게 친구 요청을 보냈습니다.")
                         .build()
         );
 
@@ -119,15 +117,14 @@ public class FriendsService {
     public void respondToFriendRequest(CustomUserPrincipal receiverInfo, RespondFriendRequestDto friendReqDto) {
         FriendReq friendReq = friendReqRepository.findById(friendReqDto.id())
                 .orElseThrow(() -> new CustomException(ErrorCode.REQUEST_NOT_FOUND));
-        User request = friendReq.getRequester();
+
+        User requester = friendReq.getRequester();
         User receiver = friendReq.getReceiver();
-
+        //요청 수락
         if(friendReqDto.status().toUpperCase().equals(FriendRequestStatus.ACCEPTED.name())){
-
-
             // 보낸사람 저장
             friendRepository.save(Friend.builder()
-                    .user(request)
+                    .user(requester)
                     .friend(receiver)
                     .status(FriendStatus.FRIEND)
                     .build());
@@ -135,20 +132,34 @@ public class FriendsService {
             // 받는사람 저장
             friendRepository.save(Friend.builder()
                     .user(receiver)
-                    .friend(request)
+                    .friend(requester)
                     .status(FriendStatus.FRIEND)
                     .build());
+            //친구 요청 수락 알림 저장
+            notificationRepository.save(
+                    Notification.builder()
+                            .receiver(receiver)
+                            .sender(requester)
+                            .category(NotificationCategory.FRIEND_ACCEPT)
+                            .entityType(EntityType.USER)
+                            .entityId(requester.getId())
+                            .message(receiver.getNickname() + "님이 친구 요청을 수락했습니다.")
+                            .build()
+            );
 
-
-        } else if (friendReqDto.status().toUpperCase().equals(FriendRequestStatus.BLOCKED.name())) { // 응답자가 차단 했을거니까 응답자만 차단 상태 요청자는 모름 | 친구 요청 보낸사람도 차단 됐는지 알게 할까?
+        }
+        // 응답자가 차단 했을거니까 응답자만 차단 상태 요청자는 모름 | 친구 요청 보낸사람도 차단 됐는지 알게 할까?
+        else if (friendReqDto.status().toUpperCase().equals(FriendRequestStatus.BLOCKED.name())) {
 
             friendRepository.save(Friend.builder()
                     .user(receiver)
-                    .friend(request)
+                    .friend(requester)
                     .status(FriendStatus.BLOCKED)
                     .build());
 
-        } else if (friendReqDto.status().equalsIgnoreCase(FriendRequestStatus.DECLINED.name())) { // 요청 거절시 아무 응답 없음
+        }
+        // 요청 거절시 아무 응답 없음
+        else if (friendReqDto.status().equalsIgnoreCase(FriendRequestStatus.DECLINED.name())) {
             // ;
         }
 
