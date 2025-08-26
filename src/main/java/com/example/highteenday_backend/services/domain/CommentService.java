@@ -7,15 +7,20 @@ import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.enums.SortType;
+import com.example.highteenday_backend.eventEntities.events.CommentCreatedEvent;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
+import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionalEventListener;
+
 import java.util.List;
 
 @Slf4j
@@ -24,6 +29,7 @@ import java.util.List;
 public class CommentService {
     private final CommentRepository commentRepository;
     private final CommentMediaService commentMediaService;
+    private final ApplicationEventPublisher eventPublisher ;
 
     public Comment findCommentById(Long commentId){
         return commentRepository.findById(commentId).
@@ -55,13 +61,25 @@ public class CommentService {
                 .s3Url(dto.getUrl())
                 .build();
         if(dto.getParentId() != null) comment.setParent(findCommentById(dto.getParentId()));
-        int commentCount = commentRepository.findByPost(post).size();
-        post.updateCommentCount(commentCount);
+        post.updateCommentCount(post.getCommentCount()+1);
 
         comment = commentRepository.save(comment);
         Long userId = user.getId();
         if(dto.getUrl() != null && !dto.getUrl().isEmpty()) commentMediaService.processCreateCommentMedia(userId,comment,dto);
         comment.setUpdatedBy(null);
+
+        eventPublisher.publishEvent(
+                CommentCreatedEvent.builder()
+                        .commentId(comment.getId())
+                        .postId(post.getId())
+                        .authorId(userId)
+                        .postAuthorId(post.getUser().getId())
+                        .parentCommentAuthorId(
+                                comment.getParent() !=null?comment.getParent().getId():null
+                        )
+                        .content(comment.getContent())
+                        .build()
+        );
         return comment;
     }
     @Transactional

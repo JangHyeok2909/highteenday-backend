@@ -5,6 +5,7 @@ import com.example.highteenday_backend.domain.comments.CommentLike;
 import com.example.highteenday_backend.domain.friends.FriendReq;
 import com.example.highteenday_backend.domain.posts.PostLike;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.enums.EntityType;
 import com.example.highteenday_backend.enums.NotificationCategory;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -36,22 +37,14 @@ public class Notification extends BaseEntity {
     @Column(name = "NT_CAT", nullable = false)
     private NotificationCategory category;
 
-    @Column(name = "FRD_REQ_id")
-    private Long friendReqId;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "PST_LK_id")
-    private PostLike postLike;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "CMT_LK_id")
-    private CommentLike commentLike;
-
-    @Column(name = "NT_url", length = 255)
-    private String url;
+    private EntityType entityType;
+    private Long entityId;
 
     @Column(name = "NT_msg", length = 255)
     private String message;
+
+    @Column(name = "NT_content_msg", length = 255)
+    private String contentMessage;
 
     @Builder.Default
     @Column(name = "NT_is_read", nullable = false)
