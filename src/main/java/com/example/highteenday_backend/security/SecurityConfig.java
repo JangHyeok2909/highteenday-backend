@@ -77,6 +77,8 @@ public class SecurityConfig {
                                 "/api/user/login",
                                 "/api/user/check/nickname",
                                 "/api/user/check/email",
+                                "/api/verification/cool-sms/start",
+                                "/api/verification/cool-sms/verify",
                                 "/error"
                         ).permitAll()
                         // 그 외 모든 GET 요청은 허용
