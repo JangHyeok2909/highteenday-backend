@@ -63,8 +63,12 @@ public class VerificationService {
         } catch(NurigoMessageNotReceivedException e){
             System.out.println("Nurigo 1 : " + e.getFailedMessageList());
             System.out.println("Nurigo 2 : " + e.getMessage());
+            hm.put("data", "NurigoMessageNotReceivedException");
+            return hm;
         } catch (Exception e) {
             System.out.println("Nurigo 3 : " + e.getMessage());
+            hm.put("data", "Exception");
+            return hm;
         }
         hm.put("data", "전송 성공");
         return hm;
