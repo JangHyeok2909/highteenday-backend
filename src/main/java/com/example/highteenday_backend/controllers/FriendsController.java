@@ -91,7 +91,7 @@ public class FriendsController {
     // 친구 삭제
     @Operation(summary = "친구 삭제")
     @ApiResponse(responseCode = "200", description = "삭제 완료")
-    @PostMapping(value = "/delete", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @DeleteMapping(value = "/delete", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> deleteFriends(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(

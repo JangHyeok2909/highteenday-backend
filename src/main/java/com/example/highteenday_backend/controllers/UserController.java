@@ -118,7 +118,7 @@ public class UserController {
 
     // 회원 탈퇴
     @Operation(summary = "회원 탈퇴")
-    @GetMapping("/deleteAccount")
+    @DeleteMapping("/delete")
     public ResponseEntity<?> deleteAccount(
             @AuthenticationPrincipal CustomUserPrincipal user
     ){
@@ -185,7 +185,7 @@ public class UserController {
 
     // 로그인 유저 닉네임 변경
     @Operation(summary = "닉네임 변경")
-    @PostMapping("/modify/nickname")
+    @PatchMapping("/modify/nickname")
     public ResponseEntity<?> modifyNickname(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody ChangeNicknameDto nicknameDto
