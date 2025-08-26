@@ -1,157 +1,96 @@
 package com.example.highteenday_backend.services.verification;
 
-import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.services.global.RedisService;
+import net.nurigo.sdk.NurigoApp;
+import net.nurigo.sdk.message.exception.NurigoMessageNotReceivedException;
+import net.nurigo.sdk.message.model.Message;
+import net.nurigo.sdk.message.service.DefaultMessageService;
 import com.example.highteenday_backend.domain.users.UserRepository;
-import com.example.highteenday_backend.domain.verification.StateStore;
-import com.example.highteenday_backend.dtos.Verification.OAuthNetTokenResponse;
-import com.example.highteenday_backend.enums.ErrorCode;
-import com.example.highteenday_backend.exceptions.CustomException;
+import com.example.highteenday_backend.dtos.Verification.VerifyCodeDto;
+
 import jakarta.transaction.Transactional;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.util.HashMap;
+import java.util.Random;
 
 @RequiredArgsConstructor
 @Service
 @Slf4j
 public class VerificationService {
-    private final StateStore stateStore;
-    private final RestTemplate restTemplate;
-    private final UserRepository userRepository;
+    private final RedisService redisService;
 
-    @Value("${oauth.network.key}")
+
+    @Value("${cool-sms.key}")
     String clientId;
-    @Value("${oauth.network.secret}")
+    @Value("${cool-sms.secret}")
     String secretKey;
-    @Value("${oauth.network.redirect-url}")
-    String redirectUrl;
-    @Value("${oauth.network.scopes}") String scopes;
-    @Value("${oauth.network.base-url}")
-    String baseUrl;
+    @Value("${from-phone-num}")
+    String fromPhoneNum;
 
-    public record UserInfoResponse(String email, String phone) {}
-
-    @Transactional
-    public String buildAuthRedirectUrl(String returnTo, User user) {
-        String state = stateStore.issue(returnTo, user);
-
-        System.out.println("문제 없습니다");
-        System.out.println("Client_id : " + clientId);
-        System.out.println("redirect_uri : " + redirectUrl);
-        System.out.println("base_url : " + baseUrl);
-
-        String uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
-                .queryParam("client_id", clientId)
-                .queryParam("redirect_uri", redirectUrl)
-                .queryParam("scopes", scopes)
-                .queryParam("state", state)
-                .queryParam("response_type", "code")
-                .build().toUriString();
-
-        System.out.println("uri : " + uri);
-        return uri;
+    private String generateVerificationCode() {
+        Random random = new Random();
+        int code = 100000 + random.nextInt(900000);
+        return String.valueOf(code);
     }
 
     @Transactional
-    public String handleCallbackAndGetReturnTo(String code, String state, String error, String errorDesc){
-        System.out.println("state 값: " + state);
-        System.out.println("state 값: " + state);
-        System.out.println("state 값: " + state);
-        System.out.println("code 값: " + code);
-        System.out.println("code 값: " + code);
-        System.out.println("code 값: " + code);
+    public HashMap<String, String> sendSmsSendGenerateCode(String phoneNum) {
 
-        StateStore.Payload payload = stateStore.consume(state);
-        String returnTo = payload.returnTo() == null ? "/" : payload.returnTo();
+        HashMap<String, String> hm = new HashMap<>();
+        String verifyCode = generateVerificationCode();
 
-        if(error != null || code == null || code.isBlank() ){
-            System.out.println("error, code 부분 진입");
-            System.out.println("error : " + error);
-            System.out.println("error_Description : " + errorDesc);
-            System.out.println("code : " + code);
-            String next = UriComponentsBuilder.fromPath("/NotFound").build(true).toUriString();
-            return next;
+        String key = "verify:SMS:" + phoneNum;
+        Boolean created = redisService.setIfAbsentSeconds(key, verifyCode);
+        if (Boolean.FALSE.equals(created)) {
+            hm.put("data", "중복");
+
+            return hm;
         }
 
-        HttpHeaders tokenHeaders = new HttpHeaders();
-        tokenHeaders.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("grant_type", "authorization_code");
-        form.add("client_id", clientId);
-        form.add("redirect_uri", redirectUrl);
-        form.add("code", code);
-        form.add("client_secret", secretKey);
+        // 문자 보내는 부분
+        DefaultMessageService messageService =  NurigoApp.INSTANCE.initialize(clientId, secretKey, "https://api.solapi.com");
+        Message message = new Message();
+        message.setFrom(fromPhoneNum);
+        message.setTo(phoneNum);
+        message.setText("본인확인 인증번호는 (" + verifyCode + ") 입니다.");
 
-        OAuthNetTokenResponse token;
-        try {
-            ResponseEntity<OAuthNetTokenResponse> res = restTemplate.postForEntity(
-                    baseUrl, new HttpEntity<>(form, tokenHeaders), OAuthNetTokenResponse.class);
-            token = res.getBody();
-        } catch (RestClientException e){
+        try{
+            messageService.send(message);
+        } catch(NurigoMessageNotReceivedException e){
+            System.out.println(e.getFailedMessageList());
+            System.out.println(e.getMessage());
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+        hm.put("data", "전송 성공");
+        return hm;
+    }
 
-            System.out.println("Call Back 부분에서 에러 터짐요");
-            throw new CustomException(ErrorCode.INVALID_REQUEST);
+    @Transactional
+    public HashMap<String, String> verifyCode(VerifyCodeDto verifyCodeDto){
+        HashMap<String, String> hm = new HashMap<>();
+        String key = "verify:SMS:" + verifyCodeDto.phoneNum();
+        String code = verifyCodeDto.verifyCode();
+        String saved = redisService.getValue(key).toString();
+
+        if (saved == null) {
+            hm.put("data", "expired_or_not_found_code");
+            return hm;
+        } else if (!saved.equals(code)) {
+            hm.put("data", "incorrect_code");
+            return hm;
+        } else {
+            redisService.delete(key);
+            hm.put("data", "correct_code");
         }
 
-        if(token == null || token.getAccessToken() == null){
-            throw new CustomException(ErrorCode.INVALID_REQUEST, "토큰 발급 실패");
-        }
-
-        HttpHeaders infoHeaders = new HttpHeaders();
-        infoHeaders.setBearerAuth(token.getAccessToken());
-
-        UserInfoResponse info = null;
-
-        try {
-            ResponseEntity<UserInfoResponse> infoRes = restTemplate.exchange(
-                    baseUrl, HttpMethod.POST, new HttpEntity<>(infoHeaders), UserInfoResponse.class);
-            info = infoRes.getBody();
-        } catch (RestClientException e) {
-            // 사용자 정보가 꼭 필요 없는거 같아서 일단 진행
-        }
-
-        final UserInfoResponse infoFinal = info;
-
-        System.out.println("SMS 인증 단계");
-        System.out.println("info 값: " + info);
-        System.out.println("SMS 인증 종료");
-
-        if(payload.userId() != null){
-            userRepository.findById(payload.userId()).ifPresent( u -> {
-                if(infoFinal != null){
-                    if(infoFinal.phone() != null && !infoFinal.phone().isBlank()){
-                        u.setPhoneNum(infoFinal.phone);
-                    } else if(infoFinal.email() != null && !infoFinal.email().isBlank()){
-                        u.setEmail(infoFinal.email);
-                    }
-
-                    u.setPhoneVerified(true);
-                    u.setPhoneVerifiedAt(LocalDateTime.now(ZoneId.of("Asia/Seoul")));
-
-                    userRepository.save(u);
-                }
-            });
-        }
-
-        boolean ok = (infoFinal != null && (infoFinal.phone != null || info.email != null));
-        String next = UriComponentsBuilder.fromPath(returnTo)
-                .queryParam("verification", ok? "ok" :  "unknown")
-                .build(true).toUriString();
-
-        return next;
+        return hm;
     }
 
 }

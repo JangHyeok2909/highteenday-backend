@@ -30,4 +30,9 @@ public class RedisService {
     public Long increaseCount(String key){
         return redisTemplate.opsForValue().increment(key);
     }
+
+    public Boolean setIfAbsentSeconds(String key, String value){
+        return redisTemplate.opsForValue()
+                .setIfAbsent(key, value, Duration.ofSeconds(300)); // ttl 5분
+    }
 }
