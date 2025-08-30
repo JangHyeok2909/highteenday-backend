@@ -16,6 +16,11 @@ import com.example.highteenday_backend.services.domain.SchoolService;
 import com.example.highteenday_backend.services.domain.UserService;
 import com.example.highteenday_backend.services.security.JwtCookieService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -52,10 +57,42 @@ public class UserController {
     // 테스트 코드
     @Operation(summary = "OAuth2 로그인한 사용자 정보 조회 (accessToken 쿠키 기반)")
     @GetMapping("/OAuth2UserInfo")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "등록 컨텍스트",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "LOCAL 모드",
+                                            value = """
+                    {
+                      "mode": "local"
+                    }
+                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "SOCIAL(OAuth) 모드",
+                                            value = """
+                    {
+                      "mode": "OAuth",
+                      "email": "user@gmail.com",
+                      "name": "문용",
+                      "provider": "GOOGLE"
+                    }
+                    """
+                                    )
+                            }
+                    )
+            )
+    })
     public ResponseEntity<?> getOAuth2UserInfo(
             HttpServletRequest request
     ){
         String accessToken = null;
+        Map<String, Object> getOAuthUser = new HashMap<>();
+
         // 쿠키에서 accessToken 추출
         if(request.getCookies() != null){
             for (Cookie cookie : request.getCookies()) {
@@ -67,18 +104,18 @@ public class UserController {
         }
 
         if(accessToken == null){
-            throw new TokenException(ErrorCode.TOKEN_NOT_FOUND);
+            getOAuthUser.put("mode", "local");
+            return ResponseEntity.ok(getOAuthUser);
         }
 
         Authentication authentication = tokenProvider.getAuthentication(accessToken);
         CustomUserPrincipal principal = (CustomUserPrincipal) authentication.getPrincipal();
         OAuth2UserInfo oAuth2UserInfo = principal.getoAuth2UserInfo();
 
-        Map<String, Object> getOAuthUser = new HashMap<>();
-
-        getOAuthUser.put("Email", oAuth2UserInfo.email());
-        getOAuthUser.put("Name", oAuth2UserInfo.name());
-        getOAuthUser.put("Provider", oAuth2UserInfo.provider());
+        getOAuthUser.put("mode", "OAuth");
+        getOAuthUser.put("email", oAuth2UserInfo.email());
+        getOAuthUser.put("name", oAuth2UserInfo.name());
+        getOAuthUser.put("provider", oAuth2UserInfo.provider());
 
         return ResponseEntity.ok(getOAuthUser);
     }

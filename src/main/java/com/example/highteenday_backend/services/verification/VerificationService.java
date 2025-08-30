@@ -56,7 +56,7 @@ public class VerificationService {
         Message message = new Message();
         message.setFrom(fromPhoneNum);
         message.setTo(phoneNum);
-        message.setText("본인확인 인증번호는 (" + verifyCode + ") 입니다.");
+        message.setText("본인확인 인증번호는 [" + verifyCode + "] 입니다.");
 
         try{
             messageService.send(message);
@@ -70,6 +70,7 @@ public class VerificationService {
             hm.put("data", "Exception");
             return hm;
         }
+        System.out.println("일단 예외 에러 안 뜸");
         hm.put("data", "전송 성공");
         return hm;
     }
