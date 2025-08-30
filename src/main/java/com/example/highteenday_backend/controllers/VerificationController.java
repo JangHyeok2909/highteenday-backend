@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.controllers;
 
+import com.example.highteenday_backend.dtos.Verification.PhoneNumDto;
 import com.example.highteenday_backend.dtos.Verification.VerifyCodeDto;
 import com.example.highteenday_backend.services.domain.UserService;
 import com.example.highteenday_backend.services.verification.VerificationService;
@@ -29,7 +30,7 @@ public class VerificationController {
     )
     @PostMapping("/cool-sms/start")
     public HashMap<String, String> sendMessagePhone(
-            @RequestBody String userPhoneNum
+            @RequestBody PhoneNumDto userPhoneNum
     ){
         HashMap<String, String> hm = new HashMap<>();
         try{

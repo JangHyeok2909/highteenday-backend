@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.services.verification;
 
+import com.example.highteenday_backend.dtos.Verification.PhoneNumDto;
 import com.example.highteenday_backend.services.global.RedisService;
 import net.nurigo.sdk.NurigoApp;
 import net.nurigo.sdk.message.exception.NurigoMessageNotReceivedException;
@@ -37,12 +38,12 @@ public class VerificationService {
     }
 
     @Transactional
-    public HashMap<String, String> sendSmsSendGenerateCode(String phoneNum) {
+    public HashMap<String, String> sendSmsSendGenerateCode(PhoneNumDto phoneNum) {
 
         HashMap<String, String> hm = new HashMap<>();
         String verifyCode = generateVerificationCode();
 
-        String key = "verify:SMS:" + phoneNum;
+        String key = "verify:SMS:" + phoneNum.phoneNum();
         Boolean created = redisService.setIfAbsentSeconds(key, verifyCode);
         if (Boolean.FALSE.equals(created)) {
             hm.put("data", "중복");
