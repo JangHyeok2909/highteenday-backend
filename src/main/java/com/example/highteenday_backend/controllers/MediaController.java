@@ -36,9 +36,11 @@ public class MediaController {
     private final UserMediaService userMediaService;
     private final UserService userService;
 
+
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<URI> uploadS3(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                         @RequestParam("file")MultipartFile multipartFile) throws URISyntaxException {
+
         User user = userPrincipal.getUser();
         log.info("userId={} , file={}",user.getId(),multipartFile.getOriginalFilename());
         UploadedResult uploadedResult = s3Service.tmpUpload(user.getId(), multipartFile);
