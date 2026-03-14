@@ -2,6 +2,7 @@ package com.example.highteenday_backend.schedulers;
 
 import com.example.highteenday_backend.Utils.HotScoreCalculator;
 import com.example.highteenday_backend.domain.posts.Post;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.services.domain.HotPostService;
 import com.example.highteenday_backend.services.domain.PostService;
 import lombok.RequiredArgsConstructor;
@@ -32,9 +33,9 @@ public class HotScoreScheduler {
         }
 
         //핫게시글 가져오기
-        List<Post> dailyHotPosts = hotPostService.getDailyHotPosts();
-        for (Post p:dailyHotPosts){
-            log.info("selectd hot post, postId="+p.getId());
+        List<PostPreviewDto> dailyHotPosts = hotPostService.getDailyHotPosts();
+        for (PostPreviewDto pre:dailyHotPosts){
+            log.info("selectd hot post, postId="+pre.getId());
         }
     }
 

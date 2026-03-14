@@ -4,6 +4,7 @@ import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.scraps.Scrap;
 import com.example.highteenday_backend.dtos.CommentDto;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.dtos.paged.PagedCommentsDto;
 import com.example.highteenday_backend.dtos.paged.PagedPostsDto;
 import com.example.highteenday_backend.dtos.PostDto;
@@ -17,17 +18,17 @@ import java.util.List;
 public class PageUtils {
     public static PagedPostsDto postsToDto(Page<Post> pagedPosts){
         List<Post> posts = pagedPosts.getContent();
-        List<PostDto> postDtos =new ArrayList<>();
+        List<PostPreviewDto> postPreviewDtos =new ArrayList<>();
         for(Post p:posts){
-            PostDto dto = p.toDto();
+            PostPreviewDto prevDto = p.toPrevDto();
 
-            postDtos.add(dto);
+            postPreviewDtos.add(prevDto);
         }
         PagedPostsDto pagedDto = PagedPostsDto.builder()
                 .page(pagedPosts.getNumber())
                 .totalPages(pagedPosts.getTotalPages())
                 .totalElements(pagedPosts.getTotalElements())
-                .postDtos(postDtos)
+                .postPreviewDtos(postPreviewDtos)
                 .build();
 
         return pagedDto;
