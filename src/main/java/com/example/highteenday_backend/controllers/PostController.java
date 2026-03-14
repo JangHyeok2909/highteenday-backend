@@ -77,15 +77,6 @@ public class PostController {
         postService.deletePost(postId,user.getId());
         return ResponseEntity.ok("삭제 완료.");
     }
-
-//    @Operation(summary = "게시글 조회 테스트")
-//    @GetMapping("/{postId}/test/{userId}")
-//    public ResponseEntity<PostDto> getPostByPostIdTest(@PathVariable Long postId,
-//                                                       @PathVariable Long userId){
-//        PostDto postDto = postService.findById(postId).toDto();
-//        viewCountService.increaseViewCount(postId,userId);
-//        return ResponseEntity.ok(postDto);
-//    }
     @Operation(summary = "게시글 검색")
     @GetMapping("/search")
     public ResponseEntity<PagedPostsDto> searchPost(@RequestParam String query,
@@ -96,4 +87,13 @@ public class PostController {
 
         return ResponseEntity.ok(dto);
     }
+
+    //    @Operation(summary = "게시글 조회 테스트")
+//    @GetMapping("/{postId}/test/{userId}")
+//    public ResponseEntity<PostDto> getPostByPostIdTest(@PathVariable Long postId,
+//                                                       @PathVariable Long userId){
+//        PostDto postDto = postService.findById(postId).toDto();
+//        viewCountService.increaseViewCount(postId,userId);
+//        return ResponseEntity.ok(postDto);
+//    }
 }

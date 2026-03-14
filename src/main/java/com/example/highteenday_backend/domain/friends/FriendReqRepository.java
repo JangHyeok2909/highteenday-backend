@@ -16,16 +16,16 @@ public interface FriendReqRepository extends JpaRepository<FriendReq, Long> {
     @Query(value = """
             SELECT fq.*
             FROM friends_requests fq
-            WHERE fq.USR_rec_id = :id
+            WHERE fq.USR_rec_id = :usr_rec_id
             """, nativeQuery = true)
-    List<FriendReq> findReceivedFriendRequests(@Param("id") Long userId);
+    List<FriendReq> findReceivedFriendRequestsByRecieverId(@Param("usr_rec_id") Long userId);
 
     // 내가 신청 보낸 목록 | requester 가 id
 
     @Query(value = """
             SELECT fq.*
             FROM friends_requests fq
-            WHERE fq.USR_req_id = :id
+            WHERE fq.USR_req_id = :usr_req_id
             """, nativeQuery = true)
-    List<FriendReq> findSentFriendsRequest(@Param("id") Long userId);
+    List<FriendReq> findSentFriendsRequest(@Param("usr_req_id") Long userId);
 }
