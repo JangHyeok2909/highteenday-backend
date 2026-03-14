@@ -4,6 +4,7 @@ import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.PostDto;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -110,13 +111,17 @@ public class Post extends BaseEntity {
     }
 
     public PostDto toDto() {
-        String nickname="";
-        if (!this.isAnonymous) nickname = user.getNickname();
+        String nickname="익명";
+        Long userId=null;
+        if (!this.isAnonymous) {
+            nickname = user.getNickname();
+            userId = user.getId();
+        }
         return PostDto.builder()
                 .id(this.id)
                 .author(nickname)
                 .profileUrl(user.getProfileUrl())
-                .userId(user.getId())
+                .userId(userId)
                 .title(title)
                 .content(content)
                 .viewCount(viewCount)
@@ -127,6 +132,31 @@ public class Post extends BaseEntity {
                 .isLiked(false)
                 .isDisliked(false)
                 .isScrapped(false)
+                .createdAt(super.getCreated())
+                .updatedAt(super.getUpdatedDate())
+                .isUpdated(super.getUpdatedBy() !=null)
+                .board(this.board.toDto())
+                .build();
+    }
+
+    public PostPreviewDto toPrevDto(){
+        String nickname="익명";
+        Long userId=null;
+        if (!this.isAnonymous) {
+            nickname = user.getNickname();
+            userId = user.getId();
+        }
+
+        return PostPreviewDto.builder()
+                .id(this.id)
+                .author(nickname)
+                .userId(userId)
+                .title(title)
+                .viewCount(viewCount)
+                .likeCount(likeCount)
+                .dislikeCount(dislikeCount)
+                .commentCount(commentCount)
+                .isAnonymous(isAnonymous)
                 .createdAt(super.getCreated())
                 .updatedAt(super.getUpdatedDate())
                 .isUpdated(super.getUpdatedBy() !=null)
