@@ -31,7 +31,6 @@ public class BoardPostController {
     public ResponseEntity<PagedPostsDto> getPostsByBoardId(@PathVariable Long boardId,
                                                            @RequestParam Integer page,
                                                            @RequestParam SortType sortType){
-//        Board board = boardService.findById(boardId);
         if(page == null) page = 0;
         Page<Post> pagedPosts = postService.getPagedPostsByBoardId(boardId, page, PAGE_SIZE,sortType);
 

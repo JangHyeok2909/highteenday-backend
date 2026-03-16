@@ -24,7 +24,13 @@ public interface PostRepository extends JpaRepository<Post,Long>, PostRepository
 //
 //    public List<Post> findByBoardId(Long boardId);
 
-    @Query("select p from Post p where p.isValid = true and p.board =:board ")
+    @Query("""
+    select p
+    from Post p
+    join fetch p.user
+    where p.isValid = true
+    and p.board = :board
+    """)
     public Page<Post> findByBoard(Board board, Pageable pageable);
     @Query("select p from Post p where p.isValid = true and p.user =:user ")
     public Page<Post> findByUser(User user, Pageable pageable);

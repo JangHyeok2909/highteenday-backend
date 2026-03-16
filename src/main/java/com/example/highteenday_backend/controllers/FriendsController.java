@@ -1,9 +1,7 @@
 package com.example.highteenday_backend.controllers;
 
 import com.example.highteenday_backend.domain.users.User;
-import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.Friends.*;
-import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.FriendsService;
 import com.example.highteenday_backend.services.domain.UserService;
@@ -116,8 +114,8 @@ public class FriendsController {
 
     // 친구 검색
     @Transactional
-    @PostMapping("/select")
-    public ResponseEntity<?> selectFriend(
+    @PostMapping("/search")
+    public ResponseEntity<?> searchFriend(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody SelectFriendDto selectFriendDto
     ){
