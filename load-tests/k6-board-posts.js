@@ -13,7 +13,6 @@
  * 환경변수
  * BASE_URL  (default: http://localhost:8080)
  * BOARD_ID  (default: 1)
- * PAGE_MAX  (default: 10)  // 실제 페이지 분산
  */
 
 import http from 'k6/http';
@@ -22,7 +21,7 @@ import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const BOARD_ID = __ENV.BOARD_ID || '1';
-const PAGE_MAX = parseInt(__ENV.PAGE_MAX || '3', 10);
+const PAGE_MAX = parseInt(__ENV.PAGE_MAX || '101', 10);
 
 const SORT_TYPES = ['RECENT', 'LIKE', 'VIEW'];
 
@@ -41,10 +40,58 @@ export const options = {
     },
   };
 
-  export default function () {
+  //전체 페이지 수 가져오기
+  export function setup() {
+    const res = http.get(`${BASE_URL}/api/boards/${BOARD_ID}/posts?page=0`);
+  
+    let totalPages = 10; // fallback
+  
+    try {
+      const body = JSON.parse(res.body);
+      if (body.totalPages && body.totalPages > 0) {
+        totalPages = body.totalPages;
+      }
+    } catch (e) {
+      console.error('setup parsing failed');
+    }
+  
+    console.log(`✔ totalPages: ${totalPages}`);
+  
+    return { totalPages };
+  }
 
-    const page = randomIntBetween(0, PAGE_MAX);
-    const sortType = SORT_TYPES[randomIntBetween(0, SORT_TYPES.length - 1)];
+  export default function (data) {
+    const totalPages = data.totalPages;
+    // 페이지 분포 (앞쪽 쏠림)
+    let page;
+
+    if (totalPages <= 1) {
+      page = 0;
+    } else {
+      const p = Math.random();
+  
+      if (p < 0.7) {
+        page = 0; // 70%
+      } else if (p < 0.9) {
+        page = randomIntBetween(1, Math.min(2, totalPages - 1)); // 20%
+      } else {
+        const start = Math.min(3, totalPages - 1);
+        const end = totalPages - 1;
+        page = randomIntBetween(start, end); // 10%
+      }
+    }
+
+  // 정렬 분포 (최신순 쏠림)
+  const r = Math.random();
+  let sortType;
+  if (r < 0.8) { //80% 최신순
+    sortType = 'RECENT';
+  } else if (r < 0.90) { //10% 조회순
+    sortType = 'VIEW';
+  } else { //10% 좋아요순
+    sortType = 'LIKE';
+  }
+
 
     const url = `${BASE_URL}/api/boards/${BOARD_ID}/posts?page=${page}&sortType=${sortType}`;
 
@@ -100,4 +147,9 @@ export const options = {
  * - 평균 응답시간: 17ms
  * - 최대 처리량: 2160 req/s
  * - 실패율: 0%
+ */
+
+/**
+ * 부하 테스트 3차 결과(v.2)
+ * 
  */

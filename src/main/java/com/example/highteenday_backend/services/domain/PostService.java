@@ -4,8 +4,11 @@ import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.example.highteenday_backend.dtos.UpdatePostDto;
+import com.example.highteenday_backend.dtos.paged.PageResponse;
+import com.example.highteenday_backend.dtos.paged.PostListingDto;
 import com.example.highteenday_backend.enums.PostSearchType;
 import com.example.highteenday_backend.enums.SortType;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
@@ -73,6 +76,15 @@ public class PostService {
             throw new ResourceNotFoundException(String.format("post is empty. boardId=%d, page=%d, size=%d",boardId,page,size));
         }
         return postPages;
+    }
+
+    public PageResponse<PostPreviewDto> getPagedPostsByBoardId(PostListingDto dto){
+
+        PageResponse<PostPreviewDto> pagedPosts = postRepository.findByBoard(dto);
+        if(pagedPosts.getContent().isEmpty()) {
+            throw new ResourceNotFoundException(String.format("post is empty. boardId=%d, page=%d, size=%d",dto.getBoardId(),dto.getPage(),dto.getSize()));
+        }
+        return pagedPosts;
     }
 
     //로그남기기

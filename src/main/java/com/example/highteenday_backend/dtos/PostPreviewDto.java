@@ -10,23 +10,23 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Data
 public class PostPreviewDto {
-    private Long id;
-    private String author;
-    private Long userId;
-    private String title;
+    Long id;
+    Long boardId;
+    String boardName;
+    String author;
+    Long userId;
+    String title;
     @Builder.Default
-    private boolean isAnonymous=true;
+    boolean isAnonymous=true;
     @Builder.Default
-    private int viewCount = 0;
+    int viewCount = 0;
     @Builder.Default
-    private int likeCount = 0;
+    int likeCount = 0;
     @Builder.Default
-    private int dislikeCount = 0;
+    int commentCount = 0;
+    LocalDateTime createdAt;
+    LocalDateTime updatedAt;
     @Builder.Default
-    private int commentCount = 0;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-    @Builder.Default
-    private boolean isUpdated=false;
-    private BoardDto board;
+    boolean isUpdated=false;
+
 }

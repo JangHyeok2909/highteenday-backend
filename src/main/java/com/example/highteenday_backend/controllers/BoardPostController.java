@@ -4,7 +4,10 @@ package com.example.highteenday_backend.controllers;
 import com.example.highteenday_backend.Utils.PageUtils;
 import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.posts.Post;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
+import com.example.highteenday_backend.dtos.paged.PageResponse;
 import com.example.highteenday_backend.dtos.paged.PagedPostsDto;
+import com.example.highteenday_backend.dtos.paged.PostListingDto;
 import com.example.highteenday_backend.enums.SortType;
 import com.example.highteenday_backend.services.domain.BoardService;
 import com.example.highteenday_backend.services.domain.PostService;
@@ -26,16 +29,39 @@ public class BoardPostController {
     private final PostService postService;
     static final int PAGE_SIZE = 10;
 
+//    @Operation(summary = "게시글 리스트 조회",description = "boardId의 게시판에 해당되는 게시글 리스트 조회")
+//    @GetMapping()
+//    public ResponseEntity<PageResponse> getPostsByBoardId(@PathVariable Long boardId,
+//                                                           @RequestParam Integer page,
+//                                                           @RequestParam SortType sortType){
+//        if(page == null) page = 0;
+//         PostListingDto dto= PostListingDto.builder()
+//                .boardId(boardId)
+//                .page(page)
+//                 .sortType(sortType)
+//                 .size(PAGE_SIZE)
+//                 .build();
+//        PageResponse<PostPreviewDto> pagedPostDResponseDto = postService.getPagedPostsByBoardId(dto);
+//
+//
+//        return ResponseEntity.ok(pagedPostDResponseDto);
+//    }
     @Operation(summary = "게시글 리스트 조회",description = "boardId의 게시판에 해당되는 게시글 리스트 조회")
     @GetMapping()
-    public ResponseEntity<PagedPostsDto> getPostsByBoardId(@PathVariable Long boardId,
-                                                           @RequestParam Integer page,
-                                                           @RequestParam SortType sortType){
+    public ResponseEntity<PageResponse> getPostsByBoardId(@PathVariable Long boardId,
+                                                          @RequestParam Integer page,
+                                                          @RequestParam SortType sortType){
         if(page == null) page = 0;
-        Page<Post> pagedPosts = postService.getPagedPostsByBoardId(boardId, page, PAGE_SIZE,sortType);
+        PostListingDto dto= PostListingDto.builder()
+                .boardId(boardId)
+                .page(page)
+                .sortType(sortType)
+                .size(PAGE_SIZE)
+                .build();
+        PageResponse<PostPreviewDto> pagedPostDResponseDto = postService.getPagedPostsByBoardId(dto);
 
-        PagedPostsDto pagedPostsDto = PageUtils.postsToDto(pagedPosts);
-        return ResponseEntity.ok(pagedPostsDto);
+
+        return ResponseEntity.ok(pagedPostDResponseDto);
     }
 
 

@@ -18,8 +18,14 @@ import lombok.NoArgsConstructor;
 @Table(
         name= "posts",
         indexes = {
-                @Index(name = "idx_pst_brd_valid", columnList = "brd_id,is_valid,pst_id"), //게시글 목록 쿼리용 복합 인덱스
-                @Index(name = "fk_posts_brd", columnList = "BRD_id") // FK 검증용 단일 인덱스
+                @Index(name = "idx_posts_brd_valid_pst_cover", columnList =
+                        "brd_id," +
+                        "is_valid,pst_id, " +
+                        "pst_title," +
+                        "pst_is_anonymous," +
+                        "pst_view_count," +
+                        "pst_like_count," +
+                        "pst_comment_count"), //게시글 목록 쿼리용 복합 인덱스
         }
 )
 @Entity
@@ -155,18 +161,18 @@ public class Post extends BaseEntity {
 
         return PostPreviewDto.builder()
                 .id(this.id)
+                .boardId(board.getId())
+                .boardName(board.getName())
                 .author(nickname)
                 .userId(userId)
                 .title(title)
                 .viewCount(viewCount)
                 .likeCount(likeCount)
-                .dislikeCount(dislikeCount)
                 .commentCount(commentCount)
                 .isAnonymous(isAnonymous)
                 .createdAt(super.getCreated())
                 .updatedAt(super.getUpdatedDate())
                 .isUpdated(super.getUpdatedBy() !=null)
-                .board(this.board.toDto())
                 .build();
     }
 
