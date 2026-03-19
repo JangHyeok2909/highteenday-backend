@@ -23,10 +23,10 @@ public class CommentLike extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_id", nullable = false)
+    @JoinColumn(name = "USR_id", nullable = false, foreignKey = @ForeignKey(name = "fk_comments_likes_usr"))
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "CMT_id", nullable = false)
+    @JoinColumn(name = "CMT_id", nullable = false, foreignKey = @ForeignKey(name = "fk_comments_likes_cmt"))
     private Comment comment;
 }

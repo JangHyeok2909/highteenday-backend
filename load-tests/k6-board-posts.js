@@ -1,5 +1,5 @@
 /**
- * GET /api/boards/{boardId}/posts 스트레스 테스트 (k6)
+ * GET /api/boards/{boardId}/posts 부하 테스트 (k6)
  *
  * 목적:
  * - 서버 최대 처리량(TPS) 확인
@@ -27,50 +27,50 @@ const PAGE_MAX = parseInt(__ENV.PAGE_MAX || '3', 10);
 const SORT_TYPES = ['RECENT', 'LIKE', 'VIEW'];
 
 export const options = {
-  stages: [
-    { duration: '30s', target: 100 },  // 워밍업
-    { duration: '1m', target: 300 },   // 고부하 진입
-    { duration: '2m', target: 300 },   // 지속 부하
-    { duration: '30s', target: 500 },  // 스트레스
-    { duration: '30s', target: 0 },    // 종료
-  ],
+    stages: [
+      { duration: '30s', target: 100 },  // 워밍업
+      { duration: '1m', target: 300 },   // 고부하 진입
+      { duration: '2m', target: 300 },   // 지속 부하
+      { duration: '30s', target: 500 },  // 스트레스
+      { duration: '30s', target: 0 },    // 종료
+    ],
 
-  thresholds: {
-    http_req_duration: ['p(95)<3000'],
-    http_req_failed: ['rate<0.01'],
-  },
-};
-
-export default function () {
-
-  const page = randomIntBetween(0, PAGE_MAX);
-  const sortType = SORT_TYPES[randomIntBetween(0, SORT_TYPES.length - 1)];
-
-  const url = `${BASE_URL}/api/boards/${BOARD_ID}/posts?page=${page}&sortType=${sortType}`;
-
-  const res = http.get(url, {
-    tags: { name: 'BoardPostsAPI' },
-  });
-
-  check(res, {
-    'status 200': (r) => r.status === 200,
-    'valid response structure': (r) => {
-      try {
-        const body = JSON.parse(r.body);
-        return (
-          typeof body.page === 'number' &&
-          typeof body.totalPages === 'number' &&
-          typeof body.totalElements === 'number' &&
-          Array.isArray(body.postPreviewDtos)
-        );
-      } catch {
-        return false;
-      }
+    thresholds: {
+      http_req_duration: ['p(95)<3000'],
+      http_req_failed: ['rate<0.01'],
     },
-  });
+  };
 
-  // 처리량 극대화
-  sleep(0.1);
+  export default function () {
+
+    const page = randomIntBetween(0, PAGE_MAX);
+    const sortType = SORT_TYPES[randomIntBetween(0, SORT_TYPES.length - 1)];
+
+    const url = `${BASE_URL}/api/boards/${BOARD_ID}/posts?page=${page}&sortType=${sortType}`;
+
+    const res = http.get(url, {
+      tags: { name: 'BoardPostsAPI' },
+    });
+
+    check(res, {
+      'status 200': (r) => r.status === 200,
+      'valid response structure': (r) => {
+        try {
+          const body = JSON.parse(r.body);
+          return (
+              typeof body.page === 'number' &&
+              typeof body.totalPages === 'number' &&
+              typeof body.totalElements === 'number' &&
+              Array.isArray(body.postPreviewDtos)
+          );
+        } catch {
+          return false;
+        }
+      },
+    });
+
+    // 처리량 극대화
+    sleep(0.1);
 }
 /**
  * 부하 테스트 1차 결과(v.0)

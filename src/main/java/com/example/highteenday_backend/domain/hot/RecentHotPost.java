@@ -22,11 +22,11 @@ public class RecentHotPost extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_id", nullable = false)
+    @JoinColumn(name = "USR_id", nullable = false, foreignKey = @ForeignKey(name = "fk_recent_hot_post_usr"))
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "PST_id", nullable = false)
+    @JoinColumn(name = "PST_id", nullable = false, foreignKey = @ForeignKey(name = "fk_recent_hot_post_pst"))
     private Post post;
 
     @Column(name = "RHP_score",nullable = false)

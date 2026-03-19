@@ -24,16 +24,16 @@ public class Comment extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_id", nullable = false)
+    @JoinColumn(name = "USR_id", nullable = false, foreignKey = @ForeignKey(name = "fk_comments_usr"))
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "PST_id", nullable = false)
+    @JoinColumn(name = "PST_id", nullable = false, foreignKey = @ForeignKey(name = "fk_comments_pst"))
     private Post post;
 
     // 대댓글: 자기 참조 관계
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "CMT_parent_id")
+    @JoinColumn(name = "CMT_parent_id", foreignKey = @ForeignKey(name = "fk_comments_parent"))
     private Comment parent;
 
     @Builder.Default
