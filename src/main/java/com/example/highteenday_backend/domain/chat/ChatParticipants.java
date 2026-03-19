@@ -23,11 +23,11 @@ public class ChatParticipants extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_id", nullable = false)
+    @JoinColumn(name = "USR_id", nullable = false, foreignKey = @ForeignKey(name = "fk_chat_participants_usr"))
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "CHT_RM_id", nullable = false)
+    @JoinColumn(name = "CHT_RM_id", nullable = false, foreignKey = @ForeignKey(name = "fk_chat_participants_cht_rm"))
     private ChatRoom chatRoom;
 
     @Column(name = "CHT_PT_last_read_date")

@@ -25,11 +25,11 @@ public class UserTimetable {
     @Column(name = "UTT_id")
     private Long id;
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "SBJ_id")
+    @JoinColumn(name = "SBJ_id", foreignKey = @ForeignKey(name = "fk_users_timetables_sbj"))
     private Subject subject;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "TTT_id", nullable = false)
+    @JoinColumn(name = "TTT_id", nullable = false, foreignKey = @ForeignKey(name = "fk_users_timetables_ttt"))
     private TimetableTemplate timetableTemplate;
 
     @Column(name = "UTT_day")

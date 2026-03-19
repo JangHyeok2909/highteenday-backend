@@ -62,9 +62,11 @@ public class PostService {
 
 
     public Page<Post> getPagedPostsByBoardId(Long boardId, int page, int size, SortType sortType){
+
         Sort sort = Sort.by(Sort.Direction.DESC, sortType.getField());
 
         Board board = boardService.findById(boardId);
+
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<Post> postPages = postRepository.findByBoard(board, pageable);
         if(postPages.isEmpty()) {

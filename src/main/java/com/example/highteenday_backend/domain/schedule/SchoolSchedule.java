@@ -23,7 +23,7 @@ public class SchoolSchedule  {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "SCH_id", nullable = false)
+    @JoinColumn(name = "SCH_id", nullable = false, foreignKey = @ForeignKey(name = "fk_schools_schedule_sch"))
     private School school;
 
     @Column(name = "SCH_SD_grade")

@@ -15,7 +15,13 @@ import lombok.NoArgsConstructor;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name= "posts")
+@Table(
+        name= "posts",
+        indexes = {
+                @Index(name = "idx_pst_brd_valid", columnList = "brd_id,is_valid,pst_id"), //게시글 목록 쿼리용 복합 인덱스
+                @Index(name = "fk_posts_brd", columnList = "BRD_id") // FK 검증용 단일 인덱스
+        }
+)
 @Entity
 public class Post extends BaseEntity {
     @Id
@@ -24,11 +30,11 @@ public class Post extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_id", nullable = false)
+    @JoinColumn(name = "USR_id", nullable = false, foreignKey = @ForeignKey(name = "fk_posts_usr"))
     private User user; // 작성자
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "BRD_id", nullable = false)
+    @JoinColumn(name = "BRD_id", nullable = false, foreignKey = @ForeignKey(name = "fk_posts_brd"))
     private Board board; // 게시판
 
     @Column(name = "PST_title", length = 50, nullable = false)

@@ -22,7 +22,7 @@ public class PersonalSchedule extends BaseEntity {
     @Column(name = "PS_SD_id")
     private Long id;
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_id", nullable = false)
+    @JoinColumn(name = "USR_id", nullable = false, foreignKey = @ForeignKey(name = "fk_personal_schedule_usr"))
     private User user;
     @Column(name = "PS_SD_content", columnDefinition = "TEXT", nullable = false)
     private String content;
