@@ -26,7 +26,7 @@ public class TimetableTemplate {
     @Column(name = "TTT_id")
     private Long id;
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_id", nullable = false)
+    @JoinColumn(name = "USR_id", nullable = false, foreignKey = @ForeignKey(name = "fk_timetables_templates_usr"))
     private User user;
     @Column(name = "TTT_template_name")
     private String templateName;

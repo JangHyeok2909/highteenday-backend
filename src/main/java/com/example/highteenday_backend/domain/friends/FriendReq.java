@@ -19,11 +19,11 @@ public class FriendReq extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_req_id", nullable = false)
+    @JoinColumn(name = "USR_req_id", nullable = false, foreignKey = @ForeignKey(name = "fk_friends_requests_usr_req"))
     private User requester; // 요청자
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_rec_id", nullable = false)
+    @JoinColumn(name = "USR_rec_id", nullable = false, foreignKey = @ForeignKey(name = "fk_friends_requests_usr_rec"))
     private User receiver; // 수신자
 
     @Enumerated(EnumType.STRING)

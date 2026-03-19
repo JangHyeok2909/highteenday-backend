@@ -27,7 +27,7 @@ public class Subject {
     private Integer hoursPerWeek=0;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "TTT_id", nullable = false)
+    @JoinColumn(name = "TTT_id", nullable = false, foreignKey = @ForeignKey(name = "fk_subjects_ttt"))
     private TimetableTemplate timetableTemplate;
     @OneToMany(mappedBy = "subject", fetch = FetchType.LAZY,cascade = CascadeType.REMOVE)
     private java.util.List<UserTimetable> userTimetables;

@@ -24,7 +24,7 @@ public class SchoolMeal{
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "SCH_id", nullable = false)
+    @JoinColumn(name = "SCH_id", nullable = false, foreignKey = @ForeignKey(name = "fk_schools_meals_sch"))
     private School school;
 
     @Column(name = "SCH_ML_month", length = 2, nullable = false)
