@@ -32,6 +32,8 @@ public interface PostRepository extends JpaRepository<Post,Long>, PostRepository
     and p.board = :board
     """)
     public Page<Post> findByBoard(Board board, Pageable pageable);
+
+
     @Query("select p from Post p where p.isValid = true and p.user =:user ")
     public Page<Post> findByUser(User user, Pageable pageable);
 
