@@ -58,7 +58,7 @@ public class CommentController {
 
         for (Comment c : comments){
 
-            CommentDto dto = c.toDto();
+            CommentDto dto = CommentDto.fromEntity(c);
 
             // 익명 처리
             boolean isPostAuthor =
@@ -109,7 +109,7 @@ public class CommentController {
     @GetMapping("/{commentId}")
     public ResponseEntity<CommentDto> getCommentByIdTest(@PathVariable Long commentId){
         Comment comment = commentService.findCommentById(commentId);
-        return ResponseEntity.ok(comment.toDto());
+        return ResponseEntity.ok(CommentDto.fromEntity(comment));
     }
 
     @Operation(summary = "댓글 생성")
@@ -154,7 +154,7 @@ public class CommentController {
 //        List<CommentDto> dtos = new ArrayList<>();
 //
 //        for (Comment c : comments){
-//            CommentDto dto = c.toDto();
+//            CommentDto dto = CommentDto.fromEntity(c);
 //            User user = userService.findById(userId);
 //            if(commentLikeService.isLikedByUser(c,user)) dto.setLiked(true);
 //            else if(commentDislikeService.isDislikedByUser(c,user)) dto.setDisliked(true);

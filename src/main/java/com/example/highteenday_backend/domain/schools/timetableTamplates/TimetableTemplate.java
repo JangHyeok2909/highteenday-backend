@@ -3,7 +3,6 @@ package com.example.highteenday_backend.domain.schools.timetableTamplates;
 import com.example.highteenday_backend.domain.schools.UserTimetables.UserTimetable;
 import com.example.highteenday_backend.domain.schools.subjects.Subject;
 import com.example.highteenday_backend.domain.users.User;
-import com.example.highteenday_backend.dtos.TimetableTemplateDto;
 import com.example.highteenday_backend.enums.Grade;
 import com.example.highteenday_backend.enums.Semester;
 import jakarta.persistence.*;
@@ -41,16 +40,6 @@ public class TimetableTemplate {
     @Builder.Default
     @Column(name = "TTT_is_default", nullable = false)
     private boolean isDefault = false;
-
-    public TimetableTemplateDto toDto(){
-        return TimetableTemplateDto.builder()
-                .id(id)
-                .templateName(templateName)
-                .grade(grade)
-                .semester(semester)
-                .isDefault(isDefault)
-                .build();
-    }
 
     public void updateTemplateName(String templateName){
         this.templateName = templateName;

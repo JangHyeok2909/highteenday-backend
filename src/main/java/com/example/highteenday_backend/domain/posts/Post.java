@@ -3,8 +3,6 @@ package com.example.highteenday_backend.domain.posts;
 import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.users.User;
-import com.example.highteenday_backend.dtos.PostDto;
-import com.example.highteenday_backend.dtos.PostPreviewDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,17 +16,12 @@ import lombok.NoArgsConstructor;
 @Table(
         name= "posts",
         indexes = {
-                @Index(name = "idx_posts_brd_valid_id_cover", columnList =
-                        "brd_id," +
-                        "is_valid," +
-                        "pst_id DESC, " +
-                        "usr_nickname,"+
-                        "pst_title," +
-                        "pst_view_count," +
-                        "pst_like_count," +
-                        "pst_comment_count,"+
-                        "created_at"
-                ), //커버링 인덱스
+                @Index(
+                        name = "idx_posts_brd_valid_id_cover",  
+                        columnList =  "brd_id," +
+                                "is_valid," +
+                                "pst_id DESC "
+                )
         }
 )
 @Entity
@@ -127,53 +120,6 @@ public class Post extends BaseEntity {
         this.scrapCount-=scrapCount;
     }
 
-    public PostDto toDto() {
-        String nickname="익명";
-        Long userId=null;
-        if (!this.isAnonymous) {
-            nickname = user.getNickname();
-            userId = user.getId();
-        }
-        return PostDto.builder()
-                .id(this.id)
-                .author(nickname)
-                .profileUrl(user.getProfileUrl())
-                .userId(userId)
-                .title(title)
-                .content(content)
-                .viewCount(viewCount)
-                .likeCount(likeCount)
-                .dislikeCount(dislikeCount)
-                .commentCount(commentCount)
-                .isAnonymous(isAnonymous)
-                .isLiked(false)
-                .isDisliked(false)
-                .isScrapped(false)
-                .createdAt(super.getCreated())
-                .updatedAt(super.getUpdatedDate())
-                .isUpdated(super.getUpdatedBy() !=null)
-                .board(this.board.toDto())
-                .build();
-    }
-
-    public PostPreviewDto toPrevDto(){
-        String nickname="익명";
-        Long userId=null;
-        if (!this.isAnonymous) {
-            nickname = user.getNickname();
-            userId = user.getId();
-        }
-
-        return PostPreviewDto.builder()
-                .id(this.id)
-                .author(nickname)
-                .title(title)
-                .viewCount(viewCount)
-                .likeCount(likeCount)
-                .commentCount(commentCount)
-                .createdAt(super.getCreated())
-                .build();
-    }
 
 
 }

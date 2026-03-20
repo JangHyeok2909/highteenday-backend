@@ -1,7 +1,6 @@
 package com.example.highteenday_backend.domain.boards;
 
 import com.example.highteenday_backend.domain.base.BaseEntity;
-import com.example.highteenday_backend.dtos.BoardDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,7 +28,4 @@ public class Board extends BaseEntity {
     @Column(name = "BRD_description", columnDefinition = "TEXT")
     private String description;
 
-    public BoardDto toDto(){
-        return BoardDto.builder().boardId(this.id).boardName(this.name).build();
-    }
 }
