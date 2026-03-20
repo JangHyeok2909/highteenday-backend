@@ -17,4 +17,5 @@ public class PostListingDto {
     Integer page;
     SortType sortType;
     Integer size;
+    Long lastSeedId;
 }

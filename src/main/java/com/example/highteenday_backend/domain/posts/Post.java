@@ -18,14 +18,17 @@ import lombok.NoArgsConstructor;
 @Table(
         name= "posts",
         indexes = {
-                @Index(name = "idx_posts_brd_valid_pst_cover", columnList =
+                @Index(name = "idx_posts_brd_valid_id_cover", columnList =
                         "brd_id," +
-                        "is_valid,pst_id, " +
+                        "is_valid," +
+                        "pst_id DESC, " +
+                        "usr_nickname,"+
                         "pst_title," +
-                        "pst_is_anonymous," +
                         "pst_view_count," +
                         "pst_like_count," +
-                        "pst_comment_count"), //게시글 목록 쿼리용 복합 인덱스
+                        "pst_comment_count,"+
+                        "created_at"
+                ), //커버링 인덱스
         }
 )
 @Entity
@@ -69,8 +72,10 @@ public class Post extends BaseEntity {
     @Column(name = "PST_is_anonymous")
     private boolean isAnonymous=true;
 
-//    @Column(name = "PST_report_count")
-//    private int reportCount = 0;
+    //쿼리 성능을 위한 비정규화 컬럼
+    @Builder.Default
+    @Column(name = "USR_nickname", length = 12, nullable = false)
+    private String nickname="익명";
 
     public void updateLikeCount(int likeCount){
         this.likeCount = likeCount;
@@ -161,18 +166,12 @@ public class Post extends BaseEntity {
 
         return PostPreviewDto.builder()
                 .id(this.id)
-                .boardId(board.getId())
-                .boardName(board.getName())
                 .author(nickname)
-                .userId(userId)
                 .title(title)
                 .viewCount(viewCount)
                 .likeCount(likeCount)
                 .commentCount(commentCount)
-                .isAnonymous(isAnonymous)
                 .createdAt(super.getCreated())
-                .updatedAt(super.getUpdatedDate())
-                .isUpdated(super.getUpdatedBy() !=null)
                 .build();
     }
 

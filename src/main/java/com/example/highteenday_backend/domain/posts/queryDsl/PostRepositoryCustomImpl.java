@@ -29,13 +29,13 @@ public class PostRepositoryCustomImpl implements PostRepositoryCustom {
     }
 
     @Override
-    public Page<Post> searchKeywords(String keywords, PostSearchType searchType, Pageable pageable) {
+    public Page<Post> searchKeywordsAll(String keywords, PostSearchType searchType, Pageable pageable) {
         QPost post = QPost.post;
 
         String safeKeywords = keywords == null ? "" : keywords.trim();
         String[] keywordArr = safeKeywords.isEmpty() ? new String[0] : safeKeywords.split("\\s+");
         BooleanBuilder builder = new BooleanBuilder();
-        if(searchType == PostSearchType.TITLE_CONTENT){
+        if(searchType == PostSearchType.TITLE_CONTENT){ //제목+본문
             for(String keyword:keywordArr){
                 if (keyword == null || keyword.isBlank()) continue;
                 BooleanBuilder keywordsBuilder = new BooleanBuilder();
@@ -43,7 +43,7 @@ public class PostRepositoryCustomImpl implements PostRepositoryCustom {
                                 .or(post.content.containsIgnoreCase(keyword));
                 builder.and(keywordsBuilder);
             }
-        } else if(searchType == PostSearchType.CONTENT){
+        } else if(searchType == PostSearchType.CONTENT){ //본문
             for(String keyword:keywordArr){
                 if (keyword == null || keyword.isBlank()) continue;
                 builder.and(post.content.containsIgnoreCase(keyword));
@@ -54,6 +54,7 @@ public class PostRepositoryCustomImpl implements PostRepositoryCustom {
                 builder.and(post.title.containsIgnoreCase(keyword));
             }
         }
+
 
         List<Post> posts = queryFactory.selectFrom(post)
                         .where(builder)
@@ -72,33 +73,72 @@ public class PostRepositoryCustomImpl implements PostRepositoryCustom {
     }
 
     @Override
-    public PageResponse<PostPreviewDto> findByBoard(PostListingDto dto) {
-        QPost post = QPost.post;
-        QUser user = QUser.user;
-        QBoard board = QBoard.board;
+    public Page<Post> searchKeywords(Long boardId, String keywords, PostSearchType searchType, Pageable pageable) {
+        return null;
+    }
 
-        List<PostPreviewDto> content = queryFactory.select(Projections.constructor(PostPreviewDto.class,
-                post.id,
-                board.id,
-                board.name,
-                user.nickname,
-                user.id,
-                post.title,
-                post.isAnonymous,
-                post.viewCount,
-                post.likeCount,
-                post.commentCount,
-                post.created,
-                post.updatedDate,
-                post.updatedBy.isNotNull()
+    @Override
+    public PageResponse<PostPreviewDto> findByBoardCursor(PostListingDto dto) {
+        QPost post = QPost.post;
+
+        BooleanBuilder builder = new BooleanBuilder();
+        //cursor
+        if(dto.getLastSeedId()!=null) builder.and(post.id.lt(dto.getLastSeedId()));
+        //boardId
+        if(dto.getBoardId()!=null) builder.and(post.board.id.eq(dto.getBoardId()));
+        //valid
+        builder.and(post.isValid.eq(true));
+
+        List<PostPreviewDto> content = queryFactory.select(Projections.fields(PostPreviewDto.class,
+                post.id.as("id"),
+                post.board.as("boardId"),
+                post.nickname.as("author"),
+                post.title.as("title"),
+                post.viewCount.as("viewCount"),
+                post.likeCount.as("likeCount"),
+                post.commentCount.as("commentCount"),
+                post.created.as("createdAt")
         ))
                 .from(post)
-                .join(post.board, board)
-                .join(post.user,user)
+                .where(builder)
+                .orderBy(getOrderSec(dto.getSortType(),QPost.post))
+                .limit(dto.getSize())
+                .fetch();
+
+        Long total = Optional.ofNullable(queryFactory
+                .select(post.count())
+                .from(post)
                 .where(
                         post.board.id.eq(dto.getBoardId()),
                         post.isValid.eq(true)
                 )
+                .fetchOne()).orElse(0L);
+
+        return new PageResponse<>(content,dto.getPage(),dto.getSize(),total);
+    }
+
+    @Override
+    public PageResponse<PostPreviewDto> findByBoardOffset(PostListingDto dto) {
+        QPost post = QPost.post;
+
+        BooleanBuilder builder = new BooleanBuilder();
+        //boardId
+        if(dto.getBoardId()!=null) builder.and(post.board.id.eq(dto.getBoardId()));
+        //valid
+        builder.and(post.isValid.eq(true));
+
+        List<PostPreviewDto> content = queryFactory.select(Projections.fields(PostPreviewDto.class,
+                        post.id.as("id"),
+                        post.board.id.as("boardId"),
+                        post.nickname.as("author"),
+                        post.title.as("title"),
+                        post.viewCount.as("viewCount"),
+                        post.likeCount.as("likeCount"),
+                        post.commentCount.as("commentCount"),
+                        post.created.as("createdAt")
+                ))
+                .from(post)
+                .where(builder)
                 .orderBy(getOrderSec(dto.getSortType(),QPost.post))
                 .offset(dto.getPage()*dto.getSize())
                 .limit(dto.getSize())

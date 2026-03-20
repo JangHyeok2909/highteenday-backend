@@ -11,11 +11,13 @@ import com.example.highteenday_backend.dtos.paged.PagedPostsDto;
 import com.example.highteenday_backend.enums.PostSearchType;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.*;
+import com.example.highteenday_backend.services.domain.redisService.ViewCountService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -55,7 +57,7 @@ public class PostController {
 
     @PostMapping()
     public ResponseEntity<URI> createPost(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-                                          @RequestBody RequestPostDto requestPostDto){
+                                          @Valid @RequestBody RequestPostDto requestPostDto){
         User user = userPrincipal.getUser();
         Post post = postService.createPost(user,requestPostDto);
         return ResponseEntity.created(URI.create("/api/posts/"+post.getId())).build();
