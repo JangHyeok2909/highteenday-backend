@@ -34,20 +34,31 @@ INSERT INTO boards (
 -- 3. POSTS (1000건 생성)
 -- =========================
 INSERT INTO posts (
-    USR_id, BRD_id, PST_title, PST_content,
-    PST_view_count, PST_like_count, PST_dislike_count,
-    PST_comment_count, PST_scrap_count, PST_is_anonymous,
+    USR_id,
+    BRD_id,
+    PST_title,
+    PST_content,
+    PST_view_count,
+    PST_like_count,
+    PST_dislike_count,
+    PST_comment_count,
+    PST_scrap_count,
+    PST_is_anonymous,
+    USR_nickname,
     created_at
 )
 WITH RECURSIVE seq AS (
     SELECT 1 AS n
     UNION ALL
-    SELECT n + 1 FROM seq WHERE n < 1000
+    SELECT n + 1
+    FROM seq
+    WHERE n < 1000
 ),
                topic AS (
                    SELECT
                        n,
                        1 + FLOOR(RAND(n) * 3) AS usr_id,
+                       IF(RAND(n * 31) < 0.55, 1, 0) AS is_anon,
                        CASE (n % 12)
                            WHEN 0 THEN '시험/공부'
                            WHEN 1 THEN '급식/음식'
@@ -66,33 +77,53 @@ WITH RECURSIVE seq AS (
                )
 SELECT
     t.usr_id,
-    1,
-    CONCAT('[', t.topic_name, '] 테스트 게시글 #', LPAD(t.n, 4, '0')),
+    1 AS BRD_id,
+
     CONCAT(
-            '<p>이 글은 부하 테스트용 데이터입니다. 주제: ', t.topic_name,
-            ', 번호: ', t.n, ', 작성자: ', t.usr_id, '</p>',
-            '<p>',
-            ELT(1 + (t.n % 10),
-                '오늘 뭐 먹지 고민중이에요.',
-                '공부 집중 잘 되는 방법 추천 부탁!',
-                '요즘 너무 피곤한데 다들 어떠세요?',
-                '이 기능 추가되면 좋겠어요.',
-                '시험 망한 것 같아요…',
-                '친구랑 싸웠는데 어떻게 풀죠?',
-                '요즘 재밌는 거 추천해줘요.',
-                '진로 선택이 어렵네요.',
-                '학교 생활 꿀팁 공유합니다.',
-                '그냥 아무 말'
+            '[', t.topic_name, '] 테스트 게시글 #',
+            LPAD(t.n, 4, '0')
+    ) AS PST_title,
+
+    CONCAT(
+            '<p>부하 테스트용 더미 데이터입니다. 주제: ',
+            t.topic_name, ', 번호: ', t.n,
+            '</p><p>',
+            ELT(
+                    1 + (t.n % 10),
+                    '오늘 뭐 먹지 고민중이에요.',
+                    '공부 집중 잘 되는 방법 추천 부탁!',
+                    '요즘 너무 피곤한데 다들 어떠세요?',
+                    '이 기능 추가되면 좋겠어요.',
+                    '시험 망한 것 같아요.',
+                    '친구랑 싸웠는데 어떻게 풀죠?',
+                    '요즘 재밌는 거 추천해줘요.',
+                    '진로 선택이 어렵네요.',
+                    '학교 생활 꿀팁 공유합니다.',
+                    '그냥 아무 말'
             ),
             '</p>'
-    ),
-    FLOOR(RAND(t.n * 17) * 5000),
-    FLOOR(RAND(t.n * 19) * 300),
-    FLOOR(RAND(t.n * 23) * 80),
-    0,
-    FLOOR(RAND(t.n * 29) * 50),
-    IF(RAND(t.n * 31) < 0.55, 1, 0),
-    DATE_SUB(NOW(), INTERVAL (t.n % 60) DAY)
+    ) AS PST_content,
+
+    FLOOR(RAND(t.n * 17) * 5000) AS PST_view_count,
+    FLOOR(RAND(t.n * 19) * 300) AS PST_like_count,
+    FLOOR(RAND(t.n * 23) * 80) AS PST_dislike_count,
+    0 AS PST_comment_count,
+    FLOOR(RAND(t.n * 29) * 50) AS PST_scrap_count,
+
+    t.is_anon AS PST_is_anonymous,
+
+    IF(
+            t.is_anon = 1,
+            '익명',
+            CASE t.usr_id
+                WHEN 1 THEN 'tester1'
+                WHEN 2 THEN 'bobby'
+                WHEN 3 THEN 'carolyn'
+                END
+    ) AS USR_nickname,
+
+    DATE_SUB(NOW(), INTERVAL (t.n % 60) DAY) AS created_at
+
 FROM topic t;
 
 

@@ -21,103 +21,114 @@ import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const BOARD_ID = __ENV.BOARD_ID || '1';
-const PAGE_MAX = parseInt(__ENV.PAGE_MAX || '101', 10);
-
-const SORT_TYPES = ['RECENT', 'LIKE', 'VIEW'];
 
 export const options = {
-    stages: [
-      { duration: '30s', target: 100 },  // 워밍업
-      { duration: '1m', target: 300 },   // 고부하 진입
-      { duration: '2m', target: 300 },   // 지속 부하
-      { duration: '30s', target: 500 },  // 스트레스
-      { duration: '30s', target: 0 },    // 종료
-    ],
+  stages: [
+    { duration: '30s', target: 100 },  // 워밍업
+    { duration: '1m', target: 300 },   // 증가
+    { duration: '2m', target: 300 },   // 유지
+    { duration: '30s', target: 500 },  // 스트레스
+    { duration: '30s', target: 0 },    // 종료
+  ],
+  thresholds: {
+    http_req_duration: ['p(95)<3000'],
+    http_req_failed: ['rate<0.01'],
+  },
+};
 
-    thresholds: {
-      http_req_duration: ['p(95)<3000'],
-      http_req_failed: ['rate<0.01'],
-    },
-  };
+// 초기 페이지 수 확인
+export function setup() {
+  const res = http.get(`${BASE_URL}/api/boards/${BOARD_ID}/posts?page=0`);
 
-  //전체 페이지 수 가져오기
-  export function setup() {
-    const res = http.get(`${BASE_URL}/api/boards/${BOARD_ID}/posts?page=0`);
-  
-    let totalPages = 10; // fallback
-  
-    try {
-      const body = JSON.parse(res.body);
-      if (body.totalPages && body.totalPages > 0) {
-        totalPages = body.totalPages;
-      }
-    } catch (e) {
-      console.error('setup parsing failed');
+  let totalPages = 10;
+
+  try {
+    const body = JSON.parse(res.body);
+    if (body.totalPages && body.totalPages > 0) {
+      totalPages = body.totalPages;
     }
-  
-    console.log(`✔ totalPages: ${totalPages}`);
-  
-    return { totalPages };
-  }
+  } catch (e) {}
 
-  export default function (data) {
-    const totalPages = data.totalPages;
-    // 페이지 분포 (앞쪽 쏠림)
-    let page;
+  return { totalPages };
+}
 
-    if (totalPages <= 1) {
-      page = 0;
+export default function (data) {
+  let sortType = 'RECENT';
+  let useCursor = false;
+  let lastId = null;
+
+  // 🔥 1. 무조건 첫 진입 (page=0)
+  let res = http.get(`${BASE_URL}/api/boards/${BOARD_ID}/posts?page=0&sortType=${sortType}`);
+
+  let body;
+  try {
+    body = JSON.parse(res.body);
+    if (body.postPreviewDtos?.length > 0) {
+      lastId = body.postPreviewDtos[body.postPreviewDtos.length - 1].id;
+      useCursor = true;
+    }
+  } catch {}
+
+  check(res, {
+    'status 200': (r) => r.status === 200,
+  });
+
+  sleep(Math.random() * 1 + 0.5);
+
+  // 🔥 2. 유저 행동 (세션)
+  while (true) {
+    let url;
+
+    if (useCursor && lastId) {
+      url = `${BASE_URL}/api/boards/${BOARD_ID}/posts?lastId=${lastId}&sortType=${sortType}`;
     } else {
-      const p = Math.random();
-  
-      if (p < 0.7) {
-        page = 0; // 70%
-      } else if (p < 0.9) {
-        page = randomIntBetween(1, Math.min(2, totalPages - 1)); // 20%
-      } else {
-        const start = Math.min(3, totalPages - 1);
-        const end = totalPages - 1;
-        page = randomIntBetween(start, end); // 10%
-      }
+      url = `${BASE_URL}/api/boards/${BOARD_ID}/posts?page=0&sortType=${sortType}`;
     }
 
-  // 정렬 분포 (최신순 쏠림)
-  const r = Math.random();
-  let sortType;
-  if (r < 0.8) { //80% 최신순
-    sortType = 'RECENT';
-  } else if (r < 0.90) { //10% 조회순
-    sortType = 'VIEW';
-  } else { //10% 좋아요순
-    sortType = 'LIKE';
-  }
+    res = http.get(url);
 
-
-    const url = `${BASE_URL}/api/boards/${BOARD_ID}/posts?page=${page}&sortType=${sortType}`;
-
-    const res = http.get(url, {
-      tags: { name: 'BoardPostsAPI' },
-    });
+    try {
+      body = JSON.parse(res.body);
+      if (body.postPreviewDtos?.length > 0) {
+        lastId = body.postPreviewDtos[body.postPreviewDtos.length - 1].id;
+      }
+    } catch {}
 
     check(res, {
       'status 200': (r) => r.status === 200,
-      'valid response structure': (r) => {
-        try {
-          const body = JSON.parse(r.body);
-          return (
-              typeof body.page === 'number' &&
-              typeof body.totalPages === 'number' &&
-              typeof body.totalElements === 'number' &&
-              Array.isArray(body.postPreviewDtos)
-          );
-        } catch {
-          return false;
-        }
-      },
     });
 
-    // 처리량 극대화
-    sleep(0.1);
+    // 🔥 행동 결정
+    const r = Math.random();
+
+    if (r < 0.65) {
+      // 계속 스크롤
+      useCursor = true;
+
+    } else if (r < 0.80) {
+      // 정렬 변경
+      const s = Math.random();
+      if (s < 0.7) sortType = 'RECENT';
+      else if (s < 0.85) sortType = 'VIEW';
+      else sortType = 'LIKE';
+
+      useCursor = false;
+      lastId = null;
+
+    } else if (r < 0.90) {
+      // 홈으로
+      useCursor = false;
+      lastId = null;
+
+    } else {
+      // 아무것도 안함
+    }
+
+    sleep(Math.random() * 1 + 0.3); // 0.3~1.3초
+  }
+
+  // 🔥 세션 종료 후 재진입 대기
+  sleep(randomIntBetween(2, 5));
 }
 /**
  * 부하 테스트 1차 결과(v.0)

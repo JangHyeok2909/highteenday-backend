@@ -12,6 +12,7 @@ import com.example.highteenday_backend.dtos.paged.PostListingDto;
 import com.example.highteenday_backend.enums.PostSearchType;
 import com.example.highteenday_backend.enums.SortType;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
+import com.example.highteenday_backend.services.domain.redisService.CursorCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -20,7 +21,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -48,7 +48,7 @@ public class PostService {
         Sort sort = Sort.by(Sort.Direction.ASC, "createdAt").descending();
         Pageable pageable = PageRequest.of(page,SIZE, sort);
         Page<Post> pagedPost;
-        pagedPost = postRepository.searchKeywords(query, searchType,pageable);
+        pagedPost = postRepository.searchKeywordsAll(query, searchType,pageable);
         return pagedPost;
     }
 
@@ -63,24 +63,13 @@ public class PostService {
         return postPages;
     }
 
-
-    public Page<Post> getPagedPostsByBoardId(Long boardId, int page, int size, SortType sortType){
-
-        Sort sort = Sort.by(Sort.Direction.DESC, sortType.getField());
-
-        Board board = boardService.findById(boardId);
-
-        Pageable pageable = PageRequest.of(page, size, sort);
-        Page<Post> postPages = postRepository.findByBoard(board, pageable);
-        if(postPages.isEmpty()) {
-            throw new ResourceNotFoundException(String.format("post is empty. boardId=%d, page=%d, size=%d",boardId,page,size));
+    public PageResponse<PostPreviewDto> getPagedPostsCursor(PostListingDto dto){
+        PageResponse<PostPreviewDto> pagedPosts;
+        if(dto.getLastSeedId()!=null){
+            pagedPosts = postRepository.findByBoardCursor(dto);
+        } else {
+            pagedPosts = postRepository.findByBoardOffset(dto);
         }
-        return postPages;
-    }
-
-    public PageResponse<PostPreviewDto> getPagedPostsByBoardId(PostListingDto dto){
-
-        PageResponse<PostPreviewDto> pagedPosts = postRepository.findByBoard(dto);
         if(pagedPosts.getContent().isEmpty()) {
             throw new ResourceNotFoundException(String.format("post is empty. boardId=%d, page=%d, size=%d",dto.getBoardId(),dto.getPage(),dto.getSize()));
         }
@@ -98,6 +87,7 @@ public class PostService {
                 .isAnonymous(dto.isAnonymous())
                 .title(dto.getTitle())
                 .content(dto.getContent())
+                .nickname(dto.isAnonymous() ? "익명":user.getNickname())
                 .build();
         Post savedPost = postRepository.save(post);
         postMediaService.processCreatePostMedia(user.getId(),post);
