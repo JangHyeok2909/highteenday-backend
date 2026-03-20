@@ -50,15 +50,17 @@ public class BoardPostController {
     @GetMapping()
     public ResponseEntity<PageResponse> getPostsByBoardId(@PathVariable Long boardId,
                                                           @RequestParam Integer page,
-                                                          @RequestParam SortType sortType){
+                                                          @RequestParam SortType sortType,
+                                                          @RequestParam(required = false) Long lastSeedId){
         if(page == null) page = 0;
         PostListingDto dto= PostListingDto.builder()
                 .boardId(boardId)
                 .page(page)
                 .sortType(sortType)
                 .size(PAGE_SIZE)
+                .lastSeedId(lastSeedId)
                 .build();
-        PageResponse<PostPreviewDto> pagedPostDResponseDto = postService.getPagedPostsByBoardId(dto);
+        PageResponse<PostPreviewDto> pagedPostDResponseDto = postService.getPagedPostsCursor(dto);
 
 
         return ResponseEntity.ok(pagedPostDResponseDto);
