@@ -45,7 +45,7 @@ public class HotPostService {
         for(String pids:topPostIds){
             Long postId = Long.parseLong(pids);
             Post post = postService.findById(postId);
-            topPostDtos.add(post.toPrevDto());
+            topPostDtos.add(PostPreviewDto.fromEntity(post));
         }
         return topPostDtos;
     }
@@ -64,7 +64,7 @@ public class HotPostService {
         for(String pids:hotPostsIds){
             Long postId = Long.parseLong(pids);
             Post post = postService.findById(postId);
-            if(post.getLikeCount()>=10)hotPostPrevDtos.add(post.toPrevDto());
+            if(post.getLikeCount()>=10)hotPostPrevDtos.add(PostPreviewDto.fromEntity(post));
         }
         return hotPostPrevDtos;
     }

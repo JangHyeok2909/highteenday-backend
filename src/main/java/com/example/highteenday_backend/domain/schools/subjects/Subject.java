@@ -2,7 +2,6 @@ package com.example.highteenday_backend.domain.schools.subjects;
 
 import com.example.highteenday_backend.domain.schools.UserTimetables.UserTimetable;
 import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
-import com.example.highteenday_backend.dtos.SubjectDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -34,13 +33,6 @@ public class Subject {
 
 
 
-    public SubjectDto toDto(){
-        return SubjectDto.builder()
-                .id(id)
-                .subjectName(subjectName)
-                .HoursPerWeek(hoursPerWeek)
-                .build();
-    }
     public void updateName(String name){
         this.subjectName = name;
     }

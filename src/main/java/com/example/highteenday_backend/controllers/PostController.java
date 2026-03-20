@@ -41,7 +41,7 @@ public class PostController {
                                                    @PathVariable Long postId
                                                    ){
         Post post = postService.findById(postId);
-        PostDto postDto = post.toDto();
+        PostDto postDto = PostDto.fromEntity(post);
         if(userPrincipal != null) {
             User user = userPrincipal.getUser();
             LikeStateDto likestate = postReactionService.getLikeSatateDto(post, user);
