@@ -3,8 +3,6 @@ package com.example.highteenday_backend.domain.schools.UserTimetables;
 
 import com.example.highteenday_backend.domain.schools.subjects.Subject;
 import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
-import com.example.highteenday_backend.domain.users.User;
-import com.example.highteenday_backend.dtos.UserTimetableDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -37,12 +35,4 @@ public class UserTimetable {
     @Column(name = "UTT_period")
     private String period;
 
-    public UserTimetableDto toDto(){
-        return UserTimetableDto.builder()
-                    .id(this.id)
-                    .subjectDto(this.subject.toDto())
-                    .day(this.day)
-                    .period(this.period)
-                    .build();
-    }
 }

@@ -24,10 +24,10 @@ const BOARD_ID = __ENV.BOARD_ID || '1';
 
 export const options = {
   stages: [
-    { duration: '30s', target: 100 },  // 워밍업
-    { duration: '1m', target: 300 },   // 증가
-    { duration: '2m', target: 300 },   // 유지
-    { duration: '30s', target: 500 },  // 스트레스
+    { duration: '30s', target: 300 },  // 워밍업
+    { duration: '1m', target: 800 },   // 증가
+    { duration: '2m', target: 1200 },   // 2차 증가
+    { duration: '30s', target: 1500 },  // 스트레스
     { duration: '30s', target: 0 },    // 종료
   ],
   thresholds: {

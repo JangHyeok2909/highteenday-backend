@@ -27,7 +27,7 @@ public class BoardController {
         List<Board> all = boardService.findAll();
         List<BoardDto> dtos = new ArrayList<>();
         for(Board b:all){
-            dtos.add(b.toDto());
+            dtos.add(BoardDto.fromEntity(b));
         }
         return ResponseEntity.ok(dtos);
     }
