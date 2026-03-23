@@ -3,7 +3,6 @@ package com.example.highteenday_backend.domain.posts;
 import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.users.User;
-import com.example.highteenday_backend.dtos.PostDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,7 +13,23 @@ import lombok.NoArgsConstructor;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name= "posts")
+@Table(
+        name= "posts",
+        indexes = {
+                @Index(
+                        name = "idx_posts_brd_valid_id",
+                        columnList = "BRD_id, is_valid, PST_id DESC"
+                ),
+                @Index(
+                        name = "idx_posts_brd_valid_like",
+                        columnList = "BRD_id, is_valid, PST_like_count DESC"
+                ),
+                @Index(
+                        name = "idx_posts_brd_valid_view",
+                        columnList = "BRD_id, is_valid, PST_view_count DESC"
+                )
+        }
+)
 @Entity
 public class Post extends BaseEntity {
     @Id
@@ -23,11 +38,11 @@ public class Post extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_id", nullable = false)
+    @JoinColumn(name = "USR_id", nullable = false, foreignKey = @ForeignKey(name = "fk_posts_usr"))
     private User user; // 작성자
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "BRD_id", nullable = false)
+    @JoinColumn(name = "BRD_id", nullable = false, foreignKey = @ForeignKey(name = "fk_posts_brd"))
     private Board board; // 게시판
 
     @Column(name = "PST_title", length = 50, nullable = false)
@@ -56,8 +71,10 @@ public class Post extends BaseEntity {
     @Column(name = "PST_is_anonymous")
     private boolean isAnonymous=true;
 
-//    @Column(name = "PST_report_count")
-//    private int reportCount = 0;
+    //쿼리 성능을 위한 비정규화 컬럼
+    @Builder.Default
+    @Column(name = "USR_nickname", length = 12, nullable = false)
+    private String nickname="익명";
 
     public void updateLikeCount(int likeCount){
         this.likeCount = likeCount;
@@ -109,30 +126,6 @@ public class Post extends BaseEntity {
         this.scrapCount-=scrapCount;
     }
 
-    public PostDto toDto() {
-        String nickname="";
-        if (!this.isAnonymous) nickname = user.getNickname();
-        return PostDto.builder()
-                .id(this.id)
-                .author(nickname)
-                .profileUrl(user.getProfileUrl())
-                .userId(user.getId())
-                .title(title)
-                .content(content)
-                .viewCount(viewCount)
-                .likeCount(likeCount)
-                .dislikeCount(dislikeCount)
-                .commentCount(commentCount)
-                .isAnonymous(isAnonymous)
-                .isLiked(false)
-                .isDisliked(false)
-                .isScrapped(false)
-                .createdAt(super.getCreated())
-                .updatedAt(super.getUpdatedDate())
-                .isUpdated(super.getUpdatedBy() !=null)
-                .board(this.board.toDto())
-                .build();
-    }
 
 
 }

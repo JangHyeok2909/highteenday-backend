@@ -31,7 +31,7 @@ public class TimetableTemplateController {
         List<TimetableTemplate> templates = templateService.findByUser(user);
         List<TimetableTemplateDto> templateDtos = new ArrayList<>();
         for(TimetableTemplate template : templates){
-            templateDtos.add(template.toDto());
+            templateDtos.add(TimetableTemplateDto.fromEntity(template));
         }
         return ResponseEntity.ok(templateDtos);
     }
@@ -51,7 +51,7 @@ public class TimetableTemplateController {
                 .build();
 
         TimetableTemplate save = templateService.save(template);
-        return ResponseEntity.created(null).body(save.toDto());
+        return ResponseEntity.created(null).body(TimetableTemplateDto.fromEntity(save));
     }
     @Operation(summary = "시간표 템플릿 수정", description = "바꿀값만 할당하여 전달, 바꾸지 않을 값은 null 전달.")
     @PutMapping("/{timetableTemplateId}")
@@ -64,7 +64,7 @@ public class TimetableTemplateController {
         TimetableTemplate template = templateService.findById(timetableTemplateId);
         if(template.getUser().getId() == user.getId()){
             TimetableTemplate updatedTemplate = templateService.update(template, dto);
-            return ResponseEntity.ok(updatedTemplate.toDto());
+            return ResponseEntity.ok(TimetableTemplateDto.fromEntity(updatedTemplate));
         } else{
             return ResponseEntity.badRequest().build();
         }

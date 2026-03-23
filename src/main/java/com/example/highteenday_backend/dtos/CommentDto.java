@@ -1,15 +1,15 @@
 package com.example.highteenday_backend.dtos;
 
 import com.example.highteenday_backend.domain.comments.Comment;
-import com.example.highteenday_backend.domain.posts.Post;
-import com.example.highteenday_backend.domain.users.User;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
 @Builder
+@NoArgsConstructor
 @AllArgsConstructor
 @Data
 public class CommentDto {
@@ -26,14 +26,32 @@ public class CommentDto {
     @Builder.Default
     private boolean isAnonymous = true;
     @Builder.Default
-    private boolean isLiked=false;
+    private boolean isLiked = false;
     @Builder.Default
-    private boolean isDisliked=false;
+    private boolean isDisliked = false;
     @Builder.Default
-    private boolean isOwner=false;
+    private boolean isOwner = false;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     @Builder.Default
-    private boolean isUpdated=false;
+    private boolean isUpdated = false;
 
+    public static CommentDto fromEntity(Comment comment) {
+        return CommentDto.builder()
+                .id(comment.getId())
+                .userId(comment.getUser().getId())
+                .parentId(comment.getParent() != null ? comment.getParent().getId() : null)
+                .author(comment.getUser().getNickname())
+                .content(comment.getContent())
+                .likeCount(comment.getLikeCount())
+                .dislikeCount(comment.getDislikeCount())
+                .isAnonymous(comment.isAnonymous())
+                .url(comment.getS3Url())
+                .createdAt(comment.getCreated())
+                .updatedAt(comment.getUpdatedDate())
+                .isUpdated(comment.getUpdatedBy() != null)
+                .postId(comment.getPost().getId())
+                .postTitle(comment.getPost().getTitle())
+                .build();
+    }
 }
