@@ -7,6 +7,9 @@ import com.example.highteenday_backend.dtos.paged.PostListingDto;
 import com.example.highteenday_backend.enums.PostSearchType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
 
 
 public interface PostRepositoryCustom {
@@ -14,6 +17,8 @@ public interface PostRepositoryCustom {
     Page<Post> searchKeywordsAll(String keywords, PostSearchType searchType, Pageable pageable);
     Page<Post> searchKeywords(Long boardId,String keywords, PostSearchType searchType, Pageable pageable);
 
-    PageResponse<PostPreviewDto> findByBoardCursor(PostListingDto dto);
-    PageResponse<PostPreviewDto> findByBoardOffset(PostListingDto dto);
+    List<PostPreviewDto> findByBoard(PostListingDto dto);
+
+    Long countTotal(Long boardId);
+
 }

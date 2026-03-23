@@ -1,20 +1,15 @@
 package com.example.highteenday_backend.controllers;
 
 
-import com.example.highteenday_backend.Utils.PageUtils;
-import com.example.highteenday_backend.domain.boards.Board;
-import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.dtos.paged.PageResponse;
-import com.example.highteenday_backend.dtos.paged.PagedPostsDto;
 import com.example.highteenday_backend.dtos.paged.PostListingDto;
 import com.example.highteenday_backend.enums.SortType;
-import com.example.highteenday_backend.services.domain.BoardService;
 import com.example.highteenday_backend.services.domain.PostService;
+import com.example.highteenday_backend.services.domain.redisService.RedisPostsCache;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,9 +20,10 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/boards/{boardId}/posts")
 public class BoardPostController {
-    private final BoardService boardService;
     private final PostService postService;
-    static final int PAGE_SIZE = 10;
+    private final RedisPostsCache postsCache;
+    static final int CACHE_PAGE = 5;
+    static final int DEFAULT_SIZE = 10;
 
 //    @Operation(summary = "게시글 리스트 조회",description = "boardId의 게시판에 해당되는 게시글 리스트 조회")
 //    @GetMapping()
@@ -49,22 +45,34 @@ public class BoardPostController {
     @Operation(summary = "게시글 리스트 조회",description = "boardId의 게시판에 해당되는 게시글 리스트 조회")
     @GetMapping()
     public ResponseEntity<PageResponse> getPostsByBoardId(@PathVariable Long boardId,
-                                                          @RequestParam Integer page,
-                                                          @RequestParam SortType sortType,
-                                                          @RequestParam(required = false) Long lastSeedId){
+                                                          @RequestParam(defaultValue = "0") Integer page,
+                                                          @RequestParam(defaultValue = "RECENT") SortType sortType,
+                                                          @RequestParam(defaultValue = "10") int size,
+                                                          @RequestParam(required = false) Long lastSeedId,
+                                                          @RequestParam(defaultValue = "true") boolean isRandomPage){
         if(page == null) page = 0;
+        if(size <= 0 || size > 50) size = DEFAULT_SIZE;
         PostListingDto dto= PostListingDto.builder()
                 .boardId(boardId)
                 .page(page)
                 .sortType(sortType)
-                .size(PAGE_SIZE)
+                .size(size)
                 .lastSeedId(lastSeedId)
+                .isRandomPage(isRandomPage)
                 .build();
-        PageResponse<PostPreviewDto> pagedPostDResponseDto = postService.getPagedPostsCursor(dto);
 
+        //최신순의 경우 0~4페이지까지 캐시
+        List<PostPreviewDto> postPrevs;
+        if(page<CACHE_PAGE && dto.getSortType() == SortType.RECENT) {
+            postPrevs = postsCache.getPostPrevs(boardId, page, size);
+        }
+        //아닐경우 db조회
+        else {
+            postPrevs = postService.getPagedPosts(dto);
+        }
 
-        return ResponseEntity.ok(pagedPostDResponseDto);
+        Long count = postsCache.getCount(boardId);
+        PageResponse pagedPosts = new PageResponse<>(postPrevs, page, size, count);
+        return ResponseEntity.ok(pagedPosts);
     }
-
-
 }

@@ -18,4 +18,5 @@ public class PostListingDto {
     SortType sortType;
     Integer size;
     Long lastSeedId;
+    boolean isRandomPage;
 }
