@@ -31,8 +31,9 @@ INSERT INTO boards (
 
 
 -- =========================
--- 3. POSTS (1000건 생성)
+-- 3. POSTS (100000건 생성)
 -- =========================
+SET SESSION cte_max_recursion_depth = 100000;
 INSERT INTO posts (
     USR_id,
     BRD_id,
@@ -52,7 +53,7 @@ WITH RECURSIVE seq AS (
     UNION ALL
     SELECT n + 1
     FROM seq
-    WHERE n < 1000
+    WHERE n < 100000
 ),
                topic AS (
                    SELECT
@@ -122,7 +123,8 @@ SELECT
                 END
     ) AS USR_nickname,
 
-    DATE_SUB(NOW(), INTERVAL (t.n % 60) DAY) AS created_at
+    -- id가 클수록 최신: n=1이 가장 오래됨(약 4.6개월 전), n=100000이 가장 최신(약 2분 전)
+    DATE_SUB(NOW(), INTERVAL (100001 - t.n) * 2 MINUTE) AS created_at
 
 FROM topic t;
 

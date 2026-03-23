@@ -21,13 +21,14 @@ import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const BOARD_ID = __ENV.BOARD_ID || '1';
+const PAGE_SIZE = 10;
 
 export const options = {
   stages: [
     { duration: '30s', target: 300 },  // 워밍업
-    { duration: '1m', target: 800 },   // 증가
-    { duration: '2m', target: 1200 },   // 2차 증가
-    { duration: '30s', target: 1500 },  // 스트레스
+    { duration: '1m',  target: 600 },  // 증가
+    { duration: '2m',  target: 1000 },  // 안정 부하
+    { duration: '1m',  target: 1400 },  // 스트레스
     { duration: '30s', target: 0 },    // 종료
   ],
   thresholds: {
@@ -36,99 +37,106 @@ export const options = {
   },
 };
 
-// 초기 페이지 수 확인
+function buildUrl(params) {
+  const query = Object.entries(params)
+    .filter(([, v]) => v !== null && v !== undefined)
+    .map(([k, v]) => `${k}=${v}`)
+    .join('&');
+  return `${BASE_URL}/api/boards/${BOARD_ID}/posts?${query}`;
+}
+
+// 초기 total 확인
 export function setup() {
-  const res = http.get(`${BASE_URL}/api/boards/${BOARD_ID}/posts?page=0`);
-
-  let totalPages = 10;
-
+  const res = http.get(buildUrl({ page: 0, size: PAGE_SIZE, sortType: 'RECENT', isRandomPage: true }));
+  let total = 100000;
   try {
     const body = JSON.parse(res.body);
-    if (body.totalPages && body.totalPages > 0) {
-      totalPages = body.totalPages;
-    }
+    if (body.total > 0) total = body.total;
   } catch (e) {}
-
-  return { totalPages };
+  return { total };
 }
 
 export default function (data) {
   let sortType = 'RECENT';
-  let useCursor = false;
-  let lastId = null;
+  let lastSeedId = null;  // RECENT 커서
+  let page = 0;           // LIKE/VIEW 오프셋 페이지
+  let isSequential = false; // 순차 스크롤 여부
 
-  // 🔥 1. 무조건 첫 진입 (page=0)
-  let res = http.get(`${BASE_URL}/api/boards/${BOARD_ID}/posts?page=0&sortType=${sortType}`);
+  // ── 1. 첫 진입 (randomPage=true: 랜덤 접근)
+  let res = http.get(buildUrl({ page: 0, size: PAGE_SIZE, sortType, isRandomPage: true }));
 
   let body;
   try {
     body = JSON.parse(res.body);
-    if (body.postPreviewDtos?.length > 0) {
-      lastId = body.postPreviewDtos[body.postPreviewDtos.length - 1].id;
-      useCursor = true;
+    if (body.content?.length > 0) {
+      lastSeedId = body.content[body.content.length - 1].id;
+      isSequential = true;
     }
   } catch {}
 
-  check(res, {
-    'status 200': (r) => r.status === 200,
-  });
-
+  check(res, { 'status 200': (r) => r.status === 200 });
   sleep(Math.random() * 1 + 0.5);
 
-  // 🔥 2. 유저 행동 (세션)
+  // ── 2. 유저 행동 루프
   while (true) {
     let url;
 
-    if (useCursor && lastId) {
-      url = `${BASE_URL}/api/boards/${BOARD_ID}/posts?lastId=${lastId}&sortType=${sortType}`;
+    if (isSequential) {
+      // 다음 페이지로 이동 → isRandomPage=false
+      if (sortType === 'RECENT' && lastSeedId) {
+        // RECENT: 커서 기반
+        url = buildUrl({ lastSeedId, size: PAGE_SIZE, sortType, isRandomPage: false });
+      } else {
+        // LIKE/VIEW: 오프셋 기반 순차
+        page++;
+        url = buildUrl({ page, size: PAGE_SIZE, sortType, isRandomPage: false });
+      }
     } else {
-      url = `${BASE_URL}/api/boards/${BOARD_ID}/posts?page=0&sortType=${sortType}`;
+      // 랜덤 접근 (정렬 변경, 홈 복귀 등) → isRandomPage=true
+      url = buildUrl({ page: 0, size: PAGE_SIZE, sortType, isRandomPage: true });
     }
 
     res = http.get(url);
 
     try {
       body = JSON.parse(res.body);
-      if (body.postPreviewDtos?.length > 0) {
-        lastId = body.postPreviewDtos[body.postPreviewDtos.length - 1].id;
+      if (body.content?.length > 0) {
+        lastSeedId = body.content[body.content.length - 1].id;
       }
     } catch {}
 
-    check(res, {
-      'status 200': (r) => r.status === 200,
-    });
+    check(res, { 'status 200': (r) => r.status === 200 });
 
-    // 🔥 행동 결정
+    // ── 행동 결정
     const r = Math.random();
 
     if (r < 0.65) {
-      // 계속 스크롤
-      useCursor = true;
+      // 계속 스크롤 (다음 페이지 → sequential)
+      isSequential = true;
 
     } else if (r < 0.80) {
-      // 정렬 변경
+      // 정렬 변경 → 랜덤 접근
       const s = Math.random();
-      if (s < 0.7) sortType = 'RECENT';
+      if (s < 0.70) sortType = 'RECENT';
       else if (s < 0.85) sortType = 'VIEW';
       else sortType = 'LIKE';
 
-      useCursor = false;
-      lastId = null;
+      isSequential = false;
+      lastSeedId = null;
+      page = 0;
 
     } else if (r < 0.90) {
-      // 홈으로
-      useCursor = false;
-      lastId = null;
+      // 홈으로 → 랜덤 접근
+      isSequential = false;
+      lastSeedId = null;
+      page = 0;
 
     } else {
       // 아무것도 안함
     }
 
-    sleep(Math.random() * 1 + 0.3); // 0.3~1.3초
+    sleep(Math.random() * 1 + 0.3);
   }
-
-  // 🔥 세션 종료 후 재진입 대기
-  sleep(randomIntBetween(2, 5));
 }
 /**
  * 부하 테스트 1차 결과(v.0)

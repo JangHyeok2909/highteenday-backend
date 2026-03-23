@@ -12,7 +12,6 @@ import com.example.highteenday_backend.dtos.paged.PostListingDto;
 import com.example.highteenday_backend.enums.PostSearchType;
 import com.example.highteenday_backend.enums.SortType;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
-import com.example.highteenday_backend.services.domain.redisService.CursorCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -63,18 +62,18 @@ public class PostService {
         return postPages;
     }
 
-    public PageResponse<PostPreviewDto> getPagedPostsCursor(PostListingDto dto){
-        PageResponse<PostPreviewDto> pagedPosts;
-        if(dto.getLastSeedId()!=null){
-            pagedPosts = postRepository.findByBoardCursor(dto);
-        } else {
-            pagedPosts = postRepository.findByBoardOffset(dto);
-        }
-        if(pagedPosts.getContent().isEmpty()) {
+    public List<PostPreviewDto> getPagedPosts(PostListingDto dto){
+        List<PostPreviewDto> previewDtos = postRepository.findByBoard(dto);
+
+        if(previewDtos.isEmpty()) {
             throw new ResourceNotFoundException(String.format("post is empty. boardId=%d, page=%d, size=%d",dto.getBoardId(),dto.getPage(),dto.getSize()));
         }
-        return pagedPosts;
+        return previewDtos;
     }
+
+//    public PageResponse<PostPreviewDto> getPagedPosts(List<PostPreviewDto> dtos){
+//        Long total = postRepository.countTotal(dto);
+//    }
 
     //로그남기기
     @Transactional
