@@ -17,10 +17,16 @@ import lombok.NoArgsConstructor;
         name= "posts",
         indexes = {
                 @Index(
-                        name = "idx_posts_brd_valid_id_cover",  
-                        columnList =  "brd_id," +
-                                "is_valid," +
-                                "pst_id DESC "
+                        name = "idx_posts_brd_valid_id",
+                        columnList = "BRD_id, is_valid, PST_id DESC"
+                ),
+                @Index(
+                        name = "idx_posts_brd_valid_like",
+                        columnList = "BRD_id, is_valid, PST_like_count DESC"
+                ),
+                @Index(
+                        name = "idx_posts_brd_valid_view",
+                        columnList = "BRD_id, is_valid, PST_view_count DESC"
                 )
         }
 )
