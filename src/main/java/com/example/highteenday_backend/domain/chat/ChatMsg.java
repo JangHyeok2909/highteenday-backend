@@ -21,11 +21,11 @@ public class ChatMsg extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "CHT_RM_id", nullable = false)
+    @JoinColumn(name = "CHT_RM_id", nullable = false, foreignKey = @ForeignKey(name = "fk_chat_messages_cht_rm"))
     private ChatRoom chatRoom;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_id", nullable = false)
+    @JoinColumn(name = "USR_id", nullable = false, foreignKey = @ForeignKey(name = "fk_chat_messages_usr"))
     private User sender;
 
     @Column(name = "CHT_MSG_content", columnDefinition = "TEXT", nullable = false)

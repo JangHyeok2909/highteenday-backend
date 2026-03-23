@@ -11,11 +11,13 @@ import com.example.highteenday_backend.dtos.paged.PagedPostsDto;
 import com.example.highteenday_backend.enums.PostSearchType;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.*;
+import com.example.highteenday_backend.services.domain.redisService.ViewCountService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,7 +41,7 @@ public class PostController {
                                                    @PathVariable Long postId
                                                    ){
         Post post = postService.findById(postId);
-        PostDto postDto = post.toDto();
+        PostDto postDto = PostDto.fromEntity(post);
         if(userPrincipal != null) {
             User user = userPrincipal.getUser();
             LikeStateDto likestate = postReactionService.getLikeSatateDto(post, user);
@@ -55,7 +57,7 @@ public class PostController {
 
     @PostMapping()
     public ResponseEntity<URI> createPost(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-                                          @RequestBody RequestPostDto requestPostDto){
+                                          @Valid @RequestBody RequestPostDto requestPostDto){
         User user = userPrincipal.getUser();
         Post post = postService.createPost(user,requestPostDto);
         return ResponseEntity.created(URI.create("/api/posts/"+post.getId())).build();
@@ -77,15 +79,6 @@ public class PostController {
         postService.deletePost(postId,user.getId());
         return ResponseEntity.ok("삭제 완료.");
     }
-
-//    @Operation(summary = "게시글 조회 테스트")
-//    @GetMapping("/{postId}/test/{userId}")
-//    public ResponseEntity<PostDto> getPostByPostIdTest(@PathVariable Long postId,
-//                                                       @PathVariable Long userId){
-//        PostDto postDto = postService.findById(postId).toDto();
-//        viewCountService.increaseViewCount(postId,userId);
-//        return ResponseEntity.ok(postDto);
-//    }
     @Operation(summary = "게시글 검색")
     @GetMapping("/search")
     public ResponseEntity<PagedPostsDto> searchPost(@RequestParam String query,
@@ -96,4 +89,13 @@ public class PostController {
 
         return ResponseEntity.ok(dto);
     }
+
+    //    @Operation(summary = "게시글 조회 테스트")
+//    @GetMapping("/{postId}/test/{userId}")
+//    public ResponseEntity<PostDto> getPostByPostIdTest(@PathVariable Long postId,
+//                                                       @PathVariable Long userId){
+//        PostDto postDto = postService.findById(postId).toDto();
+//        viewCountService.increaseViewCount(postId,userId);
+//        return ResponseEntity.ok(postDto);
+//    }
 }

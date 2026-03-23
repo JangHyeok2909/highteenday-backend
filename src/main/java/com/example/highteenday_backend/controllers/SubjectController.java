@@ -37,7 +37,7 @@ public class SubjectController {
         List<Subject> subjects = template.getSubjects();
         List<SubjectDto> subjectDtos = new ArrayList<>();
         for(Subject subject:subjects){
-            subjectDtos.add(subject.toDto());
+            subjectDtos.add(SubjectDto.fromEntity(subject));
         }
         return ResponseEntity.ok(subjectDtos);
     }
@@ -54,7 +54,7 @@ public class SubjectController {
                 .timetableTemplate(template)
                 .build();
         Subject save = subjectService.save(subject);
-        return ResponseEntity.ok(save.toDto());
+        return ResponseEntity.ok(SubjectDto.fromEntity(save));
     }
     @Operation(summary = "과목명 수정")
     @PutMapping("/{subjectId}")
@@ -67,7 +67,7 @@ public class SubjectController {
         Long ownerId = subject.getTimetableTemplate().getUser().getId();
         if(user.getId() != ownerId) return ResponseEntity.badRequest().build();
         Subject updatedSubject = subjectService.update(subject, dto);
-        return ResponseEntity.ok(updatedSubject.toDto());
+        return ResponseEntity.ok(SubjectDto.fromEntity(updatedSubject));
     }
     @Operation(summary = "과목 삭제")
     @DeleteMapping("/{subjectId}")

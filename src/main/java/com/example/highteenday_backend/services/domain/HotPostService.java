@@ -2,6 +2,7 @@ package com.example.highteenday_backend.services.domain;
 
 import com.example.highteenday_backend.Utils.HotScoreCalculator;
 import com.example.highteenday_backend.domain.posts.Post;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,8 @@ import java.util.Set;
 public class HotPostService {
     private final RedisTemplate<String, String> redisTemplate;
     private final PostService postService;
+    private static int recentHotPostCount=3;
+    private static int dailyHotPostCount=10;
 
     @Transactional
     public void updateRecentScore(Post post){
@@ -35,16 +38,16 @@ public class HotPostService {
         double score = HotScoreCalculator.calculateRecentHotScore(post);
         redisTemplate.opsForZSet().add(key, String.valueOf(postId), score);
     }
-    public List<Post> getRecentHotPosts(Long boardId){
+    public List<PostPreviewDto> getRecentHotPosts(Long boardId){
         String key="hot:board:"+boardId+"realtime:"+getRealtime5Min();
-        List<Post> top3Posts = new ArrayList<>();
-        Set<String> top3PostIds = redisTemplate.opsForZSet().reverseRange(key, 0, 2);
-        for(String pids:top3PostIds){
+        List<PostPreviewDto> topPostDtos = new ArrayList<>();
+        Set<String> topPostIds = redisTemplate.opsForZSet().reverseRange(key, 0, recentHotPostCount-1);
+        for(String pids:topPostIds){
             Long postId = Long.parseLong(pids);
             Post post = postService.findById(postId);
-            top3Posts.add(post);
+            topPostDtos.add(PostPreviewDto.fromEntity(post));
         }
-        return top3Posts;
+        return topPostDtos;
     }
     @Transactional
     public void updateDailyScore(Post post){
@@ -54,16 +57,16 @@ public class HotPostService {
         redisTemplate.opsForZSet().add(key, String.valueOf(postId), score);
     }
 
-    public List<Post> getDailyHotPosts(){
+    public List<PostPreviewDto> getDailyHotPosts(){
         String key = "hot:all:daily:" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        List<Post> top10Posts = new ArrayList<>();
-        Set<String> top10PostIds = redisTemplate.opsForZSet().reverseRange(key, 0, 2);
-        for(String pids:top10PostIds){
+        List<PostPreviewDto> hotPostPrevDtos = new ArrayList<>();
+        Set<String> hotPostsIds = redisTemplate.opsForZSet().reverseRange(key, 0, dailyHotPostCount-1);
+        for(String pids:hotPostsIds){
             Long postId = Long.parseLong(pids);
             Post post = postService.findById(postId);
-            if(post.getLikeCount()>=10)top10Posts.add(post);
+            if(post.getLikeCount()>=10)hotPostPrevDtos.add(PostPreviewDto.fromEntity(post));
         }
-        return top10Posts;
+        return hotPostPrevDtos;
     }
 
     public String getRealtime5Min(){

@@ -18,8 +18,8 @@ public class AppStartupRunner {
     private final SchoolMealInitializer schoolMealInitializer;
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
-        schoolInfoInitializer.schoolInit();
+//        schoolInfoInitializer.schoolInit();
         dataInitializer.dataInit();
-        schoolMealInitializer.schoolMealInit();
+//        schoolMealInitializer.schoolMealInit();
     }
 }

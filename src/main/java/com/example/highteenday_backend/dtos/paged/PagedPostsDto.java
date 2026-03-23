@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.dtos.paged;
 
 import com.example.highteenday_backend.dtos.PostDto;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -16,5 +17,5 @@ public class PagedPostsDto {
     private int page;
     private int totalPages;
     private long totalElements;
-    private List<PostDto> postDtos;
+    private List<PostPreviewDto> postPreviewDtos;
 }

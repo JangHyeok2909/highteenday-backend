@@ -1,9 +1,7 @@
 package com.example.highteenday_backend.controllers;
 
 import com.example.highteenday_backend.domain.users.User;
-import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.Friends.*;
-import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.FriendsService;
 import com.example.highteenday_backend.services.domain.UserService;
@@ -66,7 +64,7 @@ public class FriendsController {
     }
 
     // 친구 삭제
-    @PostMapping("/delete")
+    @DeleteMapping("/delete")
     public ResponseEntity<?> deleteFriends(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody DeleteFriendDto deleteFriendDto
@@ -86,7 +84,7 @@ public class FriendsController {
     // A가 B의 정보를 볼 수는 있지만, B는 A의 정보를 볼 수 없음
     // A와 B의 친구관계는 A만 삭제
     // A -> B || B -> A 2개 있을 때 A -> B 관계만 삭제
-    @PostMapping("/block")
+    @PutMapping("/block")
     public ResponseEntity<?> blockUser(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody BlockUserDto blockUserDto
@@ -101,7 +99,7 @@ public class FriendsController {
 
     // 차단 해제
     @Transactional
-    @PostMapping("/unBlock")
+    @PutMapping("/unBlock")
     public ResponseEntity<?> unBlockUser(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody UnBlockUserDto unBlockUserDto
@@ -116,8 +114,8 @@ public class FriendsController {
 
     // 친구 검색
     @Transactional
-    @PostMapping("/select")
-    public ResponseEntity<?> selectFriend(
+    @PostMapping("/search")
+    public ResponseEntity<?> searchFriend(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody SelectFriendDto selectFriendDto
     ){
@@ -130,7 +128,6 @@ public class FriendsController {
 
     // 친구 신청
     @PostMapping("/request")
-
     public ResponseEntity<?> requestFriends(
             @AuthenticationPrincipal CustomUserPrincipal requesterPrincipal,
             @RequestBody RequestFriendsDto receiverDto

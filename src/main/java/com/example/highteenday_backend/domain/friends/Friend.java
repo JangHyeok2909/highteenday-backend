@@ -20,11 +20,11 @@ public class Friend extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_id", nullable = false)
+    @JoinColumn(name = "USR_id", nullable = false, foreignKey = @ForeignKey(name = "fk_friends_usr"))
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_frd_id", nullable = false)
+    @JoinColumn(name = "USR_frd_id", nullable = false, foreignKey = @ForeignKey(name = "fk_friends_usr_frd"))
     private User friend;
 
     @Enumerated(EnumType.STRING)

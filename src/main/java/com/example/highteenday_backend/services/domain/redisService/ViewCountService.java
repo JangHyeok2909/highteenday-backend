@@ -1,4 +1,4 @@
-package com.example.highteenday_backend.services.domain;
+package com.example.highteenday_backend.services.domain.redisService;
 
 import com.example.highteenday_backend.services.global.RedisService;
 import lombok.RequiredArgsConstructor;
