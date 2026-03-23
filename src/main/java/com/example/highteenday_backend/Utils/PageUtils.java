@@ -2,11 +2,10 @@ package com.example.highteenday_backend.Utils;
 
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.posts.Post;
-import com.example.highteenday_backend.domain.scraps.Scrap;
 import com.example.highteenday_backend.dtos.CommentDto;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.dtos.paged.PagedCommentsDto;
 import com.example.highteenday_backend.dtos.paged.PagedPostsDto;
-import com.example.highteenday_backend.dtos.PostDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -17,17 +16,17 @@ import java.util.List;
 public class PageUtils {
     public static PagedPostsDto postsToDto(Page<Post> pagedPosts){
         List<Post> posts = pagedPosts.getContent();
-        List<PostDto> postDtos =new ArrayList<>();
+        List<PostPreviewDto> postPreviewDtos =new ArrayList<>();
         for(Post p:posts){
-            PostDto dto = p.toDto();
+            PostPreviewDto prevDto = PostPreviewDto.fromEntity(p);
 
-            postDtos.add(dto);
+            postPreviewDtos.add(prevDto);
         }
         PagedPostsDto pagedDto = PagedPostsDto.builder()
                 .page(pagedPosts.getNumber())
                 .totalPages(pagedPosts.getTotalPages())
                 .totalElements(pagedPosts.getTotalElements())
-                .postDtos(postDtos)
+                .postPreviewDtos(postPreviewDtos)
                 .build();
 
         return pagedDto;
@@ -36,24 +35,7 @@ public class PageUtils {
         List<Comment> comments = pagedComments.getContent();
         List<CommentDto> commentdtos =new ArrayList<>();
         for(Comment c:comments){
-            CommentDto commentDto = CommentDto.builder()
-                    .id(c.getId())
-                    .author(c.getUser().getNickname())
-                    .userId(c.getUser().getId())
-                    .postId(c.getPost().getId())
-                    .postTitle(c.getPost().getTitle())
-                    .parentId(c.getParent() == null ? null : c.getParent().getId())
-                    .content(c.getContent())
-                    .likeCount(c.getLikeCount())
-                    .dislikeCount(c.getDislikeCount())
-                    .createdAt(c.getCreated())
-                    .url(c.getS3Url())
-                    .isAnonymous(c.isAnonymous())
-//                    .isLiked()
-//                    .isDisliked()
-//                    .isOwner()
-                    .build();
-            commentdtos.add(commentDto);
+            commentdtos.add(CommentDto.fromEntity(c));
         }
         PagedCommentsDto pagedDto = PagedCommentsDto.builder()
                 .page(pagedComments.getNumber())

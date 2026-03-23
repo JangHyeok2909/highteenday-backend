@@ -4,8 +4,11 @@ import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.example.highteenday_backend.dtos.UpdatePostDto;
+import com.example.highteenday_backend.dtos.paged.PageResponse;
+import com.example.highteenday_backend.dtos.paged.PostListingDto;
 import com.example.highteenday_backend.enums.PostSearchType;
 import com.example.highteenday_backend.enums.SortType;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
@@ -17,7 +20,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -45,7 +47,7 @@ public class PostService {
         Sort sort = Sort.by(Sort.Direction.ASC, "createdAt").descending();
         Pageable pageable = PageRequest.of(page,SIZE, sort);
         Page<Post> pagedPost;
-        pagedPost = postRepository.searchKeywords(query, searchType,pageable);
+        pagedPost = postRepository.searchKeywordsAll(query, searchType,pageable);
         return pagedPost;
     }
 
@@ -60,18 +62,18 @@ public class PostService {
         return postPages;
     }
 
+    public List<PostPreviewDto> getPagedPosts(PostListingDto dto){
+        List<PostPreviewDto> previewDtos = postRepository.findByBoard(dto);
 
-    public Page<Post> getPagedPostsByBoardId(Long boardId, int page, int size, SortType sortType){
-        Sort sort = Sort.by(Sort.Direction.DESC, sortType.getField());
-
-        Board board = boardService.findById(boardId);
-        Pageable pageable = PageRequest.of(page, size, sort);
-        Page<Post> postPages = postRepository.findByBoard(board, pageable);
-        if(postPages.isEmpty()) {
-            throw new ResourceNotFoundException(String.format("post is empty. boardId=%d, page=%d, size=%d",boardId,page,size));
+        if(previewDtos.isEmpty()) {
+            throw new ResourceNotFoundException(String.format("post is empty. boardId=%d, page=%d, size=%d",dto.getBoardId(),dto.getPage(),dto.getSize()));
         }
-        return postPages;
+        return previewDtos;
     }
+
+//    public PageResponse<PostPreviewDto> getPagedPosts(List<PostPreviewDto> dtos){
+//        Long total = postRepository.countTotal(dto);
+//    }
 
     //로그남기기
     @Transactional
@@ -84,6 +86,7 @@ public class PostService {
                 .isAnonymous(dto.isAnonymous())
                 .title(dto.getTitle())
                 .content(dto.getContent())
+                .nickname(dto.isAnonymous() ? "익명":user.getNickname())
                 .build();
         Post savedPost = postRepository.save(post);
         postMediaService.processCreatePostMedia(user.getId(),post);

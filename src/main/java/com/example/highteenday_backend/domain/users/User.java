@@ -14,7 +14,9 @@ import java.time.LocalDate;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name="users")
+@Table(name = "users", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_users_email", columnNames = "USR_email")
+})
 @Entity
 public class User extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,7 +24,7 @@ public class User extends BaseEntity {
     @Column(name = "USR_id")
     private Long id;
 
-    @Column(name = "USR_email", length = 48, nullable = false, unique = true)
+    @Column(name = "USR_email", length = 48, nullable = false)
     private String email;
 
     @Column(name = "USR_hashed_password", length = 60)
@@ -70,8 +72,8 @@ public class User extends BaseEntity {
     @Column(name = "USR_birth_date"/*, nullable = false*/)
     private LocalDate birthDate;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "SCH_id"/*, nullable = false*/)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "SCH_id", foreignKey = @ForeignKey(name = "fk_users_sch")/*, nullable = false*/)
     private School school;
 
 }

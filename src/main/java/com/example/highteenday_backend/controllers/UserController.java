@@ -6,8 +6,6 @@ import com.example.highteenday_backend.dtos.Login.LoginRequestDto;
 import com.example.highteenday_backend.dtos.Login.OAuth2UserInfo;
 import com.example.highteenday_backend.dtos.Login.RegisterUserDto;
 import com.example.highteenday_backend.enums.ErrorCode;
-import com.example.highteenday_backend.enums.Grade;
-import com.example.highteenday_backend.enums.Semester;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.security.TokenException;
@@ -32,7 +30,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 
 @Tag(name="User Relation API", description = "User 관련 API")
@@ -81,25 +78,12 @@ public class UserController {
         return ResponseEntity.ok(getOAuthUser);
     }
 
-    // 테스트 코드
     @Operation(summary = "현재 로그인한 사용자 정보 반환")
     @GetMapping("/userInfo")
     public ResponseEntity<UserInfoDto> userInfo(
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
-        User findUser = userService.findByEmail(user.getUser().getEmail());
-        UserInfoDto userInfoDto = UserInfoDto.builder()
-                .name(findUser.getName())
-                .email(findUser.getEmail())
-                .nickname(findUser.getNickname())
-                .provider(findUser.getProvider().toString())
-                .schoolName(findUser.getSchool().getName())
-                .phoneNum(findUser.getPhone())
-                .userGrade(Optional.ofNullable(findUser.getGrade()).map(Grade::getField).orElse(null))
-                .userClass(Optional.ofNullable(findUser.getUserClass()).map(Object::toString).orElse(null))
-                .semester(Optional.ofNullable(findUser.getSemester()).map(Semester::getField).orElse(null))
-                .build();
-
+        UserInfoDto userInfoDto = userService.getUserInfoDto(user.getUser().getEmail());
         return ResponseEntity.ok().body(userInfoDto);
     }
 

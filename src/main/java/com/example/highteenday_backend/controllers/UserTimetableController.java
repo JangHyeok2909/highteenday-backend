@@ -56,7 +56,7 @@ public class UserTimetableController {
         List<UserTimetable> timetables = template.getTimetables();
         List<UserTimetableDto> timetableDtos = new ArrayList<>();
         for(UserTimetable utt:timetables){
-            timetableDtos.add(utt.toDto());
+            timetableDtos.add(UserTimetableDto.fromEntity(utt));
         }
         return ResponseEntity.ok(timetableDtos);
     }
@@ -73,7 +73,7 @@ public class UserTimetableController {
         if(user.getId()!=ownerId) return ResponseEntity.badRequest().build();
         Subject subject = subjectService.findById(dto.getSubjectId());
         UserTimetable savedTimetable = timetableSubjectService.createTimetableAndIncHours(subject, template, dto);
-        return ResponseEntity.created(null).body(savedTimetable.toDto());
+        return ResponseEntity.created(null).body(UserTimetableDto.fromEntity(savedTimetable));
     }
 
     @Operation(summary = "시간표 삭제", description = "시간표id를 통해 한시간 분량의 해당 과목 삭제함.")
@@ -90,7 +90,7 @@ public class UserTimetableController {
     public List<UserTimetableDto> toListDto(List<UserTimetable> timetables){
         List<UserTimetableDto> timetableDtos = new ArrayList<>();
         for(UserTimetable utt:timetables){
-            timetableDtos.add(utt.toDto());
+            timetableDtos.add(UserTimetableDto.fromEntity(utt));
         }
         return timetableDtos;
     }

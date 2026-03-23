@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 
 @Tag(name = "댓글 API", description = "댓글 관련 조회,생성,수정,삭제 API")
@@ -32,25 +34,71 @@ public class CommentController {
 
     @Operation(summary = "댓글 리스트 조회",description = "postId에 해당하는 게시글의 댓글 리스트 조회")
     @GetMapping()
-    public ResponseEntity<List<CommentDto>> getComments(@PathVariable Long postId,
-                                                        @AuthenticationPrincipal CustomUserPrincipal userPrincipal){
-        System.out.println("get comments 진입" );
+    public ResponseEntity<List<CommentDto>> getComments(
+            @PathVariable Long postId,
+            @AuthenticationPrincipal CustomUserPrincipal userPrincipal){
+
+        System.out.println("get comments 진입");
+
         Post post = postService.findById(postId);
         List<Comment> comments = commentService.getCommentsByPost(post);
+
         List<CommentDto> dtos = new ArrayList<>();
 
+        boolean isAnonymous = post.isAnonymous();
+
+        Map<Long, Integer> anonMap = new LinkedHashMap<>();
+        int counter = 1;
+
+        if(isAnonymous){
+            Long postAuthorId = post.getUser().getId();
+            anonMap.put(postAuthorId, 1);
+            counter = 2;
+        }
+
         for (Comment c : comments){
-            CommentDto dto = c.toDto();
+
+            CommentDto dto = CommentDto.fromEntity(c);
+
+            // 익명 처리
+            boolean isPostAuthor =
+                    c.getUser().getId().equals(post.getUser().getId());
+
+            if (c.isAnonymous()) {
+
+                if (isPostAuthor) {
+
+                    dto.setAuthor("익명(글쓴이)");
+                    dto.setUserId(null);
+
+                } else {
+
+                    Long userId = c.getUser().getId();
+
+                    if (!anonMap.containsKey(userId)) {
+                        anonMap.put(userId, counter++);
+                    }
+
+                    int anonNumber = anonMap.get(userId);
+
+                    dto.setAuthor("익명" + anonNumber);
+                    dto.setUserId(null);
+                }
+            }
+
+            //로그인 처리
             if(userPrincipal != null) {
-                System.out.println("userPrincipal.getUser()="+userPrincipal.getUser().toString());
+
                 User user = userPrincipal.getUser();
+
                 LikeStateDto likeDto = commentReactService.getLikeSatateDto(c, user);
+
                 dto.setLiked(likeDto.isLiked());
                 dto.setDisliked(likeDto.isDisliked());
+
                 dto.setOwner(user.getId() == c.getUser().getId());
-            } else{
-                System.out.println("userPrincipal is null, commentId="+c.getId());
             }
+
             dtos.add(dto);
         }
 
@@ -61,7 +109,7 @@ public class CommentController {
     @GetMapping("/{commentId}")
     public ResponseEntity<CommentDto> getCommentByIdTest(@PathVariable Long commentId){
         Comment comment = commentService.findCommentById(commentId);
-        return ResponseEntity.ok(comment.toDto());
+        return ResponseEntity.ok(CommentDto.fromEntity(comment));
     }
 
     @Operation(summary = "댓글 생성")
@@ -106,7 +154,7 @@ public class CommentController {
 //        List<CommentDto> dtos = new ArrayList<>();
 //
 //        for (Comment c : comments){
-//            CommentDto dto = c.toDto();
+//            CommentDto dto = CommentDto.fromEntity(c);
 //            User user = userService.findById(userId);
 //            if(commentLikeService.isLikedByUser(c,user)) dto.setLiked(true);
 //            else if(commentDislikeService.isDislikedByUser(c,user)) dto.setDisliked(true);

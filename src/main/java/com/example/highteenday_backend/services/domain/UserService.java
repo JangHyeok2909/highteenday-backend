@@ -5,15 +5,16 @@ import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.ChangeNicknameDto;
 import com.example.highteenday_backend.dtos.ChangePasswordDto;
-
+import com.example.highteenday_backend.dtos.UserInfoDto;
 import com.example.highteenday_backend.dtos.Login.RegisterUserDto;
+import com.example.highteenday_backend.enums.Grade;
+import com.example.highteenday_backend.enums.Semester;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.security.JwtCookieService;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -22,8 +23,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
+import java.util.Optional;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -43,6 +46,26 @@ public class UserService {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND,"존재하지 않는 유저, email="+email));
     }
+
+    @Transactional(readOnly = true)
+    public UserInfoDto getUserInfoDto(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND, "존재하지 않는 유저, email=" + email));
+        String schoolName = user.getSchool() != null ? user.getSchool().getName() : null;
+        return UserInfoDto.builder()
+                .name(user.getName())
+                .email(user.getEmail())
+                .nickname(user.getNickname())
+                .profileUrl(user.getProfileUrl())
+                .provider(user.getProvider().toString())
+                .schoolName(schoolName)
+                .phoneNum(user.getPhone())
+                .userGrade(Optional.ofNullable(user.getGrade()).map(Grade::getField).orElse(null))
+                .userClass(Optional.ofNullable(user.getUserClass()).map(Object::toString).orElse(null))
+                .semester(Optional.ofNullable(user.getSemester()).map(Semester::getField).orElse(null))
+                .build();
+    }
+
     public boolean existsByNickname(String nickname){
         return userRepository.existsByNickname(nickname);
     }

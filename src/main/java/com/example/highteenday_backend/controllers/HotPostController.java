@@ -3,6 +3,7 @@ package com.example.highteenday_backend.controllers;
 
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.dtos.PostDto;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.services.domain.HotPostService;
 import com.example.highteenday_backend.services.domain.PostService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,12 +29,9 @@ public class HotPostController {
 //    }
 
     @GetMapping("/daily")
-    public ResponseEntity<List<PostDto>> getDailyHotPosts(){
-        List<Post> dailyHotPosts = hotPostService.getDailyHotPosts();
-        List<PostDto> postDtos = new ArrayList<>();
-        for(Post p:dailyHotPosts){
-            postDtos.add(p.toDto());
-        }
-        return ResponseEntity.ok(postDtos);
+    public ResponseEntity<List<PostPreviewDto>> getDailyHotPosts(){
+        List<PostPreviewDto> postPreviewDtos = hotPostService.getDailyHotPosts();
+
+        return ResponseEntity.ok(postPreviewDtos);
     }
 }

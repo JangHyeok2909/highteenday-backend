@@ -17,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 @RequiredArgsConstructor
 @Service
@@ -66,11 +65,11 @@ public class FriendsService {
     // 누가 나한테 친구 요청한 목록 | 누군가 나한테 신청한 목록
     @Transactional
     public List<FriendsInfoDto> getReceivedFriendsList(User user){
-        List<FriendReq> findReceivedFriendsList = friendReqRepository.findReceivedFriendRequests(user.getId());
+        List<FriendReq> findReceivedFriendsList = friendReqRepository.findReceivedFriendRequestsByRecieverId(user.getId());
 
         return findReceivedFriendsList.stream()
                 .map(req -> FriendsInfoDto.builder()
-                        .id(req.getRequester().getId())
+                        .id(req.getId())
                         .name(req.getRequester().getName())
                         .nickname(req.getRequester().getNickname())
                         .email(req.getRequester().getEmail())
@@ -146,6 +145,7 @@ public class FriendsService {
                             .message(receiver.getNickname() + "님이 친구 요청을 수락했습니다.")
                             .build()
             );
+            //친구 요청 삭제
 
         }
         // 응답자가 차단 했을거니까 응답자만 차단 상태 요청자는 모름 | 친구 요청 보낸사람도 차단 됐는지 알게 할까?
