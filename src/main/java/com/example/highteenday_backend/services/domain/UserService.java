@@ -88,8 +88,7 @@ public class UserService {
 //            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("이미 가입된 유저입니다.");
 //        }
 
-        System.out.println("✅ registerUserDto.nickname = " + registerUserDto.nickname());
-        log.debug("✅ registerUserDto.nickname = " + registerUserDto.nickname());
+        log.info("회원가입 진행. nickname={}, email={}", registerUserDto.nickname(), registerUserDto.email());
         User user = User.builder()
                 .nickname(registerUserDto.nickname())
                 .name(registerUserDto.name())
@@ -107,7 +106,7 @@ public class UserService {
 
         Map<String, Object> attributes = new HashMap<>();
 
-        System.out.println("✅ 현재 제공자 : " + registerUserDto.provider());
+        log.debug("회원가입 제공자. provider={}", registerUserDto.provider());
 
         if (user.getProvider()==Provider.DEFAULT) {
             attributes = Collections.emptyMap();

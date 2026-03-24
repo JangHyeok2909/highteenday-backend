@@ -126,7 +126,7 @@ public class SchoolInfoService {
         File jsonFile = new File(SchoolFileConstants.SCHOOL_JSON_PATH);
 
         if (!jsonFile.exists()) {
-            System.out.println("❌ schools.json 파일이 존재하지 않습니다: " + SchoolFileConstants.SCHOOL_JSON_PATH);
+            log.error("schools.json 파일 미존재. path={}", SchoolFileConstants.SCHOOL_JSON_PATH);
             return;
         }
 

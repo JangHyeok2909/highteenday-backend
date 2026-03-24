@@ -4,12 +4,14 @@ import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.services.domain.PostService;
 import com.example.highteenday_backend.services.global.RedisService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Set;
 
+@Slf4j
 @RequiredArgsConstructor
 @Component
 public class ViewCountScheduler {
@@ -30,7 +32,7 @@ public class ViewCountScheduler {
 
             Post post = postService.findById(postId);
             post.addViewCount((int)increment);
-            System.out.println("syncViewsToDB, increment="+increment+", postId="+postId+", post="+post.getId());
+            log.debug("조회수 동기화 완료. postId={}, increment={}", postId, increment);
             redisService.delete(redisKey);
         }
     }

@@ -38,18 +38,12 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 //
         OAuth2AuthenticationToken authToken = (OAuth2AuthenticationToken) authentication;
         String registrationId = authToken.getAuthorizedClientRegistrationId();
-        System.out.println("registrationId = { " + registrationId + " }");
-
         CustomUserPrincipal customUserPrincipal = (CustomUserPrincipal) authToken.getPrincipal();
 
-        // user가 null인지 확인 후 출력
         if (customUserPrincipal.getUser() != null) {
-            System.out.println("CustomUserPrincipal name = " + customUserPrincipal.getUser().getName());
-            System.out.println("CustomUserPrincipal email = " + customUserPrincipal.getUser().getEmail());
-        } else if (customUserPrincipal.getAttribute("email") != null) {
-            // fallback: OAuth2UserInfo 기반일 경우
-            System.out.println("OAuth2 attribute name = " + customUserPrincipal.getAttribute("name"));
-            System.out.println("OAuth2 attribute email = " + customUserPrincipal.getAttribute("email"));
+            log.info("OAuth2 로그인 성공. provider={}, email={}", registrationId, customUserPrincipal.getUser().getEmail());
+        } else {
+            log.info("OAuth2 신규 사용자 진입. provider={}, email={}", registrationId, customUserPrincipal.getAttribute("email"));
         }
 
 
