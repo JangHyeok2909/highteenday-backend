@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.schedulers;
 
 import com.example.highteenday_backend.domain.posts.Post;
+import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.services.domain.PostService;
 import com.example.highteenday_backend.services.domain.redisService.ViewCountService;
 import lombok.RequiredArgsConstructor;
@@ -18,20 +19,27 @@ public class ViewCountScheduler {
     private final ViewCountService viewCountService;
     private final PostService postService;
 
-    @Transactional
     @Scheduled(fixedRate = 60000)
     public void syncViewsToDB() {
         Map<Long, Long> viewCounts = viewCountService.drainViewCounts();
         if (viewCounts.isEmpty()) return;
 
+        int synced = 0;
         for (Map.Entry<Long, Long> entry : viewCounts.entrySet()) {
-            Long postId = entry.getKey();
-            long increment = entry.getValue();
-
-            Post post = postService.findById(postId);
-            post.addViewCount((int) increment);
-            log.debug("조회수 동기화 완료. postId={}, increment={}", postId, increment);
+            try {
+                applyViewCount(entry.getKey(), entry.getValue());
+                synced++;
+            } catch (ResourceNotFoundException e) {
+                log.warn("조회수 동기화 스킵 - 삭제된 게시글. postId={}", entry.getKey());
+            }
         }
-        log.info("조회수 배치 동기화 완료. 대상 게시글={}건", viewCounts.size());
+        log.info("조회수 배치 동기화 완료. 성공={}건 / 전체={}건", synced, viewCounts.size());
+    }
+
+    @Transactional
+    public void applyViewCount(Long postId, long increment) {
+        Post post = postService.findById(postId);
+        post.addViewCount((int) increment);
+        log.debug("조회수 동기화 완료. postId={}, increment={}", postId, increment);
     }
 }
