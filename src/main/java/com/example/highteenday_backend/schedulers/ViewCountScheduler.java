@@ -2,39 +2,36 @@ package com.example.highteenday_backend.schedulers;
 
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.services.domain.PostService;
-import com.example.highteenday_backend.services.global.RedisService;
+import com.example.highteenday_backend.services.domain.redisService.ViewCountService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Set;
+import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
 @Component
 public class ViewCountScheduler {
-    private final RedisService redisService;
+    private final ViewCountService viewCountService;
     private final PostService postService;
 
     @Transactional
-    @Scheduled(fixedRate = 60000) //1분마다 db 반영
-    public void syncViewsToDB(){
-        Set<String> keys = redisService.getKeysByPattern("post:views:*");
-        if(keys == null) return;
-        for(String redisKey:keys){
-            String incremenValuetStr = redisService.getValue(redisKey).toString();
-            if(incremenValuetStr == null) continue;
-            String postIdStr = redisKey.replace("post:views:", "");
-            long postId = Long.parseLong(postIdStr);
-            long increment = Long.parseLong(incremenValuetStr);
+    @Scheduled(fixedRate = 60000)
+    public void syncViewsToDB() {
+        Map<Long, Long> viewCounts = viewCountService.drainViewCounts();
+        if (viewCounts.isEmpty()) return;
+
+        for (Map.Entry<Long, Long> entry : viewCounts.entrySet()) {
+            Long postId = entry.getKey();
+            long increment = entry.getValue();
 
             Post post = postService.findById(postId);
-            post.addViewCount((int)increment);
+            post.addViewCount((int) increment);
             log.debug("조회수 동기화 완료. postId={}, increment={}", postId, increment);
-            redisService.delete(redisKey);
         }
+        log.info("조회수 배치 동기화 완료. 대상 게시글={}건", viewCounts.size());
     }
-
 }
