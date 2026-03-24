@@ -12,6 +12,7 @@ import com.example.highteenday_backend.services.domain.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 
+@Slf4j
 @Tag(name = "댓글 API", description = "댓글 관련 조회,생성,수정,삭제 API")
 @RequiredArgsConstructor
 @RestController
@@ -38,8 +40,7 @@ public class CommentController {
             @PathVariable Long postId,
             @AuthenticationPrincipal CustomUserPrincipal userPrincipal){
 
-        System.out.println("get comments 진입");
-
+        log.debug("댓글 목록 조회. postId={}", postId);
         Post post = postService.findById(postId);
         List<Comment> comments = commentService.getCommentsByPost(post);
 

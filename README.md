@@ -25,55 +25,18 @@
 
 ### 시스템 아키텍처
 
-```
-┌──────────────────┐          ┌─────────────────────────────────────────────┐
-│  Client (React)  │─── JWT ──│  Spring Boot                               │
-│  localhost:3000   │  Cookie  │                                             │
-└──────────────────┘          │  ┌─────────────────────────────────────┐    │
-                              │  │ Security Filter Chain               │    │
-                              │  │ TokenExceptionFilter                │    │
-                              │  │ → TokenAuthenticationFilter         │    │
-                              │  │ → OAuth2 (Google/Kakao/Naver)       │    │
-                              │  └──────────────┬──────────────────────┘    │
-                              │                 ▼                           │
-                              │  ┌──────────────────────────────────┐      │
-                              │  │ Controller → Service → Repository│      │
-                              │  └──────┬───────────┬───────────┬───┘      │
-                              └─────────┼───────────┼───────────┼──────────┘
-                                        ▼           ▼           ▼
-                                   ┌────────┐  ┌───────┐  ┌────────┐
-                                   │ MySQL  │  │ Redis │  │ AWS S3 │
-                                   └────────┘  └───────┘  └────────┘
-```
+![시스템 아키텍처](docs/images/full-architecture.png)
 
 ### 배포 아키텍처
 
-```
-GitHub (push) → GitHub Actions → EC2
-                    │
-                    ├── 1. application.properties 백업
-                    ├── 2. 소스 전체 SCP 전송
-                    ├── 3. gradlew build -x test
-                    ├── 4. application.properties 복원
-                    └── 5. PM2로 jar 실행 (무중단)
-```
+
 
 - `application.properties`는 `.gitignore` 처리되어 서버에만 존재
 - PM2가 프로세스 관리 및 자동 재시작 담당
 
 ### 백엔드 레이어 아키텍처
 
-```
-Controller    요청 수신, DTO 변환, 인증(@AuthenticationPrincipal)
-    │
-Service       트랜잭션, 비즈니스 로직, 외부 서비스 호출
-    │
-Repository    JPA Repository + QueryDSL Custom Repository
-    │
-    ├── MySQL      영속 데이터 저장
-    ├── Redis      캐시, 조회수 버퍼, 핫게시글 ZSET
-    └── AWS S3     이미지 저장 (tmp → 확정 경로 복사)
-```
+![레이어 아키텍처](docs/images/layer-architecture.png)
 
 ---
 
@@ -83,54 +46,28 @@ Repository    JPA Repository + QueryDSL Custom Repository
 
 게시글, 댓글, 반응(좋아요/싫어요), 스크랩, 미디어를 포함하는 핵심 도메인입니다.
 
-```
-Board ──(1:N)──▶ Post ──(1:N)──▶ Comment ──(자기참조)──▶ 대댓글
-                   │                 │
-                   │                 ├──(1:N)──▶ CommentLike
-                   │                 └──(1:N)──▶ CommentDislike
-                   │
-                   ├──(1:N)──▶ PostLike
-                   ├──(1:N)──▶ PostDislike
-                   ├──(1:N)──▶ Scrap
-                   └──(1:N)──▶ Media (S3 URL)
-```
+![Post Domain ERD](docs/images/erd-post.png)
 
 - `Post`에 `likeCount`, `viewCount`, `commentCount`를 비정규화하여 목록 조회 시 JOIN 제거
 - `Post.nickname`을 비정규화하여 User 테이블 JOIN 없이 작성자 표시
+- `Comment`는 `parent_id` 자기참조로 대댓글 구현
 - `BaseEntity`의 `is_valid` 컬럼으로 Soft Delete 구현
 
 ### User / Friend Domain
 
 소셜 로그인 기반 사용자와 친구 관계를 관리합니다.
 
-```
-User ──(N:1)──▶ School
-  │
-  ├──(1:N)──▶ Post
-  ├──(1:N)──▶ Comment
-  ├──(1:N)──▶ Friend (양방향 친구 관계)
-  ├──(1:N)──▶ FriendReq (친구 요청/수락/거절)
-  ├──(1:N)──▶ Notification
-  ├──(1:1)──▶ Token (JWT Refresh Token)
-  └──(1:N)──▶ TimetableTemplate
-```
+![User Domain ERD](docs/images/erd-user.png)
 
 - OAuth2 Provider(Google, Kakao, Naver) + Role(GUEST, USER) 구분
+- `FriendRequests`의 `frq_status`로 요청/수락/거절 상태 관리
 - `Token` 엔티티로 Refresh Token 관리, Access Token은 HttpOnly Cookie로 전달
 
 ### School Domain
 
 학교, 급식, 시간표 관련 데이터를 관리합니다.
 
-```
-School ──(1:N)──▶ SchoolMeal (NEIS API 연동)
-  │
-  └──(1:N)──▶ SchoolSchedule
-
-TimetableTemplate ──(1:N)──▶ Subject
-       │                        │
-       └──(1:N)──▶ UserTimetable ◀──(N:1)──┘
-```
+![School Domain ERD](docs/images/erd-school.png)
 
 - 급식 데이터는 매월 말일 스케줄러로 NEIS API에서 자동 수집
 - 시간표는 사용자별 템플릿 → 과목 → 요일/교시 매핑 구조

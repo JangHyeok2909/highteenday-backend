@@ -2,8 +2,10 @@ package com.example.highteenday_backend.services.domain.redisService;
 
 import com.example.highteenday_backend.services.global.RedisService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class ViewCountService {
@@ -15,8 +17,8 @@ public class ViewCountService {
         String countKey="post:views:"+postId;
 
         Boolean isNew = redisService.set(dedupKey, "1", expireTime);
-        System.out.println("create redis ="+dedupKey);
-        if(isNew){
+        if(Boolean.TRUE.equals(isNew)){
+            log.debug("조회수 증가. postId={}, userId={}", postId, userId);
             redisService.increaseCount(countKey);
         }
 
