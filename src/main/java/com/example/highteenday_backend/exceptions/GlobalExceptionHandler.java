@@ -25,7 +25,7 @@ import java.util.NoSuchElementException;
 public class GlobalExceptionHandler {
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<?> handleCustomException(CustomException e){
-        System.out.println("❌ CustomException 발생: { " + e.getErrorCode().getMessage() + " }");
+        log.warn("CustomException 발생. code={}, message={}", e.getErrorCode().name(), e.getErrorCode().getMessage());
         return ResponseEntity.status(e.getErrorCode().getHttpStatus())
                 .body(Map.of(
                         "code", e.getErrorCode().name(),

@@ -7,12 +7,14 @@ import com.example.highteenday_backend.services.domain.PostService;
 import com.example.highteenday_backend.services.domain.ScrapService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "게시글 스크랩 API", description = "게시글 스크랩/스크랩 취소")
 @RequestMapping("/api/posts/{postId}/scraps")
+@Slf4j
 @RequiredArgsConstructor
 @RestController
 public class ScrapController {
@@ -23,10 +25,11 @@ public class ScrapController {
     public ResponseEntity<?> scrap(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                    @PathVariable Long postId
                                    ){
-        if(userPrincipal ==null) System.out.println("userPrincipal = null");
+        if(userPrincipal == null) {
+            log.warn("스크랩 요청 시 인증 정보 없음. postId={}", postId);
+        }
         User user = userPrincipal.getUser();
         Post post = postService.findById(postId);
-        System.out.println(post.getScrapCount());
         boolean scraped = scrapService.isScraped(post, user);
         String message;
         if(!scraped){

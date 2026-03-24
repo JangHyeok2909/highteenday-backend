@@ -116,15 +116,14 @@ public class UserController {
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody LoginRequestDto dto, HttpServletResponse response) {
 
-        System.out.println("/api/user/login/ 으로 진입 성공");
+        log.info("로그인 요청. email={}", dto.email());
         User user = userService.findByEmail(dto.email());
 
         if (!passwordEncoder.matches(dto.password(), user.getHashedPassword())) {
             throw new CustomException(ErrorCode.INVALID_PASSWORD);
-//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("비밀번호가 올바르지 않습니다.");
         }
 
-        System.out.println("유저 검증, 비밀번호 검증 완료");
+        log.debug("로그인 인증 완료. userId={}", user.getId());
 
         CustomUserPrincipal userDetails = new CustomUserPrincipal(user, Collections.emptyMap(), user.getRole().name());
         Authentication authentication = new UsernamePasswordAuthenticationToken(
