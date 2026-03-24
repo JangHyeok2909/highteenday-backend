@@ -20,7 +20,6 @@ public class ScrapService {
 
     public List<Scrap> getRecentScrapsByUser(User user){
         List<Scrap> scraps = scrapRepository.findByUser(user);
-        if(scraps.isEmpty()) throw new ResourceNotFoundException("user scrap dose not exists. userId="+user.getId());
         scraps.sort(Comparator.comparing(Scrap::getCreated).reversed());
         return scraps;
     }
