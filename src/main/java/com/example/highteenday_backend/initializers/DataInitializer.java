@@ -15,6 +15,7 @@ import com.example.highteenday_backend.services.TimetableTemplateService;
 import com.example.highteenday_backend.services.UserTimetableService;
 import com.example.highteenday_backend.services.domain.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class DataInitializer {
@@ -72,7 +74,7 @@ public class DataInitializer {
                 user.setSchool(schoolService.findById((long)i));
                 user.setPhone(phone);
                 userRepository.save(user);
-                System.out.println("초기 테스트 유저 설정, user email: " + email);
+                log.info("테스트 유저 생성. email={}", email);
             }
         }
     }
@@ -89,7 +91,7 @@ public class DataInitializer {
                     .build();
             postService.createPost(user,requestPostDto);
         }
-        System.out.println("테스트 게시글 생성완료");
+        log.info("테스트 게시글 초기화 완료. count={}", postCount);
     }
     public void commentDataInit(User user){
         int commentCount = 11;
@@ -100,7 +102,7 @@ public class DataInitializer {
                     .build();
             commentService.createComment(postService.findById((long)i),user,dto);
         }
-        System.out.println("테스트 댓글 생성완료");
+        log.info("테스트 댓글 초기화 완료. count={}", commentCount);
     }
     public void likeAndDislikeDataInit(User user){
         int likeCount = 11;
@@ -108,7 +110,7 @@ public class DataInitializer {
             if(i%2==0) postReactionService.likeReact(postService.findById((long)i),user);
             else postReactionService.dislikeReact(postService.findById((long)i),user);
         }
-        System.out.println("테스트 좋아요/싫어요 생성완료");
+        log.info("테스트 좋아요/싫어요 초기화 완료. count={}", likeCount);
     }
 
     public void hotPostLikeDataInit(){
@@ -118,7 +120,7 @@ public class DataInitializer {
             User user = userService.findByEmail("test" + i + "@gmail.com");
             postReactionService.likeReact(post,user);
         }
-        System.out.println("postId=1인 게시글 좋아요 10개 생성.");
+        log.info("핫게시글 좋아요 초기화 완료. postId=1, count={}", likeCount);
     }
 
     public void scrapDataInit(User user){
@@ -126,7 +128,7 @@ public class DataInitializer {
         for (int i = 1; i <= scrapCount; i++) {
             scrapService.createScrap(postService.findById((long) i), user);
         }
-        System.out.println("테스트 스크랩 생성완료");
+        log.info("테스트 스크랩 초기화 완료. count={}", scrapCount);
     }
 
     public void dafultTimetableDatasInit(User user){
@@ -158,7 +160,7 @@ public class DataInitializer {
                 timetableService.save(timetable);
             }
         }
-        System.out.println("기본 시간표 생성완료");
+        log.info("기본 시간표 초기화 완료. userId={}", user.getId());
 
     }
 }

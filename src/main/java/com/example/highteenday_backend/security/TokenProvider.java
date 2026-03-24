@@ -48,7 +48,7 @@ public class TokenProvider {
     }
     // refreshToken 발급
     public void generateRefreshToken(Authentication authentication, String accessToken){
-        System.out.println("Authorities: {}" + authentication.getAuthorities().stream()
+        log.debug("리프레시 토큰 발급. authorities={}", authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList()));
         CustomUserPrincipal principal = (CustomUserPrincipal) authentication.getPrincipal();

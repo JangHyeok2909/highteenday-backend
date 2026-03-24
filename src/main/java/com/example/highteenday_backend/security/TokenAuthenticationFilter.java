@@ -30,12 +30,9 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain)
             throws ServletException, IOException {
-        System.out.println("================================================ ✅ TokenAuthenticationFilter 진입 ================================================");
-        String token = extractToken(request); // 쿠키에서 추출
+        String token = extractToken(request);
         String uri = request.getRequestURI();
-
-        System.out.println("token=" + token);
-        System.out.println("uri=" + uri);
+        log.debug("인증 필터 진입. uri={}, tokenPresent={}", uri, token != null);
 
         if(token == null){
             if(isPublicUri(uri)){
@@ -49,20 +46,11 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
         if (token != null) {
             try {
                 Authentication authentication = tokenProvider.getAuthentication(token);
-
-                System.out.println("✅ JWT 인증 성공: " + authentication.getName());
-
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-
-                // 바로 직후 인증 상태 확인
-                Authentication contextAuth = SecurityContextHolder.getContext().getAuthentication();
-                System.out.println("🧩 최종 인증 상태: " + contextAuth);
-                System.out.println("🧩 인증 여부: " + contextAuth.isAuthenticated());
-                System.out.println("🧩 권한: " + contextAuth.getAuthorities());
+                log.debug("JWT 인증 성공. user={}, authorities={}", authentication.getName(), authentication.getAuthorities());
 
             } catch (RuntimeException e) {
-                // 예외 발생 시 여기서 안 막고 다음 필터(TokenExceptionFilter)로 넘겨도 됨
-                System.out.println("❌ JWT 인증 실패: " + e.getMessage());
+                log.warn("JWT 인증 실패. uri={}, reason={}", uri, e.getMessage());
             }
         }
 
@@ -71,11 +59,8 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
 
     private String extractToken(HttpServletRequest request) {
         // 쿠키에 먼저 JWT 토큰이 있는지 확인
-        System.out.println("request.getCookies() = " + request.getCookies() );
         if(request.getCookies() != null){
             for (Cookie cookie : request.getCookies()) {
-                System.out.println("cookie.getName() = " + cookie.getName() );
-                System.out.println("cookie.getValue() = " + cookie.getValue() );
                 if (cookie.getName().equals("accessToken") && cookie.getValue() != null && !cookie.getValue().isEmpty()) {
                     return cookie.getValue();
                 }

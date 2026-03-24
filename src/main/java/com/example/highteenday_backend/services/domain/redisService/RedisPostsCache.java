@@ -47,6 +47,7 @@ public class RedisPostsCache implements PostPrevCache{
             for(PostPreviewDto p : postPreviewDtos){
                 //board 캐싱
                 addPostToBoard(boardId,p.getId());
+
                 cachePostPrev(p);
             }
             ids = boardTemplate.opsForList().range(idKey, start, end);
@@ -111,6 +112,7 @@ public class RedisPostsCache implements PostPrevCache{
     public void addPostToBoard(Long boardId, Long postId) {
         String key = createBoardKey(boardId);
         boardTemplate.opsForList().rightPush(key,postId);
+        boardTemplate.expire(key,BOARD_TTL);
         boardTemplate.opsForList().trim(key,0,MAX_SIZE-1);
     }
 
