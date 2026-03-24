@@ -99,7 +99,7 @@ public class RedisPostsCache implements PostPrevCache{
         }
 
 
-        return result;
+        return result.stream().filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     @Override

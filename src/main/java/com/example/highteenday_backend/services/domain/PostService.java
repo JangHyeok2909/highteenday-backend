@@ -55,20 +55,11 @@ public class PostService {
         Sort sort = Sort.by(Sort.Direction.DESC, sortType.getField());
 
         Pageable pageable = PageRequest.of(page, size, sort);
-        Page<Post> postPages = postRepository.findByUser(user, pageable);
-        if(postPages.isEmpty()) {
-            throw new ResourceNotFoundException(String.format("post is empty. userId=%d, page=%d, size=%d",user.getId(),page,size));
-        }
-        return postPages;
+        return postRepository.findByUser(user, pageable);
     }
 
     public List<PostPreviewDto> getPagedPosts(PostListingDto dto){
-        List<PostPreviewDto> previewDtos = postRepository.findByBoard(dto);
-
-        if(previewDtos.isEmpty()) {
-            throw new ResourceNotFoundException(String.format("post is empty. boardId=%d, page=%d, size=%d",dto.getBoardId(),dto.getPage(),dto.getSize()));
-        }
-        return previewDtos;
+        return postRepository.findByBoard(dto);
     }
 
 //    public PageResponse<PostPreviewDto> getPagedPosts(List<PostPreviewDto> dtos){
