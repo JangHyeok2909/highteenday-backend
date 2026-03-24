@@ -43,11 +43,7 @@ public class CommentService {
         Sort sort = Sort.by(Sort.Direction.DESC, sortType.getField());
 
         Pageable pageable = PageRequest.of(page, size, sort);
-        Page<Comment> commentPages = commentRepository.findByUser(user, pageable);
-        if(commentPages.isEmpty()) {
-            throw new ResourceNotFoundException(String.format("comment is empty. userId=%d, page=%d, size=%d",user.getId(),page,size));
-        }
-        return commentPages;
+        return commentRepository.findByUser(user, pageable);
     }
 
     @Transactional
