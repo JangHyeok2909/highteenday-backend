@@ -27,4 +27,12 @@ public class PostDislike extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "PST_id", nullable = false, foreignKey = @ForeignKey(name = "fk_posts_dislikes_pst"))
     private Post post;
+
+    public void activeDislike() {
+        this.isValid = true;
+    }
+
+    public void cancelDislike() {
+        this.isValid = false;
+    }
 }
