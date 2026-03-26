@@ -230,8 +230,7 @@ src/main/java/com/example/highteenday_backend/
 │   │   └── ChatRoom.java, ChatRoomRepository.java
 │   ├── comments/
 │   │   ├── Comment.java, CommentRepository.java
-│   │   ├── CommentDislike.java, CommentDislikeRepository.java
-│   │   └── CommentLike.java, CommentLikeRepository.java
+│   │   ├── CommentReaction.java, CommentReactionRepository.java
 │   ├── friends/
 │   │   ├── Friend.java, FriendRepository.java
 │   │   └── FriendReq.java, FriendReqRepository.java
@@ -246,8 +245,7 @@ src/main/java/com/example/highteenday_backend/
 │   │   └── NotificationRepository.java
 │   ├── posts/
 │   │   ├── Post.java, PostRepository.java
-│   │   ├── PostDislike.java, PostDislikeRepository.java
-│   │   ├── PostLike.java, PostLikeRepository.java
+│   │   ├── PostReaction.java, PostReactionRepository.java, PostReactionKind.java
 │   │   └── queryDsl/
 │   │       ├── PostRepositoryCustom.java
 │   │       └── PostRepositoryCustomImpl.java
@@ -325,6 +323,7 @@ src/main/java/com/example/highteenday_backend/
 │   ├── domain/                            # 도메인 서비스
 │   │   ├── BoardService.java
 │   │   ├── CommentService.java
+│   │   ├── CommentReactionService.java
 │   │   ├── FriendsService.java
 │   │   ├── HotPostService.java
 │   │   ├── MediaService.java
@@ -362,8 +361,8 @@ src/main/java/com/example/highteenday_backend/
 | Post | posts | 게시글 (제목, 본문, 조회수/좋아요/댓글수 등) |
 | Comment | comments | 댓글 (게시글, 작성자, 부모댓글) |
 | Scrap | scraps | 스크랩 (유저-게시글) |
-| PostLike / PostDislike | posts_likes, posts_dislikes | 게시글 반응 |
-| CommentLike / CommentDislike | comments_likes, comments_dislikes | 댓글 반응 |
+| PostReaction | posts_reactions | 게시글 반응 (LIKE/DISLIKE, 유저당 한 행) |
+| CommentReaction | comments_reactions | 댓글 반응 (LIKE/DISLIKE, 유저당 한 행) |
 | Media | medias | 미디어 (이미지 URL, S3) |
 | Friend / FriendReq | friends, friends_requests | 친구, 친구 요청 |
 | School / SchoolMeal | schools, schools_meals | 학교, 급식 |

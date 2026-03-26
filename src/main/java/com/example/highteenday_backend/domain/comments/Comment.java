@@ -76,6 +76,15 @@ public class Comment extends BaseEntity {
     public void minusDislikeCount(){
         this.dislikeCount--;
     }
+
+    public void updateLikeCount(int likeCount) {
+        this.likeCount = likeCount;
+    }
+
+    public void updateDislikeCount(int dislikeCount) {
+        this.dislikeCount = dislikeCount;
+    }
+
     public void deleteImage(){
 
     }
