@@ -1,9 +1,7 @@
 package com.example.highteenday_backend.domain.notification;
 
 import com.example.highteenday_backend.domain.base.BaseEntity;
-import com.example.highteenday_backend.domain.comments.CommentLike;
 import com.example.highteenday_backend.domain.friends.FriendReq;
-import com.example.highteenday_backend.domain.posts.PostLike;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.enums.EntityType;
 import com.example.highteenday_backend.enums.NotificationCategory;
