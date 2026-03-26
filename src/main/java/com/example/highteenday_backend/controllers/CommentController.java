@@ -32,7 +32,7 @@ import java.util.Map;
 public class CommentController {
     private final PostService postService;
     private final CommentService commentService;
-    private final CommentReactService commentReactService;
+    private final CommentReactionService commentReactionService;
 
     @Operation(summary = "댓글 리스트 조회",description = "postId에 해당하는 게시글의 댓글 리스트 조회")
     @GetMapping()
@@ -92,7 +92,7 @@ public class CommentController {
 
                 User user = userPrincipal.getUser();
 
-                LikeStateDto likeDto = commentReactService.getLikeSatateDto(c, user);
+                LikeStateDto likeDto = commentReactionService.getLikeSatateDto(c, user);
 
                 dto.setLiked(likeDto.isLiked());
                 dto.setDisliked(likeDto.isDisliked());
