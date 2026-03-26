@@ -6,6 +6,7 @@ import com.example.highteenday_backend.domain.notification.NotificationRepositor
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.enums.NotificationCategory;
 import com.example.highteenday_backend.eventEntities.events.CommentCreatedEvent;
+import com.example.highteenday_backend.services.domain.HotPostService;
 import com.example.highteenday_backend.services.domain.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 public class CommentEventHandler {
     private final NotificationRepository notificationRepository;
+    private final HotPostService hotPostService;
     private final UserService userService;
     @TransactionalEventListener
     public void handleCommentCreatedEvent(CommentCreatedEvent event){
@@ -31,5 +33,8 @@ public class CommentEventHandler {
                         .contentMessage(event.getContent())
                         .build()
         );
+        //핫스코어 반영
+        hotPostService.updateDailyScore(event.getPostId());
+
     }
 }

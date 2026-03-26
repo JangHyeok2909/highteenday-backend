@@ -57,6 +57,8 @@
 
 소셜 로그인 기반 사용자와 친구 관계를 관리합니다.
 
+소셜 로그인 기반 사용자와 친구 관계를 관리합니다.
+
 ![User Domain ERD](docs/images/erd-user.png)
 
 - OAuth2 Provider(Google, Kakao, Naver) + Role(GUEST, USER) 구분
