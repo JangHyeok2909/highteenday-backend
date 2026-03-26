@@ -35,10 +35,14 @@ public class CommentService {
         return commentRepository.findById(commentId).
                 orElseThrow(()->new ResourceNotFoundException("does not exists Comment, commentId="+commentId));
     }
+
+
     public List<Comment> getCommentsByPost(Post post){
         List<Comment> comments = commentRepository.findByPost(post);
         return comments;
     }
+
+
     public Page<Comment> getCommentsByUser(User user, int page, int size, SortType sortType){
         Sort sort = Sort.by(Sort.Direction.DESC, sortType.getField());
 
