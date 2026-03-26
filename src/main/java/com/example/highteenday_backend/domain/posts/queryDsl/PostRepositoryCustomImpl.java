@@ -12,17 +12,17 @@ import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Projections;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 
 import java.util.List;
 import java.util.Optional;
 
+
+@RequiredArgsConstructor
 public class PostRepositoryCustomImpl implements PostRepositoryCustom {
     private final JPAQueryFactory queryFactory;
 
-    public PostRepositoryCustomImpl(JPAQueryFactory queryFactory) {
-        this.queryFactory = queryFactory;
-    }
 
     @Override
     public Page<Post> searchKeywordsAll(String keywords, PostSearchType searchType, Pageable pageable) {

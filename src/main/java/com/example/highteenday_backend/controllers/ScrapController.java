@@ -34,13 +34,12 @@ public class ScrapController {
         String message;
         if(!scraped){
             scrapService.createScrap(post,user);
-            post.plusScrapCount();
             message ="스크랩 완료.";
         } else{
             scrapService.cancelScrap(post,user);
-            post.minusScrapCount();
             message ="스크랩 취소.";
         }
+        post.updateScrapCount(Math.toIntExact(scrapService.countValidByPost(post)));
         return ResponseEntity.ok(message);
     }
 }

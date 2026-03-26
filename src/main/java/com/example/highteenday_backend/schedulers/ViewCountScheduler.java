@@ -2,6 +2,7 @@ package com.example.highteenday_backend.schedulers;
 
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
+import com.example.highteenday_backend.services.domain.HotPostService;
 import com.example.highteenday_backend.services.domain.PostService;
 import com.example.highteenday_backend.services.domain.redisService.ViewCountService;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import java.util.Map;
 @Component
 public class ViewCountScheduler {
     private final ViewCountService viewCountService;
+    private final HotPostService hotPostService;
     private final PostService postService;
 
     @Scheduled(fixedRate = 60000)
@@ -29,6 +31,8 @@ public class ViewCountScheduler {
             try {
                 applyViewCount(entry.getKey(), entry.getValue());
                 synced++;
+                //핫스코어 갱신
+                hotPostService.updateDailyScore(entry.getKey());
             } catch (ResourceNotFoundException e) {
                 log.warn("조회수 동기화 스킵 - 삭제된 게시글. postId={}", entry.getKey());
             }

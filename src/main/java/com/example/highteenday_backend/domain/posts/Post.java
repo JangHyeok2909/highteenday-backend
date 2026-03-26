@@ -79,6 +79,9 @@ public class Post extends BaseEntity {
     public void updateLikeCount(int likeCount){
         this.likeCount = likeCount;
     }
+    public void updateDislike(int dislikeCount){
+        this.dislikeCount = dislikeCount;
+    }
     public void updateTitle(String title){
         this.title = title;
     }
@@ -119,8 +122,8 @@ public class Post extends BaseEntity {
     public void minusScrapCount(){
         this.scrapCount--;
     }
-    public void updateScrapCount(){
-        this.scrapCount+=scrapCount;
+    public void updateScrapCount(int scrapCount){
+        this.scrapCount = scrapCount;
     }
     public void minusScrapCount(int scrapCount){
         this.scrapCount-=scrapCount;

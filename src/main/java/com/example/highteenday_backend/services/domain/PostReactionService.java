@@ -20,19 +20,15 @@ public class PostReactionService {
         //좋아요 누른상태
         if(liked && !disliked){
             postLikeService.cancelLike(post, user);
-            post.minusLikeCount();
         }
         //싫어요 누른상태
         else if (!liked && disliked) {
             postDislikeService.cancelDislike(post, user);
             postLikeService.createLike(post, user);
-            post.plusLikeCount();
-            post.minusDislikeCount();
         }
         //아무것도 안 누른 상태
         else{
             postLikeService.createLike(post, user);
-            post.plusLikeCount();
         }
     }
     @Transactional
@@ -43,18 +39,14 @@ public class PostReactionService {
         if(liked && !disliked){
             postLikeService.cancelLike(post, user);
             postDislikeService.createDislike(post, user);
-            post.minusLikeCount();
-            post.plusDislikeCount();
         }
         //싫어요 누른상태
         else if (!liked && disliked) {
             postDislikeService.cancelDislike(post, user);
-            post.minusDislikeCount();
         }
         //아무것도 안 누른 상태
         else{
             postDislikeService.createDislike(post, user);
-            post.plusDislikeCount();
         }
     }
     public LikeStateDto getLikeSatateDto(Post post, User user){

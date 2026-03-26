@@ -17,23 +17,20 @@ public abstract class BaseEntity {
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime created;
+    protected LocalDateTime created;
 
     @LastModifiedDate
     @Column(name = "UPT_Date")
-    private LocalDateTime updatedDate;
+    protected LocalDateTime updatedDate;
 
     @Column(name = "UPT_id")
-    private Long updatedBy;
+    protected Long updatedBy;
 
     @Column(name = "is_valid", nullable = false, columnDefinition = "BOOLEAN DEFAULT true")
-    private Boolean isValid = true;
+    protected Boolean isValid = true;
 
     public void delete(){
         this.isValid = false;
-    }
-    public void restore(){
-        this.isValid = true;
     }
     public void setUpdatedBy(Long userId){
         this.updatedBy=userId;
