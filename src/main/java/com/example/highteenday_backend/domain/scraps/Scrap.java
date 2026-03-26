@@ -31,4 +31,11 @@ public class Scrap extends BaseEntity {
     @JoinColumn(name = "PST_id", nullable = false, foreignKey = @ForeignKey(name = "fk_scraps_pst"))
     private Post post;
 
+    public void activeScrap() {
+        this.isValid = true;
+    }
+
+    public void cancelScrap() {
+        this.isValid = false;
+    }
 }

@@ -29,4 +29,11 @@ public class PostLike extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "PST_id", nullable = false, foreignKey = @ForeignKey(name = "fk_posts_likes_pst"))
     private Post post;
+
+    public void activeLike(){
+        this.isValid = true;
+    }
+    public void cancelLike(){
+        this.isValid = false;
+    }
 }
