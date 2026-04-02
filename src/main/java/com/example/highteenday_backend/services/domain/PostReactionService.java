@@ -27,17 +27,18 @@ public class PostReactionService {
         return postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.DISLIKE);
     }
 
+    /*
+    * valid의 상태가 false의 경우, reactionKind 무의미
+    *
+    * */
     @Transactional
     public void likeReact(Post post, User user) {
         boolean liked = isLikedByUser(post, user);
         boolean disliked = isDislikedByUser(post, user);
-        if (liked && !disliked) {
-            cancelLikeInternal(post, user);
-        } else if (!liked && disliked) {
-            cancelDislikeInternal(post, user);
-            createLikeInternal(post, user);
-        } else {
-            createLikeInternal(post, user);
+        if (liked && !disliked) {   //좋아요 상태 -> valid = false 전환
+            cancelState(post, user);
+        } else { //싫어요 상태 or 상태없음 -> 좋아요 전환(생성)
+            createReaction(post, user, PostReactionKind.LIKE);
         }
     }
 
@@ -45,13 +46,10 @@ public class PostReactionService {
     public void dislikeReact(Post post, User user) {
         boolean liked = isLikedByUser(post, user);
         boolean disliked = isDislikedByUser(post, user);
-        if (liked && !disliked) {
-            cancelLikeInternal(post, user);
-            createDislikeInternal(post, user);
-        } else if (!liked && disliked) {
-            cancelDislikeInternal(post, user);
-        } else {
-            createDislikeInternal(post, user);
+        if (!liked && disliked) { //싫어요 상태 -> valid = false 전환
+            cancelState(post, user);
+        } else { //좋아요 상태 or 상태없음 -> 싫어요 전환(생성)
+            createReaction(post, user,PostReactionKind.DISLIKE);
         }
     }
 
@@ -66,76 +64,32 @@ public class PostReactionService {
                 .build();
     }
 
-    private void cancelLikeInternal(Post post, User user) {
+    private void cancelState(Post post, User user) {
         postReactionRepository.findByPostAndUser(post, user)
-                .ifPresent(r -> {
-                    if (r.getKind() == PostReactionKind.LIKE && Boolean.TRUE.equals(r.getIsValid())) {
-                        r.cancel();
-                    }
-                });
+                .ifPresent(r -> r.cancel());
         syncCounts(post);
     }
 
-    private void cancelDislikeInternal(Post post, User user) {
-        postReactionRepository.findByPostAndUser(post, user)
-                .ifPresent(r -> {
-                    if (r.getKind() == PostReactionKind.DISLIKE && Boolean.TRUE.equals(r.getIsValid())) {
-                        r.cancel();
-                    }
-                });
+    private void createReaction(Post post, User user, PostReactionKind kind) {
+        Optional<PostReaction> opt = postReactionRepository.findByPostAndUser(post, user);
+        if (opt.isEmpty()) { //존재하지 않으면 insert
+            postReactionRepository.save(PostReaction.builder()
+                    .post(post)
+                    .user(user)
+                    .kind(kind)
+                    .build());
+
+            //좋아요 생성시 핫스코어 업데이트
+            hotPostService.updateDailyScore(post.getId());
+            syncCounts(post);
+            return;
+        }
+        //존재할경우 like 적용 후 핫스코어 업데이트
+        PostReaction r = opt.get();
+        r.applyState(kind);
+        hotPostService.updateDailyScore(post.getId());
         syncCounts(post);
-    }
 
-    private void createLikeInternal(Post post, User user) {
-        Optional<PostReaction> opt = postReactionRepository.findByPostAndUser(post, user);
-        if (opt.isEmpty()) {
-            postReactionRepository.save(PostReaction.builder()
-                    .post(post)
-                    .user(user)
-                    .kind(PostReactionKind.LIKE)
-                    .build());
-            hotPostService.updateDailyScore(post.getId());
-            syncCounts(post);
-            return;
-        }
-        PostReaction r = opt.get();
-        if (!Boolean.TRUE.equals(r.getIsValid())) {
-            r.applyActive(PostReactionKind.LIKE);
-            hotPostService.updateDailyScore(post.getId());
-            syncCounts(post);
-            return;
-        }
-        if (r.getKind() == PostReactionKind.DISLIKE) {
-            r.applyActive(PostReactionKind.LIKE);
-            hotPostService.updateDailyScore(post.getId());
-            syncCounts(post);
-        }
-    }
-
-    private void createDislikeInternal(Post post, User user) {
-        Optional<PostReaction> opt = postReactionRepository.findByPostAndUser(post, user);
-        if (opt.isEmpty()) {
-            postReactionRepository.save(PostReaction.builder()
-                    .post(post)
-                    .user(user)
-                    .kind(PostReactionKind.DISLIKE)
-                    .build());
-            hotPostService.updateDailyScore(post.getId());
-            syncCounts(post);
-            return;
-        }
-        PostReaction r = opt.get();
-        if (!Boolean.TRUE.equals(r.getIsValid())) {
-            r.applyActive(PostReactionKind.DISLIKE);
-            hotPostService.updateDailyScore(post.getId());
-            syncCounts(post);
-            return;
-        }
-        if (r.getKind() == PostReactionKind.LIKE) {
-            r.applyActive(PostReactionKind.DISLIKE);
-            hotPostService.updateDailyScore(post.getId());
-            syncCounts(post);
-        }
     }
 
     private void syncCounts(Post post) {
