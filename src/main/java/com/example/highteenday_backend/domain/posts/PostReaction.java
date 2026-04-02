@@ -39,8 +39,7 @@ public class PostReaction extends BaseEntity {
     @Column(name = "PST_RCT_kind", nullable = false, length = 16)
     private PostReactionKind kind;
 
-    /** 활성 반응으로 설정 (종류 + is_valid = true) */
-    public void applyActive(PostReactionKind kind) {
+    public void applyState(PostReactionKind kind) {
         this.kind = kind;
         this.isValid = true;
     }
