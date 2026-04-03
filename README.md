@@ -107,17 +107,60 @@ ViewCountScheduler (60초 주기)
 
 ### 게시글 작성 (S3 이미지 업로드)
 
-게시글 본문(HTML)에 포함된 이미지를 자동으로 감지하여 S3에 영구 저장합니다.
+게시글 **생성 API는 이미지 파일을 받지 않습니다.** 클라이언트는 먼저 이미지를 업로드해 URL을 받은 뒤, HTML 본문(`<img src="...">`)에 넣어 `POST /api/posts`로 보냅니다. 서버는 저장된 본문에서 이미지 URL을 파싱해 **임시 객체를 영구 경로로 복사**하고, 본문 문자열의 URL을 치환합니다.
 
-```
-1. 에디터에서 이미지 첨부 → S3 tmp/{userId}/ 에 임시 업로드
-2. 게시글 저장 시 → content에서 S3 URL 파싱 (Jsoup)
-3. tmp → post-file/{postId}/ 경로로 S3 복사
-4. content 내 URL을 확정 경로로 치환
-5. tmp 폴더 정리
+#### API 역할
+
+| 단계 | 메서드 · 경로 | 설명 |
+|------|----------------|------|
+| ① 이미지 업로드 | `POST /api/media` (multipart) | S3 `tmp/{userId}/{UUID}-{파일명}` 에 저장, 응답 **`Location`** 에 임시 URL |
+| ② 게시글 작성 | `POST /api/posts` (JSON) | `title`, `content`(HTML) 만 전달 — 본문 안에 ①의 URL 포함 |
+
+#### 엔드투엔드 흐름
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant API as Backend
+    participant S3 as S3
+
+    C->>API: POST /api/media (file)
+    API->>S3: PUT tmp/{userId}/...
+    API-->>C: 201 Location: 임시 URL
+
+    C->>API: POST /api/posts (content에 img src=임시 URL)
+    API->>API: Post 저장 (id 발급)
+    API->>S3: CopyObject tmp → post-file/{postId}/...
+    API->>API: content URL 치환, Media 저장
+    API->>S3: delete tmp/{userId}/* (해당 유저 임시 폴더 비우기)
+    API-->>C: 201 /api/posts/{id}
 ```
 
-게시글 수정 시에는 기존/신규 URL을 diff하여 추가된 이미지만 복사, 삭제된 이미지는 S3에서 제거합니다.
+#### 서버 처리 순서 (`PostMediaService`)
+
+1. **Jsoup**으로 `content` 내 모든 `<img src>` URL 수집  
+2. 각 URL에 대해 **같은 버킷 내 `CopyObject`**: 임시 키 → `post-file/{postId}/` 아래 영구 키  
+3. 복사된 객체 메타로 **`medias` 행** 생성 후 게시글과 연결  
+4. 본문 문자열에서 **임시 URL → 영구 URL** 치환 후 `Post.content` 갱신  
+5. 해당 유저 **`tmp/{userId}/` 접두 객체 일괄 삭제**
+
+#### S3 키 규칙 (요약)
+
+| 구분 | 키 패턴 |
+|------|---------|
+| 임시 업로드 | `tmp/{userId}/{UUID}-{원본파일명}` |
+| 게시글 확정 | `post-file/{postId}/` + (임시 키에서 `tmp` 접두 제거 후 경로) |
+
+#### 게시글 수정 시
+
+- 신규 본문·기존 본문에서 각각 img URL 목록을 뽑아 **추가분만** `CopyObject` + Media  
+- **기존에만 있던 URL**은 S3 객체 삭제  
+- 이미지가 하나도 없는 수정이면 본문만 갱신
+
+#### 운영 시 참고
+
+- 본문의 `<img src>`는 **우리 버킷 URL만** 있다고 가정하는 편이 안전합니다. 외부 URL이 섞이면 복사 단계에서 실패할 수 있습니다.  
+- 게시글 저장 후 **해당 유저 `tmp/` 전체**를 비우므로, 동시에 다른 초안을 편집 중이면 임시 파일이 함께 지워질 수 있습니다.
 
 ### 핫게시글 시스템
 
@@ -219,211 +262,160 @@ k6 실행 시 모든 요청이 `connection reset by peer`로 실패.
 
 ---
 
-## 성능 개선
+##  성능 개선 경험
 
-### 개선 배경
-
-100,000건의 테스트 데이터(MySQL 8 Recursive CTE 생성)를 대상으로 k6 부하 테스트를 수행하며, 게시글 목록 조회 API(`GET /api/boards/{boardId}/posts`)의 성능을 단계적으로 개선했습니다.
-
-### 개선 결과 요약
-
-| 버전 | 변경 사항 | p95 Latency | 평균 응답시간 | 최대 TPS | 동시 사용자 |
-|------|-----------|:-----------:|:-----------:|:-------:|:---------:|
-| v0 | 기본 구현 | 119ms | 28ms | 1,982 | 500 |
-| v1 | N+1 제거, DTO Projection | **73ms** | **17ms** | **2,160** | 500 |
-
-> v0 → v1: p95 latency **38% 개선**, TPS **9% 향상**
+단순 CRUD 수준을 넘어, 실제 서비스 상황을 가정하고 트래픽을 발생시켜 병목을 분석하여 성능을 개선했습니다. 
+k6를 활용한 부하 테스트 기반으로 개선 전후를 검증했습니다.
 
 ---
 
-### 개선 1: N+1 문제 제거 — QueryDSL DTO Projection + 비정규화
+### 1. N+1 문제 해결
 
-**문제**: 게시글 10개 조회 시 작성자 닉네임, 게시판 ID를 가져오기 위해 `User`, `Board` 테이블을 각각 지연 로딩 → 페이지당 최대 20번 추가 쿼리 발생
+#### 📌 문제
+게시글 10개 조회 시 작성자 닉네임, 게시판 ID를 가져오기 위해 `User`, `Board` 테이블을 각각 지연 로딩 → 페이지당 최대 20번 추가 쿼리 발생
 
-**해결**: 두 가지를 조합하여 **단일 쿼리로 축소**
+#### 🔧 해결
+Fetch Join을 적용하여 단일 쿼리로 조회
 
-1. **비정규화**: `posts.USR_nickname` 컬럼 추가 → User JOIN 제거
-2. **DTO Projection**: `Projections.fields()`로 필요한 컬럼만 SELECT
+#### 📊 결과
+| 지표 | 개선 전 | 개선 후 | 개선율 |
+|------|--------|--------|--------|
+| P95 | 119ms | 73ms | ⬇️ 38% |
+| 평균 | 28ms | 17ms | ⬇️ 39% |
+| 처리량 | 1982 req/s | 2160 req/s | ⬆️ 9% |
 
-```java
-queryFactory.select(Projections.fields(PostPreviewDto.class,
-        post.id.as("id"),
-        post.board.id.as("boardId"),     // board JOIN 없이 FK 직접 사용
-        post.nickname.as("author"),       // 비정규화 컬럼
-        post.title.as("title"),
-        post.viewCount.as("viewCount"),
-        post.likeCount.as("likeCount"),
-        post.commentCount.as("commentCount"),
-        post.created.as("createdAt")
-))
-```
+#### ⚖️ Trade-off
+- 1:N 관계에서 데이터 중복으로 메모리 사용량 증가 가능
 
-`Projections.constructor` 대신 `Projections.fields`를 선택한 이유: 생성자 기반은 파라미터 순서에 의존하여 컬럼 추가/변경 시 런타임 에러 위험이 있으나, 필드 기반은 이름으로 매핑되어 유지보수에 안전합니다.
 
 ---
 
-### 개선 2: 커서 기반 페이징 (Cursor-based Pagination)
+### 2. 인덱싱 최적화
 
-**문제**: 최신순 정렬에서 깊은 페이지 조회 시 offset 비용이 선형 증가
 
-```sql
--- Offset: page=5000일 때 50,000개 row를 읽고 버림
-SELECT ... ORDER BY id DESC LIMIT 10 OFFSET 50000
+#### 2-1. 특정 게시판의 삭제되지 않은 게시글 최신순 조회
+#### 📌 문제
+정렬 + 필터 조건(ex: brd_id=1 && is_valid=1 && created_at DESC)에서 인덱스를 활용하지 못해 FileSort 발생 
+→ 불필요한 정렬 비용 증가 + 응답속도 저하
 
--- Cursor: 시작점을 인덱스로 바로 찾음
-SELECT ... WHERE id < :lastSeedId ORDER BY id DESC LIMIT 10
-```
+#### 🔧 해결
+-(brd_id, is_valid, pst_id) 복합 인덱스 추가
+- 복합 인덱스는 brd_id, is_valid, pst_id 순서로 구성하여
+정렬과 필터 조건 모두에서 효율적으로 사용 가능
 
-**해결**: `isRandomPage` 파라미터로 두 방식을 동적 전환
+=>id 기준 내림차순 정렬 시 FileSort 발생과 모든 행을 순회하며 is_valid로 필터링하는 비용을 제거
 
-| 사용자 행동 | isRandomPage | 페이징 방식 |
-|------------|:------------:|:----------:|
-| 다음/이전 페이지 스크롤 | `false` | 커서 기반 (성능 일정) |
-| 정렬 변경, 홈 복귀, 랜덤 점프 | `true` | 오프셋 기반 |
 
----
 
-### 개선 3: Redis 다계층 캐싱
+#### 📊 결과
+| 지표 | 인덱스 없음 | 인덱스 적용 | 개선율 |
+|------|------------|------------|--------|
+| avg | 99ms | 78ms | ⬇️ 21% |
+| P95 | 421ms | 314ms | ⬇️ 25% |
+| 처리량 | 1275 req/s | 1429 req/s | ⬆️ 12% |
 
-최신순 0~4페이지(가장 많이 조회되는 구간)를 Redis에 캐싱합니다.
+#### 💡 인사이트
+- 정렬 컬럼까지 포함된 복합 인덱스가 성능에 큰 영향
+- 복합 인덱스는 prefix 특성을 가지므로 
+(brd_id), (brd_id, is_valid), (brd_id, is_valid, pst_id) 조건에서 모두 활용 가능
+- 복합 인덱스의 prefix 특성으로 기존 단일 인덱스(brd_id)를 대체할 수 있으나,
+  쿼리 패턴에 따라 유지 여부를 판단해야 함
 
-```
-┌─────────────────────────────────────────────────┐
-│  1단계: Board List Cache (Redis List)            │
-│  board:1:posts → [id:100, id:99, id:98, ...]    │
-│  TTL: 60min                                      │
-└──────────────────────┬──────────────────────────┘
-                       │ multiGet
-                       ▼
-┌─────────────────────────────────────────────────┐
-│  2단계: Post Preview Cache (Redis String)        │
-│  posts:100 → { id, title, author, likeCount, ...}│
-│  TTL: 30min                                      │
-└─────────────────────────────────────────────────┘
-```
 
-**캐시 미스 처리**:
-- Board List 미스 → DB에서 최근 50개 조회 후 전체 캐싱
-- Post Preview 부분 미스 → 미스된 ID만 선별하여 DB 조회 후 개별 캐싱
-
-Board ID 리스트와 Post 상세를 분리하여, 게시글 수정(좋아요 등) 시 해당 Post 캐시만 갱신하면 되고 Board 리스트 캐시는 무효화할 필요가 없습니다.
+#### ⚖️ Trade-off
+- 인덱스 증가로 쓰기 성능 저하 및 저장 공간 증가
 
 ---
 
-### 개선 4: 정렬별 복합 인덱스
+### 2-2. 좋아요/조회수 정렬 성능 개선
 
-**문제**: LIKE/VIEW 정렬 시 100,000건 full sort 발생 → 700 VUs 동시 요청에서 p95 = **27초**
+#### 📌 문제
+랜덤 페이지로 인한 OFFSET방식 + 좋아요순 조회순 정렬 조합으로 인해 
+대용량 데이터에서 Full Scan 발생 → 응답 30초 이상되는 문제 발생
 
-**해결**: 정렬 기준별 복합 인덱스 추가
+#### 🔧 해결
+like_count, view_count 에도 복합 인덱스 추가.
 
-```sql
--- 최신순: 커서 기반 페이징에 최적화
-CREATE INDEX idx_posts_brd_valid_id   ON posts (BRD_id, is_valid, PST_id DESC);
+#### 📊 결과
+| 지표 | 개선 전 | 개선 후 |
+|------|--------|--------|
+| avg | 15s+ | 2.2s |
+| P95 | 30s+ | 5.7s |
 
--- 좋아요순: full sort 제거 → 인덱스 스캔
-CREATE INDEX idx_posts_brd_valid_like ON posts (BRD_id, is_valid, PST_like_count DESC);
+#### 💡 인사이트
+- OFFSET 방식 + 정렬 + 대용량 데이터 조합은 최악의 성능을 초래하며,
+적절한 인덱스 없이는 실서비스 운영이 사실상 불가능.
 
--- 조회수순: full sort 제거 → 인덱스 스캔
-CREATE INDEX idx_posts_brd_valid_view ON posts (BRD_id, is_valid, PST_view_count DESC);
-```
-
-`WHERE brd_id = ? AND is_valid = true ORDER BY like_count DESC LIMIT 10` 쿼리가 인덱스 순서대로 읽기만 하면 되므로, full sort 없이 상위 10건을 즉시 반환합니다.
-
-**인덱스 write 비용 트레이드오프**: `likeCount`, `viewCount` 변경 시 인덱스 재배치(O(log N))가 발생하지만, 조회수는 이미 Redis 배치 동기화로 1분 단위 1회 UPDATE로 합산되고, 커뮤니티 특성상 읽기가 쓰기보다 수십~수백 배 많으므로 합리적인 선택입니다.
-
----
-
-### 개선 5: 조회수 Redis 배치 동기화
-
-개선 4의 인덱스와 시너지를 내는 구조입니다.
-
-```
-실시간 조회 → Redis SETNX (유저별 중복 방지) → Redis INCR (카운터)
-
-ViewCountScheduler (60초 주기)
-  → post:views:* 키 스캔
-  → DB에 누적값 일괄 UPDATE (1분간 100회 조회 → 1회 UPDATE)
-  → 인덱스 재배치도 1분에 1회로 제한
-```
-
-조회수를 매 요청마다 DB에 반영하면 인기 게시글에 초당 수십 회의 `UPDATE`가 발생하여 row lock과 인덱스 갱신 비용이 급증합니다. 배치 처리로 이를 1분에 1회로 압축했습니다.
+#### ⚖️ Trade-off
+- like_count, view_count는 자주 갱신되는 컬럼이므로,
+인덱스 추가 시 매번 인덱스도 갱신 → 쓰기 성능 및 I/O 증가
+- 그러나 인덱스 없이는 대용량 랜덤 페이지 조회 시 서비스 마비 수준의 성능 저하 발생
 
 ---
 
-## 코드 품질 개선
+### 3. 커서 기반 페이징
 
-### 1. ViewCountScheduler — GETDEL 원자적 처리 + 트랜잭션 격리
+#### 📌 문제
+OFFSET 기반 페이징은 페이지가 뒤로 갈수록 성능 저하
 
-**기존 문제**
+#### 🔧 해결
+id 기반 커서 페이징 적용
 
-```java
-// 문제 1: getValue() 반환값이 null이면 NPE
-String value = redisService.getValue(key).toString();
+#### 📊 결과
+| 지표 | 기존 | 커서 |
+|------|------|------|
+| avg | 42ms | 11ms |
+| P95 | 212ms | 32ms |
 
-// 문제 2: 두 명령 사이에 다른 요청이 INCR하면 해당 카운트가 유실 (race condition)
-redisService.getValue(key);
-redisService.delete(key);
 
-// 문제 3: @Transactional이 메서드 전체에 걸려 있어, 하나의 게시글 처리 실패 시
-//         전체 롤백 → Redis에서 이미 삭제한 조회수 데이터 영구 유실
-```
 
-**개선**
+#### 💡 인사이트
+- OFFSET 방식은 처음부터 원하는 데이터가 있는 위치까지 모든 행을 스캔하고,
+앞쪽의 불필요한 행을 버리는 비효율이 발생함
 
-```java
-// GETDEL: 조회와 삭제를 단일 Redis 명령으로 원자적 처리 → race condition 제거
-String value = redisTemplate.opsForValue().getAndDelete(key);
+#### ⚖️ Trade-off
+- 특정 페이지로 직접 이동 불가
 
-// 게시글 1건씩 독립 트랜잭션으로 분리 → 하나 실패해도 나머지 정상 반영
-@Transactional
-public void applyViewCount(Long postId, long increment) { ... }
+=> 이전/다음 페이지 조회의 경우엔 커서, 그 외에는 오프셋 방식을 혼합하여 사용.
 
-// 삭제된 게시글은 예외 캐치 후 스킵 → 데이터 유실 없음
-try {
-    applyViewCount(postId, increment);
-} catch (ResourceNotFoundException e) {
-    log.warn("조회수 동기화 스킵 - 삭제된 게시글. postId={}", postId);
-}
-```
+#### ⚠️ 한계
+- 커서 + 오프셋 혼합 사용 시, 뒤쪽 페이지에서 오프셋 요청이 들어오면 여전히 수만~수십만 건 데이터 스캔 발생
+- 실제 사용자가 이런 뒤 페이지를 조회할 가능성은 낮아 현재 하이브리드 방식 유지
+- 다만, 악의적 트래픽 공격이 들어오면 심각한 성능 문제가 발생할 수 있음
+
 
 ---
 
-### 2. RedisService 제거 → 도메인 전용 캐시 레이어
+### 4. 캐싱 전략 적용
 
-**기존 문제**  
-`set`, `get`, `delete`를 단순 위임하는 `RedisService` 범용 래퍼가 존재했음. `RedisTemplate`이 이미 제공하는 API를 한 번 더 감싸는 구조라 불필요한 추상화 레이어였으며, `getAndDelete()` 같은 유용한 명령어를 활용하지 못하도록 가로막음.
+#### 📌 문제
+게시판 목록 + 게시글 목록 + total count 조회시 반복 쿼리로 병목 발생 
 
-**개선**  
-`RedisService` 삭제. `ViewCountService`가 `StringRedisTemplate`을 직접 주입받아 조회수 도메인의 Redis 로직을 완전히 캡슐화.
+#### 🔧 해결
+Redis 기반 캐싱 적용
+- 게시판 목록
+- 게시글 목록
+- total count
 
-```
-Before:
-  ViewCountService ──→ RedisService ──→ RedisTemplate
-  ViewCountScheduler ──→ RedisService ──→ RedisTemplate
+#### 📊 결과
+| 단계 | avg | P95 |
+|------|-----|-----|
+| 캐싱 없음 | 2.22s | 5.72s |
+| 게시판 목록+게시글목록만 캐싱 | 1.63s | 3.57s |
+| count도 캐싱 | 19ms | 96ms |
 
-After:
-  ViewCountService ──→ StringRedisTemplate   (조회수 캐시 전용)
-  RedisPostsCache  ──→ RedisTemplate<>       (게시글 캐시 전용)
-```
+#### 💡 인사이트
+- count 쿼리가 주요 병목 지점
+-예상과는 다르게 게시글 목록에 대한 캐싱보다 집계함수인 count에 대한 캐싱이 더 극적인 성능개선을 보임.
 
-Redis 키 구조나 TTL 변경이 필요할 때 해당 도메인 클래스만 수정하면 되므로 변경 영향 범위가 명확해짐.
+#### ⚖️ Trade-off
+데이터 정합성 문제 
+- 게시글 생성/수정/삭제 시 Redis도 함께 업데이트해야 하므로 쓰기 비용 및 구현 복잡도 증가
+
+=> 그러나 대용량 트래픽 환경에서 서비스 안정성을 위해, 자주 조회되는 데이터에 대해 캐싱 적용 결정
 
 ---
 
-### 3. 리스트 조회 API 응답 일관성 개선 (404 → 200 빈 배열)
-
-**기존 문제**  
-게시글/댓글/스크랩 목록이 비어있으면 `ResourceNotFoundException`을 던져 **404** 반환. 클라이언트 입장에서 "리소스 없음(404)"과 "데이터가 0건인 정상 응답"을 구분할 수 없었음.
-
-**개선**  
-데이터가 없는 경우 **200 OK + 빈 배열** 반환. 단건 조회(`findById`)는 리소스 존재 여부가 중요하므로 404 유지.
-
-| 케이스 | 변경 전 | 변경 후 |
-|--------|---------|---------|
-| 게시글 목록이 0건 | 404 Not Found | 200 OK `{ "content": [] }` |
-| 댓글 목록이 0건 | 404 Not Found | 200 OK `[]` |
-| 스크랩 목록이 0건 | 404 Not Found | 200 OK `[]` |
-| 게시글 단건 조회 (없음) | 404 Not Found | 404 Not Found (유지) |
 
 ---
 

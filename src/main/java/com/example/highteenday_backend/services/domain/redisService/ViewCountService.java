@@ -19,8 +19,9 @@ public class ViewCountService {
     private static final String DEDUP_PREFIX = "viewed:";
 
     public void increaseViewCount(Long postId, Long userId) {
-        String dedupKey = DEDUP_PREFIX + postId + ":" + userId;
         String countKey = VIEW_COUNT_PREFIX + postId;
+        String dedupKey = DEDUP_PREFIX + postId + ":" + userId;
+
 
         Boolean isNew = redisTemplate.opsForValue().setIfAbsent(dedupKey, "1", DEDUP_TTL);
         if (Boolean.TRUE.equals(isNew)) {
@@ -35,21 +36,18 @@ public class ViewCountService {
         return value != null ? Integer.parseInt(value) : 0;
     }
 
-    /**
-     * Redis에 쌓인 조회수 증분을 원자적으로 꺼내고(GETDEL) 삭제한다.
-     * getValue() → delete() 사이의 유실 문제를 GETDEL로 해결.
-     */
-    public Map<Long, Long> drainViewCounts() {
+    //Redis에 쌓인 조회수 증가량을 db에 반영하고 키를 삭제.
+    public Map<Long, Integer> drainViewCounts() {
         Set<String> keys = redisTemplate.keys(VIEW_COUNT_PREFIX + "*");
         if (keys == null || keys.isEmpty()) return Collections.emptyMap();
 
-        Map<Long, Long> result = new HashMap<>();
+        Map<Long, Integer> result = new HashMap<>();
         for (String key : keys) {
             String value = redisTemplate.opsForValue().getAndDelete(key);
             if (value == null) continue;
 
             Long postId = Long.parseLong(key.replace(VIEW_COUNT_PREFIX, ""));
-            Long increment = Long.parseLong(value);
+            Integer increment = Integer.parseInt(value);
             result.put(postId, increment);
         }
         return result;
