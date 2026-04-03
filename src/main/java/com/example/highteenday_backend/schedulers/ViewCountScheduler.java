@@ -21,13 +21,16 @@ public class ViewCountScheduler {
     private final HotPostService hotPostService;
     private final PostService postService;
 
-    @Scheduled(fixedRate = 60000)
+
+
+    @Scheduled(fixedDelay = 60000)
+    @Transactional
     public void syncViewsToDB() {
-        Map<Long, Long> viewCounts = viewCountService.drainViewCounts();
+        Map<Long, Integer> viewCounts = viewCountService.drainViewCounts();
         if (viewCounts.isEmpty()) return;
 
         int synced = 0;
-        for (Map.Entry<Long, Long> entry : viewCounts.entrySet()) {
+        for (Map.Entry<Long, Integer> entry : viewCounts.entrySet()) {
             try {
                 applyViewCount(entry.getKey(), entry.getValue());
                 synced++;
@@ -41,9 +44,9 @@ public class ViewCountScheduler {
     }
 
     @Transactional
-    public void applyViewCount(Long postId, long increment) {
+    public void applyViewCount(Long postId, int increment) {
         Post post = postService.findById(postId);
-        post.addViewCount((int) increment);
+        post.addViewCount(increment);
         log.debug("조회수 동기화 완료. postId={}, increment={}", postId, increment);
     }
 }
