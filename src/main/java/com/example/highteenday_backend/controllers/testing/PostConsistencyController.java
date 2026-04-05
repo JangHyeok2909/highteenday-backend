@@ -17,13 +17,13 @@ public class PostConsistencyController {
     private final PostConsistencyService consistencyService;
 
     /**
-     * 🔍 게시글 정합성 검증 API
+     * 게시글 정합성 검증 API
      *
      * - 비정규화된 likeCount / dislikeCount
      * - 실제 reactions COUNT
      * 를 비교해서 drift 여부 반환
      *
-     * 👉 k6 teardown에서 호출됨
+     *  k6 teardown에서 호출됨
      */
     @GetMapping("/{postId}/consistency")
     public ResponseEntity<PostConsistencyResponse> checkConsistency(

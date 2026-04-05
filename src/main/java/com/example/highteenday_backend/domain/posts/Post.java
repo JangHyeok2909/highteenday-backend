@@ -71,6 +71,12 @@ public class Post extends BaseEntity {
     @Column(name = "PST_is_anonymous")
     private boolean isAnonymous=true;
 
+    /*@Builder.Default
+    @Version
+    @Column(name = "version", nullable = false)
+    @ColumnDefault("0")
+    private long version = 0L;*/
+
     //쿼리 성능을 위한 비정규화 컬럼
     @Builder.Default
     @Column(name = "USR_nickname", length = 12, nullable = false)

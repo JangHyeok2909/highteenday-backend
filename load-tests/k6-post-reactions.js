@@ -21,10 +21,10 @@ import { check, sleep } from 'k6';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const POST_ID = __ENV.POST_ID || '1';
-const MODE = (__ENV.MODE || 'like').toLowerCase();
+const MODE = (__ENV.MODE || 'mixed').toLowerCase();
 
 /** 동시 VU 수 = 자동 생성할 테스트 유저 수(기본 동일) */
-const VUS = parseInt(__ENV.VUS || __ENV.USER_COUNT || '150', 10);
+const VUS = parseInt(__ENV.VUS || __ENV.USER_COUNT || '100', 10);
 
 export const options = {
   scenarios: {
@@ -47,7 +47,7 @@ function extractAccessToken(res) {
   return m ? m[1].trim() : null;
 }
 
-/** DB: USR_nickname max 12, USR_name max 10 */
+/** DB constraints: USR_nickname max 12, USR_name max 10 */
 function nickname12(ts, i) {
   return (`k6${ts}${i}`).slice(-12);
 }
@@ -91,6 +91,7 @@ function registerOne(baseUrl, i, ts, password) {
   return { ok: true, token };
 }
 
+//기본은 유저 수 만큼 토큰 할당, 토큰 부족할 시에만 라운드로빈
 export function setup() {
   const baseUrl = BASE_URL;
   const password = __ENV.K6_USER_PASSWORD || 'K6LoadTest!1';
@@ -102,7 +103,7 @@ export function setup() {
 
   if (manual.length > 0) {
     console.log(
-      `setup: ACCESS_TOKENS ${manual.length}개 사용 (자동 회원가입 생략). VUS=${VUS} → 토큰은 라운드로빈`
+      `setup: ACCESS_TOKENS ${manual.length}개 사용 . VUS=${VUS} → 토큰 부족시 라운드 로빈으로 사용`
     );
     return { tokens: manual, baseUrl };
   }
@@ -150,7 +151,13 @@ export default function (data) {
   });
 
   check(res, {
-    'status is 200': (r) => r.status === 200,
+    'status is 200': (r) => {
+      if (r.status !== 200) {
+        console.error(` ${r.url} failed with status ${r.status}, body: ${r.body}`);
+        return false;
+      }
+      return true;
+    },
   });
 }
 

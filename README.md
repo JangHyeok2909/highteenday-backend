@@ -178,87 +178,49 @@ weighted_sum = 5×좋아요 − 1×싫어요 + 2×스크랩 + 3×댓글 + 1×조
 
 ---
 
-## 트러블슈팅
+## ⚡ 트러블슈팅
 
-### 1. Redis 역직렬화 시 PostPreviewDto가 LinkedHashMap으로 반환
+### 좋아요/싫어요 카운트 동시성 문제
 
-**문제**  
-Redis에 캐싱된 게시글 목록을 조회하면 `PostPreviewDto`가 아닌 `LinkedHashMap`으로 반환되어 API 응답의 `content`가 `null`이 됨.
+#### 📌 문제
+게시글 조회 성능을 위해 like/dislike 수를 비정규화 컬럼으로 관리하던 중,
+동시 요청 환경에서 데이터 정합성이 깨지는 문제가 발생했다.
 
-**원인**  
-`GenericJackson2JsonRedisSerializer`를 사용했는데, `activateDefaultTyping`이 설정되지 않아 역직렬화 시 타입 정보가 없었음. JSON에 `@class` 메타데이터가 포함되지 않으면 Jackson은 기본적으로 `LinkedHashMap`으로 역직렬화함.
-
-**해결**  
-타입별 전용 serializer인 `Jackson2JsonRedisSerializer<PostPreviewDto>`로 교체. 타입이 컴파일 타임에 고정되므로 `@class` 메타데이터 없이도 정확한 타입으로 역직렬화됨.
-
-```java
-Jackson2JsonRedisSerializer<PostPreviewDto> serializer =
-    new Jackson2JsonRedisSerializer<>(redisObjectMapper, PostPreviewDto.class);
-```
-
-### 2. QueryDSL `post.id.lt(null)` NullPointerException
-
-**문제**  
-`GET /api/boards/1/posts?sortType=RECENT&isRandomPage=true` 요청 시 `NullPointerException` 발생. QueryDSL의 `NumberExpression.lt(null)` 호출 시 `ConstantImpl`에서 NPE.
-
-**원인**  
-Redis 캐시 미스 시 내부적으로 `PostRepository.findByBoard()`를 호출하는데, 이때 `PostListingDto`의 `isRandomPage`가 Lombok `@Builder.Default`가 없어 `false`로 기본값 설정됨. `lastSeedId`는 `null`인 상태에서 커서 조건 분기(`!isRandomPage && lastSeedId != null`)에 진입하여 `post.id.lt(null)` 실행.
-
-**해결**  
-커서 조건에 `dto.getLastSeedId() != null` null 체크를 명시적으로 추가.
-
-```java
-if (dto.getSortType() == SortType.RECENT
-    && !dto.isRandomPage()
-    && dto.getLastSeedId() != null) {   // null 방어
-    builder.and(post.id.lt(dto.getLastSeedId()));
-    offset = null;
-}
-```
-
-### 3. Redis 캐시에서 게시글 순서가 뒤섞이는 문제
-
-**문제**  
-Redis에 캐싱된 게시글 목록(0~4페이지)이 최신순이 아닌 뒤죽박죽으로 조회됨.
-
-**원인**  
-DB에서 `ORDER BY id DESC`로 가져온 결과(최신 → 오래된)를 순서대로 `leftPush`하면 Redis List에서는 순서가 반전됨. 예: `[100, 99, 98]`을 `leftPush` → Redis: `[98, 99, 100]`.
-
-**해결**  
-캐시 적재 시 DB 결과를 역순으로 순회하여 `leftPush` → 최신 게시글이 Redis List의 head에 위치하도록 보정. 이후 `rightPush`로 변경하여 근본적으로 해결.
-
-### 4. Redis 캐시 응답에 null 포함 → 클라이언트 렌더링 에러
-
-**문제**  
-게시글 목록 API 응답의 `content` 배열에 `null`이 포함되어 프론트엔드에서 `Cannot read properties of null (reading 'id')` 에러 발생.
-
-**원인**  
-`RedisPostsCache`에서 Board ID 리스트 캐시로 postId 목록을 가져온 뒤, 각 Post 상세를 `multiGet`으로 조회할 때 일부가 캐시 미스 → DB 조회 시에도 찾지 못하면(소프트 삭제 등) `result` 리스트에 `null`이 그대로 남아 응답에 포함됨.
-
-**해결**  
-결과 반환 전 `null` 필터링 추가.
-
-```java
-return result.stream().filter(Objects::nonNull).collect(Collectors.toList());
-```
+- 100명의 유저가 동시에 좋아요/싫어요 요청
+- 실제 데이터와 카운트 값 불일치 (drift 발생)
 
 ---
 
-### 5. k6 부하 테스트 실패율 100% (connection reset by peer)
+#### 🧩 원인
+여러 트랜잭션이 동시에 동일 row를 읽고 업데이트하면서 **lost update** 발생
 
-**문제**  
-k6 실행 시 모든 요청이 `connection reset by peer`로 실패.
+---
 
-**원인**  
-복합적인 원인:
-1. k6 스크립트에서 `size` 쿼리 파라미터 누락 → 서버가 400 Bad Request 반환
-2. Tomcat 기본 스레드 풀(200)과 accept-count(100)이 동시 요청(1000 VUs)에 비해 부족
-3. 거부된 요청이 TCP 레벨에서 connection reset으로 표시
+#### 🔧 해결 시도 및 결과
 
-**해결**  
-1. 컨트롤러의 `@RequestParam`에 `defaultValue` 추가하여 누락된 파라미터에 대한 방어
-2. Tomcat 스레드/연결 설정 튜닝 (`threads.max=400`, `accept-count=200`, `max-connections=10000`)
-3. k6 스크립트의 VU 수를 서버 용량에 맞게 조정 (1000 → 700)
+| 방식 | 정합성 | 실패율 | 처리량 | p95 |
+|------|--------|--------|--------|------|
+| 락 없음 | ❌ | 1.68% | **205/s** | 579ms |
+| 낙관적 락 | ✅ | ❌ 79% | 81/s | 1.3s |
+| 비관적 락 | ✅ | ✅ 0% | 68/s | 951ms |
+
+- 낙관적 락: 정합성은 유지되나 충돌 시 실패율 급증 → 재시도 필요
+- 비관적 락: 정합성 완벽하지만 처리량 감소 및 응답 지연
+
+---
+
+#### 🎯 최종 선택
+락을 적용하지 않는 방식 선택 (성능 우선)
+
+- 좋아요/싫어요는 강한 정합성이 필수적인 데이터가 아님
+- 일부 오차는 허용 가능
+- 주기적 동기화(sync)로 정합성 보완
+
+---
+
+#### 🚀 개선 방향
+- 낙관적 락 + retry 전략
+- Redis 기반 캐싱 후 비동기 반영 (eventual consistency)
 
 ---
 
