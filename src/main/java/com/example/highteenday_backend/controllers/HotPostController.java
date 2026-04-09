@@ -29,8 +29,8 @@ public class HotPostController {
 //    }
 
     @GetMapping("/daily")
-    public ResponseEntity<List<PostPreviewDto>> getDailyHotPosts(){
-        List<PostPreviewDto> postPreviewDtos = hotPostService.getDailyHotPosts();
+    public ResponseEntity<List<PostPreviewDto>> getLeaderboardDayHotPosts(){
+        List<PostPreviewDto> postPreviewDtos = hotPostService.getLeaderboardDayHotPosts();
 
         return ResponseEntity.ok(postPreviewDtos);
     }

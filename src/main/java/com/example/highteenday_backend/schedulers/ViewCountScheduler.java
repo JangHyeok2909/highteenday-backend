@@ -35,7 +35,7 @@ public class ViewCountScheduler {
                 applyViewCount(entry.getKey(), entry.getValue());
                 synced++;
                 //핫스코어 갱신
-                hotPostService.updateDailyScore(entry.getKey());
+                hotPostService.updateLeaderboardDayScore(entry.getKey());
             } catch (ResourceNotFoundException e) {
                 log.warn("조회수 동기화 스킵 - 삭제된 게시글. postId={}", entry.getKey());
             }

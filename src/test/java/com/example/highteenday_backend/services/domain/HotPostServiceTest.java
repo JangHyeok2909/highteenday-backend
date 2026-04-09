@@ -13,7 +13,6 @@ import org.springframework.data.redis.core.ZSetOperations;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,11 +40,11 @@ class HotPostServiceTest {
     }
 
     @Nested
-    @DisplayName("updateDailyScore")
-    class UpdateDailyScore {
+    @DisplayName("updateLeaderboardDayScore")
+    class UpdateLeaderboardDayScore {
 
         @Test
-        @DisplayName("게시글이 있으면 당일 키에 ZSET 점수를 갱신한다")
+        @DisplayName("게시글이 있으면 당일 리더보드 키에 ZSET 점수를 갱신한다")
         void addsScoreWhenPostExists() {
             stubZSet();
             long postId = 99L;
@@ -58,9 +57,9 @@ class HotPostServiceTest {
             when(post.getCreated()).thenReturn(LocalDateTime.now().minusHours(1));
             when(postService.findOptionalById(postId)).thenReturn(Optional.of(post));
 
-            String expectedKey = "hot:all:daily:" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            String expectedKey = HotPostService.leaderboardDayRedisKey(LocalDate.now());
 
-            hotPostService.updateDailyScore(postId);
+            hotPostService.updateLeaderboardDayScore(postId);
 
             verify(zSetOps).add(eq(expectedKey), eq(postId), anyDouble());
         }
@@ -72,9 +71,9 @@ class HotPostServiceTest {
             long postId = 404L;
             when(postService.findOptionalById(postId)).thenReturn(Optional.empty());
 
-            String expectedKey = "hot:all:daily:" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            String expectedKey = HotPostService.leaderboardDayRedisKey(LocalDate.now());
 
-            hotPostService.updateDailyScore(postId);
+            hotPostService.updateLeaderboardDayScore(postId);
 
             verify(zSetOps).remove(eq(expectedKey), eq(postId));
         }

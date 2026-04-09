@@ -51,7 +51,7 @@ class ScrapServiceTest {
 
             scrapService.createScrap(post, user);
 
-            verify(hotPostService).updateDailyScore(10L);
+            verify(hotPostService).updateLeaderboardDayScore(10L);
             ArgumentCaptor<Scrap> captor = ArgumentCaptor.forClass(Scrap.class);
             verify(scrapRepository).save(captor.capture());
             assertThat(captor.getValue().getPost()).isEqualTo(post);
@@ -70,7 +70,7 @@ class ScrapServiceTest {
             assertThat(result).isSameAs(existing);
             assertThat(existing.getIsValid()).isTrue();
             verify(scrapRepository, never()).save(any());
-            verify(hotPostService, never()).updateDailyScore(org.mockito.ArgumentMatchers.anyLong());
+            verify(hotPostService, never()).updateLeaderboardDayScore(org.mockito.ArgumentMatchers.anyLong());
         }
     }
 
