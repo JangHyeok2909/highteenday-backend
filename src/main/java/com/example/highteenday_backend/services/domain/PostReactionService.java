@@ -80,14 +80,14 @@ public class PostReactionService {
                     .build());
 
             //좋아요 생성시 핫스코어 업데이트
-            hotPostService.updateDailyScore(post.getId());
+            hotPostService.updateLeaderboardDayScore(post.getId());
             syncCounts(post);
             return;
         }
         //존재할경우 like 적용 후 핫스코어 업데이트
         PostReaction r = opt.get();
         r.applyState(kind);
-        hotPostService.updateDailyScore(post.getId());
+        hotPostService.updateLeaderboardDayScore(post.getId());
         syncCounts(post);
 
     }

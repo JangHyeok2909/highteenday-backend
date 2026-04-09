@@ -1,10 +1,7 @@
 package com.example.highteenday_backend.schedulers;
 
-import com.example.highteenday_backend.Utils.HotScoreCalculator;
-import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.services.domain.HotPostService;
-import com.example.highteenday_backend.services.domain.PostService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -13,7 +10,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Set;
 
@@ -23,20 +19,19 @@ import java.util.Set;
 public class HotScoreScheduler {
     private final RedisTemplate<String,Long> hotPidTemplate;
     private final HotPostService hotPostService;
-    private final PostService postService;
 
     @Scheduled(fixedRate = 5*60*1000) //5분마다 상위 50개 점수 업데이트
     @Transactional
     public void updateHotScore(){
-        String key = "hot:all:daily:" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String key = HotPostService.leaderboardDayRedisKey(LocalDate.now());
         Set<Long> range = hotPidTemplate.opsForZSet().reverseRange(key, 0, 49);
         log.info("Hot score 갱신");
         for(Long pid:range){
-            hotPostService.updateDailyScore(pid);
+            hotPostService.updateLeaderboardDayScore(pid);
         }
 
         //핫게시글 가져오기
-        List<PostPreviewDto> dailyHotPosts = hotPostService.getDailyHotPosts();
+        List<PostPreviewDto> dailyHotPosts = hotPostService.getLeaderboardDayHotPosts();
         for (PostPreviewDto pre:dailyHotPosts){
             log.info("selectd hot post, postId="+pre.getId());
         }

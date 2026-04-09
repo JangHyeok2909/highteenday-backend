@@ -8,8 +8,8 @@
 
 | 구분 | 일간 핫게시글 (Daily) | 게시판별 실시간 인기글 (Recent) |
 |------|------------------------|----------------------------------|
-| Redis 키 | `hot:all:daily:{yyyyMMdd}` | `hot:board:{boardId}realtime:{yyyyMMddHHmm}` (5분 단위) |
-| 갱신 주기 | 1분마다 스케줄러가 **전체 게시글** 스코어 갱신 | 반응 발생 시 `updateRecentScore()` 호출 (현재 미연동) |
+| Redis 키 | `hot:leaderboard:day:{yyyyMMdd}` | `hot:board:{boardId}realtime:{yyyyMMddHHmm}` (5분 단위) |
+| 갱신 주기 | 반응·댓글·스크랩·조회수 반영 시 `updateLeaderboardDayScore`; 5분마다 당일 ZSET **상위 50개** 재점수 | `updateRecentScore()` (현재 미연동) |
 | 노출 개수 | 상위 10개, **좋아요 ≥ 10**만 응답 | 상위 3개 |
 | API | `GET /api/hotposts/daily` | `getRecentHotPosts(boardId)` (API 미노출) |
 
@@ -23,8 +23,8 @@
 |--------|------|
 | **HotScoreCalculator** | 순수 점수 계산 (가중치 합 → 로그 스케일 → 부호). 시간 감쇠는 Daily 전용 메서드에만 있음. |
 | **HotPostService** | Redis ZSET에 점수 적재, 상위 N개 조회, 5분 단위 키 생성. |
-| **HotScoreScheduler** | 1분마다 `postService.findAll()` 후 전부 `updateDailyScore()` 호출. |
-| **HotPostController** | `GET /api/hotposts/daily` → `getDailyHotPosts()` → `PostPreviewDto` 리스트 반환. |
+| **HotScoreScheduler** | 5분마다 `hot:leaderboard:day:{날짜}` 상위 50개에 대해 `updateLeaderboardDayScore(postId)` 호출. |
+| **HotPostController** | `GET /api/hotposts/daily` → `getLeaderboardDayHotPosts()` → `PostPreviewDto` 리스트 반환. |
 | **RecentHotPost** | 엔티티/테이블 존재하나, 현재 Redis 기반 랭킹에는 미사용. |
 
 ### 2.2 점수 공식 (HotScoreCalculator)
@@ -40,13 +40,13 @@
    **반환값**: `sign * order`
 
 **일간 전용 (calculateDailyHotScore)**  
-위와 동일한 가중치 합·로그·부호 후, **작성 시각(epoch 이후 초)**을 `DAILY_TIME_DIVISOR(45000)`로 나눈 값을 더해 “최신 글”에 가산을 줌.
+가중치 합·로그·부호 후, **작성 시각 기준 경과 시간(시간)**으로 감쇠 `(ageHours+2)^1.5` 로 나누어 오래된 글의 순위를 낮춤.
 
 ### 2.3 Redis 키 설계
 
 | 키 패턴 | 타입 | member | score | 용도 |
 |---------|------|--------|-------|------|
-| `hot:all:daily:{yyyyMMdd}` | ZSET | postId (String) | calculateRecentHotScore 결과 | 당일 전체 핫게시글 |
+| `hot:leaderboard:day:{yyyyMMdd}` | ZSET | postId (String) | `calculateDailyHotScore` 결과 | 달력일 버킷별 전역 인기(작성일 필터 아님) |
 | `hot:board:{boardId}realtime:{yyyyMMddHHmm}` | ZSET | postId (String) | 동일 | 게시판별 5분 단위 실시간 인기글 |
 
 동일 postId가 여러 번 `ZADD`되면 **같은 키 안에서는 최신 score로 덮어쓰기**됩니다.
@@ -56,10 +56,10 @@
 ## 3. 데이터 흐름 요약
 
 - **쓰기**  
-  - **일간**: 1분마다 스케줄러가 DB에서 전체 Post 조회 → 각 Post에 대해 `HotScoreCalculator.calculateRecentHotScore(post)` → `hot:all:daily:{날짜}` ZSET에 `postId–score` 추가.
-  - **실시간**: `updateRecentScore(post)`가 호출되면 `hot:board:{boardId}realtime:{5분단위}` ZSET에 동일 방식으로 추가. (현재 좋아요/싫어요 등에서 호출되지 않음)
+  - **일간 리더보드**: 이벤트 경로에서 `updateLeaderboardDayScore(postId)` → DB에서 Post 로드 → `calculateDailyHotScore` → `hot:leaderboard:day:{날짜}` ZSET에 `ZADD`. 스케줄러는 5분마다 당일 키 상위 50개만 재갱신.
+  - **실시간(게시판)**: `updateRecentScore(post)`가 호출되면 `hot:board:{boardId}realtime:{5분단위}` ZSET에 점수 추가. (현재 다른 서비스에서 호출되지 않음)
 - **읽기**  
-  - **일간**: `ZREVRANGE hot:all:daily:{날짜} 0 9` → postId 10개 → DB에서 Post 조회 → `likeCount >= 10`인 것만 `PostPreviewDto`로 반환.
+  - **일간**: `ZREVRANGE hot:leaderboard:day:{날짜} 0 9` → postId 10개 → DB에서 Post 조회 → `likeCount >= 10`인 것만 `PostPreviewDto`로 반환.
   - **실시간**: `ZREVRANGE hot:board:{boardId}realtime:{5분} 0 2` → postId 3개 → DB에서 Post 조회 → `toPrevDto()`로 반환.
 
 ---
@@ -81,7 +81,7 @@ flowchart TB
     end
 
     subgraph Scheduler["스케줄러"]
-        HotScoreScheduler["HotScoreScheduler<br/>@Scheduled(1분)"]
+        HotScoreScheduler["HotScoreScheduler<br/>@Scheduled(5분)"]
     end
 
     subgraph Storage["저장소"]
@@ -95,9 +95,7 @@ flowchart TB
     HotPostService --> Redis
     HotPostService --> MySQL
 
-    HotScoreScheduler --> PostService
     HotScoreScheduler --> HotPostService
-    PostService --> MySQL
 ```
 
 ### 4.2 일간 핫게시글 갱신 흐름 (스케줄러)
@@ -105,23 +103,16 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     participant Scheduler as HotScoreScheduler
-    participant PostSvc as PostService
     participant HotSvc as HotPostService
-    participant Calc as HotScoreCalculator
     participant Redis as Redis
-    participant MySQL as MySQL
 
-    Note over Scheduler: 1분마다 실행
-    Scheduler->>PostSvc: findAll()
-    PostSvc->>MySQL: SELECT * FROM posts (is_valid 등)
-    MySQL-->>PostSvc: List<Post>
-    PostSvc-->>Scheduler: List<Post>
+    Note over Scheduler: 5분마다 실행
+    Scheduler->>Redis: ZREVRANGE hot:leaderboard:day:{yyyyMMdd} 0 49
+    Redis-->>Scheduler: 상위 50 postId
 
-    loop 각 Post
-        Scheduler->>HotSvc: updateDailyScore(post)
-        HotSvc->>Calc: calculateRecentHotScore(post)
-        Calc-->>HotSvc: score (double)
-        HotSvc->>Redis: ZADD hot:all:daily:{yyyyMMdd} score postId
+    loop 각 postId
+        Scheduler->>HotSvc: updateLeaderboardDayScore(postId)
+        HotSvc->>HotSvc: DB Post 로드 후 calculateDailyHotScore → ZADD
     end
 ```
 
@@ -137,9 +128,9 @@ sequenceDiagram
     participant MySQL as MySQL
 
     Client->>Controller: GET /api/hotposts/daily
-    Controller->>HotSvc: getDailyHotPosts()
+    Controller->>HotSvc: getLeaderboardDayHotPosts()
 
-    HotSvc->>Redis: ZREVRANGE hot:all:daily:{yyyyMMdd} 0 9
+    HotSvc->>Redis: ZREVRANGE hot:leaderboard:day:{yyyyMMdd} 0 9
     Redis-->>HotSvc: [postId1, postId2, ...]
 
     loop 각 postId
@@ -208,9 +199,9 @@ flowchart LR
 | 항목 | 내용 |
 |------|------|
 | **스코어 입력** | 좋아요(5), 싫어요(-1 또는 -2), 스크랩(2), 댓글(3), 조회수(1) |
-| **스코어 형태** | 부호 있는 로그 스케일 값 (실시간/일간 동일 공식, 일간 전용은 시간 가산 추가) |
+| **스코어 형태** | 부호 있는 로그 스케일; 일간 전용은 경과 시간 감쇠 추가 |
 | **저장소** | Redis ZSET (키별 상위 N개 조회) |
-| **갱신** | 일간: 1분마다 전체 Post 스캔 후 ZSET 갱신. 실시간: 코드는 있으나 반응 핸들러와 미연동 |
+| **갱신** | 일간: 이벤트별 `updateLeaderboardDayScore` + 5분마다 당일 키 상위 50개 재갱신. 게시판 실시간: 코드는 있으나 미연동 |
 | **노출** | 일간 10개, 좋아요 ≥10 필터. 실시간 3개(API 미노출) |
 | **엔티티** | RecentHotPost는 DB에만 존재, 현재 Redis 랭킹과는 별개 |
 

@@ -12,8 +12,8 @@ public class HotScoreCalculator {
         // 가중치
         final double W_Likes = 5.0;
         final double W_DISLIKES = 1.0;
-        final double W_SCRAPS = 2.0;
         final double W_COMMENTS = 3.0;
+        final double W_SCRAPS = 2.0;
         final double W_VIEWS = 1.0;
 
         int likeCount = post.getLikeCount();
@@ -61,15 +61,15 @@ public class HotScoreCalculator {
                 + W_VIEWS * viewCount;
 
         // 2) 로그 스케일
+        //많은 싫어요로 인해 score가 음수일 수 있기에 부호처리
         double order = Math.log10(Math.max(Math.abs(score), 1));
         int sign = (score > 0) ? 1 : (score < 0) ? -1 : 0;
 
         // 3) 경과 시간 (시간 단위)
         double ageHours = Duration.between(createdAt, LocalDateTime.now()).toMinutes() / 60.0;
 
-        // 4) 감쇠 적용 (핵심)
+        // 4) 감쇠 적용+소수점 6자리로 반올림
         double decay = Math.pow(ageHours + 2, 1.5);
-
         return Math.round((sign * order / decay) * 1_000_000d) / 1_000_000d;
     }
 

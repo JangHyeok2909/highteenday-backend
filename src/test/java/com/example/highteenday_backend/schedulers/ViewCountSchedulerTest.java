@@ -46,7 +46,7 @@ class ViewCountSchedulerTest {
             scheduler.syncViewsToDB();
 
             verify(postService, never()).findById(anyLong());
-            verify(hotPostService, never()).updateDailyScore(anyLong());
+            verify(hotPostService, never()).updateLeaderboardDayScore(anyLong());
         }
 
         @Test
@@ -62,8 +62,8 @@ class ViewCountSchedulerTest {
 
             verify(post1).addViewCount(5);
             verify(post2).addViewCount(1);
-            verify(hotPostService).updateDailyScore(1L);
-            verify(hotPostService).updateDailyScore(2L);
+            verify(hotPostService).updateLeaderboardDayScore(1L);
+            verify(hotPostService).updateLeaderboardDayScore(2L);
         }
 
         @Test
@@ -74,7 +74,7 @@ class ViewCountSchedulerTest {
 
             scheduler.syncViewsToDB();
 
-            verify(hotPostService, never()).updateDailyScore(9L);
+            verify(hotPostService, never()).updateLeaderboardDayScore(9L);
         }
 
         @Test
@@ -87,8 +87,8 @@ class ViewCountSchedulerTest {
 
             scheduler.syncViewsToDB();
 
-            verify(hotPostService, never()).updateDailyScore(9L);
-            verify(hotPostService).updateDailyScore(10L);
+            verify(hotPostService, never()).updateLeaderboardDayScore(9L);
+            verify(hotPostService).updateLeaderboardDayScore(10L);
             verify(okPost).addViewCount(2);
         }
     }
