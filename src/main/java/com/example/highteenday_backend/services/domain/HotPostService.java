@@ -27,10 +27,20 @@ import java.util.Set;
 @RequiredArgsConstructor
 @Service
 public class HotPostService {
+
+    /** 일자별 전역 인기글 ZSET: hot:leaderboard:day:{yyyyMMdd} (작성일 필터 아님) */
+    public static final String REDIS_LEADERBOARD_DAY_PREFIX = "hot:leaderboard:day:";
+
+    private static final DateTimeFormatter LEADERBOARD_DAY_SUFFIX = DateTimeFormatter.ofPattern("yyyyMMdd");
+
     private final RedisTemplate<String, Long> hotPidTemplate;
     private final PostService postService;
     private static int recentHotPostCount=3;
     private static int dailyHotPostCount=10;
+
+    public static String leaderboardDayRedisKey(LocalDate date) {
+        return REDIS_LEADERBOARD_DAY_PREFIX + date.format(LEADERBOARD_DAY_SUFFIX);
+    }
 
     @Transactional
     public void updateRecentScore(Post post){
@@ -53,8 +63,8 @@ public class HotPostService {
         return topPostDtos;
     }
     @Transactional
-    public void updateDailyScore(Long postId){
-        String key = "hot:all:daily:" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+    public void updateLeaderboardDayScore(Long postId){
+        String key = leaderboardDayRedisKey(LocalDate.now());
         postService.findOptionalById(postId).ifPresentOrElse(post -> {
             double score = HotScoreCalculator.calculateDailyHotScore(post);
             hotPidTemplate.opsForZSet().add(key, postId, score);
@@ -65,8 +75,8 @@ public class HotPostService {
         });
     }
 
-    public List<PostPreviewDto> getDailyHotPosts(){
-        String key = "hot:all:daily:" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+    public List<PostPreviewDto> getLeaderboardDayHotPosts(){
+        String key = leaderboardDayRedisKey(LocalDate.now());
         List<PostPreviewDto> hotPostPrevDtos = new ArrayList<>();
         Set<Long> hotPostsIds = hotPidTemplate.opsForZSet().reverseRange(key, 0, dailyHotPostCount-1);
         if (hotPostsIds == null) return hotPostPrevDtos;

@@ -86,7 +86,7 @@ class PostReactionServiceTest {
             assertThat(post.getLikeCount()).isEqualTo(3);
             assertThat(post.getDislikeCount()).isEqualTo(1);
             //hotpostService의 스코어 갱신 로직 호출 확인
-            verify(hotPostService, never()).updateDailyScore(any());
+            verify(hotPostService, never()).updateLeaderboardDayScore(any());
         }
 
         @Test
@@ -107,7 +107,7 @@ class PostReactionServiceTest {
             assertThat(row.getIsValid()).isTrue();
             assertThat(post.getLikeCount()).isEqualTo(5);
             assertThat(post.getDislikeCount()).isEqualTo(0);
-            verify(hotPostService, times(1)).updateDailyScore(POST_ID);
+            verify(hotPostService, times(1)).updateLeaderboardDayScore(POST_ID);
         }
 
         @Test
@@ -127,7 +127,7 @@ class PostReactionServiceTest {
             verify(postReactionRepository).save(captor.capture());
             assertThat(captor.getValue().getKind()).isEqualTo(PostReactionKind.LIKE);
             assertThat(post.getLikeCount()).isEqualTo(1);
-            verify(hotPostService, times(1)).updateDailyScore(POST_ID);
+            verify(hotPostService, times(1)).updateLeaderboardDayScore(POST_ID);
         }
 
         @Test
@@ -146,7 +146,7 @@ class PostReactionServiceTest {
 
             assertThat(softCanceled.getKind()).isEqualTo(PostReactionKind.LIKE);
             assertThat(softCanceled.getIsValid()).isTrue();
-            verify(hotPostService, times(1)).updateDailyScore(POST_ID);
+            verify(hotPostService, times(1)).updateLeaderboardDayScore(POST_ID);
         }
     }
 
@@ -171,7 +171,7 @@ class PostReactionServiceTest {
             assertThat(dislike.getIsValid()).isFalse();
             assertThat(post.getLikeCount()).isEqualTo(2);
             assertThat(post.getDislikeCount()).isEqualTo(4);
-            verify(hotPostService, never()).updateDailyScore(any());
+            verify(hotPostService, never()).updateLeaderboardDayScore(any());
         }
 
         @Test
@@ -192,7 +192,7 @@ class PostReactionServiceTest {
             assertThat(row.getIsValid()).isTrue();
             assertThat(post.getLikeCount()).isEqualTo(1);
             assertThat(post.getDislikeCount()).isEqualTo(2);
-            verify(hotPostService, times(1)).updateDailyScore(POST_ID);
+            verify(hotPostService, times(1)).updateLeaderboardDayScore(POST_ID);
         }
 
         @Test
@@ -211,7 +211,7 @@ class PostReactionServiceTest {
 
             verify(postReactionRepository).save(captor.capture());
             assertThat(captor.getValue().getKind()).isEqualTo(PostReactionKind.DISLIKE);
-            verify(hotPostService, times(1)).updateDailyScore(POST_ID);
+            verify(hotPostService, times(1)).updateLeaderboardDayScore(POST_ID);
         }
     }
 

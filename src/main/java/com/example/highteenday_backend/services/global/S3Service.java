@@ -87,10 +87,10 @@ public class S3Service {
     public String copyToFinalLocation(String url, Long entityId, MediaOwner mediaOwner){
         String tmpKey = getKeyByUrl(url);
 //        String realKey = copyToRealPath(tmpKey,id,mediaOwner);
-        String copiedKey = mediaOwner.getField()+"-file/"+entityId+tmpKey.substring(3);
-        CopyObjectRequest copyRequest = new CopyObjectRequest(bucket, tmpKey, bucket, copiedKey);
+        String realKey = mediaOwner.getField()+"-file/"+entityId+tmpKey.substring(3);
+        CopyObjectRequest copyRequest = new CopyObjectRequest(bucket, tmpKey, bucket, realKey);
         amazonS3.copyObject(copyRequest);
-        String realUrl = getUrlToKey(copiedKey);
+        String realUrl = getUrlToKey(realKey);
         return realUrl;
     }
     public String getUrlToKey(String key){

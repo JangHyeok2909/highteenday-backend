@@ -34,7 +34,8 @@ public class CommentEventHandler {
                         .build()
         );
         //핫스코어 반영
-        hotPostService.updateDailyScore(event.getPostId());
+        hotPostService.updateLeaderboardDayScore(event.getPostId());
 
     }
 }
+

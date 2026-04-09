@@ -47,7 +47,7 @@ public class ScrapService {
                 .user(user)
                 .build();
         //hotscore 갱신
-        hotPostService.updateDailyScore(post.getId());
+        hotPostService.updateLeaderboardDayScore(post.getId());
         return scrapRepository.save(scrap);
     }
 
