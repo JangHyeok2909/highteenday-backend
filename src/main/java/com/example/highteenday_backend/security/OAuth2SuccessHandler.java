@@ -51,12 +51,17 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
 
         String accessToken = tokenProvider.generateAccessToken(authentication);
-        tokenProvider.generateRefreshToken(authentication, accessToken);
+        String refreshToken = tokenProvider.generateRefreshToken(authentication, accessToken);
 
-        // smaeSite 설정
-        String cookie = "accessToken=" + accessToken +
-                "; Path=/; Max-Age=3600; HttpOnly; Secure; SameSite=None";
-        response.addHeader("Set-Cookie", cookie);
+        String accessCookie = "accessToken=" + accessToken +
+                "; Path=/; Max-Age=1800; HttpOnly; Secure; SameSite=None";
+        response.addHeader("Set-Cookie", accessCookie);
+
+        if (refreshToken != null) {
+            String refreshCookie = "refreshToken=" + refreshToken +
+                    "; Path=/api/token/refresh; Max-Age=604800; HttpOnly; Secure; SameSite=None";
+            response.addHeader("Set-Cookie", refreshCookie);
+        }
 
 
         // "회원가입 페이지" : "로그인 성공 페이지"
