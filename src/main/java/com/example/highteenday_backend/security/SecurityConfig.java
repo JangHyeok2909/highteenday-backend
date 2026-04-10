@@ -84,6 +84,7 @@ public class SecurityConfig {
                                 "/api/user/login",
                                 "/api/user/check/nickname",
                                 "/api/user/check/email",
+                                "/api/token/refresh",
                                 "/error"
                         ).permitAll()
                         // 그 외 모든 GET 요청은 허용
