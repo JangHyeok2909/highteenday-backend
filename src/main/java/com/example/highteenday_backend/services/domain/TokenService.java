@@ -45,6 +45,11 @@ public class TokenService {
                 .orElseThrow(() -> new RuntimeException("토큰이 유효하지 않습니다."));
     }
 
+    public Token findByRefreshTokenOrThrow(String refreshToken){
+        return tokenRepository.findByRefreshToken(refreshToken)
+                .orElseThrow(() -> new RuntimeException("리프레시 토큰이 유효하지 않습니다."));
+    }
+
     @Transactional
     public void updateToken(String accessToken, Token token){
         token.updateAccessToken(accessToken);

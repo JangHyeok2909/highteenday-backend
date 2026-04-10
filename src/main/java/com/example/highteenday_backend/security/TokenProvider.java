@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.security;
 
 
+import com.example.highteenday_backend.domain.Token.Token;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.Login.OAuth2UserInfo;
@@ -46,8 +47,8 @@ public class TokenProvider {
     public String generateAccessToken(Authentication authentication){
         return generateToken(authentication, ACCESS_TOKEN_EXPIRE_TIME);
     }
-    // refreshToken 발급
-    public void generateRefreshToken(Authentication authentication, String accessToken){
+    // refreshToken 발급 — ROLE_GUEST 면 null 반환
+    public String generateRefreshToken(Authentication authentication, String accessToken){
         log.debug("리프레시 토큰 발급. authorities={}", authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList()));
@@ -58,11 +59,29 @@ public class TokenProvider {
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
 
         if(isGuest){
-            return;
+            return null;
         }
 
         String refreshToken = generateToken(authentication, REFRESH_TOKEN_EXPIRE_TIME);
         tokenService.saveOrUpdate(userKey, refreshToken, accessToken);
+        return refreshToken;
+    }
+
+    // refreshToken 으로 accessToken 재발급
+    public String reissueAccessToken(String refreshToken){
+        // 1. 서명/만료 검증
+        Authentication authentication = getAuthentication(refreshToken);
+
+        // 2. DB에 저장된 토큰인지 확인 (서버 측 폐기 여부 체크)
+        Token storedToken = tokenService.findByRefreshTokenOrThrow(refreshToken);
+
+        // 3. 새 accessToken 발급
+        String newAccessToken = generateAccessToken(authentication);
+
+        // 4. DB 갱신
+        tokenService.updateToken(newAccessToken, storedToken);
+
+        return newAccessToken;
     }
     // 생성 로직
     private String generateToken(Authentication authentication, long expireTime){
