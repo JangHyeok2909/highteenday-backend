@@ -29,7 +29,18 @@
 
 ### 배포 아키텍처
 
-
+```
+[Client]
+   │ HTTPS
+   ▼
+[EC2 (Ubuntu)]
+   ├─ PM2 → java -jar highteenday-backend.jar  (프로세스 관리 / 자동 재시작)
+   ├─ MySQL 8 (로컬)
+   └─ Redis (로컬)
+         │
+         ▼
+      [AWS S3]  (이미지 / 미디어 파일)
+```
 
 - `application.properties`는 `.gitignore` 처리되어 서버에만 존재
 - PM2가 프로세스 관리 및 자동 재시작 담당
@@ -54,8 +65,6 @@
 - `BaseEntity`의 `is_valid` 컬럼으로 Soft Delete 구현
 
 ### User / Friend Domain
-
-소셜 로그인 기반 사용자와 친구 관계를 관리합니다.
 
 소셜 로그인 기반 사용자와 친구 관계를 관리합니다.
 
@@ -166,13 +175,23 @@ sequenceDiagram
 
 Redis Sorted Set 기반 실시간 인기 게시글 랭킹 시스템입니다.
 
+스코어 계산 방식은 용도에 따라 두 가지로 나뉩니다.
+
+**최신 핫게시글** (`calculateRecentHotScore`)
 ```
 score = sign × log₁₀(max(|weighted_sum|, 1))
 weighted_sum = 5×좋아요 − 1×싫어요 + 2×스크랩 + 3×댓글 + 1×조회수
 ```
 
+**일간 핫게시글** (`calculateDailyHotScore`) — 시간 감쇠 적용
+```
+score = sign × log₁₀(max(|weighted_sum|, 1)) / (경과시간 + 2)^1.5
+weighted_sum = 5×좋아요 − 2×싫어요 + 2×스크랩 + 3×댓글 + 1×조회수
+```
+
 - **로그 스케일**: 좋아요 0→10의 영향이 10→100보다 크게 반영되어 초기 반응이 중요
-- **일간 핫게시글**: 시간 감쇠 가산으로 최신 글 우대, 상위 10개 노출 (좋아요 ≥ 10 필터)
+- **시간 감쇠**: 오래된 글일수록 점수가 낮아져 최신 글 우대
+- **일간 핫게시글**: 상위 10개 노출 (좋아요 ≥ 10 필터)
 - **Redis ZSET**: `ZREVRANGE`로 O(log N + K) 시간에 상위 K개 조회
 - **스케줄러**: 1분 주기로 전체 게시글 스코어 갱신
 
