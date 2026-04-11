@@ -7,6 +7,7 @@ import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.Matchers;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -26,6 +27,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 
+// Manual integration test — requires a running MySQL, Redis, real S3 bucket, and an authenticated user.
+// Not suitable for automated builds. Run manually when needed.
+@Disabled("Integration test requiring real S3 + DB + authenticated user — run manually")
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
 public class PostMediaFlowTest {
