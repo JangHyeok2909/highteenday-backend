@@ -100,6 +100,8 @@ Google, Kakao, Naver 3사 OAuth2 로그인을 지원합니다.
 5. 이후 요청: TokenAuthenticationFilter가 쿠키에서 JWT 추출 → SecurityContext 설정
 ```
 
+자세한 내용:https://janghyeok.tistory.com/39
+
 ### 게시글 조회 (Redis 조회수 캐싱)
 
 조회수를 DB에 바로 반영하면 인기 게시글에 write 부하가 집중되므로, Redis를 버퍼로 활용합니다.
@@ -165,11 +167,6 @@ sequenceDiagram
 - 신규 본문·기존 본문에서 각각 img URL 목록을 뽑아 **추가분만** `CopyObject` + Media  
 - **기존에만 있던 URL**은 S3 객체 삭제  
 - 이미지가 하나도 없는 수정이면 본문만 갱신
-
-#### 운영 시 참고
-
-- 본문의 `<img src>`는 **우리 버킷 URL만** 있다고 가정하는 편이 안전합니다. 외부 URL이 섞이면 복사 단계에서 실패할 수 있습니다.  
-- 게시글 저장 후 **해당 유저 `tmp/` 전체**를 비우므로, 동시에 다른 초안을 편집 중이면 임시 파일이 함께 지워질 수 있습니다.
 
 ### 핫게시글 시스템
 
@@ -241,6 +238,8 @@ weighted_sum = 5×좋아요 − 2×싫어요 + 2×스크랩 + 3×댓글 + 1×조
 - 낙관적 락 + retry 전략
 - Redis 기반 캐싱 후 비동기 반영 (eventual consistency)
 
+자세한 내용:https://janghyeok.tistory.com/38
+
 ---
 
 ##  성능 개선 경험
@@ -268,6 +267,7 @@ Fetch Join을 적용하여 단일 쿼리로 조회
 #### ⚖️ Trade-off
 - 1:N 관계에서 데이터 중복으로 메모리 사용량 증가 가능
 
+자세한 내용:https://janghyeok.tistory.com/31
 
 ---
 
@@ -305,6 +305,8 @@ Fetch Join을 적용하여 단일 쿼리로 조회
 
 #### ⚖️ Trade-off
 - 인덱스 증가로 쓰기 성능 저하 및 저장 공간 증가
+
+자세한 내용:https://janghyeok.tistory.com/32
 
 ---
 
@@ -365,6 +367,8 @@ id 기반 커서 페이징 적용
 - 다만, 악의적 트래픽 공격이 들어오면 심각한 성능 문제가 발생할 수 있음
 
 
+자세한 내용:https://janghyeok.tistory.com/35
+
 ---
 
 ### 4. 캐싱 전략 적용
@@ -395,8 +399,8 @@ Redis 기반 캐싱 적용
 
 => 그러나 대용량 트래픽 환경에서 서비스 안정성을 위해, 자주 조회되는 데이터에 대해 캐싱 적용 결정
 
----
 
+자세한 내용:https://janghyeok.tistory.com/36
 
 ---
 
