@@ -3,29 +3,18 @@ services:
   # ==============================
   # Spring Boot App (production)
   #
-  # MySQL and Redis are assumed to be already running on the EC2 host.
-  # network_mode: host allows the container to reach EC2's localhost directly.
+  # Image is built by GitHub Actions and pushed to Amazon ECR.
+  # EC2 pulls the pre-built image — no build step on the server.
   #
-  # Usage on EC2:
-  #   export DB_URL=jdbc:mysql://localhost:3306/highteenday_db
-  #   export DB_USERNAME=root
-  #   export DB_PASSWORD=yourpassword
-  #   export REDIS_HOST=localhost
-  #   export JWT_KEY=...
-  #   export AWS_ACCESS_KEY=...
-  #   export AWS_SECRET_KEY=...
-  #   export S3_BUCKET=...
-  #   export GOOGLE_CLIENT_ID=...
-  #   export GOOGLE_CLIENT_SECRET=...
-  #   export NEIS_API_KEY=...
-  #
-  #   docker-compose -f docker-compose.prod.yml up -d
+  # MySQL (RDS) and Redis are assumed to be already running on
+  # the EC2 host. network_mode: host allows the container to
+  # reach EC2's localhost directly (e.g. Redis on localhost:6379).
   # ==============================
   app:
-    build: .
+    image: ${ECR_IMAGE}
     container_name: highteenday-app
     restart: unless-stopped
-    network_mode: host        # shares EC2 host network — localhost = EC2 itself
+    network_mode: host
     environment:
       DB_URL: ${DB_URL}
       DB_USERNAME: ${DB_USERNAME}
