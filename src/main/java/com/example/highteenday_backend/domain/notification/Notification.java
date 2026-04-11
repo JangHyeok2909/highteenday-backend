@@ -35,6 +35,8 @@ public class Notification extends BaseEntity {
     @Column(name = "NT_CAT", nullable = false)
     private NotificationCategory category;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "NT_entity_type")
     private EntityType entityType;
     private Long entityId;
 
