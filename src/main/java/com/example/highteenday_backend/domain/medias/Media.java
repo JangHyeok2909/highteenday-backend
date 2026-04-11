@@ -37,6 +37,7 @@ public class Media {
     @Column(name = "MDA_content_type",length = 100,nullable = false)
     private String contentType;
 
+    @Enumerated(EnumType.STRING)
     @Column(name ="MDA_CAT")
     private MediaCategory mediaCategory;
 
