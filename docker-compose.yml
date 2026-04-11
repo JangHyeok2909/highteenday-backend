@@ -1,0 +1,52 @@
+services:
+
+  # ==============================
+  # MySQL
+  # ==============================
+
+
+  # ==============================
+  # Redis
+  # ==============================
+  redis:
+    image: redis:7-alpine
+    container_name: highteenday-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==============================
+  # Spring Boot App
+  # ==============================
+  app:
+    build: .
+    container_name: highteenday-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_KEY: ${JWT_KEY}
+      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY}
+      AWS_SECRET_KEY: ${AWS_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      NEIS_API_KEY: ${NEIS_API_KEY}
+
+volumes:
+  mysql-data:
