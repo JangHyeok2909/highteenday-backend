@@ -39,9 +39,11 @@ public class User extends BaseEntity {
     @Column(name = "USR_class")
     private Integer userClass;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "USR_grade")
     private Grade grade;
 
+    @Enumerated(EnumType.STRING)
     @Column(name="USR_semester")
     private Semester semester;
 
