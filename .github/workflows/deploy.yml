@@ -1,87 +1,55 @@
-name: Spring Boot CI/CD
+name: Deploy to EC2
 
 on:
   push:
-    branches: [ feature/user-security-action ]
+    branches: [ main ]
 
 jobs:
-  deploy-backend:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Remove old app directory but keep application.properties
-        uses: appleboy/ssh-action@master
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
+          JWT_KEY: ${{ secrets.JWT_KEY }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          NEIS_API_KEY: ${{ secrets.NEIS_API_KEY }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DB_URL,DB_USERNAME,DB_PASSWORD,REDIS_HOST,REDIS_PORT,JWT_KEY,AWS_ACCESS_KEY,AWS_SECRET_KEY,S3_BUCKET,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,NEIS_API_KEY
           script: |
-            cp ~/highteenday-back-server/src/main/resources/application.properties ~/application.properties || true
-            rm -rf ~/highteenday-back-server
-
-      - name: Upload Spring Boot App to EC2
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./*"
-          target: "~/highteenday-back-server"
-          rm: false
-          overwrite: true
-          strip_components: 0
-
-      - name: Install Java 17 and PM2 on EC2
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            if ! java -version &>/dev/null; then
-              echo "Java not found. Installing OpenJDK 17..."
-              sudo apt update
-              sudo apt install -y openjdk-17-jdk
-            else
-              echo "Java is already installed."
+            # Clone repo on first deploy, otherwise pull latest
+            if [ ! -d ~/app ]; then
+              git clone https://github.com/${{ github.repository }}.git ~/app
             fi
+            cd ~/app
+            git pull origin main
 
-            JAVA_PATH=$(readlink -f /usr/bin/java | sed "s:/bin/java::")
-            echo "Detected JAVA_HOME as $JAVA_PATH"
-            echo "export JAVA_HOME=$JAVA_PATH" >> ~/.bashrc
-            echo "export PATH=\$JAVA_HOME/bin:\$PATH" >> ~/.bashrc
+            # Write all values from GitHub Secrets (printf avoids special character issues e.g. !! in passwords)
+            printf 'DB_URL=%s\n' "$DB_URL" > .env
+            printf 'DB_USERNAME=%s\n' "$DB_USERNAME" >> .env
+            printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD" >> .env
+            printf 'REDIS_HOST=%s\n' "$REDIS_HOST" >> .env
+            printf 'REDIS_PORT=%s\n' "$REDIS_PORT" >> .env
+            printf 'JWT_KEY=%s\n' "$JWT_KEY" >> .env
+            printf 'AWS_ACCESS_KEY=%s\n' "$AWS_ACCESS_KEY" >> .env
+            printf 'AWS_SECRET_KEY=%s\n' "$AWS_SECRET_KEY" >> .env
+            printf 'S3_BUCKET=%s\n' "$S3_BUCKET" >> .env
+            printf 'GOOGLE_CLIENT_ID=%s\n' "$GOOGLE_CLIENT_ID" >> .env
+            printf 'GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_CLIENT_SECRET" >> .env
+            printf 'NEIS_API_KEY=%s\n' "$NEIS_API_KEY" >> .env
 
-            if ! command -v pm2 &> /dev/null; then
-              echo "PM2 not found. Installing PM2..."
-              sudo apt install -y npm
-              sudo npm install -g pm2
-            else
-              echo "PM2 is already installed."
-            fi
-
-
-
-      - name: Run Spring Boot on EC2
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            mv ~/application.properties ~/highteenday-back-server/src/main/resources/
-
-            cd ~/highteenday-back-server
-            chmod +x ./gradlew
-            
-            ./gradlew build -x test
-
-            pm2 delete highteenday-backend || true
-
-            pm2 start "java -jar -Dserver.address=0.0.0.0 -Dserver.port=8080 build/libs/highteenday-backend-0.0.1-SNAPSHOT.jar" --name highteenday-backend
-
-            pm2 save
-
-            echo "✅ Spring Boot 서버가 PM2로 실행되었습니다."
+            # Build image and restart container
+            docker compose -f docker-compose.prod.yml --env-file .env up -d --build
