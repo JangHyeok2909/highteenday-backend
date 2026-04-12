@@ -53,7 +53,8 @@ public class SecurityConfig {
                         .configurationSource(request -> {
                             CorsConfiguration config = new CorsConfiguration();
                             config.setAllowedOriginPatterns(List.of(
-                                    "https://highteenday.duckdns.org",
+                                    "https://highteenday.org",
+                                    "https://www.highteenday.org",
                                     "http://localhost:3000",
                                     "http://localhost:8080"
                             ));
