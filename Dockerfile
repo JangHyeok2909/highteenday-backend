@@ -51,6 +51,7 @@ RUN addgroup --system spring && adduser --system --ingroup spring spring
 USER spring
 
 COPY --from=builder /app/build/libs/*.jar app.jar
+COPY --from=builder /app/schoolData schoolData
 
 EXPOSE 8080
 
