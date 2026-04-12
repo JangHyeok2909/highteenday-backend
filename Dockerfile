@@ -35,6 +35,7 @@ COPY gradle gradle
 COPY build.gradle .
 COPY settings.gradle .
 COPY src src
+COPY schoolData schoolData
 
 RUN chmod +x gradlew && ./gradlew build -x test --no-daemon
 
