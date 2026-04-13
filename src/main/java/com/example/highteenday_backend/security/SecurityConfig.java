@@ -90,6 +90,7 @@ public class SecurityConfig {
                         ).permitAll()
                         // 그 외 모든 GET 요청은 허용
                         .requestMatchers(HttpMethod.GET, "/**").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 그 외 모든 요청은 인증 필요
                         .anyRequest().authenticated()
                 )
