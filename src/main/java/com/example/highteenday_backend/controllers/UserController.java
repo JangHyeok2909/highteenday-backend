@@ -152,7 +152,7 @@ public class UserController {
 
     // 로그인 유저 비밀번호 변경
     @Operation(summary = "비밀번호 변경")
-    @PostMapping("/modify/password")
+    @PatchMapping("/modify/password")
     public ResponseEntity<?> modifyPassword(
         @AuthenticationPrincipal CustomUserPrincipal user,
         @RequestBody ChangePasswordDto passwordDto
@@ -166,7 +166,7 @@ public class UserController {
 
     // 로그인 유저 닉네임 변경
     @Operation(summary = "닉네임 변경")
-    @PostMapping("/modify/nickname")
+    @PatchMapping("/modify/nickname")
     public ResponseEntity<?> modifyNickname(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody ChangeNicknameDto nicknameDto
@@ -176,7 +176,7 @@ public class UserController {
         return ResponseEntity.ok("닉네임 변경 완료");
     }
     @Operation(summary = "학교 변경")
-    @PutMapping("/modify/school")
+    @PatchMapping("/modify/school")
     public ResponseEntity<?> modifySchool(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                           @RequestBody SchoolIdDto dto){
         User user = userPrincipal.getUser();
