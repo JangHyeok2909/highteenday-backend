@@ -31,6 +31,7 @@ public class CommentDto {
     private boolean isDisliked = false;
     @Builder.Default
     private boolean isOwner = false;
+    private String profileUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     @Builder.Default
@@ -46,6 +47,7 @@ public class CommentDto {
                 .likeCount(comment.getLikeCount())
                 .dislikeCount(comment.getDislikeCount())
                 .isAnonymous(comment.isAnonymous())
+                .profileUrl(comment.isAnonymous() ? null : comment.getUser().getProfileUrl())
                 .url(comment.getS3Url())
                 .createdAt(comment.getCreated())
                 .updatedAt(comment.getUpdatedDate())
