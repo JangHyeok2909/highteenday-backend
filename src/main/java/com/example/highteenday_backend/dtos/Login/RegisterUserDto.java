@@ -4,6 +4,8 @@ import com.example.highteenday_backend.enums.Gender;
 import com.example.highteenday_backend.enums.Grade;
 import lombok.Builder;
 
+import java.time.LocalDate;
+
 @Builder
 public record RegisterUserDto(
     String name,
@@ -13,5 +15,6 @@ public record RegisterUserDto(
     Grade grade,
     Gender gender,
     String provider,
-    String password
+    String password,
+    LocalDate birthDate
 ){}
