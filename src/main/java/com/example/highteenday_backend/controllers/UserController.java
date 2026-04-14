@@ -33,7 +33,7 @@ import java.util.Map;
 
 
 @Tag(name="User Relation API", description = "User 관련 API")
-@RequestMapping("/api/user") // 일단 user 로 해놨는데 변경해도 ㄱㅊ
+@RequestMapping("/api/user")
 @RestController
 @RequiredArgsConstructor
 @Slf4j
@@ -175,6 +175,7 @@ public class UserController {
         userService.modifyNickname(findUser, nicknameDto);
         return ResponseEntity.ok("닉네임 변경 완료");
     }
+
     @Operation(summary = "학교 변경")
     @PatchMapping("/modify/school")
     public ResponseEntity<?> modifySchool(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
@@ -193,6 +194,7 @@ public class UserController {
         boolean duplCheck = !userService.existsByNickname(nickname);
         return ResponseEntity.ok(duplCheck);
     }
+
     @Operation(summary = "이메일 중복 확인")
     @GetMapping("/check/email")
     public ResponseEntity<Boolean> checkEmail(
@@ -201,6 +203,7 @@ public class UserController {
         boolean duplCheck = !userService.existsByEmail(email);
         return ResponseEntity.ok(duplCheck);
     }
+
     @Operation(summary = "전화번호 중복 확인")
     @GetMapping("/check/phone")
     public ResponseEntity<Boolean> checkPhone(

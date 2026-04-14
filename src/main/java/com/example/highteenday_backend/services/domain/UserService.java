@@ -97,6 +97,7 @@ public class UserService {
                 .gender(registerUserDto.gender())
                 .provider(Provider.DEFAULT)
                 .phone(registerUserDto.phone())
+                .birthDate(registerUserDto.birthDate())
                 .build();
 
         if(registerUserDto.provider()==null) user.setProvider(Provider.DEFAULT);
