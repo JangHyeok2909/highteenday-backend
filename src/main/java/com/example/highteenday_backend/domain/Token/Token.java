@@ -15,7 +15,7 @@ public class Token {
     private Long id;
 
     @OneToOne
-    @JoinColumn(name = "id", foreignKey = @ForeignKey(name = "fk_token_usr"))
+    @JoinColumn(name = "USR_id", foreignKey = @ForeignKey(name = "fk_token_usr"))
     private User user;
 
     // 토큰 길이 다시 검토, ( 길이 줄일지 | 유니크를 없에고 검증 로직 추가할지 )
