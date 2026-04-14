@@ -114,9 +114,7 @@ public class SecurityConfig {
     public WebSecurityCustomizer securityCustomizer() {
         return (web) -> web.ignoring().requestMatchers(
                 "/swagger-ui/**",
-                "/v3/api-docs/**",
-                "/swagger-resources/**",
-                "/webjars/**",
+                "/swagger/**",
                 "/favicon.ico"
         );
     }
