@@ -63,7 +63,7 @@ public class PostController {
         return ResponseEntity.created(URI.create("/api/posts/"+post.getId())).build();
 
     }
-    @PutMapping("/{postId}")
+    @PatchMapping("/{postId}")
     public ResponseEntity updatePost(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                      @PathVariable Long postId,
                                      @RequestBody UpdatePostDto dto){

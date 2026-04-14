@@ -57,7 +57,7 @@ public class SubjectController {
         return ResponseEntity.ok(SubjectDto.fromEntity(save));
     }
     @Operation(summary = "과목명 수정")
-    @PutMapping("/{subjectId}")
+    @PatchMapping("/{subjectId}")
     public ResponseEntity<SubjectDto> updateSubject(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                                     @PathVariable Long subjectId,
                                                     @RequestBody RequestSubjectDto dto
