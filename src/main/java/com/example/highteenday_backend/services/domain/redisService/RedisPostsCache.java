@@ -117,6 +117,16 @@ public class RedisPostsCache implements PostPrevCache{
     }
 
     @Override
+    public void evictBoard(Long boardId) {
+        boardTemplate.delete(createBoardKey(boardId));
+    }
+
+    @Override
+    public void evictPostPrev(Long postId) {
+        postTemplate.delete(createPostKey(postId));
+    }
+
+    @Override
     public Long getCount(Long boardId) {
         String key = createCountingKey(boardId);
         Long count = countingTemplate.opsForValue().get(key);
