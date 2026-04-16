@@ -107,6 +107,7 @@ enums/            Shared enumerations (Role, Provider, Grade, etc.)
 - Controllers: `{Domain}Controller`
 - DTOs: descriptive, e.g. `RequestPostDto`, `PostDto`, `UpdatePostDto`
 - Methods: verb-first camelCase (`createPost`, `deleteComment`)
+- Service methods that modify an entity must be prefixed with `update` (e.g. `updatePassword`, `updateSchool`) — never `modify` or `change`
 
 ### Patterns
 - Use `@RequiredArgsConstructor` + `final` fields for dependency injection
@@ -207,7 +208,7 @@ AWS CloudFront
   - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`
   - Example: `feat: add OAuth2 auto-registration for new users`
 - Keep subject line under 72 characters
-- **Always ask before pushing** to remote — never push without explicit user confirmation
+- **Always ask before committing AND pushing** — never commit or push without explicit user confirmation
 - Never force-push `main` without explicit user instruction
 - Prefer one focused commit per logical change; squash noise commits before pushing
 
