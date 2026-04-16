@@ -50,7 +50,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             // OAuth 신규 가입: OAuth 정보로 자동 등록
             String email = customUserPrincipal.getUser().getEmail();
             String name = customUserPrincipal.getUser().getName();
-            Provider provider = customUserPrincipal.getUser().getProvider();
+            Provider provider = Provider.valueOf(registrationId.toUpperCase());
             String pictureUrl = (String) customUserPrincipal.getAttributes().get("picture");
 
             log.info("OAuth2 신규 사용자 자동 등록. provider={}, email={}", registrationId, email);
