@@ -1,6 +1,8 @@
 package com.example.highteenday_backend.services.domain;
 
 
+import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
+import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplateRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.ChangeNicknameDto;
@@ -9,9 +11,9 @@ import com.example.highteenday_backend.dtos.UserInfoDto;
 import com.example.highteenday_backend.dtos.Login.RegisterUserDto;
 import com.example.highteenday_backend.enums.Grade;
 import com.example.highteenday_backend.enums.Semester;
+import com.example.highteenday_backend.enums.Role;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
-import com.example.highteenday_backend.enums.Role;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.security.JwtCookieService;
@@ -38,6 +40,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtCookieService jwtCookieService;
+    private final TimetableTemplateRepository timetableTemplateRepository;
 
     public User findById(Long userId){
         return userRepository.findById(userId)
@@ -121,6 +124,8 @@ public class UserService {
         // 저장 후 토큰 발급하기 위한 처리 코드
         User savedUser = userRepository.saveAndFlush(user);
 
+        createDefaultTimetableTemplate(savedUser);
+
         CustomUserPrincipal userDetails = new CustomUserPrincipal(savedUser, attributes, "ROLE_USER");
 
         Authentication authentication = new UsernamePasswordAuthenticationToken(
@@ -159,7 +164,22 @@ public class UserService {
                 .role(Role.USER)
                 .build();
 
-        return userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        createDefaultTimetableTemplate(savedUser);
+
+        return savedUser;
+    }
+
+    private void createDefaultTimetableTemplate(User user) {
+        TimetableTemplate defaultTemplate = TimetableTemplate.builder()
+                .user(user)
+                .templateName("기본 시간표")
+                .grade(Grade.SOPHOMORE)
+                .semester(Semester.FIRST)
+                .isDefault(true)
+                .build();
+        timetableTemplateRepository.save(defaultTemplate);
     }
 
     // 회원 탈퇴
