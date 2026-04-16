@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,6 +20,9 @@ public class TokenController {
 
     private final TokenProvider tokenProvider;
 
+    @Value("${app.cookie-domain:}")
+    private String cookieDomain;
+
     @PostMapping("/refresh")
     public ResponseEntity<Void> refresh(HttpServletRequest request, HttpServletResponse response) {
         String refreshToken = extractRefreshToken(request);
@@ -28,8 +32,9 @@ public class TokenController {
 
         String newAccessToken = tokenProvider.reissueAccessToken(refreshToken);
 
+        String domainAttr = (cookieDomain != null && !cookieDomain.isBlank()) ? "; Domain=" + cookieDomain : "";
         String cookie = "accessToken=" + newAccessToken +
-                "; Path=/; Max-Age=1800; HttpOnly; Secure; SameSite=None";
+                "; Path=/; Max-Age=1800; HttpOnly; Secure; SameSite=None" + domainAttr;
         response.addHeader("Set-Cookie", cookie);
 
         log.debug("액세스 토큰 재발급 완료.");
