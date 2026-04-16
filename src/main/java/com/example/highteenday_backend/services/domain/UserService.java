@@ -102,6 +102,7 @@ public class UserService {
                 .name(registerUserDto.name())
                 .email(registerUserDto.email())
                 .hashedPassword(passwordEncoder.encode(registerUserDto.password()))
+                .role(Role.USER)
                 .gender(registerUserDto.gender())
                 .provider(Provider.DEFAULT)
                 .phone(registerUserDto.phone())
