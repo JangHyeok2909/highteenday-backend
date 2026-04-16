@@ -10,7 +10,6 @@ import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.security.TokenException;
 import com.example.highteenday_backend.security.TokenProvider;
-import com.example.highteenday_backend.services.domain.SchoolService;
 import com.example.highteenday_backend.services.domain.UserService;
 import com.example.highteenday_backend.services.security.JwtCookieService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,7 +41,6 @@ public class UserController {
     private final TokenProvider tokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final JwtCookieService jwtCookieService;
-    private final SchoolService schoolService;
 
     // 테스트 코드
     @Operation(summary = "OAuth2 로그인한 사용자 정보 조회 (accessToken 쿠키 기반)")
@@ -152,36 +150,43 @@ public class UserController {
 
     // 로그인 유저 비밀번호 변경
     @Operation(summary = "비밀번호 변경")
-    @PatchMapping("/modify/password")
+    @PatchMapping("/password")
     public ResponseEntity<?> modifyPassword(
         @AuthenticationPrincipal CustomUserPrincipal user,
         @RequestBody ChangePasswordDto passwordDto
     ){
         User findUser = userService.findByEmail(user.getUser().getEmail());
-
-        userService.modifyPassword(findUser, passwordDto);
-
+        userService.updatePassword(findUser, passwordDto);
         return ResponseEntity.ok("비밀번호 변경 완료");
     }
 
     // 로그인 유저 닉네임 변경
     @Operation(summary = "닉네임 변경")
-    @PatchMapping("/modify/nickname")
+    @PatchMapping("/nickname")
     public ResponseEntity<?> modifyNickname(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody ChangeNicknameDto nicknameDto
     ){
         User findUser = userService.findByEmail(user.getUser().getEmail());
-        userService.modifyNickname(findUser, nicknameDto);
+        userService.updateNickname(findUser, nicknameDto);
         return ResponseEntity.ok("닉네임 변경 완료");
     }
 
-    @Operation(summary = "학교 변경")
-    @PatchMapping("/modify/school")
+    @Operation(summary = "학교/학년/반 변경")
+    @PatchMapping("/school")
     public ResponseEntity<?> modifySchool(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                           @RequestBody SchoolIdDto dto){
-        User user = userPrincipal.getUser();
-        user.setSchool(schoolService.findById(Long.parseLong(dto.schoolId())));
+        User user = userService.findById(userPrincipal.getUser().getId());
+        userService.updateSchool(user, dto);
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "전화번호 변경")
+    @PatchMapping("/phone")
+    public ResponseEntity<?> modifyPhone(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+                                         @RequestBody ChangePhoneDto dto){
+        User user = userService.findById(userPrincipal.getUser().getId());
+        userService.updatePhone(user, dto);
         return ResponseEntity.ok().build();
     }
 

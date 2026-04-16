@@ -1,4 +1,6 @@
 package com.example.highteenday_backend.dtos;
 
-public record SchoolIdDto(String schoolId) {
+import com.example.highteenday_backend.enums.Grade;
+
+public record SchoolIdDto(String schoolId, Grade grade, Integer userClass) {
 }

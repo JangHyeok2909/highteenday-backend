@@ -7,6 +7,8 @@ import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.ChangeNicknameDto;
 import com.example.highteenday_backend.dtos.ChangePasswordDto;
+import com.example.highteenday_backend.dtos.ChangePhoneDto;
+import com.example.highteenday_backend.dtos.SchoolIdDto;
 import com.example.highteenday_backend.dtos.UserInfoDto;
 import com.example.highteenday_backend.dtos.Login.RegisterUserDto;
 import com.example.highteenday_backend.enums.Grade;
@@ -16,6 +18,7 @@ import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
+import com.example.highteenday_backend.services.domain.SchoolService;
 import com.example.highteenday_backend.services.security.JwtCookieService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +44,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtCookieService jwtCookieService;
     private final TimetableTemplateRepository timetableTemplateRepository;
+    private final SchoolService schoolService;
 
     public User findById(Long userId){
         return userRepository.findById(userId)
@@ -205,7 +209,7 @@ public class UserService {
 
     // 비밀번호 변경 | 정규표현식 적용 가능
     @Transactional
-    public void modifyPassword(User user, ChangePasswordDto passwordDto) {
+    public void updatePassword(User user, ChangePasswordDto passwordDto) {
         if (!passwordEncoder.matches(passwordDto.pastPassword(), user.getHashedPassword())) {
             throw new CustomException(ErrorCode.INVALID_PASSWORD);
         } else if (passwordDto.pastPassword().equals(passwordDto.newPassword())) {
@@ -223,7 +227,7 @@ public class UserService {
 
     // 닉네임 변경
     @Transactional
-    public void modifyNickname(User user, ChangeNicknameDto nicknameDto) {
+    public void updateNickname(User user, ChangeNicknameDto nicknameDto) {
         // 이전과 같은지 검사
         if (nicknameDto.pastNickname().equals(nicknameDto.newNickname())) {
             throw new CustomException(ErrorCode.SAME_AS_NICKNAME);
@@ -242,6 +246,25 @@ public class UserService {
         }
     }
 
+    @Transactional
+    public void updatePhone(User user, ChangePhoneDto dto) {
+        if (dto.phone() != null && userRepository.existsByPhone(dto.phone())) {
+            throw new CustomException(ErrorCode.DUPLICATE_PHONE);
+        }
+        log.info("전화번호 변경. userId={}", user.getId());
+        user.setPhone(dto.phone());
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void updateSchool(User user, SchoolIdDto dto) {
+        log.info("학교/학년/반 변경. userId={}, schoolId={}, grade={}, class={}",
+                user.getId(), dto.schoolId(), dto.grade(), dto.userClass());
+        user.setSchool(schoolService.findById(Long.parseLong(dto.schoolId())));
+        user.setGrade(dto.grade());
+        user.setUserClass(dto.userClass());
+        userRepository.save(user);
+    }
 
 }
 
