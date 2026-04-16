@@ -4,6 +4,7 @@ import com.example.highteenday_backend.Utils.PageUtils;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.LikeStateDto;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.dtos.PostDto;
 import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.example.highteenday_backend.dtos.UpdatePostDto;
@@ -11,6 +12,7 @@ import com.example.highteenday_backend.dtos.paged.PagedPostsDto;
 import com.example.highteenday_backend.enums.PostSearchType;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.*;
+import com.example.highteenday_backend.services.domain.redisService.PostPrevCache;
 import com.example.highteenday_backend.services.domain.redisService.ViewCountService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -55,14 +57,16 @@ public class PostController {
         return ResponseEntity.ok(postDto);
     }
 
+    @Operation(summary = "게시글 생성")
     @PostMapping()
     public ResponseEntity<URI> createPost(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                           @Valid @RequestBody RequestPostDto requestPostDto){
         User user = userPrincipal.getUser();
-        Post post = postService.createPost(user,requestPostDto);
-        return ResponseEntity.created(URI.create("/api/posts/"+post.getId())).build();
+        Post post = postService.createPost(user, requestPostDto);
 
+        return ResponseEntity.created(URI.create("/api/posts/"+post.getId())).build();
     }
+    @Operation(summary = "게시글 수정")
     @PatchMapping("/{postId}")
     public ResponseEntity updatePost(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                      @PathVariable Long postId,
@@ -71,12 +75,13 @@ public class PostController {
         postService.updatePost(postId,user.getId(),dto);
         return ResponseEntity.ok("수정 완료.");
     }
-
+    @Operation(summary = "게시글 삭제")
     @DeleteMapping("/{postId}")
     public ResponseEntity deletePost(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                      @PathVariable Long postId){
         User user = userPrincipal.getUser();
-        postService.deletePost(postId,user.getId());
+        postService.deletePost(postId, user.getId());
+
         return ResponseEntity.ok("삭제 완료.");
     }
     @Operation(summary = "게시글 검색")
