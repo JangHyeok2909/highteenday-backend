@@ -11,6 +11,7 @@ import com.example.highteenday_backend.enums.Grade;
 import com.example.highteenday_backend.enums.Semester;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
+import com.example.highteenday_backend.enums.Role;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.security.JwtCookieService;
@@ -131,6 +132,35 @@ public class UserService {
         jwtCookieService.setJwtCookie(authentication,response);
     }
 
+
+    @Transactional
+    public User registerOAuthUser(String email, String name, Provider provider, String profileUrl) {
+        String truncatedName = name != null && name.length() > 10 ? name.substring(0, 10) : name;
+
+        // 이메일 prefix를 기반으로 중복 없는 닉네임 생성
+        String emailPrefix = email.contains("@") ? email.split("@")[0] : email;
+        String baseNickname = emailPrefix.length() > 12 ? emailPrefix.substring(0, 12) : emailPrefix;
+        String nickname = baseNickname;
+        int suffix = 1;
+        while (userRepository.existsByNickname(nickname)) {
+            String suffixStr = String.valueOf(suffix++);
+            int maxBase = 12 - suffixStr.length();
+            nickname = (baseNickname.length() > maxBase ? baseNickname.substring(0, maxBase) : baseNickname) + suffixStr;
+        }
+
+        log.info("OAuth 자동 회원가입. email={}, provider={}", email, provider);
+
+        User user = User.builder()
+                .email(email)
+                .name(truncatedName)
+                .nickname(nickname)
+                .provider(provider)
+                .profileUrl(profileUrl)
+                .role(Role.USER)
+                .build();
+
+        return userRepository.save(user);
+    }
 
     // 회원 탈퇴
     @Transactional
