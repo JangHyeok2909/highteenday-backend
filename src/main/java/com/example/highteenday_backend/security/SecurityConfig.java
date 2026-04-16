@@ -97,6 +97,14 @@ public class SecurityConfig {
 
                 // 로그인 부분
                 .oauth2Login(oauth -> oauth
+                        //client->server 로그인 시작 url
+                        .authorizationEndpoint(endpoint ->
+                                endpoint.baseUri("/oauth2/authorization")
+                        )
+                        //provider->server 콜백 url
+                        .redirectionEndpoint(endpoint ->
+                                endpoint.baseUri("/oauth2/login/code/*")
+                        )
                         .userInfoEndpoint(c -> c.userService(customOAuth2UserService))
                         .successHandler(oAuth2SuccessHandler))
 
