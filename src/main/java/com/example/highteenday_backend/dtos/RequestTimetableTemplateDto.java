@@ -6,8 +6,10 @@ import com.example.highteenday_backend.enums.Semester;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @AllArgsConstructor
+@NoArgsConstructor
 @Data
 @Builder
 public class RequestTimetableTemplateDto {
