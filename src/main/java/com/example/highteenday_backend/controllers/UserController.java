@@ -136,7 +136,7 @@ public class UserController {
     }
 
     // 로그아웃
-    @Operation(summary = "로그아웃 (accessToken 쿠키 제거)")
+    @Operation(summary = "로그아웃 (accessToken, refreshToken 쿠키 제거)")
     @GetMapping("/logout")
     public ResponseEntity<?> logout(HttpServletResponse response){
         Cookie accessTokenCookie = new Cookie("accessToken", null);
@@ -145,6 +145,13 @@ public class UserController {
         accessTokenCookie.setHttpOnly(true);
         accessTokenCookie.setSecure(true);
         response.addCookie(accessTokenCookie);
+
+        Cookie refreshTokenCookie = new Cookie("refreshToken", null);
+        refreshTokenCookie.setMaxAge(0);
+        refreshTokenCookie.setPath("/api/token/refresh");
+        refreshTokenCookie.setHttpOnly(true);
+        refreshTokenCookie.setSecure(true);
+        response.addCookie(refreshTokenCookie);
 
         return ResponseEntity.ok("로그아웃");
     }
