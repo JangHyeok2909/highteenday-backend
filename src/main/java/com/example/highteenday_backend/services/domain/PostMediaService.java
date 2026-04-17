@@ -86,6 +86,9 @@ public class PostMediaService {
                 s3Service.delete(s3Service.getKeyByUrl(ru));
             }
 
+        } else {
+            // 이미지 변경 없이 텍스트만 수정된 경우에도 content 저장
+            post.updateContent(newContent);
         }
     }
 }
