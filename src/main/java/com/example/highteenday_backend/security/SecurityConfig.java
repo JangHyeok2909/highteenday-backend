@@ -78,6 +78,10 @@ public class SecurityConfig {
                                 "/api/timetableTemplates/**"
                         ).authenticated()
 
+                        // POST/DELETE 요청 중 인증 필요 경로
+                        .requestMatchers(HttpMethod.POST, "/api/user/logout").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/user/account").authenticated()
+
                         // POST 요청 중 인증 없이 허용하는 경로
                         .requestMatchers(HttpMethod.POST,
                                 "/api/user/register",

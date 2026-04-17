@@ -10,6 +10,7 @@ import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.security.TokenException;
 import com.example.highteenday_backend.security.TokenProvider;
+import com.example.highteenday_backend.services.domain.TokenService;
 import com.example.highteenday_backend.services.domain.UserService;
 import com.example.highteenday_backend.services.security.JwtCookieService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpHeaders;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +44,7 @@ public class UserController {
     private final TokenProvider tokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final JwtCookieService jwtCookieService;
+    private final TokenService tokenService;
 
     // 테스트 코드
     @Operation(summary = "OAuth2 로그인한 사용자 정보 조회 (accessToken 쿠키 기반)")
@@ -99,13 +102,18 @@ public class UserController {
 
     // 회원 탈퇴
     @Operation(summary = "회원 탈퇴")
-    @GetMapping("/deleteAccount")
+    @DeleteMapping("/account")
     public ResponseEntity<?> deleteAccount(
-            @AuthenticationPrincipal CustomUserPrincipal user
+            @AuthenticationPrincipal CustomUserPrincipal user,
+            HttpServletResponse response
     ){
         User findUser = userService.findByEmail(user.getUser().getEmail());
 
+        tokenService.deleteByUserEmail(findUser.getEmail());
         userService.deleteAccount(findUser);
+
+        response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.expireAccessCookie().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.expireRefreshCookie().toString());
 
         return ResponseEntity.ok("회원 탈퇴 완료");
     }
@@ -136,22 +144,16 @@ public class UserController {
     }
 
     // 로그아웃
-    @Operation(summary = "로그아웃 (accessToken, refreshToken 쿠키 제거)")
-    @GetMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletResponse response){
-        Cookie accessTokenCookie = new Cookie("accessToken", null);
-        accessTokenCookie.setMaxAge(0);
-        accessTokenCookie.setPath("/");
-        accessTokenCookie.setHttpOnly(true);
-        accessTokenCookie.setSecure(true);
-        response.addCookie(accessTokenCookie);
+    @Operation(summary = "로그아웃 (서버 refreshToken 삭제 + accessToken/refreshToken 쿠키 만료)")
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(
+            @AuthenticationPrincipal CustomUserPrincipal user,
+            HttpServletResponse response
+    ){
+        tokenService.deleteByUserEmail(user.getUser().getEmail());
 
-        Cookie refreshTokenCookie = new Cookie("refreshToken", null);
-        refreshTokenCookie.setMaxAge(0);
-        refreshTokenCookie.setPath("/api/token/refresh");
-        refreshTokenCookie.setHttpOnly(true);
-        refreshTokenCookie.setSecure(true);
-        response.addCookie(refreshTokenCookie);
+        response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.expireAccessCookie().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.expireRefreshCookie().toString());
 
         return ResponseEntity.ok("로그아웃");
     }
