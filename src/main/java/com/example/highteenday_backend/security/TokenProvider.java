@@ -3,6 +3,7 @@ package com.example.highteenday_backend.security;
 
 import com.example.highteenday_backend.domain.Token.Token;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.dtos.TokenPair;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.Login.OAuth2UserInfo;
 import com.example.highteenday_backend.enums.ErrorCode;
@@ -67,21 +68,21 @@ public class TokenProvider {
         return refreshToken;
     }
 
-    // refreshToken 으로 accessToken 재발급
-    public String reissueAccessToken(String refreshToken){
+    // refreshToken 으로 accessToken + refreshToken 재발급 (rotation)
+    public TokenPair reissueTokens(String refreshToken){
         // 1. 서명/만료 검증
         Authentication authentication = getAuthentication(refreshToken);
 
         // 2. DB에 저장된 토큰인지 확인 (서버 측 폐기 여부 체크)
-        Token storedToken = tokenService.findByRefreshTokenOrThrow(refreshToken);
+        tokenService.findByRefreshTokenOrThrow(refreshToken);
 
         // 3. 새 accessToken 발급
         String newAccessToken = generateAccessToken(authentication);
 
-        // 4. DB 갱신
-        tokenService.updateToken(newAccessToken, storedToken);
+        // 4. 새 refreshToken 발급 + DB 갱신 (rotation)
+        String newRefreshToken = generateRefreshToken(authentication, newAccessToken);
 
-        return newAccessToken;
+        return new TokenPair(newAccessToken, newRefreshToken);
     }
     // 생성 로직
     private String generateToken(Authentication authentication, long expireTime){
