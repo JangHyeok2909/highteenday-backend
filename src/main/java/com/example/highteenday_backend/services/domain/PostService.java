@@ -12,6 +12,8 @@ import com.example.highteenday_backend.dtos.paged.PostListingDto;
 import com.example.highteenday_backend.enums.PostSearchType;
 import com.example.highteenday_backend.enums.SortType;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
+import com.example.highteenday_backend.services.domain.redisService.PostPrevCache;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -31,6 +33,7 @@ public class PostService {
     private final PostRepository postRepository;
     private final BoardService boardService;
     private final PostMediaService postMediaService;
+    private final PostPrevCache postPrevCache;
     private final static int SIZE = 10;
 
     public Post findById(Long postId) {
@@ -87,11 +90,16 @@ public class PostService {
         Post savedPost = postRepository.save(post);
         postMediaService.processCreatePostMedia(user.getId(),post);
         post.setUpdatedDate(null);
+
+        postPrevCache.evictBoard(post.getBoard().getId());
+        postPrevCache.cachePostPrev(PostPreviewDto.fromEntity(post));
+        postPrevCache.incrementBoardCount(post.getBoard().getId());
+
         return savedPost;
     }
     //로그 남기기,이미지 업로드
     @Transactional
-    public void updatePost(Long postId,Long userId, UpdatePostDto dto){
+    public void updatePost(Long postId,Long userId, @Valid UpdatePostDto dto){
         String newTile = dto.getTitle();
         String newContent = dto.getContent();
 
@@ -109,11 +117,15 @@ public class PostService {
         log.info("[Post Update] success, postId={}, updateBy={}",post.getId(),post.getUpdatedBy());
     }
     @Transactional
-    public void deletePost(Long postId,Long userId) {
+    public Post deletePost(Long postId,Long userId) {
         Post post = findById(postId);
         post.delete();
         post.setUpdatedBy(userId);
+        postPrevCache.evictBoard(post.getBoard().getId());
+        postPrevCache.evictPostPrev(postId);
+        postPrevCache.decrementBoardCount(post.getBoard().getId());
         log.info("post delete. postId = {}, deletedBy = {}", post.getId(), userId);
+        return post;
     }
 
 

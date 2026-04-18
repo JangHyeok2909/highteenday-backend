@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.BindException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
@@ -34,7 +35,6 @@ public class GlobalExceptionHandler {
     }
     // 400 Bad Request: 유효성 검사 실패, 잘못된 요청 파라미터
     @ExceptionHandler({
-            MethodArgumentNotValidException.class,
             BindException.class,
             MissingServletRequestParameterException.class,
             HttpMessageNotReadableException.class,
@@ -89,5 +89,20 @@ public class GlobalExceptionHandler {
                 "code", "INTERNAL_SERVER_ERROR",
                 "message", "서버 내부 오류가 발생했습니다."+" message="+e.getMessage()
         ));
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<?> handleValidation(MethodArgumentNotValidException e) {
+
+        Map<String, String> errors = new HashMap<>();
+
+        e.getBindingResult().getFieldErrors()
+                .forEach(err -> errors.put(err.getField(), err.getDefaultMessage()));
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("code", "VALIDATION_ERROR");
+        response.put("errors", errors);
+
+        return ResponseEntity.badRequest().body(response);
     }
 }

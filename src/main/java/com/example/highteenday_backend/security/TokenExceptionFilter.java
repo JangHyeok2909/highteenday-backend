@@ -19,7 +19,9 @@ public class TokenExceptionFilter extends OncePerRequestFilter {
         try{
             filterChain.doFilter(request, response);
         } catch (TokenException e){
-            response.sendError(e.getErrorCode().getHttpStatus().value(), e.getMessage());
+            response.setStatus(e.getErrorCode().getHttpStatus().value());
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write("{\"error\": \"" + e.getMessage() + "\"}");
         }
 
     }

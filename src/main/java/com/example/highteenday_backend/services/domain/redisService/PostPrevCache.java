@@ -9,6 +9,8 @@ public interface PostPrevCache {
     List<PostPreviewDto> getPostPrevs(Long boardId,int page,int size);
     void cachePostPrev(PostPreviewDto postPrev);
     void addPostToBoard(Long boardId, Long postId);
+    void evictBoard(Long boardId);
+    void evictPostPrev(Long postId);
     Long getCount(Long boardId);
     Long createCount(Long boardId);
     void incrementBoardCount(Long boardId);

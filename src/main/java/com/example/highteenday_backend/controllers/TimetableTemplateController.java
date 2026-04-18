@@ -54,7 +54,7 @@ public class TimetableTemplateController {
         return ResponseEntity.created(null).body(TimetableTemplateDto.fromEntity(save));
     }
     @Operation(summary = "시간표 템플릿 수정", description = "바꿀값만 할당하여 전달, 바꾸지 않을 값은 null 전달.")
-    @PutMapping("/{timetableTemplateId}")
+    @PatchMapping("/{timetableTemplateId}")
     public ResponseEntity<TimetableTemplateDto> updateTimetableTemplate(
             @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
             @RequestBody RequestTimetableTemplateDto dto,
