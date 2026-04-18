@@ -23,6 +23,7 @@ import java.util.List;
 public class FriendsService {
 
     private final UserRepository userRepository;
+    private final UserService userService;
     private final FriendRepository friendRepository;
     private final FriendReqRepository friendReqRepository;
     private final NotificationRepository notificationRepository;
@@ -80,11 +81,8 @@ public class FriendsService {
     // 친구 요청
     @Transactional
     public void sendFriendsRequest(CustomUserPrincipal requestUser, RequestFriendsDto receiverDto){
-        User requester = userRepository.findByEmail(requestUser.getUserEmail())
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-
-        User receiver = userRepository.findByEmail(receiverDto.email())
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        User requester = userService.findByEmail(requestUser.getUserEmail());
+        User receiver = userService.findByEmail(receiverDto.email());
 
         if(friendReqRepository.existsByRequesterAndReceiver(requester, receiver)){
             throw new CustomException(ErrorCode.ALREADY_SENT_FRIEND_REQUEST);

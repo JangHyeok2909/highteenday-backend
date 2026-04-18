@@ -2,7 +2,6 @@ package com.example.highteenday_backend.services.domain;
 
 import com.example.highteenday_backend.domain.medias.Media;
 import com.example.highteenday_backend.domain.users.User;
-import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.FileInfo;
 import com.example.highteenday_backend.enums.MediaOwner;
 import com.example.highteenday_backend.services.global.S3Service;
@@ -16,7 +15,6 @@ public class UserMediaService {
 
     private final S3Service s3Service;
     private final MediaService mediaService;
-    private final UserRepository userRepository;
 
     @Transactional
     public void updateProfileImage(User user, String newImage){
