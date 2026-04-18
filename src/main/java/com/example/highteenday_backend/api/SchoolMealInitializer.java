@@ -22,9 +22,9 @@ public class SchoolMealInitializer {
         int year = now.getYear();
         int month = now.getMonthValue();
 
-        log.info("급식 데이터 초기 로딩 시작. year={}, month={}", year, month);
+        log.info("Meal data initial load started. year={}, month={}", year, month);
         schoolMealService.loadAllSchoolMealsForMonth(year, month);
         schoolMealService.importMealsFromJson(year, month);
-        log.info("급식 데이터 초기 로딩 완료. year={}, month={}", year, month);
+        log.info("Meal data initial load complete. year={}, month={}", year, month);
     }
 }

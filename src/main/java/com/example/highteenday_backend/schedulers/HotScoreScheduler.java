@@ -25,7 +25,7 @@ public class HotScoreScheduler {
     public void updateHotScore(){
         String key = HotPostService.leaderboardDayRedisKey(LocalDate.now());
         Set<Long> range = hotPidTemplate.opsForZSet().reverseRange(key, 0, 49);
-        log.info("Hot score 갱신");
+        log.info("Refreshing hot scores");
         for(Long pid:range){
             hotPostService.updateLeaderboardDayScore(pid);
         }
@@ -33,7 +33,7 @@ public class HotScoreScheduler {
         //핫게시글 가져오기
         List<PostPreviewDto> dailyHotPosts = hotPostService.getLeaderboardDayHotPosts();
         for (PostPreviewDto pre:dailyHotPosts){
-            log.info("selectd hot post, postId="+pre.getId());
+            log.debug("Hot post selected. postId={}", pre.getId());
         }
     }
 

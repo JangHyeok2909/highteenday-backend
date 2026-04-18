@@ -37,17 +37,17 @@ public class SchoolScheduleService {
 
     public void loadAllSchoolSchedules() {
         List<School> highSchools = schoolRepository.findByCategory(SchoolCategory.HIGH);
-        log.info("고등학교 개수: {}", highSchools.size());
+        log.info("High schools to process. count={}", highSchools.size());
 
         List<SchoolSchedule> allSchedules = new ArrayList<>();
 
         for (School school : highSchools) {
             try {
-                log.info("{} ({}) 시간표 수집 시작", school.getName(), school.getCode());
+                log.debug("Collecting timetable for {} ({})", school.getName(), school.getCode());
                 List<SchoolSchedule> schedules = loadScheduleForSchool(school);
                 allSchedules.addAll(schedules);
             } catch (Exception e) {
-                log.warn("{} 시간표 수집 실패: {}", school.getName(), e.getMessage());
+                log.warn("Timetable collection failed for {}: {}", school.getName(), e.getMessage());
             }
         }
 
@@ -114,7 +114,7 @@ public class SchoolScheduleService {
 
                 page++;
             } catch (Exception e) {
-                log.warn("{} / 페이지 {} 처리 중단: {}", school.getName(), page, e.getMessage());
+                log.warn("Timetable page processing aborted — school={}, page={}: {}", school.getName(), page, e.getMessage());
                 break;
             }
         }
@@ -130,9 +130,9 @@ public class SchoolScheduleService {
 
             File outputFile = new File("school_schedules.json");
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, schedules);
-            log.info("학교 시간표 데이터가 school_schedules.json 파일로 저장되었습니다.");
+            log.info("School timetable data saved to school_schedules.json.");
         } catch (IOException e) {
-            log.error("JSON 저장 실패: {}", e.getMessage());
+            log.error("Failed to save timetable JSON: {}", e.getMessage());
         }
     }
 }

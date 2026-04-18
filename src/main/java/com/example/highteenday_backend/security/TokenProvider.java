@@ -50,7 +50,7 @@ public class TokenProvider {
     }
     // refreshToken 발급 — ROLE_GUEST 면 null 반환
     public String generateRefreshToken(Authentication authentication, String accessToken){
-        log.debug("리프레시 토큰 발급. authorities={}", authentication.getAuthorities().stream()
+        log.debug("Refresh token issued. authorities={}", authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList()));
         CustomUserPrincipal principal = (CustomUserPrincipal) authentication.getPrincipal();

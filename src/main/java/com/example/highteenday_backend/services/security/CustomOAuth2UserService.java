@@ -35,7 +35,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         //provider 추출
         String registrationId = request.getClientRegistration().getRegistrationId();
-        log.debug("OAuth 로그인 시도. provider={}", registrationId);
+        log.debug("OAuth login attempt. provider={}", registrationId);
 
         //가져온 유저 email을 통해 DB에 이미 가입된 유저인지 확인
         OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfo.of(registrationId, oAuth2UserAttributes);
@@ -46,7 +46,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         if (isNew) {
             //프로필 이미지 url 추출
             String pictureUrl = (String) oAuth2UserAttributes.get("picture");
-            log.info("OAuth2 신규 사용자 자동 등록. provider={}, email={}", registrationId, oAuth2UserInfo.email());
+            log.info("OAuth2 new user auto-registered. provider={}, email={}", registrationId, oAuth2UserInfo.email());
             //email, name, provider 를 가져와 회원가입 진행
             user = userService.registerOAuthUser(
                     oAuth2UserInfo.email(),
@@ -55,7 +55,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                     pictureUrl
             );
         } else {
-            log.debug("OAuth2 로그인 성공. provider={}, email={}", registrationId, oAuth2UserInfo.email());
+            log.debug("OAuth2 login successful. provider={}, email={}", registrationId, oAuth2UserInfo.email());
             user = userService.findByEmail(oAuth2UserInfo.email());
         }
         //spring security에서 사용할 principal 객체 생성하여 반환(isNew의 경우 온보딩 처리 시 사용할 트리거)

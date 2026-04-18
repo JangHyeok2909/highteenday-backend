@@ -28,7 +28,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                                         HttpServletResponse response,
                                         Authentication authentication) throws IOException {
 
-        log.info("successhandler 진입");
+        log.debug("OAuth2 success handler entered.");
 
         OAuth2AuthenticationToken authToken = (OAuth2AuthenticationToken) authentication;
         CustomUserPrincipal customUserPrincipal = (CustomUserPrincipal) authToken.getPrincipal();

@@ -40,7 +40,7 @@ public class CommentController {
             @PathVariable Long postId,
             @AuthenticationPrincipal CustomUserPrincipal userPrincipal){
 
-        log.debug("댓글 목록 조회. postId={}", postId);
+        log.debug("Fetching comments. postId={}", postId);
         Post post = postService.findById(postId);
         List<Comment> comments = commentService.getCommentsByPost(post);
 

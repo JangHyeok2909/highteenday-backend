@@ -116,9 +116,9 @@ public class SchoolInfoService {
         // JSON 파일로 저장
         try {
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(file, schoolDtos);
-            log.info("학교 정보가 schools.json 파일로 저장되었습니다.");
+            log.info("School data saved to schools.json.");
         } catch (IOException e) {
-            log.warn("JSON 저장 실패: " + e.getMessage());
+            log.warn("Failed to save schools.json: {}", e.getMessage());
             e.printStackTrace();        }
     }
     @Transactional
@@ -126,7 +126,7 @@ public class SchoolInfoService {
         File jsonFile = new File(SchoolFileConstants.SCHOOL_JSON_PATH);
 
         if (!jsonFile.exists()) {
-            log.error("schools.json 파일 미존재. path={}", SchoolFileConstants.SCHOOL_JSON_PATH);
+            log.error("schools.json not found. path={}", SchoolFileConstants.SCHOOL_JSON_PATH);
             return;
         }
 
@@ -154,10 +154,10 @@ public class SchoolInfoService {
 
                 schoolRepository.save(school);
             }
-            log.info("✅ schools.json으로 학교 정보를 DB에 성공적으로 저장했습니다.");
+            log.info("School data loaded from schools.json into DB.");
 
         } catch (IOException e) {
-            log.warn("❌ schools.json 읽기 실패: " + e.getMessage());
+            log.warn("Failed to read schools.json: {}", e.getMessage());
             e.printStackTrace();
         }
     }
