@@ -33,7 +33,7 @@ public class SchoolScheduleImportService {
                     new TypeReference<List<SchoolSchedule>>() {}
             );
 
-            log.info("읽은 시간표 개수: {}", schedules.size());
+            log.info("Timetable records read. count={}", schedules.size());
 
             // school 엔티티가 JSON에 포함되어있으면 순환참조 문제 없도록 조정 필요
             // 혹은 schoolId만 포함되어 있다면 schoolRepository에서 조회 후 set 처리해야 함
@@ -44,9 +44,9 @@ public class SchoolScheduleImportService {
                 schoolScheduleRepository.save(schedule);
             }
 
-            log.info("DB 저장 완료");
+            log.info("Timetable data saved to DB.");
         } catch (Exception e) {
-            log.error("JSON 파싱 또는 DB 저장 중 오류 발생: ", e);
+            log.error("Error during JSON parsing or DB save: ", e);
         }
     }
 }

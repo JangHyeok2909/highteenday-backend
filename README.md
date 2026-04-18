@@ -404,6 +404,40 @@ Redis 기반 캐싱 적용
 
 ---
 
+## 리팩토링
+
+### ROLE_GUEST 플래그를 isNewUser 불리언으로 교체 (OAuth2 플로우)
+
+#### 변경 내용
+
+- `CustomUserPrincipal`에 `isNewUser` 필드 추가
+- `CustomOAuth2UserService.loadUser()` 내부에서 신규 유저 등록(`registerOAuthUser()`)을 직접 수행하도록 이동
+- `OAuth2SuccessHandler`에서 유저 등록 로직 제거 — `isNewUser()` 값만 읽어 리다이렉트 경로 결정
+- `TokenProvider`의 `ROLE_GUEST` 분기 제거
+- `CustomUserPrincipal` 생성자를 `(User, Map, boolean isNewUser)` 형태로 변경
+
+#### 변경 이유
+
+기존 구현에서는 OAuth2 신규 사용자를 식별하기 위해 `ROLE_GUEST`라는 권한을 **신호(signal)** 로 사용했다.
+
+- `CustomOAuth2UserService`가 신규 유저에게 `ROLE_GUEST` 권한을 부여
+- `OAuth2SuccessHandler`가 해당 권한을 감지해 유저 등록과 리다이렉트 처리
+
+이 방식은 다음과 같은 문제를 내포하고 있었다.
+
+- **역할(Role) 시스템의 오용**: `ROLE_GUEST`는 본래 보안 접근 제어를 위한 권한 개념인데, "처음 로그인한 사용자인가"라는 임시 상태 전달 목적으로 사용되었음
+- **책임 분산**: 유저 등록 로직이 `OAuth2SuccessHandler`에 위치해, 인증 성공 핸들러가 도메인 로직까지 담당하는 구조가 됨
+- **흐름 추적 어려움**: 신규/기존 유저 분기가 두 클래스에 걸쳐 분산되어 있어 코드 흐름 파악이 어려움
+
+#### 개선 효과
+
+- **의미 명확화**: `isNewUser`는 "이 로그인이 최초 OAuth2 로그인인가"를 명시적으로 표현하며, 권한 시스템과 완전히 분리됨
+- **책임 집중**: 유저 등록과 principal 생성이 `CustomOAuth2UserService.loadUser()` 안에서 함께 처리되어 OAuth2 로그인 전체 흐름을 한 곳에서 파악 가능
+- **핸들러 단순화**: `OAuth2SuccessHandler`가 유저 등록, principal 교체, 쿠키 조립 등의 부가 책임에서 벗어나 리다이렉트 결정에만 집중
+- **`TokenProvider` 정리**: `ROLE_GUEST` 분기 제거로 토큰 발급 로직이 단순해짐
+
+---
+
 ## API 엔드포인트
 
 | 도메인 | 경로 | 주요 기능 |

@@ -112,7 +112,7 @@ public class PostService {
         if(!newContent.equals(oldContent)) {
             postMediaService.processUpdatePostMedia(userId,post,newContent,oldContent);
         }
-        log.info("[Post Update] request - postId={}, newTitle={}, newContent={}",postId,newTile,newContent);
+        log.debug("[Post Update] request - postId={}, newTitle={}, newContent={}",postId,newTile,newContent);
         log.debug("[Post Update] old post data - oldTitle={}, oldContent={}",post.getTitle(),post.getContent());
         log.info("[Post Update] success, postId={}, updateBy={}",post.getId(),post.getUpdatedBy());
     }

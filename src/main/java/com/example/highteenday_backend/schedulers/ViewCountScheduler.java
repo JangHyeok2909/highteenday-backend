@@ -37,16 +37,16 @@ public class ViewCountScheduler {
                 //핫스코어 갱신
                 hotPostService.updateLeaderboardDayScore(entry.getKey());
             } catch (ResourceNotFoundException e) {
-                log.warn("조회수 동기화 스킵 - 삭제된 게시글. postId={}", entry.getKey());
+                log.warn("View count sync skipped — deleted post. postId={}", entry.getKey());
             }
         }
-        log.info("조회수 배치 동기화 완료. 성공={}건 / 전체={}건", synced, viewCounts.size());
+        log.info("View count batch sync complete. synced={}, total={}", synced, viewCounts.size());
     }
 
     @Transactional
     public void applyViewCount(Long postId, int increment) {
         Post post = postService.findById(postId);
         post.addViewCount(increment);
-        log.debug("조회수 동기화 완료. postId={}, increment={}", postId, increment);
+        log.debug("View count applied. postId={}, increment={}", postId, increment);
     }
 }

@@ -32,7 +32,7 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String token = extractToken(request);
         String uri = request.getRequestURI();
-        log.debug("인증 필터 진입. uri={}, tokenPresent={}", uri, token != null);
+        log.debug("Auth filter entered. uri={}, tokenPresent={}", uri, token != null);
 
         if(token == null){
             if(isPublicUri(uri)){
@@ -47,10 +47,10 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Authentication authentication = tokenProvider.getAuthentication(token);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-                log.debug("JWT 인증 성공. user={}, authorities={}", authentication.getName(), authentication.getAuthorities());
+                log.debug("JWT authentication succeeded. user={}, authorities={}", authentication.getName(), authentication.getAuthorities());
 
             } catch (RuntimeException e) {
-                log.warn("JWT 인증 실패. uri={}, reason={}", uri, e.getMessage());
+                log.warn("JWT authentication failed. uri={}, reason={}", uri, e.getMessage());
             }
         }
 
