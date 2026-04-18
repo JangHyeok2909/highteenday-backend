@@ -91,12 +91,9 @@ public class UserService {
         if (userRepository.findByEmail(email).isPresent()) {
             throw new CustomException(ErrorCode.ALREADY_EXISTS_USER);
         }
-//        Optional<User> userOpt = userRepository.findByEmail(email);
-//        if(!userOpt.isEmpty()){
-//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("이미 가입된 유저입니다.");
-//        }
 
         log.info("회원가입 진행. nickname={}, email={}", registerUserDto.nickname(), registerUserDto.email());
+
         User user = User.builder()
                 .nickname(registerUserDto.nickname())
                 .name(registerUserDto.name())
@@ -108,10 +105,11 @@ public class UserService {
                 .phone(registerUserDto.phone())
                 .birthDate(registerUserDto.birthDate())
                 .build();
-
+        //provider 설정
         if(registerUserDto.provider()==null) user.setProvider(Provider.DEFAULT);
         else user.setProvider(Provider.valueOf(registerUserDto.provider().toUpperCase()));
 
+        //password 암호화
         user.setHashedPassword(passwordEncoder.encode(registerUserDto.password()));
 
         Map<String, Object> attributes = new HashMap<>();
@@ -128,10 +126,10 @@ public class UserService {
 
         // 저장 후 토큰 발급하기 위한 처리 코드
         User savedUser = userRepository.saveAndFlush(user);
-
+        //기본 시간표 템플릿 할당
         createDefaultTimetableTemplate(savedUser);
 
-        CustomUserPrincipal userDetails = new CustomUserPrincipal(savedUser, attributes, "ROLE_USER");
+        CustomUserPrincipal userDetails = new CustomUserPrincipal(savedUser, attributes, false);
 
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 userDetails,
