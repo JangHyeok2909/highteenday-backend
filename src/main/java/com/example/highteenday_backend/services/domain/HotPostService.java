@@ -71,7 +71,7 @@ public class HotPostService {
             log.debug("hot score updated, postId={} score={}", postId, score);
         }, () -> {
             hotPidTemplate.opsForZSet().remove(key, postId);
-            log.debug("핫스코어 스킵·Redis 정리: DB에 없는 postId={}", postId);
+            log.debug("Hot score skipped — post not found in DB, removing from Redis. postId={}", postId);
         });
     }
 

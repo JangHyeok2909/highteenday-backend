@@ -26,7 +26,7 @@ public class ScrapController {
                                    @PathVariable Long postId
                                    ){
         if(userPrincipal == null) {
-            log.warn("스크랩 요청 시 인증 정보 없음. postId={}", postId);
+            log.warn("Scrap request with no authentication. postId={}", postId);
         }
         User user = userPrincipal.getUser();
         Post post = postService.findById(postId);

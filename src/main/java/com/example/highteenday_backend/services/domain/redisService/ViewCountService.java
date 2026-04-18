@@ -25,7 +25,7 @@ public class ViewCountService {
 
         Boolean isNew = redisTemplate.opsForValue().setIfAbsent(dedupKey, "1", DEDUP_TTL);
         if (Boolean.TRUE.equals(isNew)) {
-            log.debug("조회수 증가. postId={}, userId={}", postId, userId);
+            log.debug("View count incremented. postId={}, userId={}", postId, userId);
             redisTemplate.opsForValue().increment(countKey);
         }
     }

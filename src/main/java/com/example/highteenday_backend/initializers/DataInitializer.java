@@ -74,7 +74,7 @@ public class DataInitializer {
                 user.setSchool(schoolService.findById((long)i));
                 user.setPhone(phone);
                 userRepository.save(user);
-                log.info("테스트 유저 생성. email={}", email);
+                log.info("Test user created. email={}", email);
             }
         }
     }
@@ -91,7 +91,7 @@ public class DataInitializer {
                     .build();
             postService.createPost(user,requestPostDto);
         }
-        log.info("테스트 게시글 초기화 완료. count={}", postCount);
+        log.info("Test posts initialized. count={}", postCount);
     }
     public void commentDataInit(User user){
         int commentCount = 11;
@@ -102,7 +102,7 @@ public class DataInitializer {
                     .build();
             commentService.createComment(postService.findById((long)i),user,dto);
         }
-        log.info("테스트 댓글 초기화 완료. count={}", commentCount);
+        log.info("Test comments initialized. count={}", commentCount);
     }
     public void likeAndDislikeDataInit(User user){
         int likeCount = 11;
@@ -110,7 +110,7 @@ public class DataInitializer {
             if(i%2==0) postReactionService.likeReact(postService.findById((long)i),user);
             else postReactionService.dislikeReact(postService.findById((long)i),user);
         }
-        log.info("테스트 좋아요/싫어요 초기화 완료. count={}", likeCount);
+        log.info("Test reactions initialized. count={}", likeCount);
     }
 
     public void hotPostLikeDataInit(){
@@ -120,7 +120,7 @@ public class DataInitializer {
             User user = userService.findByEmail("test" + i + "@gmail.com");
             postReactionService.likeReact(post,user);
         }
-        log.info("핫게시글 좋아요 초기화 완료. postId=1, count={}", likeCount);
+        log.info("Hot post reactions initialized. postId=1, count={}", likeCount);
     }
 
     public void scrapDataInit(User user){
@@ -128,7 +128,7 @@ public class DataInitializer {
         for (int i = 1; i <= scrapCount; i++) {
             scrapService.createScrap(postService.findById((long) i), user);
         }
-        log.info("테스트 스크랩 초기화 완료. count={}", scrapCount);
+        log.info("Test scraps initialized. count={}", scrapCount);
     }
 
     public void dafultTimetableDatasInit(User user){
@@ -160,7 +160,7 @@ public class DataInitializer {
                 timetableService.save(timetable);
             }
         }
-        log.info("기본 시간표 초기화 완료. userId={}", user.getId());
+        log.info("Default timetable initialized. userId={}", user.getId());
 
     }
 }

@@ -123,14 +123,14 @@ public class UserController {
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@Valid @RequestBody LoginRequestDto dto, HttpServletResponse response) {
 
-        log.info("로그인 요청. email={}", dto.email());
+        log.debug("Login request. email={}", dto.email());
         User user = userService.findByEmail(dto.email());
 
         if (!passwordEncoder.matches(dto.password(), user.getHashedPassword())) {
             throw new CustomException(ErrorCode.INVALID_PASSWORD);
         }
 
-        log.debug("로그인 인증 완료. userId={}", user.getId());
+        log.debug("Login authenticated. userId={}", user.getId());
 
         CustomUserPrincipal userDetails = new CustomUserPrincipal(user, Collections.emptyMap(), false);
         Authentication authentication = new UsernamePasswordAuthenticationToken(

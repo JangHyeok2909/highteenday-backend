@@ -159,7 +159,7 @@ public class SchoolMealService {
                 page++;
 
             } catch (Exception e) {
-                log.error("급식 API 호출 실패. schoolCode={}, page={}: {}", schoolCode, page, e.getMessage());
+                log.error("Meal API call failed. schoolCode={}, page={}: {}", schoolCode, page, e.getMessage());
                 break;
             }
         }
@@ -183,7 +183,7 @@ public class SchoolMealService {
                 );
                 allRecords.addAll(records);
             } catch (Exception e) {
-                log.error("학교 [{}] 급식 수집 실패: {}", school.getName(), e.getMessage());
+                log.error("Meal data collection failed for school [{}]: {}", school.getName(), e.getMessage());
             }
         });
 
@@ -196,9 +196,9 @@ public class SchoolMealService {
 
         try {
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(file, allRecords);
-            log.info("급식 JSON 저장 완료. year={}, month={}, totalCount={}", year, month, allRecords.size());
+            log.info("Meal JSON saved. year={}, month={}, totalCount={}", year, month, allRecords.size());
         } catch (IOException e) {
-            log.warn("급식 JSON 저장 실패: {}", e.getMessage());
+            log.warn("Failed to save meal JSON: {}", e.getMessage());
         }
     }
 
@@ -211,7 +211,7 @@ public class SchoolMealService {
         File file = new File(path);
 
         if (!file.exists()) {
-            log.warn("급식 JSON 파일 없음. path={}", path);
+            log.warn("Meal JSON file not found. path={}", path);
             return;
         }
 
@@ -248,9 +248,9 @@ public class SchoolMealService {
                 schoolMealRepository.save(meal);
             }
 
-            log.info("급식 JSON → DB 저장 완료. year={}, month={}", year, month);
+            log.info("Meal data loaded from JSON into DB. year={}, month={}", year, month);
         } catch (IOException e) {
-            log.warn("급식 JSON 읽기 실패: {}", e.getMessage());
+            log.warn("Failed to read meal JSON: {}", e.getMessage());
         }
     }
 }

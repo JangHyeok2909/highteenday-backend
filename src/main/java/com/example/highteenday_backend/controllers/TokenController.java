@@ -35,7 +35,7 @@ public class TokenController {
         response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.buildAccessCookie(tokenPair.accessToken()).toString());
         response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.buildRefreshCookie(tokenPair.refreshToken()).toString());
 
-        log.debug("액세스/리프레시 토큰 재발급 완료.");
+        log.debug("Access/refresh tokens reissued.");
         return ResponseEntity.ok().build();
     }
 

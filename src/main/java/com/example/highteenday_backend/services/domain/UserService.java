@@ -92,7 +92,7 @@ public class UserService {
             throw new CustomException(ErrorCode.ALREADY_EXISTS_USER);
         }
 
-        log.info("회원가입 진행. nickname={}, email={}", registerUserDto.nickname(), registerUserDto.email());
+        log.info("User registration in progress. nickname={}, email={}", registerUserDto.nickname(), registerUserDto.email());
 
         User user = User.builder()
                 .nickname(registerUserDto.nickname())
@@ -114,7 +114,7 @@ public class UserService {
 
         Map<String, Object> attributes = new HashMap<>();
 
-        log.debug("회원가입 제공자. provider={}", registerUserDto.provider());
+        log.debug("Registration provider. provider={}", registerUserDto.provider());
 
         if (user.getProvider()==Provider.DEFAULT) {
             attributes = Collections.emptyMap();
@@ -156,7 +156,7 @@ public class UserService {
             nickname = (baseNickname.length() > maxBase ? baseNickname.substring(0, maxBase) : baseNickname) + suffixStr;
         }
 
-        log.info("OAuth 자동 회원가입. email={}, provider={}", email, provider);
+        log.info("OAuth auto-registration. email={}, provider={}", email, provider);
 
         User user = User.builder()
                 .email(email)
@@ -250,14 +250,14 @@ public class UserService {
         if (dto.phone() != null && userRepository.existsByPhone(dto.phone())) {
             throw new CustomException(ErrorCode.DUPLICATE_PHONE);
         }
-        log.info("전화번호 변경. userId={}", user.getId());
+        log.info("Phone number updated. userId={}", user.getId());
         user.setPhone(dto.phone());
         userRepository.save(user);
     }
 
     @Transactional
     public void updateSchool(User user, SchoolIdDto dto) {
-        log.info("학교/학년/반 변경. userId={}, schoolId={}, grade={}, class={}",
+        log.info("School/grade/class updated. userId={}, schoolId={}, grade={}, class={}",
                 user.getId(), dto.schoolId(), dto.grade(), dto.userClass());
         user.setSchool(schoolService.findById(Long.parseLong(dto.schoolId())));
         user.setGrade(dto.grade());

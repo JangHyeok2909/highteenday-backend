@@ -32,9 +32,7 @@ public record OAuth2UserInfo(
                 .build();
     }
     private static OAuth2UserInfo ofKakao(Map<String, Object> attributes){
-        log.debug("=============================================OAuth2UserInfo 카카오 입장=============================================");
-        log.debug("카카오 attributes : " + attributes);
-        log.debug("=============================================카카오 퇴장=============================================");
+        log.debug("OAuth2UserInfo: Kakao attributes={}", attributes);
 
         Map<String, Object> account = (Map<String, Object>) attributes.get("kakao_account");
         Map<String, Object> profile = (Map<String, Object>) account.get("profile");
@@ -47,9 +45,7 @@ public record OAuth2UserInfo(
                 .build();
     }
     private static OAuth2UserInfo ofNaver(Map<String, Object> attributes){
-        log.debug("=============================================OAuth2UserInfo 네이버 입장=============================================");
-        log.debug("네이버 attributes : " + attributes);
-        log.debug("=============================================네이버 퇴장=============================================");
+        log.debug("OAuth2UserInfo: Naver attributes={}", attributes);
 
         Map<String, Object> response = (Map<String, Object>) attributes.get("response");
 
