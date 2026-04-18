@@ -132,7 +132,7 @@ public class UserController {
 
         log.debug("로그인 인증 완료. userId={}", user.getId());
 
-        CustomUserPrincipal userDetails = new CustomUserPrincipal(user, Collections.emptyMap(), user.getRole().name());
+        CustomUserPrincipal userDetails = new CustomUserPrincipal(user, Collections.emptyMap(), false);
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 userDetails,
                 null,
