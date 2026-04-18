@@ -71,11 +71,6 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           IMAGE: ${{ needs.build.outputs.image }}
-          # Temporary credentials from OIDC — used on EC2 to login to ECR
-          TEMP_AWS_KEY: ${{ env.AWS_ACCESS_KEY_ID }}
-          TEMP_AWS_SECRET: ${{ env.AWS_SECRET_ACCESS_KEY }}
-          TEMP_AWS_SESSION: ${{ env.AWS_SESSION_TOKEN }}
-          # App credentials (S3 via EC2 Instance Profile — no keys needed)
           DB_URL: ${{ secrets.DB_URL }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
@@ -90,19 +85,19 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: IMAGE,TEMP_AWS_KEY,TEMP_AWS_SECRET,TEMP_AWS_SESSION,DB_URL,DB_USERNAME,DB_PASSWORD,REDIS_HOST,REDIS_PORT,JWT_KEY,S3_BUCKET,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,NEIS_API_KEY
+          envs: IMAGE,DB_URL,DB_USERNAME,DB_PASSWORD,REDIS_HOST,REDIS_PORT,JWT_KEY,S3_BUCKET,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,NEIS_API_KEY
           script: |
             # Clone repo on first deploy, otherwise pull latest
             if [ ! -d ~/app ]; then
               git clone https://github.com/${{ github.repository }}.git ~/app
             fi
             cd ~/app
-            git pull origin main
+            git fetch origin
+            git reset --hard origin/main
+            # Remove default compose file to prevent merging with prod config
+            rm -f docker-compose.yml
 
-            # Login to ECR using OIDC temporary credentials
-            export AWS_ACCESS_KEY_ID=$TEMP_AWS_KEY
-            export AWS_SECRET_ACCESS_KEY=$TEMP_AWS_SECRET
-            export AWS_SESSION_TOKEN=$TEMP_AWS_SESSION
+            # Login to ECR using EC2 Instance Profile (no static keys needed)
             aws ecr get-login-password --region ap-northeast-2 | \
               docker login --username AWS --password-stdin \
               356630933123.dkr.ecr.ap-northeast-2.amazonaws.com
@@ -122,4 +117,4 @@ jobs:
 
             # Pull pre-built image from ECR and restart (no build on EC2)
             docker compose -f docker-compose.prod.yml --env-file .env pull
-            docker compose -f docker-compose.prod.yml --env-file .env up -d
+            docker compose -f docker-compose.prod.yml --env-file .env up -d --force-recreate

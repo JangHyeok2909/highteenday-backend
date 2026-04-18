@@ -11,8 +11,6 @@
 #     -e DB_PASSWORD=<db_password> \
 #     -e REDIS_HOST=<redis_host> \
 #     -e JWT_KEY=<jwt_secret_key> \
-#     -e AWS_ACCESS_KEY=<aws_access_key> \
-#     -e AWS_SECRET_KEY=<aws_secret_key> \
 #     -e S3_BUCKET=<s3_bucket_name> \
 #     -e GOOGLE_CLIENT_ID=<google_oauth_client_id> \
 #     -e GOOGLE_CLIENT_SECRET=<google_oauth_client_secret> \
@@ -37,6 +35,7 @@ COPY gradle gradle
 COPY build.gradle .
 COPY settings.gradle .
 COPY src src
+COPY schoolData schoolData
 
 RUN chmod +x gradlew && ./gradlew build -x test --no-daemon
 
@@ -52,6 +51,7 @@ RUN addgroup --system spring && adduser --system --ingroup spring spring
 USER spring
 
 COPY --from=builder /app/build/libs/*.jar app.jar
+COPY --from=builder /app/schoolData schoolData
 
 EXPOSE 8080
 

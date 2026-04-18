@@ -17,9 +17,12 @@ public class TokenService {
     @Autowired
     private UserRepository userRepository;
 
-//    public void deleteRefreshToken(String userKey){
-//        tokenRepository.deleteById(userKey);
-//    }
+    @Transactional
+    public void deleteByUserEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("사용자 없음 - TokenService.java"));
+        tokenRepository.findByUser(user).ifPresent(tokenRepository::delete);
+    }
 
     @Transactional
     public void saveOrUpdate(String userKey, String refreshToken, String accessToken){

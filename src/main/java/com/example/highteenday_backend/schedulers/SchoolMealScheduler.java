@@ -27,6 +27,7 @@ public class SchoolMealScheduler {
             nextMonth = 1;
         }
         schoolMealService.loadAllSchoolMealsForMonth(year, nextMonth);
+        schoolMealService.importMealsFromJson(year, nextMonth);
     }
 
 }

@@ -127,7 +127,7 @@ public class CommentController {
     }
 
     @Operation(summary = "댓글 수정")
-    @PutMapping("/{commentId}")
+    @PatchMapping("/{commentId}")
     public ResponseEntity updateComment(@PathVariable Long commentId,
                                         @RequestBody RequestCommentDto dto,
                                         @AuthenticationPrincipal CustomUserPrincipal userPrincipal){
