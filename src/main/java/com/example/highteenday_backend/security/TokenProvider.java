@@ -1,11 +1,9 @@
 package com.example.highteenday_backend.security;
 
 
-import com.example.highteenday_backend.domain.Token.Token;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.TokenPair;
 import com.example.highteenday_backend.domain.users.UserRepository;
-import com.example.highteenday_backend.dtos.Login.OAuth2UserInfo;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.services.domain.TokenService;
@@ -24,6 +22,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.util.*;
 import java.util.stream.Collectors;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -31,16 +30,17 @@ public class TokenProvider {
     @Value("${jwt.key}")
     private String key;
     private SecretKey secretKey;
+    private final TokenService tokenService;
+    private final UserRepository userRepository;
+
 
     private static final long ACCESS_TOKEN_EXPIRE_TIME = 1000 * 60 * 30L; // 30분
     private static final long REFRESH_TOKEN_EXPIRE_TIME = 1000 * 60 * 60L * 24 * 7; // 7일
     private static final String KEY_ROLE = "role";
 
-    private final TokenService tokenService;
-    private final UserRepository userRepository;
 
     @PostConstruct
-    private void settSecretKey() {
+    private void setSecretKey() {
         secretKey = Keys.hmacShaKeyFor(key.getBytes());
     }
 
@@ -124,17 +124,10 @@ public class TokenProvider {
         attributes.put("name", name);
         attributes.put("provider", provider);
 
-        if ("ROLE_GUEST".equals(role)) {
-            OAuth2UserInfo oAuth2UserInfo = new OAuth2UserInfo(name, email, provider);
-            CustomUserPrincipal principal = new CustomUserPrincipal(oAuth2UserInfo, attributes, role);
-
-            return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
-        }
-
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("유저 없음"));
 
-        CustomUserPrincipal principal = new CustomUserPrincipal(user, attributes, role);
+        CustomUserPrincipal principal = new CustomUserPrincipal(user, attributes, false);
 
         return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
     }
