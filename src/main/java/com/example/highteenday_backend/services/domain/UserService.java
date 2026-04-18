@@ -1,18 +1,24 @@
 package com.example.highteenday_backend.services.domain;
 
 
+import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
+import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplateRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.ChangeNicknameDto;
 import com.example.highteenday_backend.dtos.ChangePasswordDto;
+import com.example.highteenday_backend.dtos.ChangePhoneDto;
+import com.example.highteenday_backend.dtos.SchoolIdDto;
 import com.example.highteenday_backend.dtos.UserInfoDto;
 import com.example.highteenday_backend.dtos.Login.RegisterUserDto;
 import com.example.highteenday_backend.enums.Grade;
 import com.example.highteenday_backend.enums.Semester;
+import com.example.highteenday_backend.enums.Role;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
+import com.example.highteenday_backend.services.domain.SchoolService;
 import com.example.highteenday_backend.services.security.JwtCookieService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +43,8 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtCookieService jwtCookieService;
+    private final TimetableTemplateRepository timetableTemplateRepository;
+    private final SchoolService schoolService;
 
     public User findById(Long userId){
         return userRepository.findById(userId)
@@ -94,9 +102,11 @@ public class UserService {
                 .name(registerUserDto.name())
                 .email(registerUserDto.email())
                 .hashedPassword(passwordEncoder.encode(registerUserDto.password()))
+                .role(Role.USER)
                 .gender(registerUserDto.gender())
                 .provider(Provider.DEFAULT)
                 .phone(registerUserDto.phone())
+                .birthDate(registerUserDto.birthDate())
                 .build();
 
         if(registerUserDto.provider()==null) user.setProvider(Provider.DEFAULT);
@@ -119,6 +129,8 @@ public class UserService {
         // 저장 후 토큰 발급하기 위한 처리 코드
         User savedUser = userRepository.saveAndFlush(user);
 
+        createDefaultTimetableTemplate(savedUser);
+
         CustomUserPrincipal userDetails = new CustomUserPrincipal(savedUser, attributes, "ROLE_USER");
 
         Authentication authentication = new UsernamePasswordAuthenticationToken(
@@ -130,6 +142,50 @@ public class UserService {
         jwtCookieService.setJwtCookie(authentication,response);
     }
 
+
+    @Transactional
+    public User registerOAuthUser(String email, String name, Provider provider, String profileUrl) {
+        String truncatedName = name != null && name.length() > 10 ? name.substring(0, 10) : name;
+
+        // 이메일 prefix를 기반으로 중복 없는 닉네임 생성
+        String emailPrefix = email.contains("@") ? email.split("@")[0] : email;
+        String baseNickname = emailPrefix.length() > 12 ? emailPrefix.substring(0, 12) : emailPrefix;
+        String nickname = baseNickname;
+        int suffix = 1;
+        while (userRepository.existsByNickname(nickname)) {
+            String suffixStr = String.valueOf(suffix++);
+            int maxBase = 12 - suffixStr.length();
+            nickname = (baseNickname.length() > maxBase ? baseNickname.substring(0, maxBase) : baseNickname) + suffixStr;
+        }
+
+        log.info("OAuth 자동 회원가입. email={}, provider={}", email, provider);
+
+        User user = User.builder()
+                .email(email)
+                .name(truncatedName)
+                .nickname(nickname)
+                .provider(provider)
+                .profileUrl(profileUrl)
+                .role(Role.USER)
+                .build();
+
+        User savedUser = userRepository.save(user);
+
+        createDefaultTimetableTemplate(savedUser);
+
+        return savedUser;
+    }
+
+    private void createDefaultTimetableTemplate(User user) {
+        TimetableTemplate defaultTemplate = TimetableTemplate.builder()
+                .user(user)
+                .templateName("기본 시간표")
+                .grade(Grade.SOPHOMORE)
+                .semester(Semester.FIRST)
+                .isDefault(true)
+                .build();
+        timetableTemplateRepository.save(defaultTemplate);
+    }
 
     // 회원 탈퇴
     @Transactional
@@ -154,7 +210,7 @@ public class UserService {
 
     // 비밀번호 변경 | 정규표현식 적용 가능
     @Transactional
-    public void modifyPassword(User user, ChangePasswordDto passwordDto) {
+    public void updatePassword(User user, ChangePasswordDto passwordDto) {
         if (!passwordEncoder.matches(passwordDto.pastPassword(), user.getHashedPassword())) {
             throw new CustomException(ErrorCode.INVALID_PASSWORD);
         } else if (passwordDto.pastPassword().equals(passwordDto.newPassword())) {
@@ -172,7 +228,7 @@ public class UserService {
 
     // 닉네임 변경
     @Transactional
-    public void modifyNickname(User user, ChangeNicknameDto nicknameDto) {
+    public void updateNickname(User user, ChangeNicknameDto nicknameDto) {
         // 이전과 같은지 검사
         if (nicknameDto.pastNickname().equals(nicknameDto.newNickname())) {
             throw new CustomException(ErrorCode.SAME_AS_NICKNAME);
@@ -191,6 +247,25 @@ public class UserService {
         }
     }
 
+    @Transactional
+    public void updatePhone(User user, ChangePhoneDto dto) {
+        if (dto.phone() != null && userRepository.existsByPhone(dto.phone())) {
+            throw new CustomException(ErrorCode.DUPLICATE_PHONE);
+        }
+        log.info("전화번호 변경. userId={}", user.getId());
+        user.setPhone(dto.phone());
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void updateSchool(User user, SchoolIdDto dto) {
+        log.info("학교/학년/반 변경. userId={}, schoolId={}, grade={}, class={}",
+                user.getId(), dto.schoolId(), dto.grade(), dto.userClass());
+        user.setSchool(schoolService.findById(Long.parseLong(dto.schoolId())));
+        user.setGrade(dto.grade());
+        user.setUserClass(dto.userClass());
+        userRepository.save(user);
+    }
 
 }
 

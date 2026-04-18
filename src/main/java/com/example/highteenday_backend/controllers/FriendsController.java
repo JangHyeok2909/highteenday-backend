@@ -84,7 +84,7 @@ public class FriendsController {
     // A가 B의 정보를 볼 수는 있지만, B는 A의 정보를 볼 수 없음
     // A와 B의 친구관계는 A만 삭제
     // A -> B || B -> A 2개 있을 때 A -> B 관계만 삭제
-    @PutMapping("/block")
+    @PatchMapping("/block")
     public ResponseEntity<?> blockUser(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody BlockUserDto blockUserDto
@@ -99,7 +99,7 @@ public class FriendsController {
 
     // 차단 해제
     @Transactional
-    @PutMapping("/unBlock")
+    @PatchMapping("/unBlock")
     public ResponseEntity<?> unBlockUser(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody UnBlockUserDto unBlockUserDto

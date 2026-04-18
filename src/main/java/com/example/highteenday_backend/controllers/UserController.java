@@ -10,7 +10,7 @@ import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.security.TokenException;
 import com.example.highteenday_backend.security.TokenProvider;
-import com.example.highteenday_backend.services.domain.SchoolService;
+import com.example.highteenday_backend.services.domain.TokenService;
 import com.example.highteenday_backend.services.domain.UserService;
 import com.example.highteenday_backend.services.security.JwtCookieService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +18,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpHeaders;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -33,7 +35,7 @@ import java.util.Map;
 
 
 @Tag(name="User Relation API", description = "User 관련 API")
-@RequestMapping("/api/user") // 일단 user 로 해놨는데 변경해도 ㄱㅊ
+@RequestMapping("/api/user")
 @RestController
 @RequiredArgsConstructor
 @Slf4j
@@ -42,7 +44,7 @@ public class UserController {
     private final TokenProvider tokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final JwtCookieService jwtCookieService;
-    private final SchoolService schoolService;
+    private final TokenService tokenService;
 
     // 테스트 코드
     @Operation(summary = "OAuth2 로그인한 사용자 정보 조회 (accessToken 쿠키 기반)")
@@ -100,13 +102,18 @@ public class UserController {
 
     // 회원 탈퇴
     @Operation(summary = "회원 탈퇴")
-    @GetMapping("/deleteAccount")
+    @DeleteMapping("/account")
     public ResponseEntity<?> deleteAccount(
-            @AuthenticationPrincipal CustomUserPrincipal user
+            @AuthenticationPrincipal CustomUserPrincipal user,
+            HttpServletResponse response
     ){
         User findUser = userService.findByEmail(user.getUser().getEmail());
 
+        tokenService.deleteByUserEmail(findUser.getEmail());
         userService.deleteAccount(findUser);
+
+        response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.expireAccessCookie().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.expireRefreshCookie().toString());
 
         return ResponseEntity.ok("회원 탈퇴 완료");
     }
@@ -114,7 +121,7 @@ public class UserController {
     // 로그인
     @Operation(summary = "로그인")
     @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@RequestBody LoginRequestDto dto, HttpServletResponse response) {
+    public ResponseEntity<?> loginUser(@Valid @RequestBody LoginRequestDto dto, HttpServletResponse response) {
 
         log.info("로그인 요청. email={}", dto.email());
         User user = userService.findByEmail(dto.email());
@@ -137,50 +144,59 @@ public class UserController {
     }
 
     // 로그아웃
-    @Operation(summary = "로그아웃 (accessToken 쿠키 제거)")
-    @GetMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletResponse response){
-        Cookie accessTokenCookie = new Cookie("accessToken", null);
-        accessTokenCookie.setMaxAge(0);
-        accessTokenCookie.setPath("/");
-        accessTokenCookie.setHttpOnly(true);
-        accessTokenCookie.setSecure(true);
-        response.addCookie(accessTokenCookie);
+    @Operation(summary = "로그아웃 (서버 refreshToken 삭제 + accessToken/refreshToken 쿠키 만료)")
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(
+            @AuthenticationPrincipal CustomUserPrincipal user,
+            HttpServletResponse response
+    ){
+        tokenService.deleteByUserEmail(user.getUser().getEmail());
+
+        response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.expireAccessCookie().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.expireRefreshCookie().toString());
 
         return ResponseEntity.ok("로그아웃");
     }
 
     // 로그인 유저 비밀번호 변경
     @Operation(summary = "비밀번호 변경")
-    @PostMapping("/modify/password")
+    @PatchMapping("/password")
     public ResponseEntity<?> modifyPassword(
         @AuthenticationPrincipal CustomUserPrincipal user,
         @RequestBody ChangePasswordDto passwordDto
     ){
         User findUser = userService.findByEmail(user.getUser().getEmail());
-
-        userService.modifyPassword(findUser, passwordDto);
-
+        userService.updatePassword(findUser, passwordDto);
         return ResponseEntity.ok("비밀번호 변경 완료");
     }
 
     // 로그인 유저 닉네임 변경
     @Operation(summary = "닉네임 변경")
-    @PostMapping("/modify/nickname")
+    @PatchMapping("/nickname")
     public ResponseEntity<?> modifyNickname(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody ChangeNicknameDto nicknameDto
     ){
         User findUser = userService.findByEmail(user.getUser().getEmail());
-        userService.modifyNickname(findUser, nicknameDto);
+        userService.updateNickname(findUser, nicknameDto);
         return ResponseEntity.ok("닉네임 변경 완료");
     }
-    @Operation(summary = "학교 변경")
-    @PutMapping("/modify/school")
+
+    @Operation(summary = "학교/학년/반 변경")
+    @PatchMapping("/school")
     public ResponseEntity<?> modifySchool(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                           @RequestBody SchoolIdDto dto){
-        User user = userPrincipal.getUser();
-        user.setSchool(schoolService.findById(Long.parseLong(dto.schoolId())));
+        User user = userService.findById(userPrincipal.getUser().getId());
+        userService.updateSchool(user, dto);
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "전화번호 변경")
+    @PatchMapping("/phone")
+    public ResponseEntity<?> modifyPhone(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+                                         @RequestBody ChangePhoneDto dto){
+        User user = userService.findById(userPrincipal.getUser().getId());
+        userService.updatePhone(user, dto);
         return ResponseEntity.ok().build();
     }
 
@@ -193,6 +209,7 @@ public class UserController {
         boolean duplCheck = !userService.existsByNickname(nickname);
         return ResponseEntity.ok(duplCheck);
     }
+
     @Operation(summary = "이메일 중복 확인")
     @GetMapping("/check/email")
     public ResponseEntity<Boolean> checkEmail(
@@ -201,6 +218,7 @@ public class UserController {
         boolean duplCheck = !userService.existsByEmail(email);
         return ResponseEntity.ok(duplCheck);
     }
+
     @Operation(summary = "전화번호 중복 확인")
     @GetMapping("/check/phone")
     public ResponseEntity<Boolean> checkPhone(

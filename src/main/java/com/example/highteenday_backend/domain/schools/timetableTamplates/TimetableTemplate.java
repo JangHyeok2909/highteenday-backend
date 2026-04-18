@@ -29,8 +29,10 @@ public class TimetableTemplate {
     private User user;
     @Column(name = "TTT_template_name")
     private String templateName;
+    @Enumerated(EnumType.STRING)
     @Column(name = "TTT_grade", nullable = false)
     private Grade grade;
+    @Enumerated(EnumType.STRING)
     @Column(name = "TTT_semester", nullable = false)
     private Semester semester;
     @OneToMany(mappedBy = "timetableTemplate", fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
