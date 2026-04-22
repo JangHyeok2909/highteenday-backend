@@ -214,6 +214,18 @@ AWS CloudFront
 
 ---
 
+## Commands
+
+- "simplify": rewrite the previous response in simple English
+
+Rules for "simplify":
+- Use short and clear sentences
+- Avoid complex vocabulary
+- Keep the original meaning
+- Do not add new information
+
+---
+
 ## What Not To Do
 
 - Do not add error handling for scenarios that cannot happen

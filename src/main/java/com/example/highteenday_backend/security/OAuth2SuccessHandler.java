@@ -23,20 +23,16 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     @Value("${app.frontend-url}")
     private String frontendUrl;
 
+    //oauth 로그인 성공시, jwt access/refresh 토큰을 쿠키에 저장하고, 신규 유저 여부에 따라 프론트엔드 리다이렉트를 결정.
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
                                         HttpServletResponse response,
                                         Authentication authentication) throws IOException {
 
         log.debug("OAuth2 success handler entered.");
-
-        OAuth2AuthenticationToken authToken = (OAuth2AuthenticationToken) authentication;
-        CustomUserPrincipal customUserPrincipal = (CustomUserPrincipal) authToken.getPrincipal();
-
-        boolean isNew = customUserPrincipal.isNewUser();
+        boolean isNew = ((CustomUserPrincipal) authentication.getPrincipal()).isNewUser();
 
         jwtCookieService.setJwtCookie(authentication, response);
-
         if (isNew) {
             response.sendRedirect(frontendUrl + "/welcome");
         } else {
