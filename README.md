@@ -406,7 +406,7 @@ Redis 기반 캐싱 적용
 
 ## 리팩토링
 
-### ROLE_GUEST 플래그를 isNewUser 불리언으로 교체 (OAuth2 플로우)
+### ROLE_GUEST 플래그를 isNewUser boolean으로 교체 (OAuth2 플로우)
 
 #### 변경 내용
 
