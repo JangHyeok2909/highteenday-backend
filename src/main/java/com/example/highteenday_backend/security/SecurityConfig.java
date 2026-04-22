@@ -122,7 +122,8 @@ public class SecurityConfig {
         return (web) -> web.ignoring().requestMatchers(
                 "/swagger-ui/**",
                 "/swagger/**",
-                "/favicon.ico"
+                "/favicon.ico",
+                "/actuator/health"
         );
     }
 }
