@@ -60,6 +60,8 @@ public class SecurityConfig {
                             config.setAllowCredentials(true);
                             config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
                             config.setAllowedHeaders(List.of("*"));
+                            config.setExposedHeaders(List.of("Location"));
+
                             return config;
                         }))
                 .exceptionHandling(exceptionHandling ->
