@@ -30,6 +30,7 @@ public class UserTimetable {
     @JoinColumn(name = "TTT_id", nullable = false, foreignKey = @ForeignKey(name = "fk_users_timetables_ttt"))
     private TimetableTemplate timetableTemplate;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "UTT_day")
     private DayOfWeek day;
     @Column(name = "UTT_period")
