@@ -1,6 +1,5 @@
 package com.example.highteenday_backend.services.domain;
 
-import com.amazonaws.services.kms.model.NotFoundException;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.comments.CommentRepository;
 import com.example.highteenday_backend.domain.posts.Post;

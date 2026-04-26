@@ -1,7 +1,6 @@
 package com.example.highteenday_backend.exceptions;
 
-import com.amazonaws.services.kms.model.NotFoundException;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
@@ -61,7 +60,7 @@ public class GlobalExceptionHandler {
             ResourceNotFoundException.class,
             NoSuchElementException.class,
             EntityNotFoundException.class,
-            AmazonS3Exception.class,
+            NoSuchKeyException.class,
             NoResourceFoundException.class
     })
     public ResponseEntity<?> handleNotFound(Exception e) {
