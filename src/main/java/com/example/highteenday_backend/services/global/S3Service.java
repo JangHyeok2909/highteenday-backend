@@ -1,7 +1,5 @@
 package com.example.highteenday_backend.services.global;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.*;
 import com.example.highteenday_backend.dtos.FileInfo;
 import com.example.highteenday_backend.dtos.UploadedResult;
 import com.example.highteenday_backend.enums.MediaOwner;
@@ -10,62 +8,77 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.*;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.UUID;
 
 @Service
 @Getter
 @RequiredArgsConstructor
 public class S3Service {
-    private final AmazonS3 amazonS3;
+    private final S3Client s3Client;
     @Value("${cloud.aws.s3.bucket}")
     private String bucket;
 
-    public UploadedResult tmpUpload(Long userId,MultipartFile file) {
+    public UploadedResult tmpUpload(Long userId, MultipartFile file) {
         try {
-            String key ="tmp/"+userId+"/"+UUID.randomUUID() + "-" + file.getOriginalFilename();
+            String key = "tmp/" + userId + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
 
-            ObjectMetadata metadata = new ObjectMetadata();
-            metadata.setContentLength(file.getSize());
-            metadata.setContentType(file.getContentType());
+            s3Client.putObject(
+                    PutObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(key)
+                            .contentType(file.getContentType())
+                            .contentLength(file.getSize())
+                            .build(),
+                    RequestBody.fromInputStream(file.getInputStream(), file.getSize())
+            );
 
-            amazonS3.putObject(bucket, key, file.getInputStream(), metadata);
-            String url = amazonS3.getUrl(bucket, key).toString();
-
-            UploadedResult uploadedResult = new UploadedResult(url,key);
-            return uploadedResult;
+            String url = getUrlToKey(key);
+            return new UploadedResult(url, key);
         } catch (IOException e) {
             throw new RuntimeException("파일 업로드 실패", e);
         }
     }
+
     public void deleteUserTmp(Long userId) {
         String prefix = "tmp/" + userId + "/";
 
-        // 1. 목록 조회
-        ListObjectsV2Request listReq = new ListObjectsV2Request()
-                .withBucketName(bucket)
-                .withPrefix(prefix);
+        ListObjectsV2Response listRes = s3Client.listObjectsV2(
+                ListObjectsV2Request.builder()
+                        .bucket(bucket)
+                        .prefix(prefix)
+                        .build()
+        );
 
-        ListObjectsV2Result listRes = amazonS3.listObjectsV2(listReq);
-
-        // 2. 반복 삭제
-        for (S3ObjectSummary objectSummary : listRes.getObjectSummaries()) {
-            amazonS3.deleteObject(bucket, objectSummary.getKey());
+        for (S3Object s3Object : listRes.contents()) {
+            s3Client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(s3Object.key())
+                    .build());
         }
     }
 
-    public void delete(String key){
-        amazonS3.deleteObject(bucket,key);
+    public void delete(String key) {
+        s3Client.deleteObject(DeleteObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .build());
     }
 
-    public FileInfo getFileInfo(String key){
-        ObjectMetadata metadata = amazonS3.getObjectMetadata(bucket,key);
-        String url = amazonS3.getUrl(bucket, key).toString();
-        long size = metadata.getContentLength();
-        String contentType = metadata.getContentType();
+    public FileInfo getFileInfo(String key) {
+        HeadObjectResponse metadata = s3Client.headObject(HeadObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .build());
+
+        String url = getUrlToKey(key);
+        long size = metadata.contentLength();
+        String contentType = metadata.contentType();
         String originalFilename = key.substring(key.lastIndexOf("/") + 1);
 
         return FileInfo.builder()
@@ -76,24 +89,31 @@ public class S3Service {
                 .contentType(contentType)
                 .build();
     }
-    public String getKeyByUrl(String url){
+
+    public String getKeyByUrl(String url) {
         try {
             String key = new URI(url).getPath().substring(1);
             return key;
         } catch (Exception e) {
-            throw new RuntimeException("잘못된 url 형식, url="+url);
+            throw new RuntimeException("잘못된 url 형식, url=" + url);
         }
     }
-    public String copyToFinalLocation(String url, Long entityId, MediaOwner mediaOwner){
+
+    public String copyToFinalLocation(String url, Long entityId, MediaOwner mediaOwner) {
         String tmpKey = getKeyByUrl(url);
-//        String realKey = copyToRealPath(tmpKey,id,mediaOwner);
-        String realKey = mediaOwner.getField()+"-file/"+entityId+tmpKey.substring(3);
-        CopyObjectRequest copyRequest = new CopyObjectRequest(bucket, tmpKey, bucket, realKey);
-        amazonS3.copyObject(copyRequest);
-        String realUrl = getUrlToKey(realKey);
-        return realUrl;
+        String realKey = mediaOwner.getField() + "-file/" + entityId + tmpKey.substring(3);
+
+        s3Client.copyObject(CopyObjectRequest.builder()
+                .sourceBucket(bucket)
+                .sourceKey(tmpKey)
+                .destinationBucket(bucket)
+                .destinationKey(realKey)
+                .build());
+
+        return getUrlToKey(realKey);
     }
-    public String getUrlToKey(String key){
-        return amazonS3.getUrl(bucket,key).toString();
+
+    public String getUrlToKey(String key) {
+        return s3Client.utilities().getUrl(b -> b.bucket(bucket).key(key)).toString();
     }
 }
