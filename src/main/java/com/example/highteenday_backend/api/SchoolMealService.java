@@ -218,6 +218,10 @@ public class SchoolMealService {
         try {
             List<MealRecord> records = objectMapper.readValue(file, new TypeReference<List<MealRecord>>() {});
 
+            schoolMealRepository.deleteAll();
+            log.info("Existing meal data cleared.");
+
+            List<SchoolMeal> meals = new ArrayList<>();
             for (MealRecord record : records) {
                 School school = schoolRepository.findByCode(Integer.parseInt(record.getSchoolCode())).orElse(null);
                 if (school == null) continue;
@@ -230,11 +234,7 @@ public class SchoolMealService {
                     continue;
                 }
 
-                if (schoolMealRepository.existsBySchoolAndDateAndCategory(school, localDate, category)) {
-                    continue;
-                }
-
-                SchoolMeal meal = SchoolMeal.builder()
+                meals.add(SchoolMeal.builder()
                         .school(school)
                         .month(record.getMonth())
                         .week(record.getWeek())
@@ -243,12 +243,11 @@ public class SchoolMealService {
                         .category(category)
                         .calorie(record.getCalorie())
                         .date(localDate)
-                        .build();
-
-                schoolMealRepository.save(meal);
+                        .build());
             }
+            schoolMealRepository.saveAll(meals);
 
-            log.info("Meal data loaded from JSON into DB. year={}, month={}", year, month);
+            log.info("Meal data loaded from JSON into DB. year={}, month={}, count={}", year, month, meals.size());
         } catch (IOException e) {
             log.warn("Failed to read meal JSON: {}", e.getMessage());
         }
