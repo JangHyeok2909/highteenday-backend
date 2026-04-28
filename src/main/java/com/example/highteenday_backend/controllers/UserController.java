@@ -158,6 +158,18 @@ public class UserController {
         return ResponseEntity.ok("로그아웃");
     }
 
+    // 현재 비밀번호 일치 여부 확인
+    @Operation(summary = "현재 비밀번호 확인")
+    @PostMapping("/password/verify")
+    public ResponseEntity<Boolean> verifyPassword(
+        @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+        @RequestBody VerifyPasswordDto dto
+    ) {
+        User findUser = userService.findByEmail(userPrincipal.getUser().getEmail());
+        boolean matched = userService.verifyPassword(findUser, dto.password());
+        return ResponseEntity.ok(matched);
+    }
+
     // 로그인 유저 비밀번호 변경
     @Operation(summary = "비밀번호 변경")
     @PatchMapping("/password")

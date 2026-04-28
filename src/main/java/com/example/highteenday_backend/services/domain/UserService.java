@@ -206,6 +206,14 @@ public class UserService {
         }
     }
 
+    // 현재 비밀번호 일치 여부 확인
+    public boolean verifyPassword(User user, String password) {
+        if (user.getHashedPassword() == null) {
+            throw new CustomException(ErrorCode.INVALID_REQUEST);
+        }
+        return passwordEncoder.matches(password, user.getHashedPassword());
+    }
+
     // 비밀번호 변경 | 정규표현식 적용 가능
     @Transactional
     public void updatePassword(User user, ChangePasswordDto passwordDto) {
