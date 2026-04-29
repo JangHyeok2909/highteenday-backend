@@ -27,23 +27,32 @@
 
 ![시스템 아키텍처](docs/images/full-architecture.png)
 
+---
+
 ### 배포 아키텍처
 
-```
-[Client]
-   │ HTTPS
-   ▼
-[EC2 (Ubuntu)]
-   ├─ PM2 → java -jar highteenday-backend.jar  (프로세스 관리 / 자동 재시작)
-   ├─ MySQL 8 (로컬)
-   └─ Redis (로컬)
-         │
-         ▼
-      [AWS S3]  (이미지 / 미디어 파일)
-```
+![배포아키텍쳐](docs/images/deploy-architecture.png)
 
-- `application.properties`는 `.gitignore` 처리되어 서버에만 존재
-- PM2가 프로세스 관리 및 자동 재시작 담당
+#### S3 + CloudFront
+- 정적 파일 CDN 배포
+- 빠른 응답 + HTTPS 지원
+
+#### ALB
+- HTTPS 처리 및 로드밸런싱
+- 확장성 확보
+
+#### Docker
+- 환경 일관성
+- 롤백 용이
+
+---
+
+####  CI/CD
+
+git push → GitHub Actions → ECR → EC2 배포
+
+
+---
 
 ### 백엔드 레이어 아키텍처
 

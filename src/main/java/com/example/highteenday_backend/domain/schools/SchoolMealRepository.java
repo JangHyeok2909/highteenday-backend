@@ -11,4 +11,5 @@ public interface SchoolMealRepository extends JpaRepository<SchoolMeal, Long> {
 
     List<SchoolMeal> findByDateAndSchool(LocalDate date, School school);
     List<SchoolMeal> findByDateBetweenAndSchool(LocalDate start, LocalDate end, School school);
+
 }
