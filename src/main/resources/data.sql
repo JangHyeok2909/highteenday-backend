@@ -1,14 +1,14 @@
 -- =========================
 -- 1. USERS
 -- =========================
-INSERT INTO users (
+INSERT IGNORE INTO users (
     USR_email, USR_nickname, USR_name, created_at
 ) VALUES
       ('tester@example.com', 'tester1', 'tester1', NOW()),
       ('bob@example.com', 'bobby', 'Bob', NOW()),
       ('carol@example.com', 'carolyn', 'Carol', NOW());
 
-INSERT INTO users (
+INSERT IGNORE INTO users (
     USR_email, USR_nickname, USR_name, created_at,
     USR_hashed_password, USR_provider, USR_role
 ) VALUES
@@ -20,7 +20,7 @@ INSERT INTO users (
 -- =========================
 -- 2. BOARDS
 -- =========================
-INSERT INTO boards (
+INSERT IGNORE INTO boards (
     BRD_name, created_at
 ) VALUES
       ('자유게시판', NOW()),
@@ -34,7 +34,7 @@ INSERT INTO boards (
 -- 3. POSTS (100000건 생성)
 -- =========================
 SET SESSION cte_max_recursion_depth = 100000;
-INSERT INTO posts (
+INSERT IGNORE INTO posts (
     USR_id,
     BRD_id,
     PST_title,
@@ -132,7 +132,7 @@ FROM topic t;
 -- =========================
 -- 4. COMMENTS
 -- =========================
-INSERT INTO comments (
+INSERT IGNORE INTO comments (
     USR_id, PST_id, CMT_parent_id, CMT_is_anonymous,
     CMT_content, CMT_like_count, CMT_dislike_count,
     CMT_image_url, created_at, UPT_Date, UPT_id, is_valid
