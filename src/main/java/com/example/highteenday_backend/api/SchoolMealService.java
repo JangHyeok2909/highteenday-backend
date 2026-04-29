@@ -6,6 +6,7 @@ import com.example.highteenday_backend.domain.schools.SchoolMeal;
 import com.example.highteenday_backend.domain.schools.SchoolMealRepository;
 import com.example.highteenday_backend.domain.schools.SchoolRepository;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.dtos.ResponseMealDto;
 import com.example.highteenday_backend.dtos.SchoolMealDto;
 import com.example.highteenday_backend.enums.SchoolMealCategory;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -76,7 +77,8 @@ public class SchoolMealService {
         return SchoolMealDto.fromEntities(meals);
     }
 
-    public List<SchoolMealDto> getMealsByMonth(LocalDate date, Long schoolId) {
+    @Transactional(readOnly = true)
+    public ResponseMealDto getMealsByMonth(LocalDate date, Long schoolId) {
         School school = findSchoolById(schoolId);
 
         YearMonth ym = YearMonth.from(date);
@@ -84,7 +86,11 @@ public class SchoolMealService {
         LocalDate endOfMonth = ym.atEndOfMonth();
 
         List<SchoolMeal> meals = schoolMealRepository.findByDateBetweenAndSchool(startOfMonth, endOfMonth, school);
-        return SchoolMealDto.fromEntities(meals);
+        return ResponseMealDto.builder()
+                .schoolId(school.getId())
+                .schoolName(school.getName())
+                .mealdtos(SchoolMealDto.fromEntities(meals))
+                .build();
     }
 
     private School findSchoolById(Long id) {
@@ -142,7 +148,7 @@ public class SchoolMealService {
                     String monthStr = String.format("%02d", localDate.getMonthValue());
                     String day = String.format("%02d", localDate.getDayOfMonth());
                     String week = String.valueOf(localDate.get(WeekFields.of(Locale.KOREA).weekOfMonth()));
-                    int calorie = calorieStr.isEmpty() ? 0 : Integer.parseInt(calorieStr);
+                    int calorie = calorieStr.isEmpty() ? 0 : Integer.parseInt(calorieStr) / 10;
 
                     records.add(MealRecord.builder()
                             .schoolCode(schoolCode)
@@ -218,6 +224,10 @@ public class SchoolMealService {
         try {
             List<MealRecord> records = objectMapper.readValue(file, new TypeReference<List<MealRecord>>() {});
 
+            schoolMealRepository.deleteAll();
+            log.info("Existing meal data cleared.");
+
+            List<SchoolMeal> meals = new ArrayList<>();
             for (MealRecord record : records) {
                 School school = schoolRepository.findByCode(Integer.parseInt(record.getSchoolCode())).orElse(null);
                 if (school == null) continue;
@@ -230,11 +240,7 @@ public class SchoolMealService {
                     continue;
                 }
 
-                if (schoolMealRepository.existsBySchoolAndDateAndCategory(school, localDate, category)) {
-                    continue;
-                }
-
-                SchoolMeal meal = SchoolMeal.builder()
+                meals.add(SchoolMeal.builder()
                         .school(school)
                         .month(record.getMonth())
                         .week(record.getWeek())
@@ -243,12 +249,11 @@ public class SchoolMealService {
                         .category(category)
                         .calorie(record.getCalorie())
                         .date(localDate)
-                        .build();
-
-                schoolMealRepository.save(meal);
+                        .build());
             }
+            schoolMealRepository.saveAll(meals);
 
-            log.info("Meal data loaded from JSON into DB. year={}, month={}", year, month);
+            log.info("Meal data loaded from JSON into DB. year={}, month={}, count={}", year, month, meals.size());
         } catch (IOException e) {
             log.warn("Failed to read meal JSON: {}", e.getMessage());
         }
