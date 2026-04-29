@@ -1,6 +1,5 @@
 package com.example.highteenday_backend.controllers;
 
-import com.example.highteenday_backend.domain.schools.School;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.ResponseMealDto;
 import com.example.highteenday_backend.dtos.SchoolMealDto;
@@ -9,7 +8,6 @@ import com.example.highteenday_backend.security.CustomUserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cglib.core.Local;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -59,9 +57,7 @@ public class SchoolMealController {
     @Operation(summary = "월단위 급식표 조회", description = "중/석식 월단위 조회")
     @GetMapping("/month")
     public ResponseEntity<ResponseMealDto> getMealsByMonth(@AuthenticationPrincipal CustomUserPrincipal userPrincipal) {
-        School school = userPrincipal.getUser().getSchool();
-        List<SchoolMealDto> mealdtos = schoolMealService.getMealsByMonth(LocalDate.now(), school.getId());
-        ResponseMealDto responseDto = ResponseMealDto.builder().schoolId(school.getId()).schoolName(school.getName()).mealdtos(mealdtos).build();
-        return ResponseEntity.ok(responseDto);
+        Long schoolId = userPrincipal.getUser().getSchool().getId();
+        return ResponseEntity.ok(schoolMealService.getMealsByMonth(LocalDate.now(), schoolId));
     }
 }
