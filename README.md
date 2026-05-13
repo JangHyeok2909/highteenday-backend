@@ -1,7 +1,32 @@
 # HighTeenDay Backend
 
-10대 학생들을 위한 익명 커뮤니티 플랫폼의 백엔드 서버입니다.  
-게시판, 댓글, 좋아요, 친구, 시간표, 급식 조회, 핫게시글 랭킹 등 학교생활에 필요한 기능을 제공합니다.
+하이틴데이는 고등학생을 위한 익명 커뮤니티 플랫폼입니다.
+
+학교에서 무슨 일이 일어나고 있는지,  
+어떤 이슈가 돌고 있는지 빠르게 알 수 있는 방법은 거의 없습니다.  
+또한 익명으로 자유롭게 의견을 나눌 수 있는 공간도 부족합니다.
+
+하이틴데이는 이러한 문제를 해결하기 위해 만들어졌습니다.
+
+사용자는 익명으로 글을 작성하고 반응을 남기며,  
+핫게시글 시스템을 통해 지금 가장 뜨거운 이슈를 실시간으로 확인할 수 있습니다.  
+또한 관심 있는 사용자와 연결되어 대화를 이어갈 수 있습니다.
+
+단순한 게시판이 아닌,  
+학생들 사이에서 실제로 정보가 흐르고 이슈가 형성되는 구조를 목표로 합니다.
+
+---
+
+## 주요 기능
+
+| 기능 | 설명 |
+|------|------|
+| 익명 게시판 | 게시글 작성·수정·삭제, 댓글·대댓글, 좋아요·싫어요, 스크랩 |
+| 소셜 로그인 | Google OAuth2 + JWT (Access/Refresh Token) |
+| 핫게시글 랭킹 | Redis Sorted Set 기반 실시간 인기글 (최신·일간) |
+| 친구 | 친구 요청·수락·거절·차단 |
+| 학교 정보 | 급식 조회 (NEIS API), 시간표 템플릿 관리 |
+| 이미지 업로드 | S3 기반 이미지 업로드 (임시 저장 → 게시글 확정 시 영구 이동) |
 
 ---
 
@@ -13,7 +38,7 @@
 | ORM / Query | Spring Data JPA, QueryDSL 5.0 |
 | DB | MySQL 8 |
 | Cache | Redis (Spring Data Redis) |
-| Auth | OAuth2 (Google, Kakao, Naver) + JWT |
+| Auth | OAuth2 (Google) + JWT |
 | Storage | AWS S3 |
 | Load Test | k6 |
 | Docs | Springdoc OpenAPI (Swagger UI) |
@@ -79,7 +104,7 @@ git push → GitHub Actions → ECR → EC2 배포
 
 ![User Domain ERD](docs/images/erd-user.png)
 
-- OAuth2 Provider(Google, Kakao, Naver) + Role(GUEST, USER) 구분
+- OAuth2 Provider(Google) + Role(GUEST, USER) 구분
 - `FriendRequests`의 `frq_status`로 요청/수락/거절 상태 관리
 - `Token` 엔티티로 Refresh Token 관리, Access Token은 HttpOnly Cookie로 전달
 
@@ -96,20 +121,74 @@ git push → GitHub Actions → ECR → EC2 배포
 
 ## 핵심 기능
 
-### OAuth2 소셜 로그인
+### 인증 / 인가 (OAuth2 + JWT)
 
-Google, Kakao, Naver 3사 OAuth2 로그인을 지원합니다.
+Google OAuth2 로그인을 지원합니다.
+
+
+#### 일반로그인 흐름
+![default login sequence](docs/images/default-login-flow.png)
+
 
 ```
-1. /oauth2/authorization/{provider} → OAuth2 인증 페이지 리다이렉트
-2. 콜백 → CustomOAuth2UserService.loadUser()
-3. 신규 유저: ROLE_GUEST → /register 리다이렉트
-   기존 유저: ROLE_USER → Access/Refresh Token 발급
-4. Access Token → HttpOnly Cookie (SameSite=None, Secure)
-5. 이후 요청: TokenAuthenticationFilter가 쿠키에서 JWT 추출 → SecurityContext 설정
+POST /api/user/login
+
+→ 이메일 + 비밀번호 검증 (BCrypt)
+
+→ CustomUserPrincipal 생성
+
+→ JWT 발급 (accessToken HttpOnly 쿠키)
 ```
 
-자세한 내용:https://janghyeok.tistory.com/39
+
+#### 소셜로그인
+![social login sequence](docs/images/social-login-flow.png)
+```
+→ OAuth2 인증 서버 리다이렉트
+
+→ 콜백 → CustomOAuth2UserService.loadUser()
+
+→ OAuth2SuccessHandler → JWT 발급
+```
+
+
+필터체인 
+
+```
+요청 → [TokenExceptionFilter]
+         → \[TokenAuthenticationFilter\]  ← 쿠키에서 JWT 추출 → SecurityContext 설정
+            → \[ExceptionTranslationFilter\]
+               → Controller
+```
+
+
+#### 토큰 구조
+
+| | Access Token | Refresh Token |
+|---|---|---|
+| 유효기간 | 30분 | 7일 |
+| 쿠키 Path | `/` | `/api/token/refresh` |
+| 저장 위치 | Cookie only | Cookie + DB (`Token` 테이블) |
+| 서명 알고리즘 | HMAC-SHA512 | HMAC-SHA512 |
+
+- JWT Payload: `sub`(이메일), `role`, `name`, `provider`
+- Access Token 만료 시 → `POST /api/token/refresh` 호출 → 두 토큰 모두 재발급 (Token Rotation)
+- DB에 저장된 Refresh Token이 없으면 재발급 거부 (강제 로그아웃 지원)
+
+#### 쿠키 설정 (Prod)
+
+```
+HttpOnly; Secure; SameSite=None; Domain=.highteenday.org
+```
+
+#### Role
+
+| Role | 설명 |
+|---|---|
+| `ROLE_USER` | 일반 인증 사용자 |
+| `ROLE_ADMIN` | 관리자 |
+
+자세한 내용: https://janghyeok.tistory.com/39
 
 ### 게시글 조회 (Redis 조회수 캐싱)
 
@@ -448,6 +527,8 @@ Redis 기반 캐싱 적용
 ---
 
 ## API 엔드포인트
+
+api 명세서:https://api.highteenday.org/swagger-ui/index.html#/
 
 | 도메인 | 경로 | 주요 기능 |
 |--------|------|-----------|
