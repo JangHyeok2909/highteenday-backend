@@ -150,6 +150,7 @@ public class RedisPostsCache implements PostPrevCache{
     public void decrementBoardCount(Long boardId) {
         String key = createCountingKey(boardId);
         boardTemplate.opsForValue().decrement(key, 1);
+        boardTemplate.expire(key, BOARD_TTL);
     }
 
     private String createBoardKey(Long boardId){
