@@ -189,9 +189,11 @@ EC2 (ap-northeast-2)
        └─ network_mode: host  (required — Redis runs on EC2 localhost)
        └─ Spring Boot on :8080
 
-AWS CloudFront
-  └─ api.highteenday.org/* → EC2 :8080
-  └─ www.highteenday.org/* → Frontend (S3 or separate host)
+S3 + CloudFront
+  └─ www.highteenday.org/* → S3 (정적 파일 CDN 배포)
+
+ALB
+  └─ api.highteenday.org/* → EC2 :8080 (HTTPS 처리 + 로드밸런싱)
   └─ /swagger-ui/*         → EC2 :8080
 ```
 
