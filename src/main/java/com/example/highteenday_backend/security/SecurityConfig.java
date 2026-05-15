@@ -77,7 +77,8 @@ public class SecurityConfig {
                                 "/api/user/OAuth2UserInfo",
                                 "/api/user/loginUser",
                                 "/api/mypage/**",
-                                "/api/timetableTemplates/**"
+                                "/api/timetableTemplates/**",
+                                "/api/schools/meals/**"
                         ).authenticated()
 
                         // POST/DELETE 요청 중 인증 필요 경로
