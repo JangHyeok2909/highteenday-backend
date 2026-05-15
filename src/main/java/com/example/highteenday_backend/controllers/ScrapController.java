@@ -5,6 +5,7 @@ import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.PostService;
 import com.example.highteenday_backend.services.domain.ScrapService;
+import com.example.highteenday_backend.services.domain.redisService.RedisPostsCache;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 public class ScrapController {
     private final PostService postService;
     private final ScrapService scrapService;
+    private final RedisPostsCache redisPostsCache;
 
     @PostMapping()
     public ResponseEntity<?> scrap(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
@@ -40,6 +42,7 @@ public class ScrapController {
             message ="스크랩 취소.";
         }
         post.updateScrapCount(Math.toIntExact(scrapService.countValidByPost(post)));
+        redisPostsCache.evictPostPrev(postId);
         return ResponseEntity.ok(message);
     }
 }

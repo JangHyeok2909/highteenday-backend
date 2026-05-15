@@ -31,6 +31,7 @@ public class PostRepositoryCustomImpl implements PostRepositoryCustom {
         String safeKeywords = keywords == null ? "" : keywords.trim();
         String[] keywordArr = safeKeywords.isEmpty() ? new String[0] : safeKeywords.split("\\s+");
         BooleanBuilder builder = new BooleanBuilder();
+        builder.and(post.isValid.eq(true));
         if(searchType == PostSearchType.TITLE_CONTENT){ //제목+본문
             for(String keyword:keywordArr){
                 if (keyword == null || keyword.isBlank()) continue;
