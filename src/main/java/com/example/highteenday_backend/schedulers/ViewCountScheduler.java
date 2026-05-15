@@ -26,7 +26,13 @@ public class ViewCountScheduler {
     @Scheduled(fixedDelay = 60000)
     @Transactional
     public void syncViewsToDB() {
-        Map<Long, Integer> viewCounts = viewCountService.drainViewCounts();
+        Map<Long, Integer> viewCounts;
+        try {
+            viewCounts = viewCountService.drainViewCounts();
+        } catch (Exception e) {
+            log.error("Failed to drain view counts from Redis. Will retry next cycle.", e);
+            return;
+        }
         if (viewCounts.isEmpty()) return;
 
         int synced = 0;
@@ -38,6 +44,8 @@ public class ViewCountScheduler {
                 hotPostService.updateLeaderboardDayScore(entry.getKey());
             } catch (ResourceNotFoundException e) {
                 log.warn("View count sync skipped — deleted post. postId={}", entry.getKey());
+            } catch (Exception e) {
+                log.error("View count sync failed for postId={}. increment={}", entry.getKey(), entry.getValue(), e);
             }
         }
         log.info("View count batch sync complete. synced={}, total={}", synced, viewCounts.size());
