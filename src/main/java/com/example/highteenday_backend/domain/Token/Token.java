@@ -4,6 +4,8 @@ import com.example.highteenday_backend.domain.users.User;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Builder
 @Entity
 @Getter
@@ -24,8 +26,12 @@ public class Token {
     @Column(name = "TNK_access", length = 500, unique = true)
     private String accessToken;
 
-    public Token updateRefreshToken(String refreshToken){
+    @Column(name = "TNK_expires_at")
+    private LocalDateTime expiresAt;
+
+    public Token updateRefreshToken(String refreshToken, LocalDateTime expiresAt){
         this.refreshToken = refreshToken;
+        this.expiresAt = expiresAt;
         return this;
     }
     public void updateAccessToken(String accessToken){
