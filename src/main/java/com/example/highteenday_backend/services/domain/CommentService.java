@@ -93,8 +93,10 @@ public class CommentService {
     @Transactional
     public void deleteComment(Long commentId,Long userId){
         Comment comment = findCommentById(commentId);
+        Post post = comment.getPost();
         comment.delete();
         comment.setUpdatedBy(userId);
+        post.updateCommentCount(post.getCommentCount()-1);
         log.info("comment deleted. commentId={}, deletedBy={}",commentId,userId);
     }
 }
