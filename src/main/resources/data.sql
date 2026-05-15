@@ -34,6 +34,7 @@ INSERT IGNORE INTO boards (
 -- 3. POSTS (100000건 생성)
 -- =========================
 SET SESSION cte_max_recursion_depth = 100000;
+
 INSERT IGNORE INTO posts (
     USR_id,
     BRD_id,
@@ -48,6 +49,7 @@ INSERT IGNORE INTO posts (
     USR_nickname,
     created_at
 )
+
 WITH RECURSIVE seq AS (
     SELECT 1 AS n
     UNION ALL
@@ -55,35 +57,36 @@ WITH RECURSIVE seq AS (
     FROM seq
     WHERE n < 100000
 ),
-               topic AS (
-                   SELECT
-                       n,
-                       1 + FLOOR(RAND(n) * 3) AS usr_id,
-                       IF(RAND(n * 31) < 0.55, 1, 0) AS is_anon,
-                       CASE (n % 12)
-                           WHEN 0 THEN '시험/공부'
-                           WHEN 1 THEN '급식/음식'
-                           WHEN 2 THEN '진로/고민'
-                           WHEN 3 THEN '친구/관계'
-                           WHEN 4 THEN '취미/게임'
-                           WHEN 5 THEN '연애'
-                           WHEN 6 THEN '학교생활'
-                           WHEN 7 THEN '질문'
-                           WHEN 8 THEN '정보공유'
-                           WHEN 9 THEN '하소연'
-                           WHEN 10 THEN '유머'
-                           ELSE '자유'
-                           END AS topic_name
-                   FROM seq
-               )
+topic AS (
+    SELECT
+        n,
+        1 + FLOOR(RAND(n) * 3) AS usr_id,
+        1 + FLOOR(RAND(n * 11) * 4) AS brd_id,
+        IF(RAND(n * 31) < 0.55, 1, 0) AS is_anon,
+
+        CASE (n % 12)
+            WHEN 0 THEN '시험/공부'
+            WHEN 1 THEN '급식/음식'
+            WHEN 2 THEN '진로/고민'
+            WHEN 3 THEN '친구/관계'
+            WHEN 4 THEN '취미/게임'
+            WHEN 5 THEN '연애'
+            WHEN 6 THEN '학교생활'
+            WHEN 7 THEN '질문'
+            WHEN 8 THEN '정보공유'
+            WHEN 9 THEN '하소연'
+            WHEN 10 THEN '유머'
+            ELSE '자유'
+        END AS topic_name
+
+    FROM seq
+)
+
 SELECT
     t.usr_id,
-    1 AS BRD_id,
+    t.brd_id,
 
-    CONCAT(
-            '[', t.topic_name, '] 테스트 게시글 #',
-            LPAD(t.n, 4, '0')
-    ) AS PST_title,
+    CONCAT('[', t.topic_name, '] 테스트 게시글 #', LPAD(t.n, 4, '0')) AS PST_title,
 
     CONCAT(
             '<p>부하 테스트용 더미 데이터입니다. 주제: ',
@@ -123,8 +126,11 @@ SELECT
                 END
     ) AS USR_nickname,
 
-    -- id가 클수록 최신: n=1이 가장 오래됨(약 4.6개월 전), n=100000이 가장 최신(약 2분 전)
-    DATE_SUB(NOW(), INTERVAL (100001 - t.n) * 2 MINUTE) AS created_at
+    /* ✔ 핵심: created_at 단조 증가 */
+    FROM_UNIXTIME(
+            UNIX_TIMESTAMP(NOW() - INTERVAL 10 YEAR)
+                + (t.n * 60)
+    ) AS created_at
 
 FROM topic t;
 
