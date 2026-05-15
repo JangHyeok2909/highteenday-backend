@@ -1,11 +1,14 @@
 package com.example.highteenday_backend.services.domain;
 
 import com.example.highteenday_backend.Utils.HotScoreCalculator;
+import com.example.highteenday_backend.domain.hot.DailyHotPost;
+import com.example.highteenday_backend.domain.hot.DailyHotPostRepository;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.dtos.PostPreviewDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 
@@ -35,6 +39,7 @@ public class HotPostService {
 
     private final RedisTemplate<String, Long> hotPidTemplate;
     private final PostService postService;
+    private final DailyHotPostRepository dailyHotPostRepository;
     private static int recentHotPostCount=3;
     private static int dailyHotPostCount=10;
 
@@ -64,30 +69,83 @@ public class HotPostService {
     }
     @Transactional
     public void updateLeaderboardDayScore(Long postId){
-        String key = leaderboardDayRedisKey(LocalDate.now());
-        postService.findOptionalById(postId).ifPresentOrElse(post -> {
-            double score = HotScoreCalculator.calculateDailyHotScore(post);
-            hotPidTemplate.opsForZSet().add(key, postId, score);
-            log.debug("hot score updated, postId={} score={}", postId, score);
-        }, () -> {
-            hotPidTemplate.opsForZSet().remove(key, postId);
-            log.debug("Hot score skipped — post not found in DB, removing from Redis. postId={}", postId);
-        });
+        try {
+            String key = leaderboardDayRedisKey(LocalDate.now());
+            postService.findOptionalById(postId).ifPresentOrElse(post -> {
+                double score = HotScoreCalculator.calculateDailyHotScore(post);
+                hotPidTemplate.opsForZSet().add(key, postId, score);
+                log.debug("hot score updated, postId={} score={}", postId, score);
+            }, () -> {
+                hotPidTemplate.opsForZSet().remove(key, postId);
+                log.debug("Hot score skipped — post not found in DB, removing from Redis. postId={}", postId);
+            });
+        } catch (Exception e) {
+            log.warn("Redis unavailable, skipping hot score update for postId={}", postId, e);
+        }
     }
 
     public List<PostPreviewDto> getLeaderboardDayHotPosts(){
-        String key = leaderboardDayRedisKey(LocalDate.now());
-        List<PostPreviewDto> hotPostPrevDtos = new ArrayList<>();
-        Set<Long> hotPostsIds = hotPidTemplate.opsForZSet().reverseRange(key, 0, dailyHotPostCount-1);
-        if (hotPostsIds == null) return hotPostPrevDtos;
-        for(Long pid:hotPostsIds){
-            postService.findOptionalById(pid).ifPresent(post -> {
-                if (post.getLikeCount() >= 10) {
-                    hotPostPrevDtos.add(PostPreviewDto.fromEntity(post));
-                }
-            });
+        try {
+            String key = leaderboardDayRedisKey(LocalDate.now());
+            List<PostPreviewDto> hotPostPrevDtos = new ArrayList<>();
+            Set<Long> hotPostsIds = hotPidTemplate.opsForZSet().reverseRange(key, 0, dailyHotPostCount-1);
+            if (hotPostsIds == null) return hotPostPrevDtos;
+            for(Long pid:hotPostsIds){
+                postService.findOptionalById(pid).ifPresent(post -> {
+                    if (post.getLikeCount() >= 10) {
+                        hotPostPrevDtos.add(PostPreviewDto.fromEntity(post));
+                    }
+                });
+            }
+            return hotPostPrevDtos;
+        } catch (Exception e) {
+            log.warn("Redis unavailable for daily hot posts, falling back to DB", e);
+            return getLeaderboardDayHotPostsFromDb();
         }
-        return hotPostPrevDtos;
+    }
+
+    private List<PostPreviewDto> getLeaderboardDayHotPostsFromDb() {
+        List<DailyHotPost> entries = dailyHotPostRepository
+                .findTop10ByLeaderboardDateOrderByCreatedDesc(LocalDate.now());
+        List<PostPreviewDto> result = new ArrayList<>();
+        for (DailyHotPost dhp : entries) {
+            Post post = dhp.getPost();
+            if (post.getIsValid() && post.getLikeCount() >= 10) {
+                result.add(PostPreviewDto.fromEntity(post));
+            }
+        }
+        return result;
+    }
+
+    @Transactional
+    public void syncLeaderboardDayToDb() {
+        LocalDate today = LocalDate.now();
+        String key = leaderboardDayRedisKey(today);
+        try {
+            Set<ZSetOperations.TypedTuple<Long>> tuples =
+                    hotPidTemplate.opsForZSet().reverseRangeWithScores(key, 0, 49);
+            if (tuples == null || tuples.isEmpty()) return;
+
+            int savedCount = 0;
+            for (ZSetOperations.TypedTuple<Long> tuple : tuples) {
+                Long postId = tuple.getValue();
+                Optional<Post> postOpt = postService.findOptionalById(postId);
+                if (postOpt.isPresent()) {
+                    Post post = postOpt.get();
+                    if (dailyHotPostRepository.findByPostAndLeaderboardDate(post, today).isEmpty()) {
+                        dailyHotPostRepository.save(DailyHotPost.builder()
+                                .post(post)
+                                .score(tuple.getScore())
+                                .leaderboardDate(today)
+                                .build());
+                        savedCount++;
+                    }
+                }
+            }
+            log.info("Synced {} new hot posts to DB fallback", savedCount);
+        } catch (Exception e) {
+            log.warn("Redis unavailable, skipping DB sync for daily hot posts", e);
+        }
     }
 
     public String getRealtime5Min(){

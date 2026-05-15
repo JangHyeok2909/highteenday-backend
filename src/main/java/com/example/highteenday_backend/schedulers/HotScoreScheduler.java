@@ -1,6 +1,5 @@
 package com.example.highteenday_backend.schedulers;
 
-import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.services.domain.HotPostService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +9,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Set;
 
 @Slf4j
@@ -23,17 +21,21 @@ public class HotScoreScheduler {
     @Scheduled(fixedRate = 5*60*1000) //5분마다 상위 50개 점수 업데이트
     @Transactional
     public void updateHotScore(){
-        String key = HotPostService.leaderboardDayRedisKey(LocalDate.now());
-        Set<Long> range = hotPidTemplate.opsForZSet().reverseRange(key, 0, 49);
-        log.info("Refreshing hot scores");
-        for(Long pid:range){
-            hotPostService.updateLeaderboardDayScore(pid);
-        }
+        try {
+            String key = HotPostService.leaderboardDayRedisKey(LocalDate.now());
+            Set<Long> range = hotPidTemplate.opsForZSet().reverseRange(key, 0, 49);
+            if (range == null || range.isEmpty()) {
+                log.debug("No hot posts to refresh.");
+                return;
+            }
+            log.info("Refreshing hot scores. count={}", range.size());
+            for(Long pid:range){
+                hotPostService.updateLeaderboardDayScore(pid);
+            }
 
-        //핫게시글 가져오기
-        List<PostPreviewDto> dailyHotPosts = hotPostService.getLeaderboardDayHotPosts();
-        for (PostPreviewDto pre:dailyHotPosts){
-            log.debug("Hot post selected. postId={}", pre.getId());
+            hotPostService.syncLeaderboardDayToDb();
+        } catch (Exception e) {
+            log.error("Hot score update failed. Will retry next cycle.", e);
         }
     }
 
