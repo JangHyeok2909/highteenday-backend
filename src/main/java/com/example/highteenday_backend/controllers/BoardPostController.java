@@ -6,7 +6,6 @@ import com.example.highteenday_backend.dtos.paged.PageResponse;
 import com.example.highteenday_backend.dtos.paged.PostListingDto;
 import com.example.highteenday_backend.enums.SortType;
 import com.example.highteenday_backend.services.domain.PostService;
-import com.example.highteenday_backend.services.domain.redisService.RedisPostsCache;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -21,8 +20,6 @@ import java.util.List;
 @RequestMapping("/api/boards/{boardId}/posts")
 public class BoardPostController {
     private final PostService postService;
-    private final RedisPostsCache postsCache;
-    static final int CACHE_PAGE = 5;
     static final int DEFAULT_SIZE = 10;
 
 //    @Operation(summary = "게시글 리스트 조회",description = "boardId의 게시판에 해당되는 게시글 리스트 조회")
@@ -61,17 +58,8 @@ public class BoardPostController {
                 .isRandomPage(isRandomPage)
                 .build();
 
-        //최신순의 경우 0~4페이지까지 캐시
-        List<PostPreviewDto> postPrevs;
-        if(page<CACHE_PAGE && dto.getSortType() == SortType.RECENT) {
-            postPrevs = postsCache.getPostPrevs(boardId, page, size);
-        }
-        //아닐경우 db조회
-        else {
-            postPrevs = postService.getPagedPosts(dto);
-        }
-
-        Long count = postsCache.getCount(boardId);
+        List<PostPreviewDto> postPrevs = postService.getPagedPosts(dto);
+        Long count = postService.getPostCount(boardId);
         PageResponse pagedPosts = new PageResponse<>(postPrevs, page, size, count);
         return ResponseEntity.ok(pagedPosts);
     }

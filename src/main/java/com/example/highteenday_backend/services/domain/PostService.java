@@ -35,6 +35,7 @@ public class PostService {
     private final PostMediaService postMediaService;
     private final PostPrevCache postPrevCache;
     private final static int SIZE = 10;
+    private final static int CACHE_PAGE_LIMIT = 5;
 
     public Post findById(Long postId) {
         return postRepository.findById(postId)
@@ -66,8 +67,15 @@ public class PostService {
         return postRepository.findByUser(user, pageable);
     }
 
-    public List<PostPreviewDto> getPagedPosts(PostListingDto dto){
+    public List<PostPreviewDto> getPagedPosts(PostListingDto dto) {
+        if (dto.getPage() < CACHE_PAGE_LIMIT && dto.getSortType() == SortType.RECENT) {
+            return postPrevCache.getPostPrevs(dto.getBoardId(), dto.getPage(), dto.getSize());
+        }
         return postRepository.findByBoard(dto);
+    }
+
+    public Long getPostCount(Long boardId) {
+        return postPrevCache.getCount(boardId);
     }
 
 //    public PageResponse<PostPreviewDto> getPagedPosts(List<PostPreviewDto> dtos){
