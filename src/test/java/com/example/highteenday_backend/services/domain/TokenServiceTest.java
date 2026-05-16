@@ -22,7 +22,10 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+import org.springframework.data.redis.RedisConnectionFailureException;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -109,6 +112,37 @@ class TokenServiceTest {
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("사용자 없음");
         }
+
+        @Test
+        @DisplayName("기존 키 Redis delete 장애 시에도 DB 저장은 수행된다")
+        void dbSaveSucceedsWhenRedisDeleteFails() {
+            Token existing = Token.builder()
+                    .id(10L).user(user)
+                    .refreshToken("old-rf").accessToken("old-ac")
+                    .expiresAt(LocalDateTime.now().plusDays(3))
+                    .build();
+            when(userRepository.findByEmail("u@test.com")).thenReturn(Optional.of(user));
+            when(tokenRepository.findByUser(user)).thenReturn(Optional.of(existing));
+            when(tokenRedisTemplate.delete(anyString()))
+                    .thenThrow(new RedisConnectionFailureException("down"));
+
+            assertThatCode(() -> tokenService.saveOrUpdate("u@test.com", "new-rf", "new-ac"))
+                    .doesNotThrowAnyException();
+            verify(tokenRepository).save(existing);
+        }
+
+        @Test
+        @DisplayName("신규 키 Redis set 장애 시에도 DB 저장은 수행된다")
+        void dbSaveSucceedsWhenRedisSetFails() {
+            when(userRepository.findByEmail("u@test.com")).thenReturn(Optional.of(user));
+            when(tokenRepository.findByUser(user)).thenReturn(Optional.empty());
+            org.mockito.Mockito.doThrow(new RedisConnectionFailureException("down"))
+                    .when(valueOps).set(anyString(), anyString(), any(Duration.class));
+
+            assertThatCode(() -> tokenService.saveOrUpdate("u@test.com", "rf", "ac"))
+                    .doesNotThrowAnyException();
+            verify(tokenRepository).save(any(Token.class));
+        }
     }
 
     // ──────────────────────────────────────────────
@@ -153,6 +187,21 @@ class TokenServiceTest {
             assertThatThrownBy(() -> tokenService.deleteByUserEmail("x@test.com"))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("사용자 없음");
+        }
+
+        @Test
+        @DisplayName("Redis delete 장애 시에도 DB 삭제는 수행된다")
+        void dbDeleteSucceedsWhenRedisDown() {
+            Token token = Token.builder()
+                    .user(user).refreshToken("rf").accessToken("ac").build();
+            when(userRepository.findByEmail("u@test.com")).thenReturn(Optional.of(user));
+            when(tokenRepository.findByUser(user)).thenReturn(Optional.of(token));
+            when(tokenRedisTemplate.delete(anyString()))
+                    .thenThrow(new RedisConnectionFailureException("down"));
+
+            assertThatCode(() -> tokenService.deleteByUserEmail("u@test.com"))
+                    .doesNotThrowAnyException();
+            verify(tokenRepository).delete(token);
         }
     }
 
@@ -229,6 +278,21 @@ class TokenServiceTest {
             assertThatThrownBy(() -> tokenService.findByRefreshTokenOrThrow("rt4"))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("리프레시 토큰이 유효하지 않습니다");
+        }
+
+        @Test
+        @DisplayName("Redis 장애 시 DB로 폴백하여 Token을 반환한다")
+        void fallsBackToDbWhenRedisDown() {
+            LocalDateTime future = LocalDateTime.now().plusDays(3);
+            Token token = Token.builder().user(user).refreshToken("rt5").expiresAt(future).build();
+            when(tokenRedisTemplate.opsForValue())
+                    .thenThrow(new RedisConnectionFailureException("down"));
+            when(tokenRepository.findByRefreshToken("rt5")).thenReturn(Optional.of(token));
+
+            Token result = tokenService.findByRefreshTokenOrThrow("rt5");
+
+            assertThat(result).isSameAs(token);
+            verify(tokenRepository).findByRefreshToken("rt5");
         }
     }
 
