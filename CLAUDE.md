@@ -210,6 +210,10 @@ ALB
   - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`
   - Example: `feat: add OAuth2 auto-registration for new users`
 - Keep subject line under 72 characters
+- Commit description(body) must include:
+  - What was changed 
+  - Why it was changed 
+  - What benefit it brings 
 - **Always ask before committing AND pushing** — never commit or push without explicit user confirmation
 - Never force-push `main` without explicit user instruction
 - Prefer one focused commit per logical change; squash noise commits before pushing
