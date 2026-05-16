@@ -1,11 +1,8 @@
 package com.example.highteenday_backend.controllers;
 
-import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
-import com.example.highteenday_backend.services.domain.PostService;
 import com.example.highteenday_backend.services.domain.ScrapService;
-import com.example.highteenday_backend.services.domain.redisService.RedisPostsCache;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,30 +16,16 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @RestController
 public class ScrapController {
-    private final PostService postService;
     private final ScrapService scrapService;
-    private final RedisPostsCache redisPostsCache;
 
     @PostMapping()
     public ResponseEntity<?> scrap(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-                                   @PathVariable Long postId
-                                   ){
-        if(userPrincipal == null) {
+                                   @PathVariable Long postId) {
+        if (userPrincipal == null) {
             log.warn("Scrap request with no authentication. postId={}", postId);
         }
         User user = userPrincipal.getUser();
-        Post post = postService.findById(postId);
-        boolean scraped = scrapService.isScraped(post, user);
-        String message;
-        if(!scraped){
-            scrapService.createScrap(post,user);
-            message ="스크랩 완료.";
-        } else{
-            scrapService.cancelScrap(post,user);
-            message ="스크랩 취소.";
-        }
-        post.updateScrapCount(Math.toIntExact(scrapService.countValidByPost(post)));
-        redisPostsCache.evictPostPrev(postId);
+        String message = scrapService.toggleScrap(postId, user);
         return ResponseEntity.ok(message);
     }
 }

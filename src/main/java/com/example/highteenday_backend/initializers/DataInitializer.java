@@ -126,7 +126,7 @@ public class DataInitializer {
     public void scrapDataInit(User user){
         int scrapCount= 12;
         for (int i = 1; i <= scrapCount; i++) {
-            scrapService.createScrap(postService.findById((long) i), user);
+            scrapService.toggleScrap((long) i, user);
         }
         log.info("Test scraps initialized. count={}", scrapCount);
     }
