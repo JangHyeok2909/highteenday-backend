@@ -4,38 +4,41 @@ import com.example.highteenday_backend.domain.friends.Friend;
 import com.example.highteenday_backend.domain.friends.FriendRepository;
 import com.example.highteenday_backend.domain.friends.FriendReq;
 import com.example.highteenday_backend.domain.friends.FriendReqRepository;
-import com.example.highteenday_backend.domain.notification.Notification;
-import com.example.highteenday_backend.domain.notification.NotificationRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.Friends.*;
 import com.example.highteenday_backend.enums.*;
+import com.example.highteenday_backend.eventEntities.events.FriendBlockedEvent;
+import com.example.highteenday_backend.eventEntities.events.FriendRequestAcceptedEvent;
+import com.example.highteenday_backend.eventEntities.events.FriendRequestDeclinedEvent;
+import com.example.highteenday_backend.eventEntities.events.FriendRequestSentEvent;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @RequiredArgsConstructor
 @Service
-public class FriendsService {
+public class FriendService {
 
     private final UserRepository userRepository;
     private final UserService userService;
     private final FriendRepository friendRepository;
     private final FriendReqRepository friendReqRepository;
-    private final NotificationRepository notificationRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     // 친구 목록
     @Transactional
-   public List<FriendsInfoDto> getFriendsList(Long id) {
+   public List<FriendInfoDto> getFriendsList(Long id) {
 
         List<User> findFriendsList = friendRepository.findAllFriends(id);
 
-        List<FriendsInfoDto> friendsListDto = findFriendsList.stream()
-                .map(friend -> FriendsInfoDto.builder()
+        List<FriendInfoDto> friendsListDto = findFriendsList.stream()
+                .map(friend -> FriendInfoDto.builder()
                         .id(friend.getId())
                         .name(friend.getName())
                         .nickname(friend.getNickname())
@@ -49,12 +52,12 @@ public class FriendsService {
 
     // 내가 친구 신청한 목록 || 내가 보낸거
     @Transactional
-    public List<FriendsInfoDto> getSentFriendsRequestList(User user) {
+    public List<FriendInfoDto> getSentFriendsRequestList(User user) {
 
         List<FriendReq> findSentFriendsRequestList = friendReqRepository.findSentFriendsRequest(user.getId());
 
         return findSentFriendsRequestList.stream()
-                .map(req -> FriendsInfoDto.builder()
+                .map(req -> FriendInfoDto.builder()
                         .id(req.getReceiver().getId())
                         .name(req.getReceiver().getName())
                         .nickname(req.getReceiver().getNickname())
@@ -65,11 +68,11 @@ public class FriendsService {
 
     // 누가 나한테 친구 요청한 목록 | 누군가 나한테 신청한 목록
     @Transactional
-    public List<FriendsInfoDto> getReceivedFriendsList(User user){
+    public List<FriendInfoDto> getReceivedFriendsList(User user){
         List<FriendReq> findReceivedFriendsList = friendReqRepository.findReceivedFriendRequestsByRecieverId(user.getId());
 
         return findReceivedFriendsList.stream()
-                .map(req -> FriendsInfoDto.builder()
+                .map(req -> FriendInfoDto.builder()
                         .id(req.getId())
                         .name(req.getRequester().getName())
                         .nickname(req.getRequester().getNickname())
@@ -80,7 +83,7 @@ public class FriendsService {
 
     // 친구 요청
     @Transactional
-    public void sendFriendsRequest(CustomUserPrincipal requestUser, RequestFriendsDto receiverDto){
+    public void sendFriendsRequest(CustomUserPrincipal requestUser, RequestFriendDto receiverDto){
         User requester = userService.findByEmail(requestUser.getUserEmail());
         User receiver = userService.findByEmail(receiverDto.email());
 
@@ -96,17 +99,7 @@ public class FriendsService {
                     .build()
             );
 
-        notificationRepository.save(
-                Notification.builder()
-                        .receiver(receiver)
-                        .sender(requester)
-                        .category(NotificationCategory.FRIEND_REQUEST)
-                        .entityType(EntityType.USER)
-                        .entityId(requester.getId())
-                        .message(receiver.getNickname() + "님에게 친구 요청을 보냈습니다.")
-                        .build()
-        );
-
+        eventPublisher.publishEvent(new FriendRequestSentEvent(requester.getId(), receiver.getId()));
     }
 
     // 친구 응답
@@ -132,21 +125,10 @@ public class FriendsService {
                     .friend(requester)
                     .status(FriendStatus.FRIEND)
                     .build());
-            //친구 요청 수락 알림 저장
-            notificationRepository.save(
-                    Notification.builder()
-                            .receiver(receiver)
-                            .sender(requester)
-                            .category(NotificationCategory.FRIEND_ACCEPT)
-                            .entityType(EntityType.USER)
-                            .entityId(requester.getId())
-                            .message(receiver.getNickname() + "님이 친구 요청을 수락했습니다.")
-                            .build()
-            );
-            //친구 요청 삭제
+            eventPublisher.publishEvent(new FriendRequestAcceptedEvent(requester.getId(), receiver.getId()));
 
         }
-        // 응답자가 차단 했을거니까 응답자만 차단 상태 요청자는 모름 | 친구 요청 보낸사람도 차단 됐는지 알게 할까?
+        // 응답자가 차단 했을거니까 응답자만 차단 상태 요청자는 모름
         else if (friendReqDto.status().toUpperCase().equals(FriendRequestStatus.BLOCKED.name())) {
 
             friendRepository.save(Friend.builder()
@@ -155,10 +137,12 @@ public class FriendsService {
                     .status(FriendStatus.BLOCKED)
                     .build());
 
+            eventPublisher.publishEvent(new FriendBlockedEvent(receiver.getId(), requester.getId()));
+
         }
         // 요청 거절시 아무 응답 없음
         else if (friendReqDto.status().equalsIgnoreCase(FriendRequestStatus.DECLINED.name())) {
-            // ;
+            eventPublisher.publishEvent(new FriendRequestDeclinedEvent(requester.getId(), receiver.getId()));
         }
 
         friendReqRepository.delete(friendReq);

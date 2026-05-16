@@ -3,7 +3,7 @@ package com.example.highteenday_backend.controllers;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.Friends.*;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
-import com.example.highteenday_backend.services.domain.FriendsService;
+import com.example.highteenday_backend.services.domain.FriendService;
 import com.example.highteenday_backend.services.domain.UserService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -18,9 +18,9 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @Slf4j
-public class FriendsController {
+public class FriendController {
 
-    private final FriendsService friendsService;
+    private final FriendService friendService;
     private final UserService userService;
 
     private User getUserData(String email) {
@@ -34,7 +34,7 @@ public class FriendsController {
     ) {
         User findUser = getUserData(user.getUser().getEmail());
 
-        List<FriendsInfoDto> friendsListDto = friendsService.getFriendsList(findUser.getId());
+        List<FriendInfoDto> friendsListDto = friendService.getFriendsList(findUser.getId());
 
         return ResponseEntity.ok(friendsListDto);
     }
@@ -46,7 +46,7 @@ public class FriendsController {
     ) {
         User findUser = getUserData(user.getUser().getEmail());
 
-        List<FriendsInfoDto> friendsListDto = friendsService.getSentFriendsRequestList(findUser);
+        List<FriendInfoDto> friendsListDto = friendService.getSentFriendsRequestList(findUser);
 
         return ResponseEntity.ok(friendsListDto);
     }
@@ -58,7 +58,7 @@ public class FriendsController {
     ) {
         User findUser = getUserData(user.getUser().getEmail());
 
-        List<FriendsInfoDto> friendsListDto = friendsService.getReceivedFriendsList(findUser);
+        List<FriendInfoDto> friendsListDto = friendService.getReceivedFriendsList(findUser);
 
         return ResponseEntity.ok(friendsListDto);
     }
@@ -73,7 +73,7 @@ public class FriendsController {
         User findUser = getUserData(user.getUser().getEmail());
         User findFriends = getUserData(deleteFriendDto.email());
 
-        friendsService.deleteFriends(findUser, findFriends);
+        friendService.deleteFriends(findUser, findFriends);
 
         return ResponseEntity.ok("친구 삭제 완료");
     }
@@ -92,7 +92,7 @@ public class FriendsController {
         User findUser = getUserData(user.getUser().getEmail());
         User findBlockUser = getUserData(blockUserDto.email());
 
-        friendsService.blockUser(findUser, findBlockUser);
+        friendService.blockUser(findUser, findBlockUser);
         
         return ResponseEntity.ok("유저 차단 완료");
     }
@@ -107,7 +107,7 @@ public class FriendsController {
         User findUser = getUserData(user.getUser().getEmail());
         User findUnBlockUser = getUserData(unBlockUserDto.email());
 
-        friendsService.unBlockUser(findUser, findUnBlockUser);
+        friendService.unBlockUser(findUser, findUnBlockUser);
 
         return ResponseEntity.ok("유저 차단 해제 완료");
     }
@@ -121,7 +121,7 @@ public class FriendsController {
     ){
         User findUser = getUserData(user.getUser().getEmail());
 
-        List<User> selectUser = friendsService.selectFriend(selectFriendDto);
+        List<User> selectUser = friendService.selectFriend(selectFriendDto);
 
         return ResponseEntity.ok(selectUser);
     }
@@ -130,10 +130,10 @@ public class FriendsController {
     @PostMapping("/request")
     public ResponseEntity<?> requestFriends(
             @AuthenticationPrincipal CustomUserPrincipal requesterPrincipal,
-            @RequestBody RequestFriendsDto receiverDto
+            @RequestBody RequestFriendDto receiverDto
     ) {
 
-        friendsService.sendFriendsRequest(requesterPrincipal, receiverDto);
+        friendService.sendFriendsRequest(requesterPrincipal, receiverDto);
 
         return ResponseEntity.ok("친구 신청 완료");
     }
@@ -145,7 +145,7 @@ public class FriendsController {
             @RequestBody RespondFriendRequestDto friendReqDto
     ) {
 
-        friendsService.respondToFriendRequest(receiver, friendReqDto);
+        friendService.respondToFriendRequest(receiver, friendReqDto);
 
         return ResponseEntity.ok("친구 요청 응답 완료");
     }
