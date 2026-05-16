@@ -5,9 +5,11 @@ import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.scraps.Scrap;
 import com.example.highteenday_backend.domain.scraps.ScrapRepository;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.eventEntities.events.ScrapToggledEvent;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.services.domain.redisService.PostPrevCache;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,8 +22,8 @@ import java.util.Optional;
 public class ScrapService {
     private final ScrapRepository scrapRepository;
     private final PostRepository postRepository;
-    private final HotPostService hotPostService;
     private final PostPrevCache postPrevCache;
+    private final ApplicationEventPublisher eventPublisher;
 
     public List<Scrap> getRecentScrapsByUser(User user) {
         List<Scrap> scraps = scrapRepository.findByUser(user);
@@ -51,6 +53,7 @@ public class ScrapService {
         Optional<Scrap> optional = scrapRepository.findByPostAndUser(post, user);
         boolean alreadyScraped = optional.map(s -> Boolean.TRUE.equals(s.getIsValid())).orElse(false);
         String message;
+        boolean newScrap = false;
 
         if (alreadyScraped) {
             optional.get().cancelScrap();
@@ -60,13 +63,14 @@ public class ScrapService {
                 optional.get().activeScrap();
             } else {
                 scrapRepository.save(Scrap.builder().post(post).user(user).build());
-                hotPostService.updateLeaderboardDayScore(postId);
+                newScrap = true;
             }
             message = "스크랩 완료.";
         }
 
         post.updateScrapCount(Math.toIntExact(scrapRepository.countValidByPost(post)));
         postPrevCache.evictPostPrev(postId);
+        eventPublisher.publishEvent(new ScrapToggledEvent(postId, newScrap));
         return message;
     }
 
