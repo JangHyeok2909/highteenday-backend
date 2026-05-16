@@ -6,8 +6,10 @@ import com.example.highteenday_backend.domain.posts.PostReactionKind;
 import com.example.highteenday_backend.domain.posts.PostReactionRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.LikeStateDto;
+import com.example.highteenday_backend.eventEntities.events.PostReactedEvent;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -17,7 +19,7 @@ import java.util.Optional;
 public class PostReactionService {
 
     private final PostReactionRepository postReactionRepository;
-    private final HotPostService hotPostService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public boolean isLikedByUser(Post post, User user) {
         return postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE);
@@ -79,16 +81,14 @@ public class PostReactionService {
                     .kind(kind)
                     .build());
 
-            //좋아요 생성시 핫스코어 업데이트
-            hotPostService.updateLeaderboardDayScore(post.getId());
             syncCounts(post);
+            eventPublisher.publishEvent(new PostReactedEvent(post.getId()));
             return;
         }
-        //존재할경우 like 적용 후 핫스코어 업데이트
         PostReaction r = opt.get();
         r.applyState(kind);
-        hotPostService.updateLeaderboardDayScore(post.getId());
         syncCounts(post);
+        eventPublisher.publishEvent(new PostReactedEvent(post.getId()));
 
     }
 

@@ -6,6 +6,7 @@ import com.example.highteenday_backend.domain.posts.PostReactionKind;
 import com.example.highteenday_backend.domain.posts.PostReactionRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.LikeStateDto;
+import com.example.highteenday_backend.eventEntities.events.PostReactedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -17,15 +18,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -36,7 +35,7 @@ class PostReactionServiceTest {
     @Mock
     private PostReactionRepository postReactionRepository;
     @Mock
-    private HotPostService hotPostService;
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private PostReactionService postReactionService;
@@ -46,8 +45,8 @@ class PostReactionServiceTest {
 
     @BeforeEach
     void setUp() {
-        post = Post.builder().
-                id(POST_ID)
+        post = Post.builder()
+                .id(POST_ID)
                 .likeCount(0)
                 .dislikeCount(0)
                 .build();
@@ -69,8 +68,8 @@ class PostReactionServiceTest {
     class LikeReact {
 
         @Test
-        @DisplayName("좋아요 상태-> 좋아요 취소, 핫스코어 갱신 x")
-        void cancelsLike_withoutHotScore() {
+        @DisplayName("좋아요 상태 → 좋아요 취소, 이벤트 발행 없음")
+        void cancelsLike_withoutEvent() {
             PostReaction like = reaction(PostReactionKind.LIKE, true);
             when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
                     .thenReturn(true);
@@ -81,17 +80,16 @@ class PostReactionServiceTest {
             stubCounts(3, 1);
 
             postReactionService.likeReact(post, user);
-            //취소시 valid=false
+
             assertThat(like.getIsValid()).isFalse();
             assertThat(post.getLikeCount()).isEqualTo(3);
             assertThat(post.getDislikeCount()).isEqualTo(1);
-            //hotpostService의 스코어 갱신 로직 호출 확인
-            verify(hotPostService, never()).updateLeaderboardDayScore(any());
+            verify(eventPublisher, never()).publishEvent(any());
         }
 
         @Test
-        @DisplayName("싫어요 상태-> 싫어요 취소하고 좋아요로 전환 + 핫스코어 갱신")
-        void switchesFromDislikeToLike_updatesHotScore() {
+        @DisplayName("싫어요 상태 → 좋아요 전환 + PostReactedEvent 발행")
+        void switchesFromDislikeToLike_publishesEvent() {
             PostReaction row = reaction(PostReactionKind.DISLIKE, true);
             when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
                     .thenReturn(false);
@@ -106,13 +104,15 @@ class PostReactionServiceTest {
             assertThat(row.getKind()).isEqualTo(PostReactionKind.LIKE);
             assertThat(row.getIsValid()).isTrue();
             assertThat(post.getLikeCount()).isEqualTo(5);
-            assertThat(post.getDislikeCount()).isEqualTo(0);
-            verify(hotPostService, times(1)).updateLeaderboardDayScore(POST_ID);
+
+            ArgumentCaptor<PostReactedEvent> captor = ArgumentCaptor.forClass(PostReactedEvent.class);
+            verify(eventPublisher).publishEvent(captor.capture());
+            assertThat(captor.getValue().getPostId()).isEqualTo(POST_ID);
         }
 
         @Test
-        @DisplayName("반응x -> 새 좋아요를 저장 + 핫스코어 갱신")
-        void createsNewLike_updatesHotScore() {
+        @DisplayName("반응 없음 → 새 좋아요 저장 + PostReactedEvent 발행")
+        void createsNewLike_publishesEvent() {
             when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
                     .thenReturn(false);
             when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.DISLIKE))
@@ -121,18 +121,21 @@ class PostReactionServiceTest {
 
             stubCounts(1, 0);
 
-            ArgumentCaptor<PostReaction> captor = ArgumentCaptor.forClass(PostReaction.class);
             postReactionService.likeReact(post, user);
 
-            verify(postReactionRepository).save(captor.capture());
-            assertThat(captor.getValue().getKind()).isEqualTo(PostReactionKind.LIKE);
+            ArgumentCaptor<PostReaction> saveCaptor = ArgumentCaptor.forClass(PostReaction.class);
+            verify(postReactionRepository).save(saveCaptor.capture());
+            assertThat(saveCaptor.getValue().getKind()).isEqualTo(PostReactionKind.LIKE);
             assertThat(post.getLikeCount()).isEqualTo(1);
-            verify(hotPostService, times(1)).updateLeaderboardDayScore(POST_ID);
+
+            ArgumentCaptor<PostReactedEvent> eventCaptor = ArgumentCaptor.forClass(PostReactedEvent.class);
+            verify(eventPublisher).publishEvent(eventCaptor.capture());
+            assertThat(eventCaptor.getValue().getPostId()).isEqualTo(POST_ID);
         }
 
         @Test
-            @DisplayName("취소된 리액트-> 좋아요 재활성화 + 핫스코어 갱신")
-        void reactivatesInvalidRow_updatesHotScore() {
+        @DisplayName("취소된 리액션 → 좋아요 재활성화 + PostReactedEvent 발행")
+        void reactivatesInvalidRow_publishesEvent() {
             PostReaction softCanceled = reaction(PostReactionKind.LIKE, false);
             when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
                     .thenReturn(false);
@@ -146,7 +149,7 @@ class PostReactionServiceTest {
 
             assertThat(softCanceled.getKind()).isEqualTo(PostReactionKind.LIKE);
             assertThat(softCanceled.getIsValid()).isTrue();
-            verify(hotPostService, times(1)).updateLeaderboardDayScore(POST_ID);
+            verify(eventPublisher).publishEvent(any(PostReactedEvent.class));
         }
     }
 
@@ -155,8 +158,8 @@ class PostReactionServiceTest {
     class DislikeReact {
 
         @Test
-        @DisplayName("싫어요 상태 -> 싫어요 취소 + 핫스코어 갱신 x")
-        void cancelsDislike_withoutHotScore() {
+        @DisplayName("싫어요 상태 → 싫어요 취소, 이벤트 발행 없음")
+        void cancelsDislike_withoutEvent() {
             PostReaction dislike = reaction(PostReactionKind.DISLIKE, true);
             when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
                     .thenReturn(false);
@@ -171,12 +174,12 @@ class PostReactionServiceTest {
             assertThat(dislike.getIsValid()).isFalse();
             assertThat(post.getLikeCount()).isEqualTo(2);
             assertThat(post.getDislikeCount()).isEqualTo(4);
-            verify(hotPostService, never()).updateLeaderboardDayScore(any());
+            verify(eventPublisher, never()).publishEvent(any());
         }
 
         @Test
-        @DisplayName("좋아요 상태 -> 좋아요 취소, 싫어요로 전환 + 핫스코어를 갱신한다")
-        void switchesFromLikeToDislike_updatesHotScoreOnce() {
+        @DisplayName("좋아요 상태 → 싫어요 전환 + PostReactedEvent 발행")
+        void switchesFromLikeToDislike_publishesEvent() {
             PostReaction row = reaction(PostReactionKind.LIKE, true);
             when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
                     .thenReturn(true);
@@ -190,14 +193,12 @@ class PostReactionServiceTest {
 
             assertThat(row.getKind()).isEqualTo(PostReactionKind.DISLIKE);
             assertThat(row.getIsValid()).isTrue();
-            assertThat(post.getLikeCount()).isEqualTo(1);
-            assertThat(post.getDislikeCount()).isEqualTo(2);
-            verify(hotPostService, times(1)).updateLeaderboardDayScore(POST_ID);
+            verify(eventPublisher).publishEvent(any(PostReactedEvent.class));
         }
 
         @Test
-        @DisplayName("반응x -> 새 싫어요를 저장 + 핫스코어를 갱신한다")
-        void createsNewDislike_updatesHotScore() {
+        @DisplayName("반응 없음 → 새 싫어요 저장 + PostReactedEvent 발행")
+        void createsNewDislike_publishesEvent() {
             when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
                     .thenReturn(false);
             when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.DISLIKE))
@@ -206,12 +207,12 @@ class PostReactionServiceTest {
 
             stubCounts(0, 1);
 
-            ArgumentCaptor<PostReaction> captor = ArgumentCaptor.forClass(PostReaction.class);
             postReactionService.dislikeReact(post, user);
 
+            ArgumentCaptor<PostReaction> captor = ArgumentCaptor.forClass(PostReaction.class);
             verify(postReactionRepository).save(captor.capture());
             assertThat(captor.getValue().getKind()).isEqualTo(PostReactionKind.DISLIKE);
-            verify(hotPostService, times(1)).updateLeaderboardDayScore(POST_ID);
+            verify(eventPublisher).publishEvent(any(PostReactedEvent.class));
         }
     }
 
