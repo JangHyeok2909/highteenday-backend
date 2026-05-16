@@ -18,10 +18,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 
 @Slf4j
@@ -33,6 +30,7 @@ public class CommentController {
     private final PostService postService;
     private final CommentService commentService;
     private final CommentReactionService commentReactionService;
+    private final CommentAnonymizationService commentAnonymizationService;
 
     @Operation(summary = "댓글 리스트 조회",description = "postId에 해당하는 게시글의 댓글 리스트 조회")
     @GetMapping()
@@ -43,64 +41,18 @@ public class CommentController {
         log.debug("Fetching comments. postId={}", postId);
         Post post = postService.findById(postId);
         List<Comment> comments = commentService.getCommentsByPost(post);
+        List<CommentDto> dtos = commentAnonymizationService.anonymize(post, comments);
 
-        List<CommentDto> dtos = new ArrayList<>();
-
-        boolean isAnonymous = post.isAnonymous();
-
-        Map<Long, Integer> anonMap = new LinkedHashMap<>();
-        int counter = 1;
-
-        if(isAnonymous){
-            Long postAuthorId = post.getUser().getId();
-            anonMap.put(postAuthorId, 1);
-            counter = 2;
-        }
-
-        for (Comment c : comments){
-
-            CommentDto dto = CommentDto.fromEntity(c);
-
-            // 익명 처리
-            boolean isPostAuthor =
-                    c.getUser().getId().equals(post.getUser().getId());
-
-            if (c.isAnonymous()) {
-
-                if (isPostAuthor) {
-
-                    dto.setAuthor("익명(글쓴이)");
-                    dto.setUserId(null);
-
-                } else {
-
-                    Long userId = c.getUser().getId();
-
-                    if (!anonMap.containsKey(userId)) {
-                        anonMap.put(userId, counter++);
-                    }
-
-                    int anonNumber = anonMap.get(userId);
-
-                    dto.setAuthor("익명" + anonNumber);
-                    dto.setUserId(null);
-                }
-            }
-
-            //로그인 처리
-            if(userPrincipal != null) {
-
-                User user = userPrincipal.getUser();
-
+        if (userPrincipal != null) {
+            User user = userPrincipal.getUser();
+            for (int i = 0; i < comments.size(); i++) {
+                Comment c = comments.get(i);
+                CommentDto dto = dtos.get(i);
                 LikeStateDto likeDto = commentReactionService.getLikeSatateDto(c, user);
-
                 dto.setLiked(likeDto.isLiked());
                 dto.setDisliked(likeDto.isDisliked());
-
-                dto.setOwner(user.getId() == c.getUser().getId());
+                dto.setOwner(user.getId().equals(c.getUser().getId()));
             }
-
-            dtos.add(dto);
         }
 
         return ResponseEntity.ok(dtos);
