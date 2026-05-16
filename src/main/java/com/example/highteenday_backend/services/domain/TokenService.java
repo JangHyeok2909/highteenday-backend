@@ -6,8 +6,7 @@ import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +14,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TokenService {
@@ -30,7 +30,11 @@ public class TokenService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("사용자 없음 - TokenService.java"));
         tokenRepository.findByUser(user).ifPresent(token -> {
-            tokenRedisTemplate.delete(RT_PREFIX + token.getRefreshToken());
+            try {
+                tokenRedisTemplate.delete(RT_PREFIX + token.getRefreshToken());
+            } catch (Exception e) {
+                log.warn("Redis unavailable, could not delete RT key on logout. email={}", email, e);
+            }
             tokenRepository.delete(token);
         });
     }
@@ -45,8 +49,12 @@ public class TokenService {
 
         Token token = optToken
                 .map(t -> {
-                    // rotation 시 기존 Redis 키 삭제
-                    tokenRedisTemplate.delete(RT_PREFIX + t.getRefreshToken());
+                    // rotation 시 기존 Redis 키 삭제 (best-effort)
+                    try {
+                        tokenRedisTemplate.delete(RT_PREFIX + t.getRefreshToken());
+                    } catch (Exception e) {
+                        log.warn("Redis unavailable, could not delete old RT key. userKey={}", userKey, e);
+                    }
                     t.updateAccessToken(accessToken);
                     t.updateRefreshToken(refreshToken, expiresAt);
                     return t;
@@ -55,8 +63,12 @@ public class TokenService {
 
         tokenRepository.save(token);
 
-        // Redis에 저장 (Key: RT:{token}, Value: email)
-        tokenRedisTemplate.opsForValue().set(RT_PREFIX + refreshToken, userKey, REFRESH_TTL);
+        // Redis에 저장 (Key: RT:{token}, Value: email) — best-effort
+        try {
+            tokenRedisTemplate.opsForValue().set(RT_PREFIX + refreshToken, userKey, REFRESH_TTL);
+        } catch (Exception e) {
+            log.warn("Redis unavailable, RT not cached. DB fallback will be used on next lookup. userKey={}", userKey, e);
+        }
     }
 
     public Token findByAccessTokenOrThrow(String accessToken){
@@ -65,8 +77,14 @@ public class TokenService {
     }
 
     public Token findByRefreshTokenOrThrow(String refreshToken){
-        // 1. Redis 조회 (cache hit)
-        String email = tokenRedisTemplate.opsForValue().get(RT_PREFIX + refreshToken);
+        // 1. Redis 조회 (cache hit) — 장애 시 DB로 진행
+        String email = null;
+        try {
+            email = tokenRedisTemplate.opsForValue().get(RT_PREFIX + refreshToken);
+        } catch (Exception e) {
+            log.warn("Redis unavailable, skipping cache lookup for RT. falling back to DB", e);
+        }
+
         if (email != null) {
             User user = userRepository.findByEmail(email)
                     .orElseThrow(() -> new RuntimeException("리프레시 토큰이 유효하지 않습니다."));
@@ -84,11 +102,15 @@ public class TokenService {
             throw new RuntimeException("리프레시 토큰이 만료되었습니다.");
         }
 
-        // Redis 재적재 (남은 TTL 계산)
-        Duration remaining = token.getExpiresAt() != null
-                ? Duration.between(LocalDateTime.now(), token.getExpiresAt())
-                : REFRESH_TTL;
-        tokenRedisTemplate.opsForValue().set(RT_PREFIX + refreshToken, token.getUser().getEmail(), remaining);
+        // Redis 재적재 (남은 TTL 계산) — best-effort
+        try {
+            Duration remaining = token.getExpiresAt() != null
+                    ? Duration.between(LocalDateTime.now(), token.getExpiresAt())
+                    : REFRESH_TTL;
+            tokenRedisTemplate.opsForValue().set(RT_PREFIX + refreshToken, token.getUser().getEmail(), remaining);
+        } catch (Exception e) {
+            log.warn("Redis unavailable, could not repopulate RT cache", e);
+        }
 
         return token;
     }

@@ -230,6 +230,65 @@ class HotPostServiceTest {
     }
 
     @Nested
+    @DisplayName("updateRecentScore")
+    class UpdateRecentScore {
+
+        @Test
+        @DisplayName("Redis 정상 시 ZSET에 점수를 추가한다")
+        void addsScoreWhenRedisAvailable() {
+            stubZSet();
+            Post post = mockPost(1L, 5);
+
+            hotPostService.updateRecentScore(post);
+
+            verify(zSetOps).add(anyString(), eq(1L), anyDouble());
+        }
+
+        @Test
+        @DisplayName("Redis 장애 시 예외를 삼키고 정상 반환한다")
+        void swallowsExceptionWhenRedisDown() {
+            Post post = mockPost(1L, 5);
+            when(hotPidTemplate.opsForZSet())
+                    .thenThrow(new RedisConnectionFailureException("down"));
+
+            assertThatCode(() -> hotPostService.updateRecentScore(post))
+                    .doesNotThrowAnyException();
+        }
+    }
+
+    @Nested
+    @DisplayName("getRecentHotPosts")
+    class GetRecentHotPosts {
+
+        @Test
+        @DisplayName("Redis 정상 시 ZSET에서 게시글을 조회한다")
+        void returnsPostsFromRedis() {
+            stubZSet();
+            Post post1 = mockPost(1L, 5);
+            Post post2 = mockPost(2L, 3);
+            Set<Long> ids = new LinkedHashSet<>(List.of(1L, 2L));
+            when(zSetOps.reverseRange(anyString(), eq(0L), eq(2L))).thenReturn(ids);
+            when(postService.findOptionalById(1L)).thenReturn(Optional.of(post1));
+            when(postService.findOptionalById(2L)).thenReturn(Optional.of(post2));
+
+            List<PostPreviewDto> result = hotPostService.getRecentHotPosts(1L);
+
+            assertThat(result).hasSize(2);
+        }
+
+        @Test
+        @DisplayName("Redis 장애 시 빈 리스트를 반환한다")
+        void returnsEmptyListWhenRedisDown() {
+            when(hotPidTemplate.opsForZSet())
+                    .thenThrow(new RedisConnectionFailureException("down"));
+
+            List<PostPreviewDto> result = hotPostService.getRecentHotPosts(1L);
+
+            assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
     @DisplayName("getKey / getRealtime5Min")
     class KeyFormatting {
 

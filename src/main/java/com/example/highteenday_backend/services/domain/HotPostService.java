@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -49,23 +50,32 @@ public class HotPostService {
 
     @Transactional
     public void updateRecentScore(Post post){
-        Long boardId = post.getBoard().getId();
-        Long postId = post.getId();
-
-        String key=getKey(boardId);
-        double score = HotScoreCalculator.calculateDailyHotScore(post);
-        hotPidTemplate.opsForZSet().add(key, postId, score);
-    }
-    public List<PostPreviewDto> getRecentHotPosts(Long boardId){
-        String key=getKey(boardId);
-        List<PostPreviewDto> topPostDtos = new ArrayList<>();
-        Set<Long> topPostIds = hotPidTemplate.opsForZSet().reverseRange(key, 0, recentHotPostCount-1);
-        if (topPostIds == null) return topPostDtos;
-        for(Long pid:topPostIds){
-            postService.findOptionalById(pid).ifPresent(post ->
-                    topPostDtos.add(PostPreviewDto.fromEntity(post)));
+        try {
+            Long boardId = post.getBoard().getId();
+            Long postId = post.getId();
+            String key=getKey(boardId);
+            double score = HotScoreCalculator.calculateDailyHotScore(post);
+            hotPidTemplate.opsForZSet().add(key, postId, score);
+        } catch (Exception e) {
+            log.warn("Redis unavailable, skipping recent hot score update. postId={}", post.getId(), e);
         }
-        return topPostDtos;
+    }
+
+    public List<PostPreviewDto> getRecentHotPosts(Long boardId){
+        try {
+            String key=getKey(boardId);
+            List<PostPreviewDto> topPostDtos = new ArrayList<>();
+            Set<Long> topPostIds = hotPidTemplate.opsForZSet().reverseRange(key, 0, recentHotPostCount-1);
+            if (topPostIds == null) return topPostDtos;
+            for(Long pid:topPostIds){
+                postService.findOptionalById(pid).ifPresent(post ->
+                        topPostDtos.add(PostPreviewDto.fromEntity(post)));
+            }
+            return topPostDtos;
+        } catch (Exception e) {
+            log.warn("Redis unavailable for getRecentHotPosts boardId={}, returning empty", boardId, e);
+            return Collections.emptyList();
+        }
     }
     @Transactional
     public void updateLeaderboardDayScore(Long postId){

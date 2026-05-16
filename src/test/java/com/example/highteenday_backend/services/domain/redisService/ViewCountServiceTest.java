@@ -18,7 +18,10 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.data.redis.RedisConnectionFailureException;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -76,6 +79,16 @@ class ViewCountServiceTest {
 
             verify(valueOps, never()).increment(anyString());
         }
+
+        @Test
+        @DisplayName("Redis 장애 시 예외 없이 정상 종료한다")
+        void doesNotThrowWhenRedisDown() {
+            when(redisTemplate.opsForValue())
+                    .thenThrow(new RedisConnectionFailureException("down"));
+
+            assertThatCode(() -> viewCountService.increaseViewCount(1L, 1L))
+                    .doesNotThrowAnyException();
+        }
     }
 
     @Nested
@@ -96,6 +109,15 @@ class ViewCountServiceTest {
             when(valueOps.get(VIEW_COUNT_PREFIX+5L)).thenReturn("42");
 
             assertThat(viewCountService.getViewCount(5L)).isEqualTo(42);
+        }
+
+        @Test
+        @DisplayName("Redis 장애 시 0을 반환한다")
+        void returnsZeroWhenRedisDown() {
+            when(redisTemplate.opsForValue())
+                    .thenThrow(new RedisConnectionFailureException("down"));
+
+            assertThat(viewCountService.getViewCount(1L)).isZero();
         }
     }
 
@@ -139,6 +161,15 @@ class ViewCountServiceTest {
         void skipsNullValue() {
             when(redisTemplate.keys(VIEW_COUNT_PREFIX+"*")).thenReturn(Set.of(VIEW_COUNT_PREFIX+1L));
             when(valueOps.getAndDelete(VIEW_COUNT_PREFIX+1L)).thenReturn(null);
+
+            assertThat(viewCountService.drainViewCounts()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Redis 장애 시 빈 맵을 반환한다")
+        void returnsEmptyMapWhenRedisDown() {
+            when(redisTemplate.keys(anyString()))
+                    .thenThrow(new RedisConnectionFailureException("down"));
 
             assertThat(viewCountService.drainViewCounts()).isEmpty();
         }
