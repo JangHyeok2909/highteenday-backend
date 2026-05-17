@@ -28,7 +28,7 @@ public class PostPreviewDto {
     public static PostPreviewDto fromEntity(Post post) {
         String nickname = "익명";
         if (!post.isAnonymous()) {
-            nickname = post.getUser().getNickname();
+            nickname = post.getUser().getNicknameValue();
         }
         return PostPreviewDto.builder()
                 .id(post.getId())

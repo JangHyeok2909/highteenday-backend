@@ -85,7 +85,7 @@ public class UserController {
     public ResponseEntity<UserInfoDto> userInfo(
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
-        UserInfoDto userInfoDto = userService.getUserInfoDto(user.getUser().getEmail());
+        UserInfoDto userInfoDto = userService.getUserInfoDto(user.getUser().getEmailValue());
         return ResponseEntity.ok().body(userInfoDto);
     }
 
@@ -107,9 +107,9 @@ public class UserController {
             @AuthenticationPrincipal CustomUserPrincipal user,
             HttpServletResponse response
     ){
-        User findUser = userService.findByEmail(user.getUser().getEmail());
+        User findUser = userService.findByEmail(user.getUser().getEmailValue());
 
-        tokenService.deleteByUserEmail(findUser.getEmail());
+        tokenService.deleteByUserEmail(findUser.getEmailValue());
         userService.deleteAccount(findUser);
 
         response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.expireAccessCookie().toString());
@@ -150,7 +150,7 @@ public class UserController {
             @AuthenticationPrincipal CustomUserPrincipal user,
             HttpServletResponse response
     ){
-        tokenService.deleteByUserEmail(user.getUser().getEmail());
+        tokenService.deleteByUserEmail(user.getUser().getEmailValue());
 
         response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.expireAccessCookie().toString());
         response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.expireRefreshCookie().toString());
@@ -165,7 +165,7 @@ public class UserController {
         @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
         @RequestBody VerifyPasswordDto dto
     ) {
-        User findUser = userService.findByEmail(userPrincipal.getUser().getEmail());
+        User findUser = userService.findByEmail(userPrincipal.getUser().getEmailValue());
         boolean matched = userService.verifyPassword(findUser, dto.password());
         return ResponseEntity.ok(matched);
     }
@@ -177,7 +177,7 @@ public class UserController {
         @AuthenticationPrincipal CustomUserPrincipal user,
         @RequestBody ChangePasswordDto passwordDto
     ){
-        User findUser = userService.findByEmail(user.getUser().getEmail());
+        User findUser = userService.findByEmail(user.getUser().getEmailValue());
         userService.updatePassword(findUser, passwordDto);
         return ResponseEntity.ok("비밀번호 변경 완료");
     }
@@ -189,7 +189,7 @@ public class UserController {
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody ChangeNicknameDto nicknameDto
     ){
-        User findUser = userService.findByEmail(user.getUser().getEmail());
+        User findUser = userService.findByEmail(user.getUser().getEmailValue());
         userService.updateNickname(findUser, nicknameDto);
         return ResponseEntity.ok("닉네임 변경 완료");
     }

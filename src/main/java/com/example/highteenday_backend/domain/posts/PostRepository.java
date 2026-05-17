@@ -34,7 +34,7 @@ public interface PostRepository extends JpaRepository<Post,Long>, PostRepository
     """)
     public Page<Post> findByBoard(Board board, Pageable pageable);
 
-    @Query("SELECT new com.example.highteenday_backend.dtos.PostPreviewDto(p.id, p.board.id, p.user.nickname,p.title, p.viewCount, p.likeCount, p.commentCount,p.created) "
+    @Query("SELECT new com.example.highteenday_backend.dtos.PostPreviewDto(p.id, p.board.id, p.user.nickname.value,p.title, p.viewCount, p.likeCount, p.commentCount,p.created) "
             + "FROM Post p WHERE p.id IN :ids")
     List<PostPreviewDto> findAllDtoByIds(List<Long> ids);
 

@@ -26,7 +26,7 @@ public record NotificationDto(
                 .category(n.getCategory())
                 .entityType(n.getEntityType())
                 .entityId(n.getEntityId())
-                .senderNickname(n.getSender() != null ? n.getSender().getNickname() : null)
+                .senderNickname(n.getSender() != null ? n.getSender().getNicknameValue() : null)
                 .senderProfileUrl(n.getSender() != null ? n.getSender().getProfileUrl() : null)
                 .message(n.getMessage())
                 .contentMessage(n.getContentMessage())

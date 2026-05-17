@@ -3,6 +3,7 @@ package com.example.highteenday_backend.services.domain;
 import com.example.highteenday_backend.domain.notification.Notification;
 import com.example.highteenday_backend.domain.notification.NotificationRepository;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.domain.users.vo.Nickname;
 import com.example.highteenday_backend.dtos.NotificationDto;
 import com.example.highteenday_backend.dtos.paged.PagedNotificationsDto;
 import com.example.highteenday_backend.enums.EntityType;
@@ -48,9 +49,9 @@ class NotificationServiceTest {
 
     @BeforeEach
     void setUp() {
-        owner = User.builder().id(1L).nickname("owner").build();
-        otherUser = User.builder().id(2L).nickname("other").build();
-        sender = User.builder().id(3L).nickname("sender").build();
+        owner = User.builder().id(1L).nickname(new Nickname("owner")).build();
+        otherUser = User.builder().id(2L).nickname(new Nickname("other")).build();
+        sender = User.builder().id(3L).nickname(new Nickname("sender")).build();
     }
 
     private Notification buildNotification(Long id, boolean read) {

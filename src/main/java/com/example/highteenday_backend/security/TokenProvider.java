@@ -54,7 +54,7 @@ public class TokenProvider {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList()));
         CustomUserPrincipal principal = (CustomUserPrincipal) authentication.getPrincipal();
-        String userKey = principal.getUser() != null ? principal.getUser().getEmail() : (String) principal.getAttributes().get("email");
+        String userKey = principal.getUser() != null ? principal.getUser().getEmailValue() : (String) principal.getAttributes().get("email");
 
         boolean isGuest = authentication.getAuthorities().stream()
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
@@ -97,9 +97,9 @@ public class TokenProvider {
         CustomUserPrincipal customUserPrincipal = (CustomUserPrincipal) authentication.getPrincipal();
 
         return Jwts.builder()
-                .setSubject(customUserPrincipal.getUser().getEmail())
+                .setSubject(customUserPrincipal.getUser().getEmailValue())
                 .claim(KEY_ROLE, authorities)
-                .claim("name", customUserPrincipal.getUser().getName())
+                .claim("name", customUserPrincipal.getUser().getNameValue())
                 .claim("provider", customUserPrincipal.getUser().getProvider())
                 .setIssuedAt(now)
                 .setExpiration(expiredDate)

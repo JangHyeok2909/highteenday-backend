@@ -12,6 +12,7 @@ import com.example.highteenday_backend.domain.schools.subjects.Subject;
 import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
+import com.example.highteenday_backend.domain.users.vo.*;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.example.highteenday_backend.enums.*;
@@ -72,19 +73,14 @@ public class DataInitializer {
         for(int i=1;i<=userCount;i++){
             String email = "test"+i+"@gmail.com";
             if (userRepository.findByEmail(email).isEmpty()) {
-                String phone;
-                if(i>=10) phone = "+8210"+String.valueOf(i).repeat(8).substring(0,13);
-                else phone = "+8210"+String.valueOf(i).repeat(8);
-
-
-                User user = new User();
-                user.setEmail(email);
-                user.setName("tester" + i);
-                user.setNickname("TestUser" + i);
-                user.setProvider(Provider.DEFAULT);
-                user.setHashedPassword(passwordEncoder.encode("asd"));
-                user.setSchool(schoolService.findById((long)i));
-                user.setPhone(phone);
+                User user = User.builder()
+                        .email(new Email(email))
+                        .name(new UserName("tester" + i))
+                        .nickname(new Nickname("TestUser" + i))
+                        .password(Password.fromHashedValue(passwordEncoder.encode("asd")))
+                        .provider(Provider.DEFAULT)
+                        .school(schoolService.findById((long)i))
+                        .build();
                 userRepository.save(user);
                 log.info("Test user created. email={}", email);
             }
@@ -171,7 +167,7 @@ public class DataInitializer {
             User commenter = userService.findByEmail("test" + i + "@gmail.com");
             long postId = i - 1;
             RequestCommentDto dto = RequestCommentDto.builder()
-                    .content(commenter.getNickname() + "의 댓글 내용 미리보기입니다.")
+                    .content(commenter.getNicknameValue() + "의 댓글 내용 미리보기입니다.")
                     .isAnonymous(false)
                     .build();
             commentService.createComment(postService.findById(postId), commenter, dto);
@@ -188,7 +184,7 @@ public class DataInitializer {
                     .entityType(EntityType.POST)
                     .entityId(postId)
                     .message("내 댓글에 답글이 달렸습니다.")
-                    .contentMessage(sender.getNickname() + "의 답글 내용 미리보기입니다.")
+                    .contentMessage(sender.getNicknameValue() + "의 답글 내용 미리보기입니다.")
                     .build());
         }
 
@@ -220,7 +216,7 @@ public class DataInitializer {
                 .category(NotificationCategory.FRIEND_BIRTHDAY)
                 .entityType(EntityType.USER)
                 .entityId(birthdayUser.getId())
-                .message(birthdayUser.getNickname() + "님의 생일입니다. 축하 메시지를 보내보세요!")
+                .message(birthdayUser.getNicknameValue() + "님의 생일입니다. 축하 메시지를 보내보세요!")
                 .build());
 
         log.info("Test notifications initialized. receiver=test1@gmail.com");

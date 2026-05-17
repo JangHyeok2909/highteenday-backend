@@ -42,7 +42,7 @@ public class CommentDto {
                 .id(comment.getId())
                 .userId(comment.getUser().getId())
                 .parentId(comment.getParent() != null ? comment.getParent().getId() : null)
-                .author(comment.getUser().getNickname())
+                .author(comment.getUser().getNicknameValue())
                 .content(comment.getContent())
                 .likeCount(comment.getLikeCount())
                 .dislikeCount(comment.getDislikeCount())

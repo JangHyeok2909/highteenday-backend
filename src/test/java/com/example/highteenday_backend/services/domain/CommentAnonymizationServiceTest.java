@@ -3,6 +3,7 @@ package com.example.highteenday_backend.services.domain;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.domain.users.vo.Nickname;
 import com.example.highteenday_backend.dtos.CommentDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,9 +28,9 @@ class CommentAnonymizationServiceTest {
     void setUp() {
         service = new CommentAnonymizationService();
 
-        postAuthor = User.builder().id(1L).nickname("글쓴이닉").build();
-        otherUser1 = User.builder().id(2L).nickname("유저1닉").build();
-        otherUser2 = User.builder().id(3L).nickname("유저2닉").build();
+        postAuthor = User.builder().id(1L).nickname(new Nickname("글쓴이닉")).build();
+        otherUser1 = User.builder().id(2L).nickname(new Nickname("유저1닉")).build();
+        otherUser2 = User.builder().id(3L).nickname(new Nickname("유저2닉")).build();
 
         anonymousPost = Post.builder()
                 .id(10L).user(postAuthor).isAnonymous(true).title("익명 게시글")

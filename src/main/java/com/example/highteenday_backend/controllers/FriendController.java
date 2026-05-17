@@ -32,7 +32,7 @@ public class FriendController {
     public ResponseEntity<?> getFriendsList(
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
-        User findUser = getUserData(user.getUser().getEmail());
+        User findUser = getUserData(user.getUser().getEmailValue());
 
         List<FriendInfoDto> friendsListDto = friendService.getFriendsList(findUser.getId());
 
@@ -44,7 +44,7 @@ public class FriendController {
     public ResponseEntity<?> getSentFriendsRequestList(
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
-        User findUser = getUserData(user.getUser().getEmail());
+        User findUser = getUserData(user.getUser().getEmailValue());
 
         List<FriendInfoDto> friendsListDto = friendService.getSentFriendsRequestList(findUser);
 
@@ -56,7 +56,7 @@ public class FriendController {
     public ResponseEntity<?> getReceivedFriendsList(
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
-        User findUser = getUserData(user.getUser().getEmail());
+        User findUser = getUserData(user.getUser().getEmailValue());
 
         List<FriendInfoDto> friendsListDto = friendService.getReceivedFriendsList(findUser);
 
@@ -70,7 +70,7 @@ public class FriendController {
             @RequestBody DeleteFriendDto deleteFriendDto
     ) {
 
-        User findUser = getUserData(user.getUser().getEmail());
+        User findUser = getUserData(user.getUser().getEmailValue());
         User findFriends = getUserData(deleteFriendDto.email());
 
         friendService.deleteFriends(findUser, findFriends);
@@ -89,7 +89,7 @@ public class FriendController {
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody BlockUserDto blockUserDto
     ) {
-        User findUser = getUserData(user.getUser().getEmail());
+        User findUser = getUserData(user.getUser().getEmailValue());
         User findBlockUser = getUserData(blockUserDto.email());
 
         friendService.blockUser(findUser, findBlockUser);
@@ -104,7 +104,7 @@ public class FriendController {
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody UnBlockUserDto unBlockUserDto
     ) {
-        User findUser = getUserData(user.getUser().getEmail());
+        User findUser = getUserData(user.getUser().getEmailValue());
         User findUnBlockUser = getUserData(unBlockUserDto.email());
 
         friendService.unBlockUser(findUser, findUnBlockUser);
@@ -119,7 +119,7 @@ public class FriendController {
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody SelectFriendDto selectFriendDto
     ){
-        User findUser = getUserData(user.getUser().getEmail());
+        User findUser = getUserData(user.getUser().getEmailValue());
 
         List<User> selectUser = friendService.selectFriend(selectFriendDto);
 

@@ -33,7 +33,7 @@ public class UserMediaService {
         }
         // 변경할 프로필 없으면 그냥 기본프로필 사용
         if (newImage == null || newImage.isEmpty()) {
-            user.setProfileUrl(null);
+            user.updateProfileUrl(null);
             return;
         }
         //이미지 업데이트
@@ -70,7 +70,7 @@ public class UserMediaService {
     public void updateUserProfileAndCreateMedia(User user, String finalUrl, FileInfo newFileInfo){
         Media media = mediaService.createMedia(newFileInfo);
         media.setProfileOwner(user);
-        user.setProfileUrl(finalUrl);
+        user.updateProfileUrl(finalUrl);
     }
 
 }

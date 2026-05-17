@@ -5,6 +5,7 @@ import com.example.highteenday_backend.domain.schools.timetableTamplates.Timetab
 import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplateRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
+import com.example.highteenday_backend.domain.users.vo.*;
 import com.example.highteenday_backend.dtos.ChangeNicknameDto;
 import com.example.highteenday_backend.dtos.ChangePasswordDto;
 import com.example.highteenday_backend.dtos.ChangePhoneDto;
@@ -65,13 +66,13 @@ public class UserService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND, "존재하지 않는 유저, email=" + email));
         String schoolName = user.getSchool() != null ? user.getSchool().getName() : null;
         return UserInfoDto.builder()
-                .name(user.getName())
-                .email(user.getEmail())
-                .nickname(user.getNickname())
+                .name(user.getNameValue())
+                .email(user.getEmailValue())
+                .nickname(user.getNicknameValue())
                 .profileUrl(user.getProfileUrl())
                 .provider(user.getProvider().toString())
                 .schoolName(schoolName)
-                .phoneNum(user.getPhone())
+                .phoneNum(user.getPhoneValue())
                 .userGrade(Optional.ofNullable(user.getGrade()).map(Grade::getField).orElse(null))
                 .userClass(Optional.ofNullable(user.getUserClass()).map(Object::toString).orElse(null))
                 .semester(Optional.ofNullable(user.getSemester()).map(Semester::getField).orElse(null))
@@ -98,23 +99,20 @@ public class UserService {
 
         log.info("User registration in progress. nickname={}, email={}", registerUserDto.nickname(), registerUserDto.email());
 
-        User user = User.builder()
-                .nickname(registerUserDto.nickname())
-                .name(registerUserDto.name())
-                .email(registerUserDto.email())
-                .hashedPassword(passwordEncoder.encode(registerUserDto.password()))
-                .role(Role.USER)
-                .gender(registerUserDto.gender())
-                .provider(Provider.DEFAULT)
-                .phone(registerUserDto.phone())
-                .birthDate(registerUserDto.birthDate())
-                .build();
-        //provider 설정
-        if(registerUserDto.provider()==null) user.setProvider(Provider.DEFAULT);
-        else user.setProvider(Provider.valueOf(registerUserDto.provider().toUpperCase()));
+        Provider provider = (registerUserDto.provider() == null)
+                ? Provider.DEFAULT
+                : Provider.valueOf(registerUserDto.provider().toUpperCase());
 
-        //password 암호화
-        user.setHashedPassword(passwordEncoder.encode(registerUserDto.password()));
+        User user = User.createDefault(
+                new Email(registerUserDto.email()),
+                new UserName(registerUserDto.name()),
+                new Nickname(registerUserDto.nickname()),
+                Password.fromRawPassword(registerUserDto.password(), passwordEncoder),
+                registerUserDto.gender(),
+                new BirthDate(registerUserDto.birthDate()),
+                new PhoneNumber(registerUserDto.phone())
+        );
+        user.updateProvider(provider);
 
         Map<String, Object> attributes = new HashMap<>();
 
@@ -162,14 +160,13 @@ public class UserService {
 
         log.info("OAuth auto-registration. email={}, provider={}", email, provider);
 
-        User user = User.builder()
-                .email(email)
-                .name(truncatedName)
-                .nickname(nickname)
-                .provider(provider)
-                .profileUrl(profileUrl)
-                .role(Role.USER)
-                .build();
+        User user = User.createOAuth(
+                new Email(email),
+                new UserName(truncatedName),
+                new Nickname(nickname),
+                provider,
+                profileUrl
+        );
 
         User savedUser = userRepository.save(user);
 
@@ -193,7 +190,7 @@ public class UserService {
     @Transactional
     public void deleteAccount(User user){
         // 두번 검사하는거임, 하지말까 유난인가?
-        User findUser = userRepository.findByEmail(user.getEmail())
+        User findUser = userRepository.findByEmail(user.getEmailValue())
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         try{
@@ -228,8 +225,7 @@ public class UserService {
         }
 
         try {
-            String newHashedPassword = passwordEncoder.encode(passwordDto.newPassword());
-            user.setHashedPassword(newHashedPassword);
+            user.changePassword(Password.fromRawPassword(passwordDto.newPassword(), passwordEncoder));
             userRepository.save(user);
         } catch (Exception e) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR);
@@ -249,8 +245,7 @@ public class UserService {
         }
 
         try {
-            String newNickname = nicknameDto.newNickname();
-            user.setNickname(newNickname);
+            user.changeNickname(new Nickname(nicknameDto.newNickname()));
             userRepository.save(user);
         } catch (Exception e){
             throw new CustomException(ErrorCode.INTERNAL_ERROR);
@@ -263,7 +258,7 @@ public class UserService {
             throw new CustomException(ErrorCode.DUPLICATE_PHONE);
         }
         log.info("Phone number updated. userId={}", user.getId());
-        user.setPhone(dto.phone());
+        user.changePhone(new PhoneNumber(dto.phone()));
         userRepository.save(user);
     }
 
@@ -271,9 +266,9 @@ public class UserService {
     public void updateSchool(User user, SchoolIdDto dto) {
         log.info("School/grade/class updated. userId={}, schoolId={}, grade={}, class={}",
                 user.getId(), dto.schoolId(), dto.grade(), dto.userClass());
-        user.setSchool(schoolService.findById(Long.parseLong(dto.schoolId())));
-        user.setGrade(dto.grade());
-        user.setUserClass(dto.userClass());
+        user.updateSchool(schoolService.findById(Long.parseLong(dto.schoolId())));
+        user.updateGrade(dto.grade());
+        user.updateUserClass(dto.userClass());
         userRepository.save(user);
     }
 

@@ -107,7 +107,7 @@ public class TokenService {
             Duration remaining = token.getExpiresAt() != null
                     ? Duration.between(LocalDateTime.now(), token.getExpiresAt())
                     : REFRESH_TTL;
-            tokenRedisTemplate.opsForValue().set(RT_PREFIX + refreshToken, token.getUser().getEmail(), remaining);
+            tokenRedisTemplate.opsForValue().set(RT_PREFIX + refreshToken, token.getUser().getEmailValue(), remaining);
         } catch (Exception e) {
             log.warn("Redis unavailable, could not repopulate RT cache", e);
         }

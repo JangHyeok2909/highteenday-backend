@@ -36,7 +36,12 @@ public enum ErrorCode {
     SAME_AS_NICKNAME(BAD_REQUEST, "현재 닉네임과 동일한 닉네임입니다."),
     DUPLICATE_NICKNAME(CONFLICT, "이미 사용 중인 닉네임입니다."),
     DUPLICATE_PHONE(CONFLICT, "이미 사용 중인 전화번호입니다."),
-    INVALID_NICKNAME_FORMAT(BAD_REQUEST, "올바르지 않은 닉네임 형식입니다."),
+    INVALID_NICKNAME_FORMAT(BAD_REQUEST, "닉네임은 2~12자여야 합니다."),
+    INVALID_EMAIL_FORMAT(BAD_REQUEST, "유효하지 않은 이메일 형식입니다."),
+    INVALID_PASSWORD_FORMAT(BAD_REQUEST, "비밀번호는 8자 이상, 숫자 1개 이상, 특수문자 1개 이상 포함해야 합니다."),
+    INVALID_PHONE_FORMAT(BAD_REQUEST, "유효하지 않은 전화번호 형식입니다."),
+    INVALID_NAME_FORMAT(BAD_REQUEST, "이름은 2~8자여야 합니다."),
+    INVALID_BIRTHDATE(BAD_REQUEST, "생년월일은 15~30세 범위여야 합니다."),
 
     // school
     SCHOOL_NOT_ASSIGNED(BAD_REQUEST, "급식 조회를 위해 학교 배정이 필요합니다."),
