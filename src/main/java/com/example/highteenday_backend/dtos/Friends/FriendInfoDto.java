@@ -7,10 +7,7 @@ public record FriendInfoDto(
         Long id,
         String name,
         String nickname,
-        String email
-//        String school
-
-        // grade, profileImageUri 등등..
-
+        String email,
+        String profileUrl
 ){
 }

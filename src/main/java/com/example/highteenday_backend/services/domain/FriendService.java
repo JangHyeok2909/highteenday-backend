@@ -43,7 +43,7 @@ public class FriendService {
                         .name(friend.getName())
                         .nickname(friend.getNickname())
                         .email(friend.getEmail())
-//                        .school(friend.getSchool().getName())
+                        .profileUrl(friend.getProfileUrl())
                         .build())
                 .toList();
 
@@ -62,6 +62,7 @@ public class FriendService {
                         .name(req.getReceiver().getName())
                         .nickname(req.getReceiver().getNickname())
                         .email(req.getReceiver().getEmail())
+                        .profileUrl(req.getReceiver().getProfileUrl())
                         .build()
                 ).toList();
     }
@@ -77,6 +78,7 @@ public class FriendService {
                         .name(req.getRequester().getName())
                         .nickname(req.getRequester().getNickname())
                         .email(req.getRequester().getEmail())
+                        .profileUrl(req.getRequester().getProfileUrl())
                         .build()
                 ).toList();
     }
@@ -85,7 +87,7 @@ public class FriendService {
     @Transactional
     public void sendFriendsRequest(CustomUserPrincipal requestUser, RequestFriendDto receiverDto){
         User requester = userService.findByEmail(requestUser.getUserEmail());
-        User receiver = userService.findByEmail(receiverDto.email());
+        User receiver = userService.findByNickname(receiverDto.nickname());
 
         if(friendReqRepository.existsByRequesterAndReceiver(requester, receiver)){
             throw new CustomException(ErrorCode.ALREADY_SENT_FRIEND_REQUEST);
@@ -208,17 +210,8 @@ public class FriendService {
     // 검색 했는데 없으면 그냥 빈 리스트 반환
     @Transactional
     public List<User> selectFriend(SelectFriendDto selectFriendDto) {
-        List<User> selectUser = null;
-
-        if(selectFriendDto.email() != null){
-            selectUser = userRepository.findByEmail(selectFriendDto.email()).stream().toList();
-        } else if(selectFriendDto.name() != null){
-            selectUser = userRepository.findByName(selectFriendDto.name());
-        } else if(selectFriendDto.nickname() != null){
-            selectUser = userRepository.findByNickname(selectFriendDto.nickname()).stream().toList();
-        }
-
-        return selectUser;
+        if (selectFriendDto.nickname() == null) return List.of();
+        return userRepository.findByNickname(selectFriendDto.nickname()).stream().toList();
     }
 
 }

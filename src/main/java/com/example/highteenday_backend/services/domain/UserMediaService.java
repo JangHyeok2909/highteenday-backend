@@ -37,7 +37,7 @@ public class UserMediaService {
             return;
         }
         //이미지 업데이트
-        Map<String, String> urlKey = copyToFinalAndDeleteTmp(currentUrl, user.getId());
+        Map<String, String> urlKey = copyToFinalAndDeleteTmp(newImage, user.getId());
 
         String finalUrl = urlKey.get("url");
         String newKey = urlKey.get("key");

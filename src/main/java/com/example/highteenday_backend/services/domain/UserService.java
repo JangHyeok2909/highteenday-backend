@@ -54,6 +54,10 @@ public class UserService {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND,"존재하지 않는 유저, email="+email));
     }
+    public User findByNickname(String nickname){
+        return userRepository.findByNickname(nickname)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND,"존재하지 않는 유저, nickname="+nickname));
+    }
 
     @Transactional(readOnly = true)
     public UserInfoDto getUserInfoDto(String email) {

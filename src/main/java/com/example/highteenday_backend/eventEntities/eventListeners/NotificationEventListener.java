@@ -11,6 +11,7 @@ import com.example.highteenday_backend.eventEntities.events.FriendRequestSentEve
 import com.example.highteenday_backend.services.domain.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -21,7 +22,7 @@ public class NotificationEventListener {
     private final NotificationRepository notificationRepository;
     private final UserService userService;
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onCommentCreated(CommentCreatedEvent event) {
         User sender = userService.findById(event.getAuthorId());
@@ -31,13 +32,15 @@ public class NotificationEventListener {
                         .receiver(receiver)
                         .sender(sender)
                         .category(NotificationCategory.POST_COMMENT)
+                        .entityType(EntityType.POST)
+                        .entityId(event.getPostId())
                         .message("내 게시글에 댓글이 달렸습니다.")
                         .contentMessage(event.getContent())
                         .build()
         );
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onFriendRequestSent(FriendRequestSentEvent event) {
         User requester = userService.findById(event.getRequesterId());
@@ -49,23 +52,23 @@ public class NotificationEventListener {
                         .category(NotificationCategory.FRIEND_REQUEST)
                         .entityType(EntityType.USER)
                         .entityId(requester.getId())
-                        .message(receiver.getNickname() + "님에게 친구 요청을 보냈습니다.")
+                        .message(requester.getNickname() + "님이 친구 요청을 보냈습니다.")
                         .build()
         );
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onFriendRequestAccepted(FriendRequestAcceptedEvent event) {
         User requester = userService.findById(event.getRequesterId());
         User receiver = userService.findById(event.getReceiverId());
         notificationRepository.save(
                 Notification.builder()
-                        .receiver(receiver)
-                        .sender(requester)
+                        .receiver(requester)
+                        .sender(receiver)
                         .category(NotificationCategory.FRIEND_ACCEPT)
                         .entityType(EntityType.USER)
-                        .entityId(requester.getId())
+                        .entityId(receiver.getId())
                         .message(receiver.getNickname() + "님이 친구 요청을 수락했습니다.")
                         .build()
         );
