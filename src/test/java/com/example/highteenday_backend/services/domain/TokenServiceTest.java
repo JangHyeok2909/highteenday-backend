@@ -4,6 +4,7 @@ import com.example.highteenday_backend.domain.Token.Token;
 import com.example.highteenday_backend.domain.Token.TokenRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
+import com.example.highteenday_backend.domain.users.vo.Email;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -47,7 +48,7 @@ class TokenServiceTest {
     @InjectMocks
     private TokenService tokenService;
 
-    private final User user = User.builder().id(1L).email("u@test.com").build();
+    private final User user = User.builder().id(1L).email(new Email("u@test.com")).build();
 
     @BeforeEach
     void setUp() {

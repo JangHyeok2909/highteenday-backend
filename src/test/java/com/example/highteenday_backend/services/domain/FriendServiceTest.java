@@ -6,6 +6,9 @@ import com.example.highteenday_backend.domain.friends.FriendReq;
 import com.example.highteenday_backend.domain.friends.FriendReqRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
+import com.example.highteenday_backend.domain.users.vo.Email;
+import com.example.highteenday_backend.domain.users.vo.Nickname;
+import com.example.highteenday_backend.domain.users.vo.UserName;
 import com.example.highteenday_backend.dtos.Friends.RequestFriendDto;
 import com.example.highteenday_backend.dtos.Friends.RespondFriendRequestDto;
 import com.example.highteenday_backend.dtos.Friends.SelectFriendDto;
@@ -59,12 +62,13 @@ class FriendServiceTest {
 
     @BeforeEach
     void setUp() {
-        requester = User.builder().id(1L).email("requester@test.com").name("Requester").nickname("req").role(Role.USER).build();
-        receiver = User.builder().id(2L).email("receiver@test.com").name("Receiver").nickname("rec").role(Role.USER).build();
+        requester = User.builder().id(1L).email(new Email("requester@test.com")).name(new UserName("Req")).nickname(new Nickname("req")).role(Role.USER).build();
+        receiver = User.builder().id(2L).email(new Email("receiver@test.com")).name(new UserName("Rec")).nickname(new Nickname("rec")).role(Role.USER).build();
         requesterPrincipal = new CustomUserPrincipal(requester);
 
         when(userService.findByEmail("requester@test.com")).thenReturn(requester);
         when(userService.findByEmail("receiver@test.com")).thenReturn(receiver);
+        when(userService.findByNickname("rec")).thenReturn(receiver);
     }
 
     @Nested
@@ -74,7 +78,7 @@ class FriendServiceTest {
         @Test
         @DisplayName("정상 요청 → FriendReq 저장 + FriendRequestSentEvent 발행")
         void savesRequestAndPublishesEvent() {
-            RequestFriendDto dto = new RequestFriendDto("receiver@test.com");
+            RequestFriendDto dto = new RequestFriendDto("rec");
             when(friendReqRepository.existsByRequesterAndReceiver(requester, receiver)).thenReturn(false);
             when(friendReqRepository.save(any(FriendReq.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -95,7 +99,7 @@ class FriendServiceTest {
         @Test
         @DisplayName("중복 요청 → CustomException(ALREADY_SENT_FRIEND_REQUEST)")
         void throwsOnDuplicate() {
-            RequestFriendDto dto = new RequestFriendDto("receiver@test.com");
+            RequestFriendDto dto = new RequestFriendDto("rec");
             when(friendReqRepository.existsByRequesterAndReceiver(requester, receiver)).thenReturn(true);
 
             assertThatThrownBy(() -> friendService.sendFriendsRequest(requesterPrincipal, dto))
@@ -312,33 +316,31 @@ class FriendServiceTest {
     class SelectFriend {
 
         @Test
-        @DisplayName("email 검색")
-        void searchByEmail() {
-            when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(receiver));
-
-            List<User> result = friendService.selectFriend(new SelectFriendDto("test@test.com", null, null));
-
-            assertThat(result).containsExactly(receiver);
-        }
-
-        @Test
-        @DisplayName("name 검색")
-        void searchByName() {
-            when(userRepository.findByName("Receiver")).thenReturn(List.of(receiver));
-
-            List<User> result = friendService.selectFriend(new SelectFriendDto(null, "Receiver", null));
-
-            assertThat(result).containsExactly(receiver);
-        }
-
-        @Test
-        @DisplayName("nickname 검색")
+        @DisplayName("nickname 검색 — 결과 있음")
         void searchByNickname() {
             when(userRepository.findByNickname("rec")).thenReturn(Optional.of(receiver));
 
-            List<User> result = friendService.selectFriend(new SelectFriendDto(null, null, "rec"));
+            List<User> result = friendService.selectFriend(new SelectFriendDto("rec"));
 
             assertThat(result).containsExactly(receiver);
+        }
+
+        @Test
+        @DisplayName("nickname 검색 — 결과 없음")
+        void searchByNicknameNotFound() {
+            when(userRepository.findByNickname("nobody")).thenReturn(Optional.empty());
+
+            List<User> result = friendService.selectFriend(new SelectFriendDto("nobody"));
+
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("nickname null → 빈 리스트 반환")
+        void searchWithNullNickname() {
+            List<User> result = friendService.selectFriend(new SelectFriendDto(null));
+
+            assertThat(result).isEmpty();
         }
     }
 }

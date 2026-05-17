@@ -3,6 +3,9 @@ package com.example.highteenday_backend.security;
 import com.example.highteenday_backend.domain.Token.Token;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
+import com.example.highteenday_backend.domain.users.vo.Email;
+import com.example.highteenday_backend.domain.users.vo.Nickname;
+import com.example.highteenday_backend.domain.users.vo.UserName;
 import com.example.highteenday_backend.dtos.TokenPair;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
@@ -59,9 +62,9 @@ class TokenProviderTest {
     void setUp() {
         user = User.builder()
                 .id(1L)
-                .email("test@test.com")
-                .name("홍길동")
-                .nickname("테스터")
+                .email(new Email("test@test.com"))
+                .name(new UserName("홍길동"))
+                .nickname(new Nickname("테스터"))
                 .provider(Provider.DEFAULT)
                 .role(Role.USER)
                 .build();
@@ -135,9 +138,9 @@ class TokenProviderTest {
         @DisplayName("만료된 refresh token → TOKEN_EXPIRED 예외")
         void throwsTokenExpiredForExpiredToken() {
             String expiredToken = Jwts.builder()
-                    .setSubject(user.getEmail())
+                    .setSubject(user.getEmailValue())
                     .claim("role", "USER")
-                    .claim("name", user.getName())
+                    .claim("name", user.getNameValue())
                     .claim("provider", user.getProvider().name())
                     .setIssuedAt(new Date(System.currentTimeMillis() - 10_000))
                     .setExpiration(new Date(System.currentTimeMillis() - 1))
@@ -156,9 +159,9 @@ class TokenProviderTest {
             SecretKey wrongKey = Keys.hmacShaKeyFor(
                     "wrong-secret-key-that-is-definitely-64-bytes-long-for-hs512-ok!!".getBytes());
             String forgedToken = Jwts.builder()
-                    .setSubject(user.getEmail())
+                    .setSubject(user.getEmailValue())
                     .claim("role", "USER")
-                    .claim("name", user.getName())
+                    .claim("name", user.getNameValue())
                     .claim("provider", user.getProvider().name())
                     .setIssuedAt(new Date())
                     .setExpiration(new Date(System.currentTimeMillis() + 60_000))

@@ -47,7 +47,7 @@ public class PostDto {
         String nickname = "익명";
         Long userId = null;
         if (!post.isAnonymous()) {
-            nickname = post.getUser().getNickname();
+            nickname = post.getUser().getNicknameValue();
             userId = post.getUser().getId();
         }
         return PostDto.builder()

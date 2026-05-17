@@ -93,7 +93,7 @@ public class PostService {
                 .isAnonymous(dto.isAnonymous())
                 .title(dto.getTitle())
                 .content(dto.getContent())
-                .nickname(dto.isAnonymous() ? "익명":user.getNickname())
+                .nickname(dto.isAnonymous() ? "익명":user.getNicknameValue())
                 .build();
         Post savedPost = postRepository.save(post);
         postMediaService.processCreatePostMedia(user.getId(),post);
