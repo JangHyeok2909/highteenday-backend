@@ -27,7 +27,7 @@ import java.util.List;
 @Service
 public class CommentService {
     private final CommentRepository commentRepository;
-    private final CommentMediaService commentMediaService;
+    private final MediaProcessingService mediaProcessingService;
     private final ApplicationEventPublisher eventPublisher ;
 
     public Comment findCommentById(Long commentId){
@@ -64,7 +64,7 @@ public class CommentService {
 
         comment = commentRepository.save(comment);
         Long userId = user.getId();
-        if(dto.getUrl() != null && !dto.getUrl().isEmpty()) commentMediaService.processCreateCommentMedia(userId,comment,dto);
+        if(dto.getUrl() != null && !dto.getUrl().isEmpty()) mediaProcessingService.processCreateCommentMedia(userId,comment,dto);
         comment.setUpdatedBy(null);
 
         eventPublisher.publishEvent(
@@ -86,7 +86,7 @@ public class CommentService {
         Comment comment = findCommentById(commentId);
         comment.updateContent(dto.getContent());
         comment.setUpdatedBy(userId);
-        commentMediaService.processUpdateCommentMedia(comment,dto);
+        mediaProcessingService.processUpdateCommentMedia(comment,dto);
 
         log.info("comment updated. commentId={}, updatedBy={}",commentId,userId);
     }

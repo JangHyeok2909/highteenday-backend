@@ -32,7 +32,7 @@ import java.util.Optional;
 public class PostService {
     private final PostRepository postRepository;
     private final BoardService boardService;
-    private final PostMediaService postMediaService;
+    private final MediaProcessingService mediaProcessingService;
     private final PostPrevCache postPrevCache;
     private final static int SIZE = 10;
     private final static int CACHE_PAGE_LIMIT = 5;
@@ -96,7 +96,7 @@ public class PostService {
                 .nickname(dto.isAnonymous() ? "익명":user.getNicknameValue())
                 .build();
         Post savedPost = postRepository.save(post);
-        postMediaService.processCreatePostMedia(user.getId(),post);
+        mediaProcessingService.processCreatePostMedia(user.getId(),post);
         post.setUpdatedDate(null);
 
         postPrevCache.evictBoard(post.getBoard().getId());
@@ -118,7 +118,7 @@ public class PostService {
             post.updateTitle(newTile);
         }
         if(!newContent.equals(oldContent)) {
-            postMediaService.processUpdatePostMedia(userId,post,newContent,oldContent);
+            mediaProcessingService.processUpdatePostMedia(userId,post,newContent,oldContent);
         }
         log.debug("[Post Update] request - postId={}, newTitle={}, newContent={}",postId,newTile,newContent);
         log.debug("[Post Update] old post data - oldTitle={}, oldContent={}",post.getTitle(),post.getContent());
