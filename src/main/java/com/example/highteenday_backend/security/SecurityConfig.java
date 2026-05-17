@@ -72,13 +72,18 @@ public class SecurityConfig {
                         }))
                 )
                 .authorizeHttpRequests(auth -> auth
+                        // 중복 체크는 인증 불필요 (GET /api/user/** authenticated 규칙보다 먼저 선언)
+                        .requestMatchers(HttpMethod.GET, "/api/user/check/**").permitAll()
+
                         // GET 요청 중 인증 필요 경로
                         .requestMatchers(HttpMethod.GET,
                                 "/api/user/OAuth2UserInfo",
                                 "/api/user/loginUser",
+                                "/api/user/**",
                                 "/api/mypage/**",
                                 "/api/timetableTemplates/**",
-                                "/api/schools/meals/**"
+                                "/api/schools/meals/**",
+                                "/api/notifications/**"
                         ).authenticated()
 
                         // POST/DELETE 요청 중 인증 필요 경로
@@ -89,8 +94,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/user/register",
                                 "/api/user/login",
-                                "/api/user/check/nickname",
-                                "/api/user/check/email",
                                 "/api/token/refresh",
                                 "/error"
                         ).permitAll()
