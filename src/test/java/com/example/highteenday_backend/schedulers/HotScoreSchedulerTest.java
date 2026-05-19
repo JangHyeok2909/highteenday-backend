@@ -8,16 +8,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.RedisConnectionFailureException;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ZSetOperations;
 
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,11 +21,7 @@ import static org.mockito.Mockito.*;
 class HotScoreSchedulerTest {
 
     @Mock
-    private RedisTemplate<String, Long> hotPidTemplate;
-    @Mock
     private HotPostService hotPostService;
-    @Mock
-    private ZSetOperations<String, Long> zSetOps;
 
     @InjectMocks
     private HotScoreScheduler hotScoreScheduler;
@@ -41,11 +33,10 @@ class HotScoreSchedulerTest {
         @Test
         @DisplayName("스코어 갱신 후 DB 동기화를 호출한다")
         void callsSyncAfterScoreRefresh() {
-            when(hotPidTemplate.opsForZSet()).thenReturn(zSetOps);
             Set<Long> ids = new LinkedHashSet<>();
             ids.add(1L);
             ids.add(2L);
-            when(zSetOps.reverseRange(anyString(), eq(0L), eq(49L))).thenReturn(ids);
+            when(hotPostService.getLeaderboardDayPostIds(50)).thenReturn(ids);
 
             hotScoreScheduler.updateHotScore();
 
@@ -55,9 +46,21 @@ class HotScoreSchedulerTest {
         }
 
         @Test
-        @DisplayName("Redis 장애 시 스케줄러가 크래시하지 않는다")
-        void doesNotCrashWhenRedisDown() {
-            when(hotPidTemplate.opsForZSet()).thenThrow(new RedisConnectionFailureException("Connection refused"));
+        @DisplayName("인기글이 없으면 갱신을 건너뛴다")
+        void skipsWhenNoHotPosts() {
+            when(hotPostService.getLeaderboardDayPostIds(50)).thenReturn(Collections.emptySet());
+
+            hotScoreScheduler.updateHotScore();
+
+            verify(hotPostService, never()).updateLeaderboardDayScore(anyLong());
+            verify(hotPostService, never()).syncLeaderboardDayToDb();
+        }
+
+        @Test
+        @DisplayName("예외 발생 시 스케줄러가 크래시하지 않는다")
+        void doesNotCrashOnException() {
+            when(hotPostService.getLeaderboardDayPostIds(50))
+                    .thenThrow(new RuntimeException("unexpected error"));
 
             assertThatCode(() -> hotScoreScheduler.updateHotScore())
                     .doesNotThrowAnyException();
