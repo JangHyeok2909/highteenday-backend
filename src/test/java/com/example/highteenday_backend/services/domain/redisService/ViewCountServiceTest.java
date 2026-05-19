@@ -1,93 +1,60 @@
 package com.example.highteenday_backend.services.domain.redisService;
 
-import org.junit.jupiter.api.BeforeEach;
+import com.example.highteenday_backend.domain.port.ViewCountStorePort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Duration;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
-
-import org.springframework.data.redis.RedisConnectionFailureException;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("ViewCountService")
 class ViewCountServiceTest {
 
-    private static final String VIEW_COUNT_PREFIX = "post:views:";
-    private static final String DEDUP_PREFIX = "viewed:";
-
     @Mock
-    private StringRedisTemplate redisTemplate;
-    @Mock
-    private ValueOperations<String, String> valueOps;
+    private ViewCountStorePort viewCountStore;
 
+    @InjectMocks
     private ViewCountService viewCountService;
-
-    @BeforeEach
-    void setUp() {
-        when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        viewCountService = new ViewCountService(redisTemplate);
-    }
 
     @Nested
     @DisplayName("increaseViewCount")
     class IncreaseViewCount {
 
         @Test
-        @DisplayName("첫 조회 -> dedupKey 생성 + countKey+1 증가")
+        @DisplayName("첫 조회 -> 조회수 증가")
         void incrementWhenFirstView() {
             long postId = 999L;
             long userId = 888L;
-            String dedupKey = DEDUP_PREFIX + postId + ":" + userId;
-            String countKey = VIEW_COUNT_PREFIX + postId;
-
-            when(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
+            when(viewCountStore.tryMarkViewed(eq(postId), eq(userId), any(Duration.class))).thenReturn(true);
 
             viewCountService.increaseViewCount(postId, userId);
 
-            verify(valueOps).setIfAbsent(eq(dedupKey), eq("1"), any(Duration.class));
-            verify(valueOps).increment(eq(countKey));
+            verify(viewCountStore).tryMarkViewed(eq(postId), eq(userId), any(Duration.class));
+            verify(viewCountStore).incrementCount(postId);
         }
 
         @Test
         @DisplayName("중복 조회 -> increment x")
         void notIncrementWhenDuplView() {
-            when(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(false);
+            when(viewCountStore.tryMarkViewed(eq(10L), eq(20L), any(Duration.class))).thenReturn(false);
 
             viewCountService.increaseViewCount(10L, 20L);
 
-            verify(valueOps, never()).increment(anyString());
-        }
-
-        @Test
-        @DisplayName("Redis 장애 시 예외 없이 정상 종료한다")
-        void doesNotThrowWhenRedisDown() {
-            when(redisTemplate.opsForValue())
-                    .thenThrow(new RedisConnectionFailureException("down"));
-
-            assertThatCode(() -> viewCountService.increaseViewCount(1L, 1L))
-                    .doesNotThrowAnyException();
+            verify(viewCountStore, never()).incrementCount(any());
         }
     }
 
@@ -96,28 +63,19 @@ class ViewCountServiceTest {
     class GetViewCount {
 
         @Test
-        @DisplayName("키가 없으면 0")
-        void returnsZeroWhenMissing() {
-            when(valueOps.get(VIEW_COUNT_PREFIX+5)).thenReturn(null);
-
-            assertThat(viewCountService.getViewCount(5L)).isZero();
-        }
-
-        @Test
-        @DisplayName("parsing: String value -> integer value ")
-        void returnsParsedInt() {
-            when(valueOps.get(VIEW_COUNT_PREFIX+5L)).thenReturn("42");
+        @DisplayName("저장소에서 조회수를 반환한다")
+        void returnsCountFromStore() {
+            when(viewCountStore.getCount(5L)).thenReturn(42);
 
             assertThat(viewCountService.getViewCount(5L)).isEqualTo(42);
         }
 
         @Test
-        @DisplayName("Redis 장애 시 0을 반환한다")
-        void returnsZeroWhenRedisDown() {
-            when(redisTemplate.opsForValue())
-                    .thenThrow(new RedisConnectionFailureException("down"));
+        @DisplayName("저장소가 0을 반환하면 0을 반환한다")
+        void returnsZeroWhenStoreReturnsZero() {
+            when(viewCountStore.getCount(5L)).thenReturn(0);
 
-            assertThat(viewCountService.getViewCount(1L)).isZero();
+            assertThat(viewCountService.getViewCount(5L)).isZero();
         }
     }
 
@@ -126,50 +84,20 @@ class ViewCountServiceTest {
     class DrainViewCounts {
 
         @Test
-        @DisplayName("키가 없으면 빈 맵")
-        void emptyWhenNoKeys() {
-            when(redisTemplate.keys(VIEW_COUNT_PREFIX+"*")).thenReturn(Collections.emptySet());
+        @DisplayName("저장소에서 누적 조회수를 소비한다")
+        void consumesFromStore() {
+            Map<Long, Integer> expected = Map.of(7L, 3, 8L, 1);
+            when(viewCountStore.consumePendingCounts()).thenReturn(expected);
 
-            assertThat(viewCountService.drainViewCounts()).isEmpty();
+            Map<Long, Integer> result = viewCountService.drainViewCounts();
+
+            assertThat(result).containsEntry(7L, 3).containsEntry(8L, 1);
         }
 
         @Test
-        @DisplayName("keys가 null이면 빈 맵")
-        void emptyWhenKeysNull() {
-            when(redisTemplate.keys(VIEW_COUNT_PREFIX+"*")).thenReturn(null);
-
-            assertThat(viewCountService.drainViewCounts()).isEmpty();
-        }
-
-        @Test
-        @DisplayName("viewCount increment getAndDelete check")
-        void buildsMapFromGetAndDelete() {
-            Set<String> keys = new HashSet<>();
-            keys.add("post:views:7");
-            keys.add("post:views:8");
-            when(redisTemplate.keys(VIEW_COUNT_PREFIX+"*")).thenReturn(keys);
-            when(valueOps.getAndDelete(VIEW_COUNT_PREFIX+"7")).thenReturn("3");
-            when(valueOps.getAndDelete(VIEW_COUNT_PREFIX+"8")).thenReturn("1");
-
-            Map<Long, Integer> out = viewCountService.drainViewCounts();
-
-            assertThat(out).containsEntry(7L, 3).containsEntry(8L, 1);
-        }
-
-        @Test
-        @DisplayName("key의 value가 null인 키는 result 맵에 추가하지 않는다.")
-        void skipsNullValue() {
-            when(redisTemplate.keys(VIEW_COUNT_PREFIX+"*")).thenReturn(Set.of(VIEW_COUNT_PREFIX+1L));
-            when(valueOps.getAndDelete(VIEW_COUNT_PREFIX+1L)).thenReturn(null);
-
-            assertThat(viewCountService.drainViewCounts()).isEmpty();
-        }
-
-        @Test
-        @DisplayName("Redis 장애 시 빈 맵을 반환한다")
-        void returnsEmptyMapWhenRedisDown() {
-            when(redisTemplate.keys(anyString()))
-                    .thenThrow(new RedisConnectionFailureException("down"));
+        @DisplayName("저장소가 빈 맵을 반환하면 빈 맵을 반환한다")
+        void returnsEmptyWhenStoreEmpty() {
+            when(viewCountStore.consumePendingCounts()).thenReturn(Collections.emptyMap());
 
             assertThat(viewCountService.drainViewCounts()).isEmpty();
         }
