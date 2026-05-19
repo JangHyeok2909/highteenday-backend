@@ -6,7 +6,6 @@ import com.example.highteenday_backend.dtos.FileInfo;
 import com.example.highteenday_backend.dtos.UploadedResult;
 import com.example.highteenday_backend.enums.MediaCategory;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
-import com.example.highteenday_backend.services.global.S3Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
