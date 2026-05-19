@@ -9,7 +9,7 @@ import com.example.highteenday_backend.dtos.FileInfo;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.enums.MediaOwner;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
-import com.example.highteenday_backend.services.global.S3Service;
+import com.example.highteenday_backend.services.global.FileStoragePort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,10 +22,8 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 public class MediaProcessingService {
 
-    private final S3Service s3Service;
+    private final FileStoragePort fileStorage;
     private final MediaService mediaService;
-
-    private static final String BUCKET_NAME = "highteenday-bucket-0906";
 
     // ── Post ──────────────────────────────────────────────────────────────
 
@@ -36,12 +34,12 @@ public class MediaProcessingService {
 
         String replaceUrlContent = post.getContent();
         for (String u : urls) {
-            String postFileUrl = s3Service.copyToFinalLocation(u, post.getId(), MediaOwner.POST);
+            String postFileUrl = fileStorage.copyToFinalLocation(u, post.getId(), MediaOwner.POST);
             createFromFinalUrl(postFileUrl, m -> m.setPost(post));
             replaceUrlContent = replaceUrlContent.replace(u, postFileUrl);
         }
         post.updateContent(replaceUrlContent);
-        s3Service.deleteUserTmp(userId);
+        fileStorage.deleteUserTmp(userId);
     }
 
     @Transactional
@@ -61,14 +59,14 @@ public class MediaProcessingService {
         if (!addedUrls.isEmpty()) {
             String replaceUrlContent = newContent;
             for (String u : addedUrls) {
-                String postFileUrl = s3Service.copyToFinalLocation(u, post.getId(), MediaOwner.POST);
+                String postFileUrl = fileStorage.copyToFinalLocation(u, post.getId(), MediaOwner.POST);
                 createFromFinalUrl(postFileUrl, m -> m.setPost(post));
                 replaceUrlContent = replaceUrlContent.replace(u, postFileUrl);
             }
             post.updateContent(replaceUrlContent);
-            s3Service.deleteUserTmp(userId);
+            fileStorage.deleteUserTmp(userId);
             for (String ru : removedUrls) {
-                s3Service.delete(s3Service.getKeyByUrl(ru));
+                fileStorage.deleteByUrl(ru);
             }
         } else {
             post.updateContent(newContent);
@@ -83,7 +81,7 @@ public class MediaProcessingService {
         Media media = processAndLink(dto.getUrl(), comment.getId(), MediaOwner.COMMENT,
                 m -> m.setComment(comment));
         comment.updateImage(media.getUrl());
-        s3Service.deleteUserTmp(userId);
+        fileStorage.deleteUserTmp(userId);
     }
 
     @Transactional
@@ -91,13 +89,13 @@ public class MediaProcessingService {
         if (dto.getUrl() == null || dto.getUrl().isEmpty()) {
             String deleteUrl = comment.getS3Url();
             if (!deleteUrl.isEmpty()) {
-                s3Service.delete(s3Service.getKeyByUrl(deleteUrl));
+                fileStorage.deleteByUrl(deleteUrl);
                 mediaService.deleteMediaByUrl(deleteUrl);
                 comment.updateImage(null);
             }
         } else if (!dto.getUrl().equals(comment.getS3Url())) {
             if (!comment.getS3Url().isEmpty()) {
-                s3Service.delete(s3Service.getKeyByUrl(comment.getS3Url()));
+                fileStorage.deleteByUrl(comment.getS3Url());
                 mediaService.deleteMediaByUrl(comment.getS3Url());
             }
             Media media = processAndLink(dto.getUrl(), comment.getId(), MediaOwner.COMMENT,
@@ -110,7 +108,7 @@ public class MediaProcessingService {
 
     @Transactional
     public void updateProfileImage(User user, String newImage) {
-        if (isS3Url(user.getProfileUrl())) {
+        if (fileStorage.isStorageUrl(user.getProfileUrl())) {
             deleteOldS3Image(user.getProfileUrl());
         }
         if (newImage == null || newImage.isEmpty()) {
@@ -120,16 +118,12 @@ public class MediaProcessingService {
         Media media = processAndLink(newImage, user.getId(), MediaOwner.PROFILE,
                 m -> m.setProfileOwner(user));
         user.updateProfileUrl(media.getUrl());
-        s3Service.deleteUserTmp(user.getId());
-    }
-
-    public boolean isS3Url(String url) {
-        return url != null && url.contains(BUCKET_NAME);
+        fileStorage.deleteUserTmp(user.getId());
     }
 
     public void deleteOldS3Image(String currentUrl) {
         try {
-            s3Service.delete(s3Service.getKeyByUrl(currentUrl));
+            fileStorage.deleteByUrl(currentUrl);
             mediaService.deleteMediaByUrl(currentUrl);
         } catch (ResourceNotFoundException e) {}
     }
@@ -138,13 +132,12 @@ public class MediaProcessingService {
 
     private Media processAndLink(String tmpUrl, Long entityId, MediaOwner owner,
                                  Consumer<Media> entitySetter) {
-        String finalUrl = s3Service.copyToFinalLocation(tmpUrl, entityId, owner);
+        String finalUrl = fileStorage.copyToFinalLocation(tmpUrl, entityId, owner);
         return createFromFinalUrl(finalUrl, entitySetter);
     }
 
     private Media createFromFinalUrl(String finalUrl, Consumer<Media> entitySetter) {
-        String key = s3Service.getKeyByUrl(finalUrl);
-        FileInfo fileInfo = s3Service.getFileInfo(key);
+        FileInfo fileInfo = fileStorage.getFileInfo(finalUrl);
         Media media = mediaService.createMedia(fileInfo);
         entitySetter.accept(media);
         return media;

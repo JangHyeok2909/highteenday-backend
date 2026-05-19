@@ -3,9 +3,9 @@ package com.example.highteenday_backend.services.global;
 import com.example.highteenday_backend.dtos.FileInfo;
 import com.example.highteenday_backend.dtos.UploadedResult;
 import com.example.highteenday_backend.enums.MediaOwner;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -17,13 +17,14 @@ import java.net.URI;
 import java.util.UUID;
 
 @Service
-@Getter
+@Profile("!test")
 @RequiredArgsConstructor
-public class S3Service {
+public class S3FileStorageAdapter implements FileStoragePort {
     private final S3Client s3Client;
     @Value("${cloud.aws.s3.bucket}")
     private String bucket;
 
+    @Override
     public UploadedResult tmpUpload(Long userId, MultipartFile file) {
         try {
             String key = "tmp/" + userId + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
@@ -45,6 +46,7 @@ public class S3Service {
         }
     }
 
+    @Override
     public void deleteUserTmp(Long userId) {
         String prefix = "tmp/" + userId + "/";
 
@@ -63,42 +65,39 @@ public class S3Service {
         }
     }
 
-    public void delete(String key) {
+    @Override
+    public void deleteByUrl(String url) {
+        String key = getKeyByUrl(url);
         s3Client.deleteObject(DeleteObjectRequest.builder()
                 .bucket(bucket)
                 .key(key)
                 .build());
     }
 
-    public FileInfo getFileInfo(String key) {
+    @Override
+    public FileInfo getFileInfo(String url) {
+        String key = getKeyByUrl(url);
+
         HeadObjectResponse metadata = s3Client.headObject(HeadObjectRequest.builder()
                 .bucket(bucket)
                 .key(key)
                 .build());
 
-        String url = getUrlToKey(key);
+        String fileUrl = getUrlToKey(key);
         long size = metadata.contentLength();
         String contentType = metadata.contentType();
         String originalFilename = key.substring(key.lastIndexOf("/") + 1);
 
         return FileInfo.builder()
                 .key(key)
-                .url(url)
+                .url(fileUrl)
                 .size(size)
                 .originalFilename(originalFilename)
                 .contentType(contentType)
                 .build();
     }
 
-    public String getKeyByUrl(String url) {
-        try {
-            String key = new URI(url).getPath().substring(1);
-            return key;
-        } catch (Exception e) {
-            throw new RuntimeException("잘못된 url 형식, url=" + url);
-        }
-    }
-
+    @Override
     public String copyToFinalLocation(String url, Long entityId, MediaOwner mediaOwner) {
         String tmpKey = getKeyByUrl(url);
         String realKey = mediaOwner.getField() + "-file/" + entityId + tmpKey.substring(3);
@@ -113,7 +112,20 @@ public class S3Service {
         return getUrlToKey(realKey);
     }
 
-    public String getUrlToKey(String key) {
+    @Override
+    public boolean isStorageUrl(String url) {
+        return url != null && url.contains(bucket);
+    }
+
+    private String getKeyByUrl(String url) {
+        try {
+            return new URI(url).getPath().substring(1);
+        } catch (Exception e) {
+            throw new RuntimeException("잘못된 url 형식, url=" + url);
+        }
+    }
+
+    private String getUrlToKey(String key) {
         return s3Client.utilities().getUrl(b -> b.bucket(bucket).key(key)).toString();
     }
 }

@@ -7,7 +7,7 @@ import com.example.highteenday_backend.dtos.UploadedResult;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.MediaProcessingService;
 import com.example.highteenday_backend.services.domain.UserService;
-import com.example.highteenday_backend.services.global.S3Service;
+import com.example.highteenday_backend.services.global.FileStoragePort;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +28,7 @@ import java.net.URISyntaxException;
 @RestController
 @RequestMapping("/api/media")
 public class MediaController {
-    private final S3Service s3Service;
+    private final FileStoragePort fileStorage;
     private final MediaProcessingService mediaProcessingService;
     private final UserService userService;
 
@@ -38,7 +38,7 @@ public class MediaController {
                                         @RequestParam("file") MultipartFile multipartFile) throws URISyntaxException {
         User user = userPrincipal.getUser();
         log.info("userId={} , file={}", user.getId(), multipartFile.getOriginalFilename());
-        UploadedResult uploadedResult = s3Service.tmpUpload(user.getId(), multipartFile);
+        UploadedResult uploadedResult = fileStorage.tmpUpload(user.getId(), multipartFile);
         URI uri = new URI(uploadedResult.getUrl());
         return ResponseEntity.created(uri).build();
     }

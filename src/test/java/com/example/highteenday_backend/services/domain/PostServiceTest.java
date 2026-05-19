@@ -23,7 +23,7 @@ class PostServiceTest {
 
     @Mock private PostRepository postRepository;
     @Mock private BoardService boardService;
-    @Mock private PostMediaService postMediaService;
+    @Mock private MediaProcessingService mediaProcessingService;
     @Mock private PostPrevCache postPrevCache;
 
     @InjectMocks
