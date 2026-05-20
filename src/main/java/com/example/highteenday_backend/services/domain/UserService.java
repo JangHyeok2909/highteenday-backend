@@ -217,7 +217,8 @@ public class UserService {
 
     // 비밀번호 변경 | 정규표현식 적용 가능
     @Transactional
-    public void updatePassword(User user, ChangePasswordDto passwordDto) {
+    public void updatePassword(Long userId, ChangePasswordDto passwordDto) {
+        User user = findById(userId);
         if (!passwordEncoder.matches(passwordDto.pastPassword(), user.getHashedPassword())) {
             throw new CustomException(ErrorCode.INVALID_PASSWORD);
         } else if (passwordDto.pastPassword().equals(passwordDto.newPassword())) {
@@ -234,7 +235,7 @@ public class UserService {
 
     // 닉네임 변경
     @Transactional
-    public void updateNickname(User user, ChangeNicknameDto nicknameDto) {
+    public void updateNickname(Long userId, ChangeNicknameDto nicknameDto) {
         // 이전과 같은지 검사
         if (nicknameDto.pastNickname().equals(nicknameDto.newNickname())) {
             throw new CustomException(ErrorCode.SAME_AS_NICKNAME);
@@ -244,6 +245,7 @@ public class UserService {
             throw new CustomException(ErrorCode.INVALID_NICKNAME_FORMAT);
         }
 
+        User user = findById(userId);
         try {
             user.changeNickname(new Nickname(nicknameDto.newNickname()));
             userRepository.save(user);
@@ -253,17 +255,19 @@ public class UserService {
     }
 
     @Transactional
-    public void updatePhone(User user, ChangePhoneDto dto) {
+    public void updatePhone(Long userId, ChangePhoneDto dto) {
         if (dto.phone() != null && userRepository.existsByPhone(dto.phone())) {
             throw new CustomException(ErrorCode.DUPLICATE_PHONE);
         }
+        User user = findById(userId);
         log.info("Phone number updated. userId={}", user.getId());
         user.changePhone(new PhoneNumber(dto.phone()));
         userRepository.save(user);
     }
 
     @Transactional
-    public void updateSchool(User user, SchoolIdDto dto) {
+    public void updateSchool(Long userId, SchoolIdDto dto) {
+        User user = findById(userId);
         log.info("School/grade/class updated. userId={}, schoolId={}, grade={}, class={}",
                 user.getId(), dto.schoolId(), dto.grade(), dto.userClass());
         user.updateSchool(schoolService.findById(Long.parseLong(dto.schoolId())));
