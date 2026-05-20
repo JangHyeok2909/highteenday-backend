@@ -5,7 +5,6 @@ import com.example.highteenday_backend.dtos.Friends.*;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.FriendService;
 import com.example.highteenday_backend.services.domain.UserService;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -23,18 +22,12 @@ public class FriendController {
     private final FriendService friendService;
     private final UserService userService;
 
-    private User getUserData(String email) {
-        return userService.findByEmail(email);
-    }
-
     // 친구 목록
     @GetMapping("/list")
     public ResponseEntity<?> getFriendsList(
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
-        User findUser = getUserData(user.getUser().getEmailValue());
-
-        List<FriendInfoDto> friendsListDto = friendService.getFriendsList(findUser.getId());
+        List<FriendInfoDto> friendsListDto = friendService.getFriendsList(user.getUser().getId());
 
         return ResponseEntity.ok(friendsListDto);
     }
@@ -44,9 +37,7 @@ public class FriendController {
     public ResponseEntity<?> getSentFriendsRequestList(
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
-        User findUser = getUserData(user.getUser().getEmailValue());
-
-        List<FriendInfoDto> friendsListDto = friendService.getSentFriendsRequestList(findUser);
+        List<FriendInfoDto> friendsListDto = friendService.getSentFriendsRequestList(user.getUser());
 
         return ResponseEntity.ok(friendsListDto);
     }
@@ -56,9 +47,7 @@ public class FriendController {
     public ResponseEntity<?> getReceivedFriendsList(
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
-        User findUser = getUserData(user.getUser().getEmailValue());
-
-        List<FriendInfoDto> friendsListDto = friendService.getReceivedFriendsList(findUser);
+        List<FriendInfoDto> friendsListDto = friendService.getReceivedFriendsList(user.getUser());
 
         return ResponseEntity.ok(friendsListDto);
     }
@@ -69,11 +58,9 @@ public class FriendController {
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody DeleteFriendDto deleteFriendDto
     ) {
+        User findFriends = userService.findByEmail(deleteFriendDto.email());
 
-        User findUser = getUserData(user.getUser().getEmailValue());
-        User findFriends = getUserData(deleteFriendDto.email());
-
-        friendService.deleteFriends(findUser, findFriends);
+        friendService.deleteFriends(user.getUser(), findFriends);
 
         return ResponseEntity.ok("친구 삭제 완료");
     }
@@ -89,39 +76,41 @@ public class FriendController {
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody BlockUserDto blockUserDto
     ) {
-        User findUser = getUserData(user.getUser().getEmailValue());
-        User findBlockUser = getUserData(blockUserDto.email());
+        User findBlockUser = userService.findByEmail(blockUserDto.email());
 
-        friendService.blockUser(findUser, findBlockUser);
-        
+        friendService.blockUser(user.getUser(), findBlockUser);
+
         return ResponseEntity.ok("유저 차단 완료");
     }
 
     // 차단 해제
-    @Transactional
     @PatchMapping("/unBlock")
     public ResponseEntity<?> unBlockUser(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody UnBlockUserDto unBlockUserDto
     ) {
-        User findUser = getUserData(user.getUser().getEmailValue());
-        User findUnBlockUser = getUserData(unBlockUserDto.email());
+        User findUnBlockUser = userService.findByEmail(unBlockUserDto.email());
 
-        friendService.unBlockUser(findUser, findUnBlockUser);
+        friendService.unBlockUser(user.getUser(), findUnBlockUser);
 
         return ResponseEntity.ok("유저 차단 해제 완료");
     }
 
     // 친구 검색
-    @Transactional
     @PostMapping("/search")
     public ResponseEntity<?> searchFriend(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody SelectFriendDto selectFriendDto
     ){
-        User findUser = getUserData(user.getUser().getEmailValue());
-
-        List<User> selectUser = friendService.selectFriend(selectFriendDto);
+        List<FriendInfoDto> selectUser = friendService.selectFriend(selectFriendDto).stream()
+                .map(friend -> FriendInfoDto.builder()
+                        .id(friend.getId())
+                        .name(friend.getNameValue())
+                        .nickname(friend.getNicknameValue())
+                        .email(friend.getEmailValue())
+                        .profileUrl(friend.getProfileUrl())
+                        .build())
+                .toList();
 
         return ResponseEntity.ok(selectUser);
     }
