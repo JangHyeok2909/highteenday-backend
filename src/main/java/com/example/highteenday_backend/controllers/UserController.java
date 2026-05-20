@@ -107,10 +107,8 @@ public class UserController {
             @AuthenticationPrincipal CustomUserPrincipal user,
             HttpServletResponse response
     ){
-        User findUser = userService.findByEmail(user.getUser().getEmailValue());
-
-        tokenService.deleteByUserEmail(findUser.getEmailValue());
-        userService.deleteAccount(findUser);
+        tokenService.deleteByUserEmail(user.getUser().getEmailValue());
+        userService.deleteAccount(user.getUser());
 
         response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.expireAccessCookie().toString());
         response.addHeader(HttpHeaders.SET_COOKIE, jwtCookieService.expireRefreshCookie().toString());
@@ -165,8 +163,7 @@ public class UserController {
         @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
         @RequestBody VerifyPasswordDto dto
     ) {
-        User findUser = userService.findByEmail(userPrincipal.getUser().getEmailValue());
-        boolean matched = userService.verifyPassword(findUser, dto.password());
+        boolean matched = userService.verifyPassword(userPrincipal.getUser(), dto.password());
         return ResponseEntity.ok(matched);
     }
 
@@ -177,8 +174,7 @@ public class UserController {
         @AuthenticationPrincipal CustomUserPrincipal user,
         @RequestBody ChangePasswordDto passwordDto
     ){
-        User findUser = userService.findByEmail(user.getUser().getEmailValue());
-        userService.updatePassword(findUser, passwordDto);
+        userService.updatePassword(user.getUser().getId(), passwordDto);
         return ResponseEntity.ok("비밀번호 변경 완료");
     }
 
@@ -189,8 +185,7 @@ public class UserController {
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody ChangeNicknameDto nicknameDto
     ){
-        User findUser = userService.findByEmail(user.getUser().getEmailValue());
-        userService.updateNickname(findUser, nicknameDto);
+        userService.updateNickname(user.getUser().getId(), nicknameDto);
         return ResponseEntity.ok("닉네임 변경 완료");
     }
 
@@ -198,8 +193,7 @@ public class UserController {
     @PatchMapping("/school")
     public ResponseEntity<?> modifySchool(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                           @RequestBody SchoolIdDto dto){
-        User user = userService.findById(userPrincipal.getUser().getId());
-        userService.updateSchool(user, dto);
+        userService.updateSchool(userPrincipal.getUser().getId(), dto);
         return ResponseEntity.ok().build();
     }
 
@@ -207,8 +201,7 @@ public class UserController {
     @PatchMapping("/phone")
     public ResponseEntity<?> modifyPhone(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                          @RequestBody ChangePhoneDto dto){
-        User user = userService.findById(userPrincipal.getUser().getId());
-        userService.updatePhone(user, dto);
+        userService.updatePhone(userPrincipal.getUser().getId(), dto);
         return ResponseEntity.ok().build();
     }
 
