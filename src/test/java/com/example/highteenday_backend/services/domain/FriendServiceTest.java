@@ -208,6 +208,29 @@ class FriendServiceTest {
                     .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode())
                             .isEqualTo(ErrorCode.REQUEST_NOT_FOUND));
         }
+
+        @Test
+        @DisplayName("요청 수신자가 아닌 사용자는 친구 요청에 응답할 수 없다")
+        void rejectsResponseFromNonReceiver() {
+            User attacker = User.builder()
+                    .id(3L)
+                    .email(new Email("attacker@test.com"))
+                    .name(new UserName("Atk"))
+                    .nickname(new Nickname("atk"))
+                    .role(Role.USER)
+                    .build();
+            CustomUserPrincipal attackerPrincipal = new CustomUserPrincipal(attacker);
+            RespondFriendRequestDto dto = new RespondFriendRequestDto(10L, "ACCEPTED");
+
+            assertThatThrownBy(() -> friendService.respondToFriendRequest(attackerPrincipal, dto))
+                    .isInstanceOf(CustomException.class)
+                    .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode())
+                            .isEqualTo(ErrorCode.NO_ACCESS));
+
+            verify(friendRepository, never()).save(any());
+            verify(friendReqRepository, never()).delete(any());
+            verify(eventPublisher, never()).publishEvent(any());
+        }
     }
 
     @Nested

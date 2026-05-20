@@ -112,6 +112,9 @@ public class FriendService {
 
         User requester = friendReq.getRequester();
         User receiver = friendReq.getReceiver();
+        if (!receiver.getId().equals(receiverInfo.getUser().getId())) {
+            throw new CustomException(ErrorCode.NO_ACCESS);
+        }
         //요청 수락
         if(friendReqDto.status().toUpperCase().equals(FriendRequestStatus.ACCEPTED.name())){
             // 보낸사람 저장
