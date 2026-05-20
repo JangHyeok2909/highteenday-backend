@@ -6,7 +6,6 @@ import com.example.highteenday_backend.dtos.UpdateProfileImageDto;
 import com.example.highteenday_backend.dtos.UploadedResult;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.MediaProcessingService;
-import com.example.highteenday_backend.services.domain.UserService;
 import com.example.highteenday_backend.services.global.FileStoragePort;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,7 +29,6 @@ import java.net.URISyntaxException;
 public class MediaController {
     private final FileStoragePort fileStorage;
     private final MediaProcessingService mediaProcessingService;
-    private final UserService userService;
 
     @Operation(summary = "이미지 임시 업로드", description = "S3 tmp 경로에 업로드 후 임시 URL 반환. 이후 profile-image API로 확정 저장 필요.")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -49,8 +47,7 @@ public class MediaController {
             @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
             @RequestBody UpdateProfileImageDto dto
     ) {
-        User user = userService.findById(userPrincipal.getUser().getId());
-        mediaProcessingService.updateProfileImage(user, dto.url());
+        mediaProcessingService.updateProfileImage(userPrincipal.getUser().getId(), dto.url());
         return ResponseEntity.ok("프로필 이미지 변경 완료");
     }
 }

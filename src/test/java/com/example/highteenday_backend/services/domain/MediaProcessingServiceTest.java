@@ -42,6 +42,8 @@ class MediaProcessingServiceTest {
     private FileStoragePort fileStorage;
     @Mock
     private MediaService mediaService;
+    @Mock
+    private UserService userService;
 
     @InjectMocks
     private MediaProcessingService mediaProcessingService;
@@ -318,13 +320,14 @@ class MediaProcessingServiceTest {
                     .size(2048L).originalFilename("uuid-new.png").contentType("image/png")
                     .build();
 
+            when(userService.findById(USER_ID)).thenReturn(user);
             when(fileStorage.isStorageUrl(oldProfileUrl)).thenReturn(true);
             when(fileStorage.copyToFinalLocation(newTmpUrl, USER_ID, MediaOwner.PROFILE))
                     .thenReturn(newFinalUrl);
             when(fileStorage.getFileInfo(newFinalUrl)).thenReturn(newFileInfo);
             when(mediaService.createMedia(newFileInfo)).thenReturn(newMedia);
 
-            mediaProcessingService.updateProfileImage(user, newTmpUrl);
+            mediaProcessingService.updateProfileImage(USER_ID, newTmpUrl);
 
             verify(fileStorage).deleteByUrl(oldProfileUrl);
             assertThat(user.getProfileUrl()).isEqualTo(newFinalUrl);
@@ -346,13 +349,14 @@ class MediaProcessingServiceTest {
                     .size(1024L).originalFilename("uuid-image.png").contentType("image/png")
                     .build();
 
+            when(userService.findById(USER_ID)).thenReturn(user);
             when(fileStorage.isStorageUrl(oauthUrl)).thenReturn(false);
             when(fileStorage.copyToFinalLocation(newTmpUrl, USER_ID, MediaOwner.PROFILE))
                     .thenReturn(newFinalUrl);
             when(fileStorage.getFileInfo(newFinalUrl)).thenReturn(newFileInfo);
             when(mediaService.createMedia(newFileInfo)).thenReturn(newMedia);
 
-            mediaProcessingService.updateProfileImage(user, newTmpUrl);
+            mediaProcessingService.updateProfileImage(USER_ID, newTmpUrl);
 
             verify(fileStorage, never()).deleteByUrl(oauthUrl);
             assertThat(user.getProfileUrl()).isEqualTo(newFinalUrl);
@@ -363,9 +367,10 @@ class MediaProcessingServiceTest {
         void removesProfileImage() {
             User user = User.builder().id(USER_ID).profileUrl(PROFILE_FINAL_URL).build();
 
+            when(userService.findById(USER_ID)).thenReturn(user);
             when(fileStorage.isStorageUrl(PROFILE_FINAL_URL)).thenReturn(true);
 
-            mediaProcessingService.updateProfileImage(user, null);
+            mediaProcessingService.updateProfileImage(USER_ID, null);
 
             verify(fileStorage).deleteByUrl(PROFILE_FINAL_URL);
             assertThat(user.getProfileUrl()).isNull();
