@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.schedulers;
 
+import com.example.highteenday_backend.aop.SchedulerJob;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.services.domain.HotPostService;
@@ -25,14 +26,9 @@ public class ViewCountScheduler {
 
     @Scheduled(fixedDelay = 60000)
     @Transactional
+    @SchedulerJob(name = "ViewCountSync")
     public void syncViewsToDB() {
-        Map<Long, Integer> viewCounts;
-        try {
-            viewCounts = viewCountService.drainViewCounts();
-        } catch (Exception e) {
-            log.error("Failed to drain view counts from Redis. Will retry next cycle.", e);
-            return;
-        }
+        Map<Long, Integer> viewCounts = viewCountService.drainViewCounts();
         if (viewCounts.isEmpty()) return;
 
         int synced = 0;
@@ -40,7 +36,6 @@ public class ViewCountScheduler {
             try {
                 applyViewCount(entry.getKey(), entry.getValue());
                 synced++;
-                //핫스코어 갱신
                 hotPostService.updateLeaderboardDayScore(entry.getKey());
             } catch (ResourceNotFoundException e) {
                 log.warn("View count sync skipped — deleted post. postId={}", entry.getKey());

@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.schedulers;
 
+import com.example.highteenday_backend.aop.SchedulerJob;
 import com.example.highteenday_backend.domain.Token.TokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ public class TokenCleanupScheduler {
 
     @Scheduled(cron = "0 0 3 * * *")
     @Transactional
+    @SchedulerJob(name = "TokenCleanup")
     public void deleteExpiredTokens() {
         tokenRepository.deleteAllExpired(LocalDateTime.now());
         log.info("Expired refresh tokens cleaned up from DB.");
