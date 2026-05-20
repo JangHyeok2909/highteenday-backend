@@ -7,9 +7,11 @@ import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.dtos.PostConsistencyResponse;
 import com.example.highteenday_backend.services.domain.PostService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Profile("!prod")
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
