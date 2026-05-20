@@ -4,12 +4,14 @@ package com.example.highteenday_backend.controllers.testing;
 import com.example.highteenday_backend.dtos.PostConsistencyResponse;
 import com.example.highteenday_backend.services.testing.PostConsistencyService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Profile("!prod")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/posts")
