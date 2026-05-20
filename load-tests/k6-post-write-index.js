@@ -17,26 +17,25 @@
  * 실행
  *   k6 run load-tests/k6-post-write-index.js
  *
- * 환경변수
- *   BASE_URL     (default: http://localhost:8080)
- *   ACCESS_TOKEN JWT accessToken 값 (로컬 서버에서 발급 후 복사)
- *   BOARD_IDS    comma-separated boardId 목록 (default: "1,2,3")
+ * 환경변수 (선택)
+ *   BASE_URL   (default: http://localhost:8080)
+ *   BOARD_IDS  comma-separated boardId 목록 (default: "1,2,3")
  */
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
 import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
+import { registerAndGetToken, authHeaders } from './helpers/auth.js';
 
 const BASE_URL    = __ENV.BASE_URL     || 'http://localhost:8080';
-const TOKEN       = __ENV.ACCESS_TOKEN || '';
 const RAW_BOARDS  = __ENV.BOARD_IDS    || '1,2,3';
 const BOARD_IDS   = RAW_BOARDS.split(',').map((s) => s.trim());
 
 // ── 커스텀 메트릭
 const writeOk      = new Counter('post_write_success');
 const writeFail    = new Counter('post_write_fail');
-const writeLatency = new Trend('post_write_latency', true); // ms, percentile 출력
+const writeLatency = new Trend('post_write_latency', true);
 const failRate     = new Rate('post_write_fail_rate');
 
 // ── 부하 시나리오
@@ -49,19 +48,11 @@ export const options = {
     { duration: '30s', target: 0   },  // 쿨다운
   ],
   thresholds: {
-    post_write_latency:   ['p(95)<3000'],  // 쓰기 p95 3초 이내
-    post_write_fail_rate: ['rate<0.05'],   // 실패율 5% 미만
+    post_write_latency:   ['p(95)<3000'],
+    post_write_fail_rate: ['rate<0.05'],
     http_req_failed:      ['rate<0.05'],
   },
 };
-
-// ── 공통 헤더 (JWT 쿠키)
-function headers() {
-  return {
-    'Content-Type': 'application/json',
-    ...(TOKEN ? { Cookie: `accessToken=${TOKEN}` } : {}),
-  };
-}
 
 // ── 더미 게시글 본문 생성
 const TITLES = [
@@ -88,10 +79,19 @@ function randomPost() {
   };
 }
 
+// ── setup: 자동 회원가입 → 토큰 발급
+export function setup() {
+  const token = registerAndGetToken(BASE_URL);
+  console.log('setup: 토큰 발급 완료');
+  return { token };
+}
+
 // ── 메인 VU 루프
-export default function () {
+export default function (data) {
   const payload = JSON.stringify(randomPost());
-  const res     = http.post(`${BASE_URL}/api/posts`, payload, { headers: headers() });
+  const res     = http.post(`${BASE_URL}/api/posts`, payload, {
+    headers: authHeaders(data.token),
+  });
 
   const ok = res.status === 201;
   writeLatency.add(res.timings.duration);
@@ -107,7 +107,6 @@ export default function () {
     'status 201 Created': (r) => r.status === 201,
   });
 
-  // 실제 사용자처럼 짧은 간격 두기 (쓰기 전용 테스트이므로 간격 최소화)
   sleep(Math.random() * 0.3 + 0.1);
 }
 
