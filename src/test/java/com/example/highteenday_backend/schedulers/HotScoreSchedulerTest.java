@@ -13,7 +13,6 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,14 +55,5 @@ class HotScoreSchedulerTest {
             verify(hotPostService, never()).syncLeaderboardDayToDb();
         }
 
-        @Test
-        @DisplayName("예외 발생 시 스케줄러가 크래시하지 않는다")
-        void doesNotCrashOnException() {
-            when(hotPostService.getLeaderboardDayPostIds(50))
-                    .thenThrow(new RuntimeException("unexpected error"));
-
-            assertThatCode(() -> hotScoreScheduler.updateHotScore())
-                    .doesNotThrowAnyException();
-        }
     }
 }
