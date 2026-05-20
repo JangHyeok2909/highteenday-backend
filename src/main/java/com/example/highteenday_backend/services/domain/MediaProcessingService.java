@@ -24,6 +24,7 @@ public class MediaProcessingService {
 
     private final FileStoragePort fileStorage;
     private final MediaService mediaService;
+    private final UserService userService;
 
     // ── Post ──────────────────────────────────────────────────────────────
 
@@ -107,7 +108,8 @@ public class MediaProcessingService {
     // ── User Profile ──────────────────────────────────────────────────────
 
     @Transactional
-    public void updateProfileImage(User user, String newImage) {
+    public void updateProfileImage(Long userId, String newImage) {
+        User user = userService.findById(userId);
         if (fileStorage.isStorageUrl(user.getProfileUrl())) {
             deleteOldS3Image(user.getProfileUrl());
         }
