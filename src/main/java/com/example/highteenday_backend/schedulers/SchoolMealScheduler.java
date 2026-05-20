@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.schedulers;
 
 
+import com.example.highteenday_backend.aop.SchedulerJob;
 import com.example.highteenday_backend.api.SchoolMealService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,9 +15,9 @@ import java.time.LocalDate;
 @Component
 public class SchoolMealScheduler {
     private final SchoolMealService schoolMealService;
-//    매월 1일 자정 실행
     @Scheduled(cron = "0 0 0 1 * ?")
-    public void loadSchoolMeals(){
+    @SchedulerJob(name = "SchoolMealLoad")
+    public void loadSchoolMeals() {
         LocalDate now = LocalDate.now();
         int year = now.getYear();
         int month = now.getMonthValue();
