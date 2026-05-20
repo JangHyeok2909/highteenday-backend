@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.services.domain.redisService;
 
+import com.example.highteenday_backend.aop.ResilientRedis;
 import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.dtos.paged.PostListingDto;
@@ -27,6 +28,7 @@ public class RedisPostsCache implements PostPrevCache{
     private static final Duration POST_TTL = Duration.ofMinutes(30);
     private static final Duration BOARD_TTL = Duration.ofMinutes(60);
 
+    // ── AOP 미적용: DB fallback + self-invocation ──
     @Override
     public List<PostPreviewDto> getPostPrevs(Long boardId,int page,int size) {
         try {
@@ -35,9 +37,7 @@ public class RedisPostsCache implements PostPrevCache{
 
             String idKey = createBoardKey(boardId);
 
-            //boardId로 가져올 게시글 ids 조회, board 캐시미스 처리
             List<Long> ids = boardTemplate.opsForList().range(idKey, start, end);
-            //가져온 ids 없으면 캐싱
             if(ids == null||ids.isEmpty()) {
                 List<PostPreviewDto> postPreviewDtos = postRepository.findByBoard(PostListingDto.builder()
                         .boardId(boardId)
@@ -47,14 +47,11 @@ public class RedisPostsCache implements PostPrevCache{
                         .build());
 
                 for(PostPreviewDto p : postPreviewDtos){
-                    //board 캐싱
                     addPostToBoard(boardId,p.getId());
                     cachePostPrev(p);
                 }
                 ids = boardTemplate.opsForList().range(idKey, start, end);
             }
-
-            //ids: [10,6,5,2, ..]
 
             List<String> keys = ids
                     .stream()
@@ -64,21 +61,17 @@ public class RedisPostsCache implements PostPrevCache{
             List<PostPreviewDto> values =  postTemplate.opsForValue().multiGet(keys);
             if (values == null) return Collections.emptyList();
 
-            //캐시 미스된 postId 수집
             List<Long> missIds = new ArrayList<>();
             List<PostPreviewDto> result = new ArrayList<>();
 
             for(int i=0;i<ids.size();i++){
-                //캐시미스
                 if(values.get(i) ==null) {
-                    //result: [10,6,null,null,..]
                     missIds.add(ids.get(i));
                     result.add(null);
                 }
                 else result.add(values.get(i));
             }
 
-            //캐시미스된 post만 DB에서 불러옴.
             if(!missIds.isEmpty()){
                 List<PostPreviewDto> missPosts = postRepository.findAllDtoByIds(missIds);
 
@@ -106,45 +99,53 @@ public class RedisPostsCache implements PostPrevCache{
         }
     }
 
+    // ── AOP 적용: 단순 Redis 조작 ──
+
+    @ResilientRedis
     @Override
     public void cachePostPrev(PostPreviewDto postPrev) {
-        try {
-            String key = createPostKey(postPrev.getId());
-            postTemplate.opsForValue().set(key, postPrev, POST_TTL);
-        } catch (Exception e) {
-            log.warn("Redis unavailable, skipping cachePostPrev. postId={}", postPrev.getId(), e);
-        }
+        String key = createPostKey(postPrev.getId());
+        postTemplate.opsForValue().set(key, postPrev, POST_TTL);
     }
 
+    @ResilientRedis
     @Override
     public void addPostToBoard(Long boardId, Long postId) {
-        try {
-            String key = createBoardKey(boardId);
-            boardTemplate.opsForList().rightPush(key,postId);
-            boardTemplate.expire(key,BOARD_TTL);
-            boardTemplate.opsForList().trim(key,0,MAX_SIZE-1);
-        } catch (Exception e) {
-            log.warn("Redis unavailable, skipping addPostToBoard. boardId={}, postId={}", boardId, postId, e);
-        }
+        String key = createBoardKey(boardId);
+        boardTemplate.opsForList().rightPush(key,postId);
+        boardTemplate.expire(key,BOARD_TTL);
+        boardTemplate.opsForList().trim(key,0,MAX_SIZE-1);
     }
 
+    @ResilientRedis
     @Override
     public void evictBoard(Long boardId) {
-        try {
-            boardTemplate.delete(createBoardKey(boardId));
-        } catch (Exception e) {
-            log.warn("Redis unavailable, skipping evictBoard. boardId={}", boardId, e);
-        }
+        boardTemplate.delete(createBoardKey(boardId));
     }
 
+    @ResilientRedis
     @Override
     public void evictPostPrev(Long postId) {
-        try {
-            postTemplate.delete(createPostKey(postId));
-        } catch (Exception e) {
-            log.warn("Redis unavailable, skipping evictPostPrev. postId={}", postId, e);
-        }
+        postTemplate.delete(createPostKey(postId));
     }
+
+    @ResilientRedis
+    @Override
+    public void incrementBoardCount(Long boardId) {
+        String key = createCountingKey(boardId);
+        boardTemplate.opsForValue().increment(key, 1);
+        boardTemplate.expire(key, BOARD_TTL);
+    }
+
+    @ResilientRedis
+    @Override
+    public void decrementBoardCount(Long boardId) {
+        String key = createCountingKey(boardId);
+        boardTemplate.opsForValue().decrement(key, 1);
+        boardTemplate.expire(key, BOARD_TTL);
+    }
+
+    // ── AOP 미적용: DB fallback 필요 ──
 
     @Override
     public Long getCount(Long boardId) {
@@ -170,27 +171,7 @@ public class RedisPostsCache implements PostPrevCache{
         return count;
     }
 
-    @Override
-    public void incrementBoardCount(Long boardId) {
-        try {
-            String key = createCountingKey(boardId);
-            boardTemplate.opsForValue().increment(key, 1);
-            boardTemplate.expire(key, BOARD_TTL);
-        } catch (Exception e) {
-            log.warn("Redis unavailable, skipping incrementBoardCount. boardId={}", boardId, e);
-        }
-    }
-
-    @Override
-    public void decrementBoardCount(Long boardId) {
-        try {
-            String key = createCountingKey(boardId);
-            boardTemplate.opsForValue().decrement(key, 1);
-            boardTemplate.expire(key, BOARD_TTL);
-        } catch (Exception e) {
-            log.warn("Redis unavailable, skipping decrementBoardCount. boardId={}", boardId, e);
-        }
-    }
+    // ── Key 생성 ──
 
     private String createBoardKey(Long boardId){
         return "board:"+boardId+":posts";

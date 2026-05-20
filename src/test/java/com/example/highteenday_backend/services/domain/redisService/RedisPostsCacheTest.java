@@ -13,14 +13,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.redis.RedisConnectionFailureException;
-import org.springframework.data.redis.core.ListOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -36,8 +34,6 @@ class RedisPostsCacheTest {
     @Mock private RedisTemplate<String, PostPreviewDto> postTemplate;
     @Mock private RedisTemplate<String, Long> countingTemplate;
     @Mock private PostRepository postRepository;
-    @Mock private ListOperations<String, Long> listOps;
-    @Mock private ValueOperations<String, PostPreviewDto> postValueOps;
     @Mock private ValueOperations<String, Long> countValueOps;
 
     private RedisPostsCache redisPostsCache;
@@ -103,63 +99,4 @@ class RedisPostsCacheTest {
         }
     }
 
-    @Nested
-    @DisplayName("write/evict 작업 — Redis 장애 시 예외 없이 종료")
-    class WriteOperations {
-
-        @Test
-        @DisplayName("cachePostPrev: Redis 장애 시 예외 없이 종료한다")
-        void cachePostPrevDoesNotThrow() {
-            when(postTemplate.opsForValue()).thenThrow(new RedisConnectionFailureException("down"));
-            PostPreviewDto dto = PostPreviewDto.builder().id(1L).build();
-
-            assertThatCode(() -> redisPostsCache.cachePostPrev(dto))
-                    .doesNotThrowAnyException();
-        }
-
-        @Test
-        @DisplayName("addPostToBoard: Redis 장애 시 예외 없이 종료한다")
-        void addPostToBoardDoesNotThrow() {
-            when(boardTemplate.opsForList()).thenThrow(new RedisConnectionFailureException("down"));
-
-            assertThatCode(() -> redisPostsCache.addPostToBoard(1L, 10L))
-                    .doesNotThrowAnyException();
-        }
-
-        @Test
-        @DisplayName("evictBoard: Redis 장애 시 예외 없이 종료한다")
-        void evictBoardDoesNotThrow() {
-            when(boardTemplate.delete(anyString())).thenThrow(new RedisConnectionFailureException("down"));
-
-            assertThatCode(() -> redisPostsCache.evictBoard(1L))
-                    .doesNotThrowAnyException();
-        }
-
-        @Test
-        @DisplayName("evictPostPrev: Redis 장애 시 예외 없이 종료한다")
-        void evictPostPrevDoesNotThrow() {
-            when(postTemplate.delete(anyString())).thenThrow(new RedisConnectionFailureException("down"));
-
-            assertThatCode(() -> redisPostsCache.evictPostPrev(1L))
-                    .doesNotThrowAnyException();
-        }
-
-        @Test
-        @DisplayName("incrementBoardCount: Redis 장애 시 예외 없이 종료한다")
-        void incrementBoardCountDoesNotThrow() {
-            when(boardTemplate.opsForValue()).thenThrow(new RedisConnectionFailureException("down"));
-
-            assertThatCode(() -> redisPostsCache.incrementBoardCount(1L))
-                    .doesNotThrowAnyException();
-        }
-
-        @Test
-        @DisplayName("decrementBoardCount: Redis 장애 시 예외 없이 종료한다")
-        void decrementBoardCountDoesNotThrow() {
-            when(boardTemplate.opsForValue()).thenThrow(new RedisConnectionFailureException("down"));
-
-            assertThatCode(() -> redisPostsCache.decrementBoardCount(1L))
-                    .doesNotThrowAnyException();
-        }
-    }
 }
