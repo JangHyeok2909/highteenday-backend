@@ -16,6 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -40,6 +41,7 @@ import static org.mockito.Mockito.*;
 class NotificationServiceTest {
 
     @Mock private NotificationRepository notificationRepository;
+    @Mock private UserService userService;
 
     @InjectMocks private NotificationService notificationService;
 
@@ -66,6 +68,84 @@ class NotificationServiceTest {
                 .contentMessage("댓글 내용")
                 .isRead(read)
                 .build();
+    }
+
+    @Nested
+    @DisplayName("createCommentNotification")
+    class CreateCommentNotification {
+
+        @Test
+        @DisplayName("댓글 알림을 생성하고 저장한다")
+        void savesCommentNotification() {
+            when(userService.findById(3L)).thenReturn(sender);
+            when(userService.findById(1L)).thenReturn(owner);
+
+            notificationService.createCommentNotification(3L, 1L, 100L, "댓글 내용");
+
+            ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+            verify(notificationRepository).save(captor.capture());
+
+            Notification saved = captor.getValue();
+            assertThat(saved.getSender()).isEqualTo(sender);
+            assertThat(saved.getReceiver()).isEqualTo(owner);
+            assertThat(saved.getCategory()).isEqualTo(NotificationCategory.POST_COMMENT);
+            assertThat(saved.getEntityType()).isEqualTo(EntityType.POST);
+            assertThat(saved.getEntityId()).isEqualTo(100L);
+            assertThat(saved.getMessage()).isEqualTo("내 게시글에 댓글이 달렸습니다.");
+            assertThat(saved.getContentMessage()).isEqualTo("댓글 내용");
+        }
+    }
+
+    @Nested
+    @DisplayName("createFriendRequestNotification")
+    class CreateFriendRequestNotification {
+
+        @Test
+        @DisplayName("친구 요청 알림을 생성하고 저장한다")
+        void savesFriendRequestNotification() {
+            when(userService.findById(3L)).thenReturn(sender);
+            when(userService.findById(1L)).thenReturn(owner);
+
+            notificationService.createFriendRequestNotification(3L, 1L);
+
+            ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+            verify(notificationRepository).save(captor.capture());
+
+            Notification saved = captor.getValue();
+            assertThat(saved.getSender()).isEqualTo(sender);
+            assertThat(saved.getReceiver()).isEqualTo(owner);
+            assertThat(saved.getCategory()).isEqualTo(NotificationCategory.FRIEND_REQUEST);
+            assertThat(saved.getEntityType()).isEqualTo(EntityType.USER);
+            assertThat(saved.getEntityId()).isEqualTo(3L);
+            assertThat(saved.getMessage()).isEqualTo("sender님이 친구 요청을 보냈습니다.");
+            assertThat(saved.getContentMessage()).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("createFriendAcceptNotification")
+    class CreateFriendAcceptNotification {
+
+        @Test
+        @DisplayName("친구 수락 알림을 생성하고 저장한다")
+        void savesFriendAcceptNotification() {
+            when(userService.findById(3L)).thenReturn(sender);
+            when(userService.findById(1L)).thenReturn(owner);
+
+            notificationService.createFriendAcceptNotification(3L, 1L);
+
+            ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+            verify(notificationRepository).save(captor.capture());
+
+            Notification saved = captor.getValue();
+            assertThat(saved.getReceiver()).isEqualTo(sender);
+            assertThat(saved.getSender()).isEqualTo(owner);
+            assertThat(saved.getCategory()).isEqualTo(NotificationCategory.FRIEND_ACCEPT);
+            assertThat(saved.getEntityType()).isEqualTo(EntityType.USER);
+            assertThat(saved.getEntityId()).isEqualTo(1L);
+            assertThat(saved.getMessage()).isEqualTo("owner님이 친구 요청을 수락했습니다.");
+            assertThat(saved.getContentMessage()).isNull();
+        }
     }
 
     @Nested
