@@ -55,6 +55,9 @@ public enum ErrorCode {
     // timetable
     TIMETABLE_TEMPLATE_NOT_FOUND(NOT_FOUND, "시간표 템플릿을 찾을 수 없습니다."),
     DEFAULT_TIMETABLE_TEMPLATE_NOT_FOUND(NOT_FOUND, "기본으로 설정된 시간표가 없습니다."),
+    // notification
+    NOTIFICATION_PROCESSING_FAILED(INTERNAL_SERVER_ERROR, "알림 처리 중 오류가 발생했습니다."),
+    NOTIFICATION_RETRY_EXHAUSTED(INTERNAL_SERVER_ERROR, "알림 재시도 횟수를 초과했습니다."),
 
     // friend
     FRIEND_NOT_FOUND(NOT_FOUND, "친구 관계가 아닙니다."),
