@@ -16,7 +16,6 @@ public class CommentCreatedEvent {
     private final Long postId;
     private final Long authorId;
     private final Long postAuthorId;
-    private final Long userId;
     private final Long parentCommentAuthorId; //답글인 경우
     private final String content;
 }

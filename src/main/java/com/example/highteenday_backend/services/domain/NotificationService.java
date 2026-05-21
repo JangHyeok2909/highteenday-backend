@@ -5,7 +5,9 @@ import com.example.highteenday_backend.domain.notification.NotificationRepositor
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.NotificationDto;
 import com.example.highteenday_backend.dtos.paged.PagedNotificationsDto;
+import com.example.highteenday_backend.enums.EntityType;
 import com.example.highteenday_backend.enums.ErrorCode;
+import com.example.highteenday_backend.enums.NotificationCategory;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -23,6 +26,47 @@ import java.util.List;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final UserService userService;
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void createCommentNotification(Long senderId, Long receiverId, Long postId, String content) {
+        User sender = userService.findById(senderId);
+        User receiver = userService.findById(receiverId);
+        saveNotification(sender, receiver, NotificationCategory.POST_COMMENT,
+                EntityType.POST, postId, "내 게시글에 댓글이 달렸습니다.", content);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void createFriendRequestNotification(Long requesterId, Long receiverId) {
+        User requester = userService.findById(requesterId);
+        User receiver = userService.findById(receiverId);
+        saveNotification(requester, receiver, NotificationCategory.FRIEND_REQUEST,
+                EntityType.USER, requesterId, requester.getNickname() + "님이 친구 요청을 보냈습니다.", null);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void createFriendAcceptNotification(Long requesterId, Long receiverId) {
+        User requester = userService.findById(requesterId);
+        User receiver = userService.findById(receiverId);
+        saveNotification(receiver, requester, NotificationCategory.FRIEND_ACCEPT,
+                EntityType.USER, receiverId, receiver.getNickname() + "님이 친구 요청을 수락했습니다.", null);
+    }
+
+    private void saveNotification(User sender, User receiver, NotificationCategory category,
+                                  EntityType entityType, Long entityId,
+                                  String message, String contentMessage) {
+        notificationRepository.save(
+                Notification.builder()
+                        .receiver(receiver)
+                        .sender(sender)
+                        .category(category)
+                        .entityType(entityType)
+                        .entityId(entityId)
+                        .message(message)
+                        .contentMessage(contentMessage)
+                        .build()
+        );
+    }
 
     @Transactional(readOnly = true)
     public PagedNotificationsDto getNotifications(User user, int page, int size) {
