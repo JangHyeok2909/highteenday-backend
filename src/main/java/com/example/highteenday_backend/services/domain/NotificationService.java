@@ -41,7 +41,7 @@ public class NotificationService {
         User requester = userService.findById(requesterId);
         User receiver = userService.findById(receiverId);
         saveNotification(requester, receiver, NotificationCategory.FRIEND_REQUEST,
-                EntityType.USER, requesterId, requester.getNickname() + "님이 친구 요청을 보냈습니다.", null);
+                EntityType.USER, requesterId, requester.getNicknameValue() + "님이 친구 요청을 보냈습니다.", null);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -49,7 +49,7 @@ public class NotificationService {
         User requester = userService.findById(requesterId);
         User receiver = userService.findById(receiverId);
         saveNotification(receiver, requester, NotificationCategory.FRIEND_ACCEPT,
-                EntityType.USER, receiverId, receiver.getNickname() + "님이 친구 요청을 수락했습니다.", null);
+                EntityType.USER, receiverId, receiver.getNicknameValue() + "님이 친구 요청을 수락했습니다.", null);
     }
 
     private void saveNotification(User sender, User receiver, NotificationCategory category,
