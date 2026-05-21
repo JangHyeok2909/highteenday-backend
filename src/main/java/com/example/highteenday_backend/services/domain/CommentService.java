@@ -8,7 +8,6 @@ import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.enums.SortType;
 import com.example.highteenday_backend.eventEntities.events.CommentCreatedEvent;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
-import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -18,7 +17,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.List;
 
@@ -81,6 +79,8 @@ public class CommentService {
         );
         return comment;
     }
+
+
     @Transactional
     public void updateComment(Long commentId, Long userId, RequestCommentDto dto){
         Comment comment = findCommentById(commentId);
