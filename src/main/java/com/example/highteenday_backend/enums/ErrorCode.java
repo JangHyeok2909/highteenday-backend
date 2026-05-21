@@ -46,6 +46,10 @@ public enum ErrorCode {
     // school
     SCHOOL_NOT_ASSIGNED(BAD_REQUEST, "급식 조회를 위해 학교 배정이 필요합니다."),
 
+    // notification
+    NOTIFICATION_PROCESSING_FAILED(INTERNAL_SERVER_ERROR, "알림 처리 중 오류가 발생했습니다."),
+    NOTIFICATION_RETRY_EXHAUSTED(INTERNAL_SERVER_ERROR, "알림 재시도 횟수를 초과했습니다."),
+
     // friend
     FRIEND_NOT_FOUND(NOT_FOUND, "친구 관계가 아닙니다.")
     ;
