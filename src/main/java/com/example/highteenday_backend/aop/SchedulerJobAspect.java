@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * {@link SchedulerJob} 어노테이션이 붙은 스케줄러 메서드의 실행을 감싸서
- * lifecycle 로깅과 예외 기록을 수행하는 aspect.
+ * 작업 실행시간과 예외 로깅을 수행하는 aspect.
  */
 @Aspect
 @Component
