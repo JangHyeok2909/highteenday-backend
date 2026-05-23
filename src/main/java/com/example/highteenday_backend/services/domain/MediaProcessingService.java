@@ -39,7 +39,7 @@ public class MediaProcessingService {
             createFromFinalUrl(postFileUrl, m -> m.setPost(post));
             replaceUrlContent = replaceUrlContent.replace(u, postFileUrl);
         }
-        post.updateContent(replaceUrlContent);
+        post.editContent(replaceUrlContent);
         fileStorage.deleteUserTmp(userId);
     }
 
@@ -53,7 +53,7 @@ public class MediaProcessingService {
         removedUrls.removeAll(newUrls);
 
         if (newUrls.isEmpty()) {
-            post.updateContent(newContent);
+            post.editContent(newContent);
             return;
         }
 
@@ -64,13 +64,13 @@ public class MediaProcessingService {
                 createFromFinalUrl(postFileUrl, m -> m.setPost(post));
                 replaceUrlContent = replaceUrlContent.replace(u, postFileUrl);
             }
-            post.updateContent(replaceUrlContent);
+            post.editContent(replaceUrlContent);
             fileStorage.deleteUserTmp(userId);
             for (String ru : removedUrls) {
                 fileStorage.deleteByUrl(ru);
             }
         } else {
-            post.updateContent(newContent);
+            post.editContent(newContent);
         }
     }
 
@@ -81,7 +81,7 @@ public class MediaProcessingService {
         if (dto.getUrl() == null || dto.getUrl().isEmpty()) return;
         Media media = processAndLink(dto.getUrl(), comment.getId(), MediaOwner.COMMENT,
                 m -> m.setComment(comment));
-        comment.updateImage(media.getUrl());
+        comment.changeImage(media.getUrl());
         fileStorage.deleteUserTmp(userId);
     }
 
@@ -92,7 +92,7 @@ public class MediaProcessingService {
             if (!deleteUrl.isEmpty()) {
                 fileStorage.deleteByUrl(deleteUrl);
                 mediaService.deleteMediaByUrl(deleteUrl);
-                comment.updateImage(null);
+                comment.removeImage();
             }
         } else if (!dto.getUrl().equals(comment.getS3Url())) {
             if (!comment.getS3Url().isEmpty()) {
@@ -101,7 +101,7 @@ public class MediaProcessingService {
             }
             Media media = processAndLink(dto.getUrl(), comment.getId(), MediaOwner.COMMENT,
                     m -> m.setComment(comment));
-            comment.updateImage(media.getUrl());
+            comment.changeImage(media.getUrl());
         }
     }
 

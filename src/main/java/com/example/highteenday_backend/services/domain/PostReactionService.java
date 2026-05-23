@@ -93,7 +93,8 @@ public class PostReactionService {
     }
 
     private void syncCounts(Post post) {
-        post.updateLikeCount(postReactionRepository.countByPostAndKindAndIsValidTrue(post, PostReactionKind.LIKE));
-        post.updateDislike(postReactionRepository.countByPostAndKindAndIsValidTrue(post, PostReactionKind.DISLIKE));
+        int likes = postReactionRepository.countByPostAndKindAndIsValidTrue(post, PostReactionKind.LIKE);
+        int dislikes = postReactionRepository.countByPostAndKindAndIsValidTrue(post, PostReactionKind.DISLIKE);
+        post.syncReactionCounts(likes, dislikes);
     }
 }

@@ -87,14 +87,7 @@ public class PostService {
     public Post createPost(User user,RequestPostDto dto){
         Board board = boardService.findById(dto.getBoardId());
 
-        Post post = Post.builder()
-                .user(user)
-                .board(board)
-                .isAnonymous(dto.isAnonymous())
-                .title(dto.getTitle())
-                .content(dto.getContent())
-                .nickname(dto.isAnonymous() ? "익명":user.getNicknameValue())
-                .build();
+        Post post = Post.create(user, board, dto.getTitle(), dto.getContent(), dto.isAnonymous());
         Post savedPost = postRepository.save(post);
         mediaProcessingService.processCreatePostMedia(user.getId(),post);
         post.setUpdatedDate(null);
@@ -115,7 +108,7 @@ public class PostService {
         String oldTiltle = post.getTitle();
         String oldContent = post.getContent();
         if(!newTile.equals(oldTiltle)) {
-            post.updateTitle(newTile);
+            post.editTitle(newTile);
         }
         if(!newContent.equals(oldContent)) {
             mediaProcessingService.processUpdatePostMedia(userId,post,newContent,oldContent);

@@ -133,7 +133,8 @@ public class CommentReactionService {
     }
 
     private void syncCounts(Comment comment) {
-        comment.updateLikeCount(commentReactionRepository.countByCommentAndKindAndIsValidTrue(comment, PostReactionKind.LIKE));
-        comment.updateDislikeCount(commentReactionRepository.countByCommentAndKindAndIsValidTrue(comment, PostReactionKind.DISLIKE));
+        int likes = commentReactionRepository.countByCommentAndKindAndIsValidTrue(comment, PostReactionKind.LIKE);
+        int dislikes = commentReactionRepository.countByCommentAndKindAndIsValidTrue(comment, PostReactionKind.DISLIKE);
+        comment.syncReactionCounts(likes, dislikes);
     }
 }

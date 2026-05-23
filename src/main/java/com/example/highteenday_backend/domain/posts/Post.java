@@ -4,15 +4,13 @@ import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.users.User;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-@Builder
 @Getter
-@AllArgsConstructor
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(
         name= "posts",
         indexes = {
@@ -52,89 +50,91 @@ public class Post extends BaseEntity {
     @Column(name = "PST_content", columnDefinition = "TEXT", nullable = false)
     private String content;
 
-    @Builder.Default
+    //쿼리 성능을 위한 비정규화 컬럼
     @Column(name = "PST_view_count")
     private int viewCount = 0;
-    @Builder.Default
     @Column(name = "PST_like_count")
     private int likeCount = 0;
-    @Builder.Default
     @Column(name = "PST_dislike_count")
     private int dislikeCount = 0;
-    @Builder.Default
     @Column(name = "PST_comment_count")
     private int commentCount = 0;
-    @Builder.Default
     @Column(name = "PST_scrap_count")
     private int scrapCount = 0;
-    @Builder.Default
     @Column(name = "PST_is_anonymous")
-    private boolean isAnonymous=true;
-
-    /*@Builder.Default
-    @Version
-    @Column(name = "version", nullable = false)
-    @ColumnDefault("0")
-    private long version = 0L;*/
-
-    //쿼리 성능을 위한 비정규화 컬럼
-    @Builder.Default
+    private boolean isAnonymous = true;
     @Column(name = "USR_nickname", length = 12, nullable = false)
-    private String nickname="익명";
+    private String nickname = "익명";
 
-    public void updateLikeCount(int likeCount){
-        this.likeCount = likeCount;
+    // === 정적 팩토리 ===
+
+    public static Post create(User user, Board board, String title,
+                              String content, boolean isAnonymous) {
+        Post post = new Post();
+        post.user = user;
+        post.board = board;
+        post.title = title;
+        post.content = content;
+        post.isAnonymous = isAnonymous;
+        post.nickname = isAnonymous ? "익명" : user.getNicknameValue();
+        return post;
     }
-    public void updateDislike(int dislikeCount){
-        this.dislikeCount = dislikeCount;
-    }
-    public void updateTitle(String title){
+
+    // === 도메인 메서드 ===
+
+    public void editTitle(String title) {
         this.title = title;
     }
-    public void updateContent(String content){
+
+    public void editContent(String content) {
         this.content = content;
     }
 
-    public void plusLikeCount(){
-        this.likeCount++;
-    }
-    public void minusLikeCount(){
-        this.likeCount--;
-    }
-    public void plusDislikeCount(){
-        this.dislikeCount++;
-    }
-    public void minusDislikeCount(){
-        this.dislikeCount--;
-    }
-    public void plusCommentCount(){
-        this.commentCount++;
-    }
-    public void minusCommentCount(){
-        this.commentCount--;
-    }
-    public void addViewCount(int increment){
-        this.viewCount+=increment;
-    }
-    public void updateCommentCount(int commentCount){
-        this.commentCount = commentCount;
-    }
-    public void updateAnonymous(boolean isAnonymous){
+    public void changeAnonymous(boolean isAnonymous) {
         this.isAnonymous = isAnonymous;
     }
-    public void plusScrapCount(){
-        this.scrapCount++;
+
+    /** 반응 카운트 동기화 — Service가 DB count 결과를 전달 */
+    public void syncReactionCounts(int likeCount, int dislikeCount) {
+        this.likeCount = likeCount;
+        this.dislikeCount = dislikeCount;
     }
-    public void minusScrapCount(){
-        this.scrapCount--;
+
+    public void incrementCommentCount() {
+        this.commentCount++;
     }
-    public void updateScrapCount(int scrapCount){
+
+    public void decrementCommentCount() {
+        if (this.commentCount > 0) this.commentCount--;
+    }
+
+    /** 스크랩 카운트 동기화 — Service가 DB count 결과를 전달 */
+    public void syncScrapCount(int scrapCount) {
         this.scrapCount = scrapCount;
     }
-    public void minusScrapCount(int scrapCount){
-        this.scrapCount-=scrapCount;
+
+    /** 조회수 배치 증가 — ViewCountScheduler가 호출 */
+    public void addViewCount(int increment) {
+        if (increment > 0) this.viewCount += increment;
     }
 
+    // === Builder (테스트/DataInitializer 호환) ===
 
-
+    @Builder
+    private Post(Long id, User user, Board board, String title, String content,
+                 int viewCount, int likeCount, int dislikeCount, int commentCount,
+                 int scrapCount, boolean isAnonymous, String nickname) {
+        this.id = id;
+        this.user = user;
+        this.board = board;
+        this.title = title;
+        this.content = content;
+        this.viewCount = viewCount;
+        this.likeCount = likeCount;
+        this.dislikeCount = dislikeCount;
+        this.commentCount = commentCount;
+        this.scrapCount = scrapCount;
+        this.isAnonymous = isAnonymous;
+        this.nickname = nickname != null ? nickname : "익명";
+    }
 }

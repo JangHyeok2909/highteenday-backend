@@ -68,7 +68,7 @@ public class ScrapService {
             message = "스크랩 완료.";
         }
 
-        post.updateScrapCount(Math.toIntExact(scrapRepository.countValidByPost(post)));
+        post.syncScrapCount(Math.toIntExact(scrapRepository.countValidByPost(post)));
         postPrevCache.evictPostPrev(postId);
         eventPublisher.publishEvent(new ScrapToggledEvent(postId, newScrap));
         return message;
