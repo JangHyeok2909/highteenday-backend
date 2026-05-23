@@ -93,13 +93,7 @@ public class FriendService {
             throw new CustomException(ErrorCode.ALREADY_SENT_FRIEND_REQUEST);
         }
 
-        FriendReq friendReq = friendReqRepository.save(
-                FriendReq.builder()
-                    .requester(requester)
-                    .receiver(receiver)
-                    .status(FriendRequestStatus.REQUESTED)
-                    .build()
-            );
+        FriendReq friendReq = friendReqRepository.save(FriendReq.create(requester, receiver));
 
         eventPublisher.publishEvent(new FriendRequestSentEvent(requester.getId(), receiver.getId()));
     }
@@ -110,40 +104,21 @@ public class FriendService {
         FriendReq friendReq = friendReqRepository.findById(friendReqDto.id())
                 .orElseThrow(() -> new CustomException(ErrorCode.REQUEST_NOT_FOUND));
 
+        friendReq.validateReceiver(receiverInfo.getUser().getId());
+
         User requester = friendReq.getRequester();
         User receiver = friendReq.getReceiver();
-        if (!receiver.getId().equals(receiverInfo.getUser().getId())) {
-            throw new CustomException(ErrorCode.NO_ACCESS);
-        }
+
         //요청 수락
-        if(friendReqDto.status().toUpperCase().equals(FriendRequestStatus.ACCEPTED.name())){
-            // 보낸사람 저장
-            friendRepository.save(Friend.builder()
-                    .user(requester)
-                    .friend(receiver)
-                    .status(FriendStatus.FRIEND)
-                    .build());
-
-            // 받는사람 저장
-            friendRepository.save(Friend.builder()
-                    .user(receiver)
-                    .friend(requester)
-                    .status(FriendStatus.FRIEND)
-                    .build());
+        if (friendReqDto.status().equalsIgnoreCase(FriendRequestStatus.ACCEPTED.name())) {
+            friendRepository.save(Friend.createFriendship(requester, receiver));
+            friendRepository.save(Friend.createFriendship(receiver, requester));
             eventPublisher.publishEvent(new FriendRequestAcceptedEvent(requester.getId(), receiver.getId()));
-
         }
         // 응답자가 차단 했을거니까 응답자만 차단 상태 요청자는 모름
-        else if (friendReqDto.status().toUpperCase().equals(FriendRequestStatus.BLOCKED.name())) {
-
-            friendRepository.save(Friend.builder()
-                    .user(receiver)
-                    .friend(requester)
-                    .status(FriendStatus.BLOCKED)
-                    .build());
-
+        else if (friendReqDto.status().equalsIgnoreCase(FriendRequestStatus.BLOCKED.name())) {
+            friendRepository.save(Friend.createBlock(receiver, requester));
             eventPublisher.publishEvent(new FriendBlockedEvent(receiver.getId(), requester.getId()));
-
         }
         // 요청 거절시 아무 응답 없음
         else if (friendReqDto.status().equalsIgnoreCase(FriendRequestStatus.DECLINED.name())) {
@@ -171,15 +146,11 @@ public class FriendService {
 
         List<Friend> relations = friendRepository.findFriendsRelations(me.getId(), blockUser.getId());
         if(relations.isEmpty()){
-            friendRepository.save(Friend.builder()
-                    .user(me)
-                    .friend(blockUser)
-                    .status(FriendStatus.BLOCKED)
-                    .build());
+            friendRepository.save(Friend.createBlock(me, blockUser));
         } else {
             relations.stream()
                     .filter(r -> r.getUser().getId().equals(me.getId()))
-                    .forEach(r -> r.setStatus(FriendStatus.BLOCKED));
+                    .forEach(Friend::block);
         }
     }
 
@@ -205,7 +176,7 @@ public class FriendService {
         } else {
             relations.stream()
                     .filter(r -> r.getUser().getId().equals(me.getId()))
-                    .forEach(r -> r.setStatus(FriendStatus.FRIEND));
+                    .forEach(Friend::unblock);
         }
     }
 
