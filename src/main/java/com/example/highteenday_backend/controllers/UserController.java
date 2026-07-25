@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.controllers;
 
+import com.example.highteenday_backend.Utils.LogMasker;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.*;
 import com.example.highteenday_backend.dtos.Login.LoginRequestDto;
@@ -121,7 +122,7 @@ public class UserController {
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@Valid @RequestBody LoginRequestDto dto, HttpServletResponse response) {
 
-        log.debug("Login request. email={}", dto.email());
+        log.debug("Login request. email={}", LogMasker.maskEmail(dto.email()));
         User user = userService.findByEmail(dto.email());
 
         if (!passwordEncoder.matches(dto.password(), user.getHashedPassword())) {

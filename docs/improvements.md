@@ -5,6 +5,62 @@ Newest entries at the top.
 
 ---
 
+## 008 — Stop writing student email addresses into production logs
+
+**Area:** Security / Logging
+**Commit:** `fix: mask personal data in log statements`
+
+### Problem
+
+Production runs at `logging.level.root=INFO`, and several statements at INFO/WARN wrote raw
+personal data of minors into the application log:
+
+| Site | Level | Logged |
+|---|---|---|
+| `UserService.register` | INFO | full email **and** nickname, on every signup |
+| `UserService.registerOAuthUser` | INFO | full email, on every OAuth auto-registration |
+| `CustomOAuth2UserService.loadUser` | INFO | full email, on every new OAuth user |
+| `TokenService` (3 sites) | WARN | full email, whenever Redis is unavailable |
+| `UserController.login`, `CustomOAuth2UserService` | DEBUG | full email (dev only) |
+
+These logs go to the container's stdout and on to the platform's log store, where they are
+retained far longer than the data-minimisation rationale for collecting an email in the first
+place, and are readable by anyone with log access rather than by anyone with database access.
+A Redis outage was enough to dump one email per token operation at WARN.
+
+This also directly violated the repository's own stated rule: *"Never log sensitive fields
+(passwords, tokens, PII)."*
+
+### Change
+
+- New `Utils/LogMasker` — `maskEmail` keeps the first two characters of the local part
+  (`wkdgur752500@gmail.com` → `wk***@gmail.com`), `maskNickname` keeps the first character.
+  Masking is deterministic, so entries for the same user still correlate across a log file, but
+  the log alone no longer identifies an account.
+- All nine sites now log either the masked value or, where the entity is already loaded, the
+  `userId` — which is the better identifier anyway because it joins to the database.
+  `TokenService` switched to `userId` at all three sites; `CustomOAuth2UserService`'s login-success
+  line moved below the lookup so it can log `userId` instead of the address.
+- The registration line dropped the nickname entirely: it added nothing to diagnosis that the
+  masked email did not.
+
+### Verification
+
+- `LogMaskerTest` (new, 16 cases) — masking shape for typical/short/malformed input, and an
+  explicit assertion that the full local part cannot be reconstructed from the output.
+- `PiiLoggingGuardTest` (new) — walks every `.java` file under `src/main/java`, finds each
+  `log.*(…)` call, and fails the build if an argument matches `…email()`, `getEmailValue()`,
+  `…phone()`, `getNicknameValue()`, `getRawPassword()`, or a raw token variable, unless the
+  argument list goes through `LogMasker`. This makes the rule enforceable at build time rather
+  than at review time — the failure names the file and line.
+
+Confirmed non-vacuous: restoring the raw email in `UserService.register` fails the guard with
+`UserService.java:101` in the message.
+
+Full suite: 276 tests, 0 failures.
+
+---
+
 ## 007 — Fix lost updates in reaction counter recalculation
 
 **Area:** Transaction / Concurrency

@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.services.security;
 
+import com.example.highteenday_backend.Utils.LogMasker;
 import com.example.highteenday_backend.dtos.Login.OAuth2UserInfo;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.enums.Provider;
@@ -46,7 +47,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         if (isNew) {
             //프로필 이미지 url 추출
             String pictureUrl = (String) oAuth2UserAttributes.get("picture");
-            log.info("OAuth2 new user auto-registered. provider={}, email={}", registrationId, oAuth2UserInfo.email());
+            log.info("OAuth2 new user auto-registered. provider={}, email={}", registrationId, LogMasker.maskEmail(oAuth2UserInfo.email()));
             //email, name, provider 를 가져와 회원가입 진행
             user = userService.registerOAuthUser(
                     oAuth2UserInfo.email(),
@@ -55,8 +56,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                     pictureUrl
             );
         } else {
-            log.debug("OAuth2 login successful. provider={}, email={}", registrationId, oAuth2UserInfo.email());
             user = userService.findByEmail(oAuth2UserInfo.email());
+            log.debug("OAuth2 login successful. provider={}, userId={}", registrationId, user.getId());
         }
         //spring security에서 사용할 principal 객체 생성하여 반환(isNew의 경우 온보딩 처리 시 사용할 트리거)
         return new CustomUserPrincipal(user, oAuth2UserAttributes, isNew);

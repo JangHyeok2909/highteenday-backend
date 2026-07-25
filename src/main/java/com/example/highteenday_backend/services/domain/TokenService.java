@@ -33,7 +33,7 @@ public class TokenService {
             try {
                 tokenRedisTemplate.delete(RT_PREFIX + token.getRefreshToken());
             } catch (Exception e) {
-                log.warn("Redis unavailable, could not delete RT key on logout. email={}", email, e);
+                log.warn("Redis unavailable, could not delete RT key on logout. userId={}", user.getId(), e);
             }
             tokenRepository.delete(token);
         });
@@ -53,7 +53,7 @@ public class TokenService {
                     try {
                         tokenRedisTemplate.delete(RT_PREFIX + t.getRefreshToken());
                     } catch (Exception e) {
-                        log.warn("Redis unavailable, could not delete old RT key. userKey={}", userKey, e);
+                        log.warn("Redis unavailable, could not delete old RT key. userId={}", user.getId(), e);
                     }
                     t.updateAccessToken(accessToken);
                     t.updateRefreshToken(refreshToken, expiresAt);
@@ -67,7 +67,7 @@ public class TokenService {
         try {
             tokenRedisTemplate.opsForValue().set(RT_PREFIX + refreshToken, userKey, REFRESH_TTL);
         } catch (Exception e) {
-            log.warn("Redis unavailable, RT not cached. DB fallback will be used on next lookup. userKey={}", userKey, e);
+            log.warn("Redis unavailable, RT not cached. DB fallback will be used on next lookup. userId={}", user.getId(), e);
         }
     }
 

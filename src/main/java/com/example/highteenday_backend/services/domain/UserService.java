@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.services.domain;
 
 
+import com.example.highteenday_backend.Utils.LogMasker;
 import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
 import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplateRepository;
 import com.example.highteenday_backend.domain.users.User;
@@ -97,7 +98,7 @@ public class UserService {
             throw new CustomException(ErrorCode.ALREADY_EXISTS_USER);
         }
 
-        log.info("User registration in progress. nickname={}, email={}", registerUserDto.nickname(), registerUserDto.email());
+        log.info("User registration in progress. email={}", LogMasker.maskEmail(registerUserDto.email()));
 
         Provider provider = (registerUserDto.provider() == null)
                 ? Provider.DEFAULT
@@ -158,7 +159,7 @@ public class UserService {
             nickname = (baseNickname.length() > maxBase ? baseNickname.substring(0, maxBase) : baseNickname) + suffixStr;
         }
 
-        log.info("OAuth auto-registration. email={}, provider={}", email, provider);
+        log.info("OAuth auto-registration. email={}, provider={}", LogMasker.maskEmail(email), provider);
 
         User user = User.createOAuth(
                 new Email(email),

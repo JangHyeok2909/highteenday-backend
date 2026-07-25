@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.initializers;
 
+import com.example.highteenday_backend.Utils.LogMasker;
 import com.example.highteenday_backend.domain.friends.Friend;
 import com.example.highteenday_backend.domain.friends.FriendRepository;
 import com.example.highteenday_backend.domain.friends.FriendReq;
@@ -86,7 +87,7 @@ public class DataInitializer {
                         .school(schoolService.findById((long)i))
                         .build();
                 userRepository.save(user);
-                log.info("Test user created. email={}", email);
+                log.info("Test user created. email={}", LogMasker.maskEmail(email));
             }
         }
     }
