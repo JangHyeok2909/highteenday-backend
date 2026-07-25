@@ -29,4 +29,8 @@ public class ChatRoom extends BaseEntity {
 
     @Column(name = "CHT_RM_last_msg", length = 255)
     private String lastMessage;
+
+    public void updateLastMessage(String lastMessage) {
+        this.lastMessage = lastMessage;
+    }
 }

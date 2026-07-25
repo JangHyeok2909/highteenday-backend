@@ -1,6 +1,6 @@
 package com.example.highteenday_backend.domain.chat;
 
+import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface ChatRoomRepository {
-
+public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 }
