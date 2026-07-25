@@ -5,6 +5,63 @@ Newest entries at the top.
 
 ---
 
+## 004 — Make anonymity safe by construction in the DTO layer
+
+**Area:** Security / DDD
+**Commit:** `fix: hide author identity in anonymous post and comment DTOs`
+
+### Problem
+
+The platform's core promise is anonymity, but the DTOs that serialize posts and comments
+leaked author identity:
+
+`CommentDto.fromEntity` copied the author's **real nickname** and **userId** onto every DTO
+regardless of `isAnonymous`:
+
+```java
+.userId(comment.getUser().getId())
+.author(comment.getUser().getNicknameValue())
+.profileUrl(comment.isAnonymous() ? null : comment.getUser().getProfileUrl())  // only this was guarded
+```
+
+The comment **list** endpoint happened to be safe only because `CommentAnonymizationService`
+overwrote `author` and `userId` *after* conversion. Any other caller got the raw values — and
+one existed: `GET /api/posts/{postId}/comments/{commentId}` returned `CommentDto.fromEntity(...)`
+directly, with no anonymization and (per `SecurityConfig`'s `GET /**` permitAll rule) **no
+authentication**. Anyone could de-anonymize any comment by id.
+
+`PostDto.fromEntity` correctly masked `author` and `userId` for anonymous posts but passed
+`profileUrl` through unconditionally. A profile image URL is the same S3 URL shown on the user's
+public profile, so it links an "익명" post straight back to a real account.
+
+The architectural fault underneath both: the DTO was **unsafe by default** and safety lived in a
+separate collaborator. Any new endpoint that converted an entity leaked by omission.
+
+### Change
+
+Anonymity is now enforced at the conversion boundary, so there is no way to produce an
+identity-leaking DTO:
+
+- `CommentDto.fromEntity` — when `isAnonymous`, emits `author="익명"`, `userId=null`,
+  `profileUrl=null`.
+- `PostDto.fromEntity` — `profileUrl` now follows the same branch as `author` and `userId`.
+
+`CommentAnonymizationService` is unchanged in behaviour: it still assigns the per-thread display
+index (`익명1`, `익명(글쓴이)`), but now layers that on top of an already-safe base rather than
+being the only thing standing between a real nickname and the wire. `isOwner` is computed from the
+entity in the controller, so it is unaffected by the DTO no longer carrying `userId`.
+
+### Verification
+
+`AnonymityLeakTest` (new, 4 cases) asserts that anonymous posts and comments expose none of
+`author`, `userId`, `profileUrl`, and that non-anonymous ones still carry all three.
+Confirmed non-vacuous: restoring either old conversion fails exactly the two anonymous cases.
+`CommentAnonymizationServiceTest` (8 existing cases) still passes unchanged.
+
+Full suite: 202 tests, 0 failures.
+
+---
+
 ## 003 — Stop leaking internal exception detail in error responses
 
 **Area:** Security (CWE-209) / Exception Handling / Logging

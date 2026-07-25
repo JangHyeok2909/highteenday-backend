@@ -43,17 +43,20 @@ public class PostDto {
     private boolean isUpdated=false;
     private BoardDto board;
 
+    /** 익명 게시글은 작성자를 식별할 수 있는 값을 담지 않는다. */
     public static PostDto fromEntity(Post post) {
         String nickname = "익명";
         Long userId = null;
+        String profileUrl = null;
         if (!post.isAnonymous()) {
             nickname = post.getUser().getNicknameValue();
             userId = post.getUser().getId();
+            profileUrl = post.getUser().getProfileUrl();
         }
         return PostDto.builder()
                 .id(post.getId())
                 .author(nickname)
-                .profileUrl(post.getUser().getProfileUrl())
+                .profileUrl(profileUrl)
                 .userId(userId)
                 .title(post.getTitle())
                 .content(post.getContent())

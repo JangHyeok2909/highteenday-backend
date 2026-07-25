@@ -37,17 +37,23 @@ public class CommentDto {
     @Builder.Default
     private boolean isUpdated = false;
 
+    /**
+     * 익명 댓글은 작성자를 식별할 수 있는 값을 담지 않는다.
+     * 목록 응답에서 "익명1", "익명(글쓴이)" 같은 표시 번호는
+     * CommentAnonymizationService가 이 안전한 기본값 위에 덮어쓴다.
+     */
     public static CommentDto fromEntity(Comment comment) {
+        boolean anonymous = comment.isAnonymous();
         return CommentDto.builder()
                 .id(comment.getId())
-                .userId(comment.getUser().getId())
+                .userId(anonymous ? null : comment.getUser().getId())
                 .parentId(comment.getParent() != null ? comment.getParent().getId() : null)
-                .author(comment.getUser().getNicknameValue())
+                .author(anonymous ? "익명" : comment.getUser().getNicknameValue())
                 .content(comment.getContent())
                 .likeCount(comment.getLikeCount())
                 .dislikeCount(comment.getDislikeCount())
-                .isAnonymous(comment.isAnonymous())
-                .profileUrl(comment.isAnonymous() ? null : comment.getUser().getProfileUrl())
+                .isAnonymous(anonymous)
+                .profileUrl(anonymous ? null : comment.getUser().getProfileUrl())
                 .url(comment.getS3Url())
                 .createdAt(comment.getCreated())
                 .updatedAt(comment.getUpdatedDate())
