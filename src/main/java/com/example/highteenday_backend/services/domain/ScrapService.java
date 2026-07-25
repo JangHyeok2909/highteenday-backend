@@ -5,16 +5,17 @@ import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.scraps.Scrap;
 import com.example.highteenday_backend.domain.scraps.ScrapRepository;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.eventEntities.events.ScrapToggledEvent;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.services.domain.redisService.PostPrevCache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Comparator;
-import java.util.List;
 import java.util.Optional;
 
 @RequiredArgsConstructor
@@ -25,10 +26,9 @@ public class ScrapService {
     private final PostPrevCache postPrevCache;
     private final ApplicationEventPublisher eventPublisher;
 
-    public List<Scrap> getRecentScrapsByUser(User user) {
-        List<Scrap> scraps = scrapRepository.findByUser(user);
-        scraps.sort(Comparator.comparing(Scrap::getCreated).reversed());
-        return scraps;
+    /** 마이페이지 스크랩 목록. 최근 스크랩 순으로 요청한 페이지만 조회한다. */
+    public Page<PostPreviewDto> getScrappedPostPreviews(User user, int page, int size) {
+        return scrapRepository.findScrappedPostPreviews(user, PageRequest.of(page, size));
     }
 
     public boolean isScraped(Post post, User user) {

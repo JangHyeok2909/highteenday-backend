@@ -4,9 +4,9 @@ package com.example.highteenday_backend.controllers;
 import com.example.highteenday_backend.Utils.PageUtils;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.posts.Post;
-import com.example.highteenday_backend.domain.scraps.Scrap;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.paged.PagedCommentsDto;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.dtos.paged.PagedPostsDto;
 import com.example.highteenday_backend.enums.SortType;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
@@ -18,8 +18,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,8 +25,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
-import java.util.List;
 
 @Tag(name = "마이페이지 API", description = "내가쓴 게시글,내가 쓴 댓글, 내가 스크랩한 게시글 조회")
 @RequiredArgsConstructor
@@ -66,13 +62,8 @@ public class MypageController {
                                            @RequestParam Integer page
                                            ){
         User user = userPrincipal.getUser();
-        List<Scrap> scraps = scrapService.getRecentScrapsByUser(user);
-        List<Post> posts=new ArrayList<>();
-        for(Scrap s : scraps) posts.add(s.getPost());
-        Pageable pageable = PageRequest.of(page, PAGE_SIZE);
-        Page<Post> pagedPosts = PageUtils.createPage(posts, pageable);
-        PagedPostsDto pagedPostsDto = PageUtils.postsToDto(pagedPosts);
-        return ResponseEntity.ok(pagedPostsDto);
+        Page<PostPreviewDto> pagedPreviews = scrapService.getScrappedPostPreviews(user, page, PAGE_SIZE);
+        return ResponseEntity.ok(PageUtils.previewsToDto(pagedPreviews));
     }
 
 }

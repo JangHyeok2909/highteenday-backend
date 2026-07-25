@@ -143,25 +143,4 @@ class ScrapServiceTest {
         }
     }
 
-    @Nested
-    @DisplayName("getRecentScrapsByUser")
-    class RecentScraps {
-
-        @Test
-        @DisplayName("생성 시각 내림차순으로 정렬한다")
-        void sortsByCreatedDescending() {
-            LocalDateTime older = LocalDateTime.of(2024, 1, 1, 10, 0);
-            LocalDateTime newer = LocalDateTime.of(2024, 6, 1, 10, 0);
-            Scrap s1 = mock(Scrap.class);
-            Scrap s2 = mock(Scrap.class);
-            when(s1.getCreated()).thenReturn(older);
-            when(s2.getCreated()).thenReturn(newer);
-            List<Scrap> list = new ArrayList<>(List.of(s1, s2));
-            when(scrapRepository.findByUser(user)).thenReturn(list);
-
-            List<Scrap> out = scrapService.getRecentScrapsByUser(user);
-
-            assertThat(out).containsExactly(s2, s1);
-        }
-    }
 }

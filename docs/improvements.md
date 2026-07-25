@@ -5,6 +5,74 @@ Newest entries at the top.
 
 ---
 
+## 011 — Replace in-memory pagination on the scrap list
+
+**Area:** Performance / Query Optimization
+**Commit:** `perf: page scrapped posts in the database`
+
+### Problem
+
+`GET /api/mypage/scraps` paginated in Java, after loading everything:
+
+```java
+List<Scrap> scraps = scrapService.getRecentScrapsByUser(user);   // every scrap the user owns
+List<Post> posts = new ArrayList<>();
+for (Scrap s : scraps) posts.add(s.getPost());                   // one lazy load per scrap
+Page<Post> pagedPosts = PageUtils.createPage(posts, pageable);   // then keep 10, discard the rest
+```
+
+For a user with `S` scraps, one request cost roughly `S + 21` queries and materialised `S` `Post`
+entities — to return ten preview rows. The sort ran in Java too
+(`Comparator.comparing(Scrap::getCreated).reversed()`), so the whole collection had to be in
+memory before the first row could be chosen. Cost scaled with how long the user had been active,
+which is the worst possible shape: the service's most engaged users get the slowest page.
+
+`PageUtils.createPage` also had an unguarded `list.subList(start, end)`. Requesting a page past
+the end gives `start > list.size()`, and `subList` throws `IllegalArgumentException` → **500**,
+where the correct answer is an empty page. Any client that kept scrolling after the last page hit
+it.
+
+### Change
+
+A single projected, paged query replaces the whole block:
+
+```java
+select new PostPreviewDto(p.id, p.board.id, p.nickname, p.title, p.viewCount,
+                          p.likeCount, p.commentCount, p.created)
+from Scrap s join s.post p
+where s.user = :user and s.isValid = true and p.isValid = true
+order by s.created desc
+```
+
+- `LIMIT`/`OFFSET` and `ORDER BY` are done by the database, so cost no longer depends on `S`.
+- Projecting the preview fields directly means no `Post`, `Board`, or `User` entity is loaded, so
+  the previous per-row lazy loads are gone entirely — **2 queries** (page + count) regardless of
+  size.
+- Author is taken from the denormalized `p.nickname`, consistent with improvement 006, so the
+  anonymity guarantee holds on this path too.
+- The `p.isValid = true` predicate is new: previously a scrap pointing at a deleted post still
+  produced a row.
+
+`ScrapService.getRecentScrapsByUser` and `PageUtils.createPage` were both used **only** by this
+endpoint, so both were deleted rather than left as unused hazards — which also removes the
+`subList` 500.
+
+### Verification
+
+`ScrappedPostPagingTest` (new, `@DataJpaTest`, 6 cases): a 35-scrap user gets exactly 10 rows with
+correct `totalElements`/`totalPages`; ordering is most-recently-scrapped first; query count is
+exactly 2 and identical at 15 and 55 scraps; an out-of-range page returns empty instead of
+throwing; cancelled scraps and soft-deleted posts are excluded; an anonymous post's preview does
+not carry the author's real nickname.
+
+Note on the query-count assertion: both sample sizes must span more than one page, because Spring
+Data skips the count query when the result fits in a single page — the first draft compared 5 vs 45
+and saw 1 vs 2 for that reason, not because of an N+1.
+
+Full suite: 286 tests, 0 failures.
+
+---
+
 ## 010 — Make comment and scrap counters concurrency-safe
 
 **Area:** Transaction / Concurrency

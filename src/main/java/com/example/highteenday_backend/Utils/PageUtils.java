@@ -72,11 +72,13 @@ public class PageUtils {
 //
 //        return pagedDto;
 //    }
-    public static <T> Page<T> createPage(List<T> list, Pageable pageable) {
-        // List<T>를 Page<T>로 변환
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), list.size());
-        List<T> subList = list.subList(start, end);
-        return new PageImpl<>(subList, pageable, list.size());
+    /** 이미 미리보기로 투영된 페이지를 응답 DTO로 감싼다. */
+    public static PagedPostsDto previewsToDto(Page<PostPreviewDto> pagedPreviews) {
+        return PagedPostsDto.builder()
+                .page(pagedPreviews.getNumber())
+                .totalPages(pagedPreviews.getTotalPages())
+                .totalElements(pagedPreviews.getTotalElements())
+                .postPreviewDtos(pagedPreviews.getContent())
+                .build();
     }
 }
