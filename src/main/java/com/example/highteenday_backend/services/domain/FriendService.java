@@ -180,6 +180,14 @@ public class FriendService {
         }
     }
 
+    // 서로 차단하지 않은 친구 관계인지 검증
+    @Transactional
+    public void validateFriendship(Long meId, Long friendId) {
+        if (!friendRepository.existsFriendship(meId, friendId)) {
+            throw new CustomException(ErrorCode.FRIEND_NOT_FOUND);
+        }
+    }
+
     // 친구 검색
     // 검색 했는데 없으면 그냥 빈 리스트 반환
     @Transactional
