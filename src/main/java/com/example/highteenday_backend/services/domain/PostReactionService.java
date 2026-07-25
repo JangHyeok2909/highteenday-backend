@@ -4,13 +4,15 @@ import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.posts.PostReaction;
 import com.example.highteenday_backend.domain.posts.PostReactionKind;
 import com.example.highteenday_backend.domain.posts.PostReactionRepository;
+import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.LikeStateDto;
 import com.example.highteenday_backend.eventEntities.events.PostReactedEvent;
-import jakarta.transaction.Transactional;
+import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -19,6 +21,7 @@ import java.util.Optional;
 public class PostReactionService {
 
     private final PostReactionRepository postReactionRepository;
+    private final PostRepository postRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     public boolean isLikedByUser(Post post, User user) {
@@ -35,6 +38,7 @@ public class PostReactionService {
     * */
     @Transactional
     public void likeReact(Post post, User user) {
+        lockPost(post);
         boolean liked = isLikedByUser(post, user);
         boolean disliked = isDislikedByUser(post, user);
         if (liked && !disliked) {   //좋아요 상태 -> valid = false 전환
@@ -46,6 +50,7 @@ public class PostReactionService {
 
     @Transactional
     public void dislikeReact(Post post, User user) {
+        lockPost(post);
         boolean liked = isLikedByUser(post, user);
         boolean disliked = isDislikedByUser(post, user);
         if (!liked && disliked) { //싫어요 상태 -> valid = false 전환
@@ -64,6 +69,15 @@ public class PostReactionService {
                 .isDisliked(isDisliked)
                 .likeCount(post.getLikeCount())
                 .build();
+    }
+
+    /**
+     * 같은 게시글에 대한 반응 처리를 직렬화한다. 트랜잭션이 커밋될 때까지 잠금이 유지되므로
+     * 뒤이은 트랜잭션의 재집계 COUNT는 앞선 트랜잭션이 만든 행을 반드시 포함한다.
+     */
+    private void lockPost(Post post) {
+        postRepository.findByIdForUpdate(post.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("post does not exist, postId=" + post.getId()));
     }
 
     private void cancelState(Post post, User user) {

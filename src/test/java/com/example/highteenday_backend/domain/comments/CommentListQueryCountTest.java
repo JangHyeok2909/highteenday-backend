@@ -63,7 +63,7 @@ class CommentListQueryCountTest {
 
     @BeforeEach
     void setUp() {
-        commentReactionService = new CommentReactionService(commentReactionRepository);
+        commentReactionService = new CommentReactionService(commentReactionRepository, commentRepository);
         anonymizationService = new CommentAnonymizationService();
 
         Board board = boardRepository.save(Board.builder().name("자유게시판").build());

@@ -3,12 +3,14 @@ package com.example.highteenday_backend.services.domain;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.comments.CommentReaction;
 import com.example.highteenday_backend.domain.comments.CommentReactionRepository;
+import com.example.highteenday_backend.domain.comments.CommentRepository;
 import com.example.highteenday_backend.domain.posts.PostReactionKind;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.LikeStateDto;
-import jakarta.transaction.Transactional;
+import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
@@ -21,6 +23,7 @@ import java.util.stream.Collectors;
 public class CommentReactionService {
 
     private final CommentReactionRepository commentReactionRepository;
+    private final CommentRepository commentRepository;
 
     public boolean isLikedByUser(Comment comment, User user) {
         return commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.LIKE);
@@ -32,6 +35,7 @@ public class CommentReactionService {
 
     @Transactional
     public void likeReact(Comment comment, User user) {
+        lockComment(comment);
         boolean liked = isLikedByUser(comment, user);
         boolean disliked = isDislikedByUser(comment, user);
         if (liked && !disliked) {
@@ -46,6 +50,7 @@ public class CommentReactionService {
 
     @Transactional
     public void dislikeReact(Comment comment, User user) {
+        lockComment(comment);
         boolean liked = isLikedByUser(comment, user);
         boolean disliked = isDislikedByUser(comment, user);
         if (liked && !disliked) {
@@ -98,6 +103,16 @@ public class CommentReactionService {
                     .build());
         }
         return states;
+    }
+
+    /**
+     * 같은 댓글에 대한 반응 처리를 직렬화한다. 트랜잭션이 커밋될 때까지 잠금이 유지되므로
+     * 뒤이은 트랜잭션의 재집계 COUNT는 앞선 트랜잭션이 만든 행을 반드시 포함한다.
+     */
+    private void lockComment(Comment comment) {
+        commentRepository.findByIdForUpdate(comment.getId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "does not exists Comment, commentId=" + comment.getId()));
     }
 
     private void cancelLikeInternal(Comment comment, User user) {

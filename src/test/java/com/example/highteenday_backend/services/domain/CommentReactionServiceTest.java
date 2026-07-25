@@ -3,16 +3,19 @@ package com.example.highteenday_backend.services.domain;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.comments.CommentReaction;
 import com.example.highteenday_backend.domain.comments.CommentReactionRepository;
+import com.example.highteenday_backend.domain.comments.CommentRepository;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.posts.PostReactionKind;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.LikeStateDto;
+import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,6 +25,10 @@ import org.mockito.quality.Strictness;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,6 +40,8 @@ class CommentReactionServiceTest {
 
     @Mock
     private CommentReactionRepository commentReactionRepository;
+    @Mock
+    private CommentRepository commentRepository;
 
     @InjectMocks
     private CommentReactionService commentReactionService;
@@ -46,7 +55,32 @@ class CommentReactionServiceTest {
         dummyPost = Post.builder().id(1L).build();
         comment = Comment.builder().id(COMMENT_ID).post(dummyPost).likeCount(0).dislikeCount(0).build();
         user = User.builder().id(1L).build();
+        when(commentRepository.findByIdForUpdate(COMMENT_ID)).thenReturn(Optional.of(comment));
         stubCounts(0, 0);
+    }
+
+    @Test
+    @DisplayName("반응 처리는 카운터를 재집계하기 전에 댓글 행을 잠근다")
+    void locksCommentBeforeRecounting() {
+        when(commentReactionRepository.findByCommentAndUser(comment, user)).thenReturn(Optional.empty());
+
+        commentReactionService.likeReact(comment, user);
+
+        // 잠금이 COUNT 뒤로 밀리면 동시 요청 사이에서 갱신 손실이 다시 발생한다.
+        InOrder inOrder = inOrder(commentRepository, commentReactionRepository);
+        inOrder.verify(commentRepository).findByIdForUpdate(COMMENT_ID);
+        inOrder.verify(commentReactionRepository).countByCommentAndKindAndIsValidTrue(comment, PostReactionKind.LIKE);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 댓글이면 잠금 단계에서 실패한다")
+    void failsWhenCommentDisappeared() {
+        when(commentRepository.findByIdForUpdate(COMMENT_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> commentReactionService.likeReact(comment, user))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(commentReactionRepository, never()).save(any());
     }
 
     private void stubCounts(int likes, int dislikes) {

@@ -5,6 +5,88 @@ Newest entries at the top.
 
 ---
 
+## 007 — Fix lost updates in reaction counter recalculation
+
+**Area:** Transaction / Concurrency
+**Commit:** `fix: lock the target row before recounting reactions`
+
+### Problem
+
+`PostReactionService.syncCounts` (and its comment twin) maintains the denormalized
+`PST_like_count` / `PST_dislike_count` columns by recounting from the reactions table and
+assigning the result to the entity:
+
+```java
+int likes = postReactionRepository.countByPostAndKindAndIsValidTrue(post, LIKE);
+post.syncReactionCounts(likes, dislikes);
+```
+
+That is a read-modify-write with no lock. Under `READ COMMITTED`, two users liking the same post
+concurrently interleave as:
+
+| | T1 | T2 |
+|---|---|---|
+| 1 | `INSERT` reaction A | |
+| 2 | | `INSERT` reaction B |
+| 3 | `COUNT` → 10 (B uncommitted, invisible) | |
+| 4 | | `COUNT` → 10 (A uncommitted, invisible) |
+| 5 | `UPDATE posts SET like_count = 10` | |
+| 6 | | `UPDATE posts SET like_count = 10` |
+
+Two reactions were inserted; the counter advanced by one. The displayed count drifts permanently
+**below** the true value, and every subsequent concurrent pair widens the gap.
+
+This was a known-suspected defect: the repository already ships `PostConsistencyController` /
+`PostConsistencyService` (`@Profile("!prod")`), which compares the denormalized counters against
+`COUNT(*)` on the reactions table and reports a `drift` flag, called from a k6 load-test teardown.
+The detector existed; the cause was never fixed.
+
+### Change
+
+- `PostRepository.findByIdForUpdate` and `CommentRepository.findByIdForUpdate` — new queries
+  annotated `@Lock(LockModeType.PESSIMISTIC_WRITE)`, i.e. `SELECT … FOR UPDATE`.
+- `likeReact` / `dislikeReact` in both reaction services take that lock as their **first**
+  statement. The lock is held until commit, so a second transaction on the same post blocks until
+  the first commits — and its recount therefore sees the first transaction's row.
+- Both services switched from `jakarta.transaction.Transactional` to Spring's annotation, matching
+  the convention used everywhere else in `services/`.
+- Added covering index `(PST_id, PST_RCT_kind, is_valid)` on `posts_reactions` and the equivalent
+  on `comments_reactions`. Only `uk_*_reactions_*_usr (id, USR_id)` existed, so the recount had to
+  scan every reaction on the row and filter. Since prod runs `ddl-auto=none`, the `@Index`
+  declarations are accompanied by `src/main/resources/ddl/V_reaction_count_indexes.sql` to be
+  applied manually before deploy.
+
+Serialization is per-row, not global: concurrent reactions on *different* posts are unaffected.
+
+### Known remaining cost
+
+The recount is still O(reactions on that post) per click. It is self-healing, which is why it was
+kept, but a post with 10k reactions pays a 10k-entry index scan on every button press. The next
+step is an atomic `like_count = like_count + delta` update with the recount demoted to a periodic
+repair job. Deliberately not done here: it changes the counter's semantics from authoritative to
+incremental and deserves its own change.
+
+`PostReactionService.getLikeSatateDto` never populates `dislikeCount` (always 0). It is unused by
+the current controller, which builds its own DTO, so it was left alone rather than fixed
+speculatively.
+
+### Verification
+
+- `ReactionCountLockingTest` (new, 2 cases) — reflects over both repositories and asserts the
+  locking query is annotated `PESSIMISTIC_WRITE`, so weakening it to a read lock fails the build.
+- `PostReactionServiceTest` / `CommentReactionServiceTest` (+4 cases) — `InOrder` verification that
+  the lock is acquired **before** the first `COUNT`, plus that a vanished row fails at the lock step
+  without writing a reaction.
+
+Confirmed non-vacuous: removing the two lock calls fails exactly those 4 cases.
+
+The concurrency property itself is pinned structurally (lock mode + ordering) rather than by a
+racing test — a two-thread test against H2 would be timing-dependent and is not worth the flake.
+
+Full suite: 259 tests, 0 failures.
+
+---
+
 ## 006 — Fix real nickname leak in the cached post-list projection
 
 **Area:** Security

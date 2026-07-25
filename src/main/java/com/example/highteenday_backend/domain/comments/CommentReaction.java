@@ -18,6 +18,11 @@ import lombok.NoArgsConstructor;
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_comments_reactions_cmt_usr",
                 columnNames = {"CMT_id", "USR_id"}
+        ),
+        // 카운터 재집계 COUNT(댓글 + 종류 + 유효)를 커버하는 인덱스
+        indexes = @Index(
+                name = "idx_comments_reactions_cmt_kind_valid",
+                columnList = "CMT_id, CMT_RCT_kind, is_valid"
         )
 )
 @Entity

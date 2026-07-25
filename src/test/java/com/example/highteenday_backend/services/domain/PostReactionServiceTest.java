@@ -4,15 +4,18 @@ import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.posts.PostReaction;
 import com.example.highteenday_backend.domain.posts.PostReactionKind;
 import com.example.highteenday_backend.domain.posts.PostReactionRepository;
+import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.LikeStateDto;
 import com.example.highteenday_backend.eventEntities.events.PostReactedEvent;
+import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -23,6 +26,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -34,6 +38,8 @@ class PostReactionServiceTest {
 
     @Mock
     private PostReactionRepository postReactionRepository;
+    @Mock
+    private PostRepository postRepository;
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
@@ -55,7 +61,32 @@ class PostReactionServiceTest {
                 .id(1L)
                 .build();
 
+        when(postRepository.findByIdForUpdate(POST_ID)).thenReturn(Optional.of(post));
         stubCounts(0, 0);
+    }
+
+    @Test
+    @DisplayName("반응 처리는 카운터를 재집계하기 전에 게시글 행을 잠근다")
+    void locksPostBeforeRecounting() {
+        when(postReactionRepository.findByPostAndUser(post, user)).thenReturn(Optional.empty());
+
+        postReactionService.likeReact(post, user);
+
+        // 잠금이 COUNT 뒤로 밀리면 동시 요청 사이에서 갱신 손실이 다시 발생한다.
+        InOrder inOrder = inOrder(postRepository, postReactionRepository);
+        inOrder.verify(postRepository).findByIdForUpdate(POST_ID);
+        inOrder.verify(postReactionRepository).countByPostAndKindAndIsValidTrue(post, PostReactionKind.LIKE);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 게시글이면 잠금 단계에서 실패한다")
+    void failsWhenPostDisappeared() {
+        when(postRepository.findByIdForUpdate(POST_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> postReactionService.likeReact(post, user))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(postReactionRepository, never()).save(any());
     }
 
     private void stubCounts(int likes, int dislikes) {

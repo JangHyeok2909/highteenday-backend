@@ -17,6 +17,11 @@ import lombok.NoArgsConstructor;
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_posts_reactions_pst_usr",
                 columnNames = {"PST_id", "USR_id"}
+        ),
+        // 카운터 재집계 COUNT(게시글 + 종류 + 유효)를 커버하는 인덱스
+        indexes = @Index(
+                name = "idx_posts_reactions_pst_kind_valid",
+                columnList = "PST_id, PST_RCT_kind, is_valid"
         )
 )
 @Entity
