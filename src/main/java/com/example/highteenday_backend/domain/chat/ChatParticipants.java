@@ -35,4 +35,9 @@ public class ChatParticipants extends BaseEntity {
 
     @Column(name = "CHT_PT_last_read_count")
     private Integer lastReadCount;
+
+    public void updateLastRead(LocalDateTime readDate, int readCount) {
+        this.lastReadDate = readDate;
+        this.lastReadCount = readCount;
+    }
 }
