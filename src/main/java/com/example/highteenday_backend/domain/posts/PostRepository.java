@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -29,6 +30,25 @@ public interface PostRepository extends JpaRepository<Post,Long>, PostRepository
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Post p where p.id = :postId")
     Optional<Post> findByIdForUpdate(@Param("postId") Long postId);
+
+    /**
+     * 댓글 수는 엔티티에서 읽어 더한 뒤 쓰면 동시 작성 시 갱신이 유실된다.
+     * DB가 컬럼 값을 직접 증감하도록 해 한 문장 안에서 원자적으로 처리한다.
+     *
+     * <p>영속성 컨텍스트에 올라와 있는 Post 인스턴스는 갱신되지 않으므로,
+     * 같은 트랜잭션에서 댓글 수를 다시 읽어야 한다면 재조회할 것.
+     */
+    @Modifying(flushAutomatically = true)
+    @Query("update Post p set p.commentCount = p.commentCount + 1 where p.id = :postId")
+    int incrementCommentCount(@Param("postId") Long postId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update Post p
+            set p.commentCount = case when p.commentCount > 0 then p.commentCount - 1 else 0 end
+            where p.id = :postId
+            """)
+    int decrementCommentCount(@Param("postId") Long postId);
 
 //    @Modifying
 //    @Query("update Post p Set p.title=:title,p.content=:content where p.id=:postId")

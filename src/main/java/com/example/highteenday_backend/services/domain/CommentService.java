@@ -3,6 +3,7 @@ package com.example.highteenday_backend.services.domain;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.comments.CommentRepository;
 import com.example.highteenday_backend.domain.posts.Post;
+import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.enums.ErrorCode;
@@ -27,6 +28,7 @@ import java.util.List;
 @Service
 public class CommentService {
     private final CommentRepository commentRepository;
+    private final PostRepository postRepository;
     private final MediaProcessingService mediaProcessingService;
     private final ApplicationEventPublisher eventPublisher ;
 
@@ -54,7 +56,7 @@ public class CommentService {
 
         Comment comment = Comment.create(user, post, dto.getContent(), dto.isAnonymous(), dto.getUrl());
         if (dto.getParentId() != null) comment.assignParent(findCommentById(dto.getParentId()));
-        post.incrementCommentCount();
+        postRepository.incrementCommentCount(post.getId());
 
         comment = commentRepository.save(comment);
         Long userId = user.getId();
@@ -102,10 +104,9 @@ public class CommentService {
     public void deleteComment(Long commentId,Long userId){
         Comment comment = findCommentById(commentId);
         verifyAuthor(comment, userId);
-        Post post = comment.getPost();
         comment.delete();
         comment.setUpdatedBy(userId);
-        post.decrementCommentCount();
+        postRepository.decrementCommentCount(comment.getPost().getId());
         log.info("comment deleted. commentId={}, deletedBy={}",commentId,userId);
     }
 }

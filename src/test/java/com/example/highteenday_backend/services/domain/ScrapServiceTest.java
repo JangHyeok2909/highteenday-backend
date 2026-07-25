@@ -48,6 +48,8 @@ class ScrapServiceTest {
     void setUp() {
         post = Post.builder().id(10L).scrapCount(0).build();
         when(postRepository.findById(10L)).thenReturn(Optional.of(post));
+        // 스크랩 수 재집계 전 게시글 행 잠금
+        when(postRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(post));
         when(scrapRepository.countValidByPost(post)).thenReturn(1L);
     }
 

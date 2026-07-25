@@ -5,6 +5,75 @@ Newest entries at the top.
 
 ---
 
+## 010 — Make comment and scrap counters concurrency-safe
+
+**Area:** Transaction / Concurrency
+**Commit:** `fix: increment comment count in SQL and lock before scrap recount`
+
+### Problem
+
+Two counters were still maintained with an unguarded read-modify-write, the last of the family
+started in 007 and 009.
+
+**`comment_count`** was adjusted purely in memory:
+
+```java
+post.incrementCommentCount();   // this.commentCount++ on a managed entity
+```
+
+Two users commenting on the same post both read 40, both write 41. One comment is invisible to the
+counter forever. `@DynamicUpdate` (improvement 009) narrows the statement to
+`SET comment_count = 41` but does not make it correct — it is still a blind write of a stale read.
+
+**`scrap_count`** used the same recount-then-assign shape as the reaction counters
+(`post.syncScrapCount(count(...))`), so it had the exact defect fixed in 007 but was missed there
+because it lives in `ScrapService`.
+
+### Change
+
+The two counters call for different tools, because they are different shapes:
+
+- **`comment_count` — atomic SQL.** New `PostRepository.incrementCommentCount` /
+  `decrementCommentCount` are `@Modifying` updates that reference the column on both sides
+  (`set p.commentCount = p.commentCount + 1`), so the database performs the arithmetic under its
+  own row lock inside one statement. `decrementCommentCount` keeps the existing floor via
+  `case when p.commentCount > 0 …`, preserving the old `decrementCommentCount()` guard. This is
+  O(1) and takes no application-held lock, so comment writes are not serialized per post.
+- **`scrap_count` — pessimistic lock.** The toggle recounts from the scraps table, so it needs the
+  same `findByIdForUpdate` treatment as reactions: the lock is taken before the recount and held to
+  commit, which makes the recount see concurrent commits.
+
+`CommentService` now takes `PostRepository`. The bulk update does not refresh the managed `Post`
+instance, which is documented on the repository methods; neither call site reads the count
+afterwards, and `createComment` returns only a `Location` header.
+
+Counter integrity is now complete across all five denormalized columns on `Post`:
+
+| Column | Shape | Protection |
+|---|---|---|
+| `like_count`, `dislike_count` | recount | row lock (007) |
+| `scrap_count` | recount | row lock (010) |
+| `comment_count` | delta | atomic SQL (010) |
+| `view_count` | batch delta | single scheduler + `@DynamicUpdate` (009) |
+
+### Verification
+
+- `CommentCountAtomicityTest` (new, `@DataJpaTest`, 3 cases) — five increments really accumulate to
+  5 against H2, decrement floors at 0, and both `@Query` strings are asserted to be
+  self-referential (`p.commentCount = … p.commentCount`), which is the property that makes them
+  atomic.
+- `CommentServiceTest` — the delete case now asserts `decrementCommentCount(POST_ID)` is invoked
+  rather than checking an in-memory field, and the rejected-stranger case asserts it is never
+  invoked.
+- `ScrapServiceTest` — stubs the lock query, so the lock is now part of the expected call sequence.
+
+Confirmed non-vacuous: rewriting the increment as `set p.commentCount = 1` fails 2 of the 3
+atomicity cases.
+
+Full suite: 281 tests, 0 failures.
+
+---
+
 ## 009 — Stop full-row updates from clobbering concurrent counter writes
 
 **Area:** Transaction / Query Optimization

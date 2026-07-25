@@ -3,6 +3,7 @@ package com.example.highteenday_backend.services.domain;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.comments.CommentRepository;
 import com.example.highteenday_backend.domain.posts.Post;
+import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.enums.ErrorCode;
@@ -27,6 +28,7 @@ import static org.mockito.Mockito.*;
 class CommentServiceTest {
 
     @Mock private CommentRepository commentRepository;
+    @Mock private PostRepository postRepository;
     @Mock private MediaProcessingService mediaProcessingService;
     @Mock private ApplicationEventPublisher eventPublisher;
 
@@ -36,13 +38,14 @@ class CommentServiceTest {
     private static final Long AUTHOR_ID = 1L;
     private static final Long STRANGER_ID = 2L;
     private static final Long COMMENT_ID = 100L;
+    private static final Long POST_ID = 10L;
 
     private Comment comment;
 
     @BeforeEach
     void setUp() {
         User author = User.builder().id(AUTHOR_ID).build();
-        Post post = Post.builder().id(10L).user(author).commentCount(3).build();
+        Post post = Post.builder().id(POST_ID).user(author).commentCount(3).build();
         comment = Comment.builder().id(COMMENT_ID).user(author).post(post).content("원본 내용").build();
 
         when(commentRepository.findById(COMMENT_ID)).thenReturn(Optional.of(comment));
@@ -79,12 +82,13 @@ class CommentServiceTest {
     class DeleteComment {
 
         @Test
-        @DisplayName("작성자 본인이면 삭제되고 게시글 댓글 수가 줄어든다")
+        @DisplayName("작성자 본인이면 삭제되고 게시글 댓글 수가 원자적으로 감소한다")
         void authorCanDelete() {
             commentService.deleteComment(COMMENT_ID, AUTHOR_ID);
 
             assertThat(comment.getIsValid()).isFalse();
-            assertThat(comment.getPost().getCommentCount()).isEqualTo(2);
+            // 엔티티에서 읽어 빼면 동시 삭제 시 갱신이 유실되므로 DB에서 직접 감소시킨다.
+            verify(postRepository).decrementCommentCount(POST_ID);
         }
 
         @Test
@@ -96,7 +100,7 @@ class CommentServiceTest {
                     .isEqualTo(ErrorCode.NO_ACCESS);
 
             assertThat(comment.getIsValid()).isTrue();
-            assertThat(comment.getPost().getCommentCount()).isEqualTo(3);
+            verify(postRepository, never()).decrementCommentCount(any());
         }
     }
 

@@ -50,6 +50,10 @@ public class ScrapService {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("post does not exist, postId=" + postId));
 
+        // 스크랩 수도 재집계 후 반영하는 read-modify-write이므로 게시글 행을 먼저 잠근다.
+        postRepository.findByIdForUpdate(postId)
+                .orElseThrow(() -> new ResourceNotFoundException("post does not exist, postId=" + postId));
+
         Optional<Scrap> optional = scrapRepository.findByPostAndUser(post, user);
         boolean alreadyScraped = optional.map(s -> Boolean.TRUE.equals(s.getIsValid())).orElse(false);
         String message;
