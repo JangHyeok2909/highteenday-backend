@@ -5,6 +5,64 @@ Newest entries at the top.
 
 ---
 
+## 003 — Stop leaking internal exception detail in error responses
+
+**Area:** Security (CWE-209) / Exception Handling / Logging
+**Commit:** `fix: stop returning internal exception messages to clients`
+
+### Problem
+
+Every handler in `GlobalExceptionHandler` except `handleCustomException` concatenated the raw
+exception message into the response body:
+
+```java
+"message", "서버 내부 오류가 발생했습니다." + " message=" + e.getMessage()
+```
+
+Framework exception messages are not user-facing text — they carry internals:
+
+| Handler | What the client actually received |
+|---|---|
+| 409 `DataIntegrityViolationException` | the **full failing INSERT statement**, every column name, and the violated constraint name |
+| 500 `Exception` | internal class names and JVM detail — e.g. `class java.lang.Long cannot be cast to class java.lang.Boolean (… loader 'bootstrap')`, which this service really did return to browsers |
+| 400 `HttpMessageNotReadableException` | Jackson errors naming internal DTO packages and fields |
+| 404 `ResourceNotFoundException` | internal lookup text such as `post does not exist, postId=4821` |
+
+This handed an unauthenticated attacker a free schema-mapping primitive: trigger a duplicate
+insert on any endpoint and read back the table's column list.
+
+A second, quieter problem: `handleCustomException` logged `e.getErrorCode().getMessage()` — the
+generic enum text — rather than `e.getMessage()`. The whole point of the
+`CustomException(ErrorCode, String detail)` constructor is to attach context at the throw site,
+and that context was being discarded from the logs entirely.
+
+### Change
+
+- No handler puts an exception message in the response body. Each status returns a fixed,
+  user-appropriate Korean string.
+- Every error response carries a short `traceId` (8 hex chars), logged alongside the exception.
+  This is what replaces the leaked message: a user can quote the id, and support greps for it.
+- `handleCustomException` now logs `e.getMessage()`, so throw-site detail reaches the logs.
+- `handleConflict` narrowed to `DataIntegrityViolationException` and logs
+  `getMostSpecificCause().getMessage()` — the useful root cause rather than the wrapper.
+- `MethodArgumentNotValidException` keeps returning per-field messages: those are Bean Validation
+  strings we author ourselves for end users, and they disclose nothing.
+
+Response shape is unchanged apart from the added `traceId` — clients already read `code` and
+`message`, so no frontend change is required.
+
+### Verification
+
+`GlobalExceptionHandlerTest` (new, 6 cases) asserts the response body of each handler does **not**
+contain the leaked fragments (`insert into`, `USR_EMAIL`, `SQL statement`, `java.lang.Long`,
+`cannot be cast`, internal package names, `postId=4821`), that `CustomException` still honours its
+`ErrorCode` status/code/message contract while keeping throw-site detail out of the response, and
+that all seven handlers emit a `traceId`.
+
+Full suite: 198 tests, 0 failures.
+
+---
+
 ## 002 — Enforce author-only mutation on posts and comments
 
 **Area:** Security (OWASP A01 — Broken Access Control)
