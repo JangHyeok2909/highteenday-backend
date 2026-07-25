@@ -5,6 +5,86 @@ Newest entries at the top.
 
 ---
 
+## 005 — Make the security filter chain deny-by-default
+
+**Area:** Security / Architecture
+**Commit:** `refactor: make security rules deny-by-default with an explicit allowlist`
+
+### Problem
+
+`SecurityConfig` authorised reads with a blanket rule:
+
+```java
+.requestMatchers(HttpMethod.GET, "/**").permitAll()
+.anyRequest().authenticated()
+```
+
+Every GET was public unless a path happened to appear in an `authenticated()` matcher declared
+above it. That is fail-open: protection depended on someone remembering to add each new read
+endpoint to a list, and the consequence of forgetting was silent public exposure rather than a
+visible 401.
+
+It had already gone wrong twice:
+
+- `GET /api/friends/list`, `/api/friends/requests/sent`, `/api/friends/requests/received` were
+  never added to the authenticated list, so they were reachable unauthenticated. They survived
+  only by accident — `@AuthenticationPrincipal` resolved to `null` and the controller threw an
+  NPE, returning **500 instead of 401**.
+- `GET /api/posts/{postId}/comments/{commentId}` (improvement 004) was publicly reachable for the
+  same reason, and it *did* return private data.
+
+The `/**` rule also meant that adding a controller was enough to publish it. That is the wrong
+default for a service holding minors' school, timetable, and social-graph data.
+
+### Change
+
+Inverted the policy. The chain now permits only what is explicitly listed and requires
+authentication for everything else:
+
+```java
+.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+.requestMatchers(PublicEndpoints.PUBLIC_ANY).permitAll()
+.requestMatchers(HttpMethod.GET,  PublicEndpoints.PUBLIC_GET).permitAll()
+.requestMatchers(HttpMethod.POST, PublicEndpoints.PUBLIC_POST).permitAll()
+.anyRequest().authenticated()
+```
+
+The allowlist moved into `PublicEndpoints`, a small constants class, so the public surface of the
+API is one readable, reviewable, testable list rather than an ordering-sensitive builder chain.
+It covers: community reads (boards, posts, search, comments, hot posts, school search), the
+signup duplicate-check endpoints, the authentication entry points (`register`, `login`,
+`token/refresh`), OAuth2 start and callback (`/oauth2/**`), and the servlet error dispatch.
+
+Behaviour changes for callers:
+
+| Path | Before | After |
+|---|---|---|
+| `GET /api/friends/**` | 500 (NPE on a null principal) | **401** |
+| static test fixtures under `/static` | public | authenticated (loaded via `ClassPathResource` in tests, never over HTTP) |
+
+All other paths keep their current behaviour; every endpoint that was intentionally public
+remains public.
+
+### Verification
+
+`SecurityPolicyTest` (new, 48 parameterized cases) parses the allowlist with the same
+`PathPatternParser` Spring Security uses and asserts both directions:
+
+- 17 private read paths (friends, mypage, notifications, user info, meals, timetables) match
+  **no** public pattern;
+- 13 write paths match no public pattern;
+- 11 genuinely public read paths and the 3 auth entry points **do** match, so a future tightening
+  cannot silently break anonymous browsing;
+- OAuth2 and `/error` stay open regardless of method.
+
+Confirmed non-vacuous: reintroducing `/**` into `PUBLIC_GET` fails exactly the 17 private-read
+cases. `HighteendayBackendApplicationTests.contextLoads` passes, so the rewritten chain builds
+against a real Spring context.
+
+Full suite: 250 tests, 0 failures.
+
+---
+
 ## 004 — Make anonymity safe by construction in the DTO layer
 
 **Area:** Security / DDD

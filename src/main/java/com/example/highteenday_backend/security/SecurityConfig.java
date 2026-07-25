@@ -71,36 +71,13 @@ public class SecurityConfig {
                             response.getWriter().write("{\"error\": \"Unauthorize request\"}");
                         }))
                 )
+                // 공개 경로만 명시적으로 허용하고 나머지는 전부 인증을 요구한다(deny by default).
+                // 공개 목록은 PublicEndpoints에서 관리하며 SecurityPolicyTest가 검증한다.
                 .authorizeHttpRequests(auth -> auth
-                        // 중복 체크는 인증 불필요 (GET /api/user/** authenticated 규칙보다 먼저 선언)
-                        .requestMatchers(HttpMethod.GET, "/api/user/check/**").permitAll()
-
-                        // GET 요청 중 인증 필요 경로
-                        .requestMatchers(HttpMethod.GET,
-                                "/api/user/OAuth2UserInfo",
-                                "/api/user/loginUser",
-                                "/api/user/**",
-                                "/api/mypage/**",
-                                "/api/timetableTemplates/**",
-                                "/api/schools/meals/**",
-                                "/api/notifications/**"
-                        ).authenticated()
-
-                        // POST/DELETE 요청 중 인증 필요 경로
-                        .requestMatchers(HttpMethod.POST, "/api/user/logout").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/user/account").authenticated()
-
-                        // POST 요청 중 인증 없이 허용하는 경로
-                        .requestMatchers(HttpMethod.POST,
-                                "/api/user/register",
-                                "/api/user/login",
-                                "/api/token/refresh",
-                                "/error"
-                        ).permitAll()
-                        // 그 외 모든 GET 요청은 허용
-                        .requestMatchers(HttpMethod.GET, "/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // 그 외 모든 요청은 인증 필요
+                        .requestMatchers(PublicEndpoints.PUBLIC_ANY).permitAll()
+                        .requestMatchers(HttpMethod.GET, PublicEndpoints.PUBLIC_GET).permitAll()
+                        .requestMatchers(HttpMethod.POST, PublicEndpoints.PUBLIC_POST).permitAll()
                         .anyRequest().authenticated()
                 )
 
