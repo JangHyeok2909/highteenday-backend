@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 
 
 @Slf4j
@@ -45,10 +46,11 @@ public class CommentController {
 
         if (userPrincipal != null) {
             User user = userPrincipal.getUser();
+            Map<Long, LikeStateDto> likeStates = commentReactionService.getLikeStates(comments, user);
             for (int i = 0; i < comments.size(); i++) {
                 Comment c = comments.get(i);
                 CommentDto dto = dtos.get(i);
-                LikeStateDto likeDto = commentReactionService.getLikeSatateDto(c, user);
+                LikeStateDto likeDto = likeStates.get(c.getId());
                 dto.setLiked(likeDto.isLiked());
                 dto.setDisliked(likeDto.isDisliked());
                 dto.setOwner(user.getId().equals(c.getUser().getId()));

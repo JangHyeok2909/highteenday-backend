@@ -10,7 +10,11 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
@@ -64,6 +68,36 @@ public class CommentReactionService {
                 .likeCount(comment.getLikeCount())
                 .dislikeCount(comment.getDislikeCount())
                 .build();
+    }
+
+    /**
+     * 댓글 목록 전체에 대한 로그인 사용자의 반응 상태를 조회 1번으로 계산한다.
+     * 댓글마다 {@link #getLikeSatateDto}를 호출하면 댓글 수의 2배만큼 쿼리가 발생하므로,
+     * 목록 응답을 만들 때는 이 메서드를 사용한다.
+     *
+     * @return 댓글 id를 키로 하는 반응 상태 맵 (모든 댓글에 대한 항목이 존재)
+     */
+    public Map<Long, LikeStateDto> getLikeStates(List<Comment> comments, User user) {
+        if (comments.isEmpty()) return Map.of();
+
+        List<Long> commentIds = comments.stream().map(Comment::getId).toList();
+        // (CMT_id, USR_id) 유니크 제약이 있으므로 댓글당 활성 반응은 최대 1건이다.
+        Map<Long, PostReactionKind> reactionKinds =
+                commentReactionRepository.findActiveByUserAndCommentIds(user, commentIds).stream()
+                        .collect(Collectors.toMap(r -> r.getComment().getId(), CommentReaction::getKind));
+
+        Map<Long, LikeStateDto> states = new HashMap<>();
+        for (Comment comment : comments) {
+            PostReactionKind kind = reactionKinds.get(comment.getId());
+            states.put(comment.getId(), LikeStateDto.builder()
+                    .commentId(comment.getId())
+                    .isLiked(kind == PostReactionKind.LIKE)
+                    .isDisliked(kind == PostReactionKind.DISLIKE)
+                    .likeCount(comment.getLikeCount())
+                    .dislikeCount(comment.getDislikeCount())
+                    .build());
+        }
+        return states;
     }
 
     private void cancelLikeInternal(Comment comment, User user) {
