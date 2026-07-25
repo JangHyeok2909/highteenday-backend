@@ -5,8 +5,10 @@ import com.example.highteenday_backend.domain.comments.CommentRepository;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
+import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.SortType;
 import com.example.highteenday_backend.eventEntities.events.CommentCreatedEvent;
+import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -75,9 +77,21 @@ public class CommentService {
     }
 
 
+    /**
+     * 댓글 작성자 본인인지 확인한다. 익명 댓글도 작성자 식별은 USR_id로 이루어지므로
+     * 익명 여부와 무관하게 동일하게 적용된다.
+     */
+    private void verifyAuthor(Comment comment, Long userId) {
+        if (!comment.getUser().getId().equals(userId)) {
+            log.warn("[Comment] unauthorized mutation attempt. commentId={}, requesterId={}", comment.getId(), userId);
+            throw new CustomException(ErrorCode.NO_ACCESS);
+        }
+    }
+
     @Transactional
     public void updateComment(Long commentId, Long userId, RequestCommentDto dto){
         Comment comment = findCommentById(commentId);
+        verifyAuthor(comment, userId);
         comment.editContent(dto.getContent());
         comment.setUpdatedBy(userId);
         mediaProcessingService.processUpdateCommentMedia(comment,dto);
@@ -87,6 +101,7 @@ public class CommentService {
     @Transactional
     public void deleteComment(Long commentId,Long userId){
         Comment comment = findCommentById(commentId);
+        verifyAuthor(comment, userId);
         Post post = comment.getPost();
         comment.delete();
         comment.setUpdatedBy(userId);

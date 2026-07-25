@@ -10,7 +10,9 @@ import com.example.highteenday_backend.dtos.UpdatePostDto;
 import com.example.highteenday_backend.dtos.paged.PageResponse;
 import com.example.highteenday_backend.dtos.paged.PostListingDto;
 import com.example.highteenday_backend.enums.PostSearchType;
+import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.SortType;
+import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.services.domain.redisService.PostPrevCache;
 import jakarta.validation.Valid;
@@ -98,6 +100,17 @@ public class PostService {
 
         return savedPost;
     }
+    /**
+     * 게시글 작성자 본인인지 확인한다. 익명 게시글도 작성자 식별은 USR_id로 이루어지므로
+     * 익명 여부와 무관하게 동일하게 적용된다.
+     */
+    private void verifyAuthor(Post post, Long userId) {
+        if (!post.getUser().getId().equals(userId)) {
+            log.warn("[Post] unauthorized mutation attempt. postId={}, requesterId={}", post.getId(), userId);
+            throw new CustomException(ErrorCode.NO_ACCESS);
+        }
+    }
+
     //로그 남기기,이미지 업로드
     @Transactional
     public void updatePost(Long postId,Long userId, @Valid UpdatePostDto dto){
@@ -105,6 +118,7 @@ public class PostService {
         String newContent = dto.getContent();
 
         Post post = findById(postId);
+        verifyAuthor(post, userId);
         String oldTiltle = post.getTitle();
         String oldContent = post.getContent();
         if(!newTile.equals(oldTiltle)) {
@@ -120,6 +134,7 @@ public class PostService {
     @Transactional
     public Post deletePost(Long postId,Long userId) {
         Post post = findById(postId);
+        verifyAuthor(post, userId);
         post.delete();
         post.setUpdatedBy(userId);
         postPrevCache.evictBoard(post.getBoard().getId());

@@ -5,6 +5,80 @@ Newest entries at the top.
 
 ---
 
+## 002 — Enforce author-only mutation on posts and comments
+
+**Area:** Security (OWASP A01 — Broken Access Control)
+**Commit:** `fix: reject post and comment mutations by non-authors`
+
+### Problem
+
+Four mutating endpoints accepted the caller's identity but never checked it against the
+resource owner:
+
+| Endpoint | Effect |
+|---|---|
+| `PATCH /api/posts/{postId}` | any logged-in user could rewrite any post's title and body |
+| `DELETE /api/posts/{postId}` | any logged-in user could soft-delete any post |
+| `PATCH /api/posts/{postId}/comments/{commentId}` | any logged-in user could rewrite any comment |
+| `DELETE /api/posts/{postId}/comments/{commentId}` | any logged-in user could delete any comment |
+
+Both controllers passed `user.getId()` into the service, which looked authorization-aware,
+but the services used that id **only** to populate the `UPT_id` audit column:
+
+```java
+Post post = findById(postId);   // no ownership check
+post.delete();
+post.setUpdatedBy(userId);      // userId used for audit only
+```
+
+Authentication was enforced (a valid JWT cookie is required), so this was not anonymous
+access — but every authenticated account, including freshly self-registered ones, could
+mutate every other user's content by guessing sequential ids. On a platform whose content
+is attributed by anonymity index rather than a visible username, silent edits to another
+student's comment are effectively unattributable impersonation, and the audit column would
+record the attacker as the legitimate editor.
+
+The timetable and notification domains already validated ownership; posts and comments —
+the primary content of the service — did not.
+
+### Change
+
+Ownership is enforced in the service layer (per the repository's rule that controllers hold
+no business logic), so every caller of these methods is covered rather than only the current
+HTTP entry points:
+
+- `PostService.verifyAuthor(Post, Long)` — called at the top of `updatePost` and `deletePost`
+- `CommentService.verifyAuthor(Comment, Long)` — called at the top of `updateComment` and `deleteComment`
+
+Both throw `CustomException(ErrorCode.NO_ACCESS)` → **403 Forbidden**, and log the rejected
+attempt at `WARN` with the resource id and requester id so the attempt is greppable.
+
+Checks run **before** any state change or side effect, so a rejected request touches neither
+the entity, the S3 media pipeline, nor the Redis post-preview cache.
+
+Anonymous posts are not special-cased: authorship is tracked by `USR_id` regardless of the
+`isAnonymous` flag, so the same check applies.
+
+### Scope note
+
+`Role.ADMIN` exists in the enum but no moderation endpoint uses it, so no admin bypass was
+added. If moderation is built later, that is the place to widen the rule — deliberately not
+pre-built here.
+
+### Verification
+
+- `CommentServiceTest` (new) — 4 cases: author can update/delete; a stranger is rejected with
+  `NO_ACCESS` and the comment content, `is_valid` flag, and the post's `commentCount` are all
+  unchanged.
+- `PostServiceTest.AuthorOnlyMutation` (new) — 4 cases: author can update/delete; a stranger is
+  rejected and the title, `is_valid` flag are unchanged, with `verifyNoInteractions` asserting
+  the media pipeline and preview cache were never touched.
+
+Confirmed non-vacuous: removing the two `verifyAuthor` calls fails exactly the 4 attacker-path
+cases. Full suite: 192 tests, 0 failures.
+
+---
+
 ## 001 — Remove N+1 from the comment list endpoint
 
 **Area:** Performance / Query Optimization
