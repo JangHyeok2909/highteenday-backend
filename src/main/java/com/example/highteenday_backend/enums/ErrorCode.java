@@ -47,7 +47,13 @@ public enum ErrorCode {
     SCHOOL_NOT_ASSIGNED(BAD_REQUEST, "급식 조회를 위해 학교 배정이 필요합니다."),
 
     // friend
-    FRIEND_NOT_FOUND(NOT_FOUND, "친구 관계가 아닙니다.")
+    FRIEND_NOT_FOUND(NOT_FOUND, "친구 관계가 아닙니다."),
+
+    // chat
+    CHAT_ROOM_NOT_FOUND(NOT_FOUND, "채팅방을 찾을 수 없습니다."),
+    CHAT_NOT_PARTICIPANT(FORBIDDEN, "채팅방 참가자가 아닙니다."),
+    CHAT_NOT_FRIENDS(BAD_REQUEST, "친구 관계가 아닌 사용자와 채팅할 수 없습니다."),
+    CHAT_ROOM_ALREADY_EXISTS(CONFLICT, "이미 해당 사용자와의 채팅방이 존재합니다.")
     ;
 
     private final HttpStatus httpStatus;
