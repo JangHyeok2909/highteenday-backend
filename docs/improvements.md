@@ -5,6 +5,50 @@ Newest entries at the top.
 
 ---
 
+## 006 — Fix real nickname leak in the cached post-list projection
+
+**Area:** Security
+**Commit:** `fix: use denormalized nickname in post preview projection`
+
+### Problem
+
+`PostRepository.findAllDtoByIds` built its preview DTO by joining to the author:
+
+```java
+SELECT new PostPreviewDto(p.id, p.board.id, p.user.nickname.value, p.title, …)
+```
+
+`p.user.nickname.value` is the author's **real** nickname, copied in unconditionally. This query
+is the cache-miss refill path in `RedisPostsCache` (line 76): whenever a board list page missed
+Redis, the rebuilt entries carried the real nickname of every anonymous post's author.
+
+The two sibling paths that produce the same DTO both get it right —
+`PostPreviewDto.fromEntity` masks to `"익명"`, and the QueryDSL `findByBoard` selects
+`post.nickname` — so the leak appeared only on the cache-miss branch, which is exactly the branch
+least likely to be hit while clicking around in development.
+
+This is improvement 004's failure mode reappearing one layer down: identity masking implemented
+per call site rather than at the boundary, so one of the three call sites was wrong.
+
+### Change
+
+The projection now reads `p.nickname` — the denormalized `USR_nickname` column that `Post.create`
+already populates with `"익명"` for anonymous posts and the author's nickname otherwise. This is
+the same column the QueryDSL list query uses, so all three paths now agree by construction.
+
+Side benefit: the query no longer joins `users` at all.
+
+### Verification
+
+`PostPreviewProjectionTest` (new, `@DataJpaTest`, 3 cases) asserts an anonymous post's preview
+never carries the real nickname, a named post's preview keeps it, and the projection agrees with
+`PostPreviewDto.fromEntity` for both. Confirmed non-vacuous: restoring `p.user.nickname.value`
+fails 2 of the 3 cases.
+
+Full suite: 253 tests, 0 failures.
+
+---
+
 ## 005 — Make the security filter chain deny-by-default
 
 **Area:** Security / Architecture

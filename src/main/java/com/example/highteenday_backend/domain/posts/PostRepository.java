@@ -34,7 +34,9 @@ public interface PostRepository extends JpaRepository<Post,Long>, PostRepository
     """)
     public Page<Post> findByBoard(Board board, Pageable pageable);
 
-    @Query("SELECT new com.example.highteenday_backend.dtos.PostPreviewDto(p.id, p.board.id, p.user.nickname.value,p.title, p.viewCount, p.likeCount, p.commentCount,p.created) "
+    // 작성자 표기는 반드시 비정규화된 p.nickname("익명" 또는 실명)을 써야 한다.
+    // p.user.nickname을 조인하면 익명 글에도 실명이 실려나간다.
+    @Query("SELECT new com.example.highteenday_backend.dtos.PostPreviewDto(p.id, p.board.id, p.nickname, p.title, p.viewCount, p.likeCount, p.commentCount, p.created) "
             + "FROM Post p WHERE p.id IN :ids")
     List<PostPreviewDto> findAllDtoByIds(List<Long> ids);
 
