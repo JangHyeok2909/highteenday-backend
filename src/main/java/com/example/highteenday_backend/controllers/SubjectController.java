@@ -33,7 +33,7 @@ public class SubjectController {
                                                         @PathVariable Long timetableTemplatesId){
         User user = userPrincipal.getUser();
         TimetableTemplate template = templateService.findById(timetableTemplatesId);
-        if(user.getId() != template.getUser().getId()) return ResponseEntity.badRequest().build();
+        if(!user.getId().equals(template.getUser().getId())) return ResponseEntity.badRequest().build();
         List<Subject> subjects = template.getSubjects();
         List<SubjectDto> subjectDtos = new ArrayList<>();
         for(Subject subject:subjects){
@@ -48,7 +48,7 @@ public class SubjectController {
                                                  @RequestBody RequestSubjectDto dto){
         User user = userPrincipal.getUser();
         TimetableTemplate template = templateService.findById(timetableTemplatesId);
-        if(user.getId() != template.getUser().getId()) return ResponseEntity.badRequest().build();
+        if(!user.getId().equals(template.getUser().getId())) return ResponseEntity.badRequest().build();
         Subject subject = Subject.builder()
                 .subjectName(dto.getSubjectName())
                 .timetableTemplate(template)
@@ -65,7 +65,7 @@ public class SubjectController {
         User user = userPrincipal.getUser();
         Subject subject = subjectService.findById(subjectId);
         Long ownerId = subject.getTimetableTemplate().getUser().getId();
-        if(user.getId() != ownerId) return ResponseEntity.badRequest().build();
+        if(!user.getId().equals(ownerId)) return ResponseEntity.badRequest().build();
         Subject updatedSubject = subjectService.update(subject, dto);
         return ResponseEntity.ok(SubjectDto.fromEntity(updatedSubject));
     }
@@ -76,7 +76,7 @@ public class SubjectController {
         User user = userPrincipal.getUser();
         Subject subject = subjectService.findById(subjectId);
         Long ownerId = subject.getTimetableTemplate().getUser().getId();
-        if(user.getId() != ownerId) return ResponseEntity.badRequest().build();
+        if(!user.getId().equals(ownerId)) return ResponseEntity.badRequest().build();
         subjectService.delete(subject);
         return ResponseEntity.ok("과목 삭제 완료.");
     }
