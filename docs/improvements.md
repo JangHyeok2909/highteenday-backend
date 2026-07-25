@@ -5,6 +5,59 @@ Newest entries at the top.
 
 ---
 
+## 012 — Remove the N+1 from the notification list
+
+**Area:** Performance / Query Optimization
+**Commit:** `perf: fetch notification senders with the list query`
+
+### Problem
+
+`GET /api/notifications` paged with a derived query,
+`findByReceiverAndIsValidTrueOrderByIsReadAscCreatedDesc`, which left `Notification.sender` lazy.
+`NotificationDto.fromEntity` then dereferences it twice per row:
+
+```java
+.senderNickname(n.getSender() != null ? n.getSender().getNicknameValue() : null)
+.senderProfileUrl(n.getSender() != null ? n.getSender().getProfileUrl() : null)
+```
+
+Notifications almost always come from distinct users — a like from A, a comment from B — so a page
+of 20 issued up to 20 extra queries. This endpoint is polled by the header badge, so it is one of
+the highest-frequency calls in the service.
+
+### Change
+
+Replaced the derived query with an explicit one carrying `left join fetch n.sender` and its own
+`countQuery`. `left` is required: system notifications have no sender, and an inner join would
+silently drop them from the list.
+
+### What was checked and deliberately not changed
+
+`GET /api/mypage/posts` looked like the same defect — `findByUser` is lazy and
+`PostPreviewDto.fromEntity` touches `post.getBoard()`. It is not: the DTO reads only
+`getBoard().getId()`, and reading the identifier of a lazy proxy is served from the foreign key
+already in the row, so the proxy is never initialised. The author lookup is also free there because
+every post on that page belongs to the one user already loaded.
+
+A `join fetch p.board` was written, measured, and then reverted — it changed nothing and only added
+a join plus a hand-written count query. The regression test was kept, with a comment recording
+*why* the count is already 2, so that a future edit reading `board.getName()` fails loudly instead
+of quietly regressing.
+
+### Verification
+
+`ListViewQueryCountTest` (new, `@DataJpaTest`, 3 cases): 25 notifications from 25 distinct senders
+render in exactly 2 queries; 25 posts across 25 distinct boards likewise; and a sender-less system
+notification still appears in the page.
+
+Confirmed non-vacuous: removing `left join fetch n.sender` fails the notification case. Removing
+the post-side fetch join does **not** fail its case — which is the measurement that turned that
+half of the change from a fix into a documented non-problem.
+
+Full suite: 289 tests, 0 failures.
+
+---
+
 ## 011 — Replace in-memory pagination on the scrap list
 
 **Area:** Performance / Query Optimization

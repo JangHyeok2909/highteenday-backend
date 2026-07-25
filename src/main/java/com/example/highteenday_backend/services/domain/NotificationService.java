@@ -72,7 +72,7 @@ public class NotificationService {
     public PagedNotificationsDto getNotifications(User user, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<Notification> pagedResult = notificationRepository
-                .findByReceiverAndIsValidTrueOrderByIsReadAscCreatedDesc(user, pageable);
+                .findPageByReceiver(user, pageable);
 
         List<NotificationDto> dtos = pagedResult.getContent().stream()
                 .map(NotificationDto::fromEntity)

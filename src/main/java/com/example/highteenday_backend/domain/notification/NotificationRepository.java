@@ -13,7 +13,21 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    Page<Notification> findByReceiverAndIsValidTrueOrderByIsReadAscCreatedDesc(User receiver, Pageable pageable);
+    /**
+     * 알림 목록. NotificationDto가 발신자 닉네임/프로필을 즉시 사용하므로 함께 로딩한다.
+     * 시스템 알림은 sender가 없으므로 left join이어야 한다.
+     */
+    @Query(value = """
+            select n from Notification n
+            left join fetch n.sender
+            where n.receiver = :receiver and n.isValid = true
+            order by n.isRead asc, n.created desc
+            """,
+            countQuery = """
+            select count(n) from Notification n
+            where n.receiver = :receiver and n.isValid = true
+            """)
+    Page<Notification> findPageByReceiver(@Param("receiver") User receiver, Pageable pageable);
 
     long countByReceiverAndIsValidTrueAndIsReadFalse(User receiver);
 

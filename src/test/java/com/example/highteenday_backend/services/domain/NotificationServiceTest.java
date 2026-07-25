@@ -160,7 +160,7 @@ class NotificationServiceTest {
             Pageable pageable = PageRequest.of(0, 20);
             Page<Notification> page = new PageImpl<>(List.of(n1, n2), pageable, 2);
 
-            when(notificationRepository.findByReceiverAndIsValidTrueOrderByIsReadAscCreatedDesc(eq(owner), any(Pageable.class)))
+            when(notificationRepository.findPageByReceiver(eq(owner), any(Pageable.class)))
                     .thenReturn(page);
 
             PagedNotificationsDto result = notificationService.getNotifications(owner, 0, 20);
@@ -179,7 +179,7 @@ class NotificationServiceTest {
             Pageable pageable = PageRequest.of(0, 20);
             Page<Notification> emptyPage = new PageImpl<>(List.of(), pageable, 0);
 
-            when(notificationRepository.findByReceiverAndIsValidTrueOrderByIsReadAscCreatedDesc(eq(owner), any(Pageable.class)))
+            when(notificationRepository.findPageByReceiver(eq(owner), any(Pageable.class)))
                     .thenReturn(emptyPage);
 
             PagedNotificationsDto result = notificationService.getNotifications(owner, 0, 20);
