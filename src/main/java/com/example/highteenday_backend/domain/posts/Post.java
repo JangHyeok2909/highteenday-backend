@@ -4,6 +4,7 @@ import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.boards.Board;
 import com.example.highteenday_backend.domain.users.User;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicUpdate;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -11,6 +12,9 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+// 비정규화 카운터들이 서로 다른 트랜잭션에서 갱신되므로,
+// 변경된 컬럼만 UPDATE해야 다른 카운터를 낡은 값으로 덮어쓰지 않는다.
+@DynamicUpdate
 @Table(
         name= "posts",
         indexes = {

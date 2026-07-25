@@ -5,6 +5,7 @@ import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
 import jakarta.persistence.*;
+import org.hibernate.annotations.DynamicUpdate;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -12,6 +13,8 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+// 반응 카운터와 본문이 서로 다른 트랜잭션에서 갱신되므로 변경된 컬럼만 UPDATE한다.
+@DynamicUpdate
 @Table(name= "comments")
 @Entity
 public class Comment extends BaseEntity {

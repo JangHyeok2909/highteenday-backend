@@ -5,6 +5,59 @@ Newest entries at the top.
 
 ---
 
+## 009 — Stop full-row updates from clobbering concurrent counter writes
+
+**Area:** Transaction / Query Optimization
+**Commit:** `fix: update only dirty columns on Post and Comment`
+
+### Problem
+
+Neither `Post` nor `Comment` declared `@DynamicUpdate`, so Hibernate emitted a **full-row**
+`UPDATE` whenever the entity became dirty for any reason — every column, including the ones the
+transaction never touched.
+
+`Post` carries five independently-maintained denormalized counters (`view_count`, `like_count`,
+`dislike_count`, `comment_count`, `scrap_count`), each written by a different code path in a
+different transaction. A full-row write turns any one of them into a blind overwrite of the other
+four with whatever values were present at load time:
+
+```
+T1  ViewCountScheduler loads post   (comment_count = 40)
+T2  a user posts a comment          → comment_count = 41, commits
+T1  post.addViewCount(12); flush    → UPDATE posts SET view_count=…, comment_count=40, …
+                                       T2's comment is erased from the counter
+```
+
+The row lock added in improvement 007 does not help here: the scheduler and the comment path
+never take it, and they are not even writing the same logical field. Every batch view-count sync —
+which runs on a timer across every post that was viewed — was a chance to roll back any counter
+change committed since the scheduler read the row. The same applies to `Comment`, where editing
+the body rewrites `like_count` / `dislike_count`.
+
+### Change
+
+Annotated both entities with `@DynamicUpdate`. Hibernate now writes only the columns that actually
+changed, so the view-count batch emits `UPDATE posts SET view_count = ? WHERE PST_id = ?` and
+leaves every other counter alone. Writes also get narrower, which reduces row-lock footprint and
+binlog volume on the busiest write path in the service.
+
+The cost is that Hibernate can no longer cache one prepared `UPDATE` per entity and instead
+generates one per dirty-column combination. For a 13-column table with a handful of distinct
+update paths that is a good trade for correctness.
+
+This is the systemic half of the counter-integrity work: 007 made a single counter's
+read-modify-write atomic, 009 stops *unrelated* writes from undoing it.
+
+### Verification
+
+`DenormalizedCounterMappingTest` (new, 2 cases) asserts both entities carry `@DynamicUpdate`, with
+failure messages naming the concrete corruption each one prevents. The annotation is trivially
+removable, so pinning it in a test is what keeps it from being dropped during a future refactor.
+
+Full suite: 278 tests, 0 failures.
+
+---
+
 ## 008 — Stop writing student email addresses into production logs
 
 **Area:** Security / Logging
