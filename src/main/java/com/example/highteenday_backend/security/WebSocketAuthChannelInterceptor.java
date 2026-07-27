@@ -39,7 +39,8 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
             if (sessionAttrs != null) {
                 Authentication auth = (Authentication) sessionAttrs.get("authentication");
                 if (auth != null) {
-                    accessor.setUser(auth);
+                    CustomUserPrincipal principal = (CustomUserPrincipal) auth.getPrincipal();
+                    accessor.setUser(new WebSocketUserPrincipal(auth, principal.getUser().getId()));
                 }
             }
         }

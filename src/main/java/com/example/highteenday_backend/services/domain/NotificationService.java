@@ -70,8 +70,8 @@ public class NotificationService {
         );
 
         NotificationDto dto = NotificationDto.fromEntity(notification);
-        messagingTemplate.convertAndSend(
-                "/topic/notifications/" + receiver.getId(), dto
+        messagingTemplate.convertAndSendToUser(
+                String.valueOf(receiver.getId()), "/queue/notifications", dto
         );
     }
 
