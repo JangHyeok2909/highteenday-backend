@@ -98,6 +98,19 @@ class NotificationServiceTest {
             assertThat(saved.getMessage()).isEqualTo("내 게시글에 댓글이 달렸습니다.");
             assertThat(saved.getContentMessage()).isEqualTo("댓글 내용");
         }
+
+        @Test
+        @DisplayName("수신자 개인 큐로만 푸시한다 — 목적지에 다른 유저가 구독할 수 없어야 한다")
+        void pushesToReceiverPrivateQueue() {
+            when(userService.findById(3L)).thenReturn(sender);
+            when(userService.findById(1L)).thenReturn(owner);
+
+            notificationService.createCommentNotification(3L, 1L, 100L, "댓글 내용");
+
+            verify(messagingTemplate).convertAndSendToUser(
+                    eq("1"), eq("/queue/notifications"), any(NotificationDto.class));
+            verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+        }
     }
 
     @Nested
