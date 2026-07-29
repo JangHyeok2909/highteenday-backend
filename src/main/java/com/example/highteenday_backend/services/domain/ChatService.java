@@ -9,6 +9,7 @@ import com.example.highteenday_backend.enums.ChatMsgType;
 import com.example.highteenday_backend.enums.ChatRole;
 import com.example.highteenday_backend.enums.ChatRoomCategory;
 import com.example.highteenday_backend.enums.ErrorCode;
+import com.example.highteenday_backend.enums.RelationStatus;
 import com.example.highteenday_backend.exceptions.CustomException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -36,6 +37,7 @@ public class ChatService {
     private final ChatPTRepository chatPTRepository;
     private final UserRepository userRepository;
     private final FriendRepository friendRepository;
+    private final FriendService friendService;
     private final SimpMessagingTemplate messagingTemplate;
 
     // ------------------------------------------------------------------
@@ -170,8 +172,15 @@ public class ChatService {
     public List<ChatMemberDto> getMembers(User me, Long roomId) {
         ChatRoom room = findRoom(roomId);
         requireParticipant(room, me);
-        return chatPTRepository.findActiveMembers(room).stream()
-                .map(ChatMemberDto::fromEntity)
+        return withRelations(me, chatPTRepository.findActiveMembers(room));
+    }
+
+    /** 멤버마다 열람자와의 관계를 붙인다. 관계 조회는 인원 수와 무관하게 세 번의 쿼리로 끝난다. */
+    private List<ChatMemberDto> withRelations(User me, List<ChatParticipants> members) {
+        List<Long> memberIds = members.stream().map(p -> p.getUser().getId()).toList();
+        Map<Long, RelationStatus> relations = friendService.getRelations(me.getId(), memberIds);
+        return members.stream()
+                .map(p -> ChatMemberDto.fromEntity(p, relations.get(p.getUser().getId())))
                 .toList();
     }
 
@@ -205,9 +214,7 @@ public class ChatService {
     public List<ChatMemberDto> getReadStatus(User me, Long roomId) {
         ChatRoom room = findRoom(roomId);
         requireParticipant(room, me);
-        return chatPTRepository.findActiveMembers(room).stream()
-                .map(ChatMemberDto::fromEntity)
-                .toList();
+        return withRelations(me, chatPTRepository.findActiveMembers(room));
     }
 
     // ------------------------------------------------------------------
@@ -497,10 +504,15 @@ public class ChatService {
         }
     }
 
-    /** 후보 전원이 나와 친구인지 한 번의 쿼리로 확인한다. */
+    /**
+     * 후보 전원이 나와 친구인지 한 번의 쿼리로 확인한다.
+     *
+     * 상호 판정을 쓴다. 방향 하나만 보면 나를 차단한 사람도 친구로 잡혀서, 차단해둔 상대가
+     * 나를 단체방에 초대하거나 대화를 걸 수 있다.
+     */
     private void requireFriendship(User me, List<Long> candidateIds) {
         if (candidateIds.isEmpty()) return;
-        Set<Long> friendIds = new HashSet<>(friendRepository.findFriendIdsAmong(me.getId(), candidateIds));
+        Set<Long> friendIds = new HashSet<>(friendRepository.findMutualFriendIdsAmong(me.getId(), candidateIds));
         if (!friendIds.containsAll(candidateIds)) {
             throw new CustomException(ErrorCode.CHAT_NOT_FRIENDS);
         }

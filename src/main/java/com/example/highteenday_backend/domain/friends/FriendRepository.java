@@ -51,6 +51,25 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
     List<Long> findFriendIdsAmong(@Param("me") Long meId,
                                   @Param("candidates") Collection<Long> candidateIds);
 
+    // findFriendIdsAmong의 상호 판정 버전. 한쪽만 FRIEND인 관계(= 상대가 나를 차단)는 제외하므로
+    // existsFriendship과 결과가 일치한다. 친구 배지와 시간표 조회 권한이 어긋나지 않으려면
+    // 두 곳이 같은 기준을 써야 한다.
+    @Query(value = """
+            SELECT f1.USR_frd_id
+            FROM friends f1
+            WHERE f1.USR_id = :me
+              AND f1.FRD_status = 'FRIEND'
+              AND f1.USR_frd_id IN (:candidates)
+              AND EXISTS (
+                  SELECT 1 FROM friends f2
+                  WHERE f2.USR_id = f1.USR_frd_id
+                    AND f2.USR_frd_id = :me
+                    AND f2.FRD_status = 'FRIEND'
+              )
+            """, nativeQuery = true)
+    List<Long> findMutualFriendIdsAmong(@Param("me") Long meId,
+                                        @Param("candidates") Collection<Long> candidateIds);
+
     // A B가 서로 차단하지 않은 친구 관계인지 확인
     @Query("""
             SELECT CASE WHEN COUNT(f1) > 0 THEN true ELSE false END
