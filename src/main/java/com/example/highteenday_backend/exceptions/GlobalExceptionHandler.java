@@ -8,6 +8,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -70,6 +71,16 @@ public class GlobalExceptionHandler {
                 "message", "리소스를 찾을 수 없습니다."+" message="+e.getMessage()
         ));
     }
+    // 405 Method Not Allowed: 매핑되지 않은 HTTP 메서드로 요청한 경우
+    @ExceptionHandler({HttpRequestMethodNotSupportedException.class})
+    public ResponseEntity<?> handleMethodNotAllowed(HttpRequestMethodNotSupportedException e) {
+        log.warn("[405 Method Not Allowed] {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(Map.of(
+                "code", "METHOD_NOT_ALLOWED",
+                "message", "지원하지 않는 요청 방식입니다."+" message="+e.getMessage()
+        ));
+    }
+
     // 409 Conflict (예: 중복 데이터 등)
     @ExceptionHandler({DataIntegrityViolationException.class})
     public ResponseEntity<?> handleConflict(Exception e) {
