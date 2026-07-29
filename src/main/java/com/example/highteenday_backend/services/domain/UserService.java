@@ -66,6 +66,7 @@ public class UserService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND, "존재하지 않는 유저, email=" + email));
         String schoolName = user.getSchool() != null ? user.getSchool().getName() : null;
         return UserInfoDto.builder()
+                .id(user.getId())
                 .name(user.getNameValue())
                 .email(user.getEmailValue())
                 .nickname(user.getNicknameValue())
