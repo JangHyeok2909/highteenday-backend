@@ -12,9 +12,11 @@ import com.example.highteenday_backend.domain.users.vo.UserName;
 import com.example.highteenday_backend.dtos.Friends.RequestFriendDto;
 import com.example.highteenday_backend.dtos.Friends.RespondFriendRequestDto;
 import com.example.highteenday_backend.dtos.Friends.SelectFriendDto;
+import com.example.highteenday_backend.dtos.Friends.UserSearchResultDto;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.FriendRequestStatus;
 import com.example.highteenday_backend.enums.FriendStatus;
+import com.example.highteenday_backend.enums.RelationStatus;
 import com.example.highteenday_backend.enums.Role;
 import com.example.highteenday_backend.eventEntities.events.FriendBlockedEvent;
 import com.example.highteenday_backend.eventEntities.events.FriendRequestAcceptedEvent;
@@ -68,7 +70,7 @@ class FriendServiceTest {
 
         when(userService.findByEmail("requester@test.com")).thenReturn(requester);
         when(userService.findByEmail("receiver@test.com")).thenReturn(receiver);
-        when(userService.findByNickname("rec")).thenReturn(receiver);
+        lenient().when(userService.findById(2L)).thenReturn(receiver);
     }
 
     @Nested
@@ -78,8 +80,8 @@ class FriendServiceTest {
         @Test
         @DisplayName("정상 요청 → FriendReq 저장 + FriendRequestSentEvent 발행")
         void savesRequestAndPublishesEvent() {
-            RequestFriendDto dto = new RequestFriendDto("rec");
-            when(friendReqRepository.existsByRequesterAndReceiver(requester, receiver)).thenReturn(false);
+            RequestFriendDto dto = new RequestFriendDto(2L);
+            when(friendReqRepository.findBetween(1L, 2L)).thenReturn(List.of());
             when(friendReqRepository.save(any(FriendReq.class))).thenAnswer(inv -> inv.getArgument(0));
 
             friendService.sendFriendsRequest(requesterPrincipal, dto);
@@ -99,8 +101,9 @@ class FriendServiceTest {
         @Test
         @DisplayName("중복 요청 → CustomException(ALREADY_SENT_FRIEND_REQUEST)")
         void throwsOnDuplicate() {
-            RequestFriendDto dto = new RequestFriendDto("rec");
-            when(friendReqRepository.existsByRequesterAndReceiver(requester, receiver)).thenReturn(true);
+            RequestFriendDto dto = new RequestFriendDto(2L);
+            when(friendReqRepository.findBetween(1L, 2L))
+                    .thenReturn(List.of(FriendReq.create(requester, receiver)));
 
             assertThatThrownBy(() -> friendService.sendFriendsRequest(requesterPrincipal, dto))
                     .isInstanceOf(CustomException.class)
@@ -109,6 +112,49 @@ class FriendServiceTest {
 
             verify(friendReqRepository, never()).save(any());
             verify(eventPublisher, never()).publishEvent(any());
+        }
+
+        @Test
+        @DisplayName("상대가 이미 나에게 요청함 → FRIEND_REQUEST_RECEIVED_ALREADY")
+        void throwsWhenReverseRequestPending() {
+            RequestFriendDto dto = new RequestFriendDto(2L);
+            when(friendReqRepository.findBetween(1L, 2L))
+                    .thenReturn(List.of(FriendReq.create(receiver, requester)));
+
+            assertThatThrownBy(() -> friendService.sendFriendsRequest(requesterPrincipal, dto))
+                    .isInstanceOf(CustomException.class)
+                    .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode())
+                            .isEqualTo(ErrorCode.FRIEND_REQUEST_RECEIVED_ALREADY));
+
+            verify(friendReqRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("이미 친구 → ALREADY_FRIENDS")
+        void throwsWhenAlreadyFriends() {
+            RequestFriendDto dto = new RequestFriendDto(2L);
+            when(friendRepository.existsFriendship(1L, 2L)).thenReturn(true);
+
+            assertThatThrownBy(() -> friendService.sendFriendsRequest(requesterPrincipal, dto))
+                    .isInstanceOf(CustomException.class)
+                    .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode())
+                            .isEqualTo(ErrorCode.ALREADY_FRIENDS));
+
+            verify(friendReqRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("자기 자신에게 요청 → INVALID_REQUEST")
+        void throwsOnSelfRequest() {
+            when(userService.findById(1L)).thenReturn(requester);
+
+            assertThatThrownBy(() ->
+                    friendService.sendFriendsRequest(requesterPrincipal, new RequestFriendDto(1L)))
+                    .isInstanceOf(CustomException.class)
+                    .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode())
+                            .isEqualTo(ErrorCode.INVALID_REQUEST));
+
+            verify(friendReqRepository, never()).save(any());
         }
     }
 
@@ -339,13 +385,17 @@ class FriendServiceTest {
     class SelectFriend {
 
         @Test
-        @DisplayName("nickname 검색 — 결과 있음")
+        @DisplayName("nickname 검색 — 결과 있음, 실명·이메일은 담기지 않는다")
         void searchByNickname() {
             when(userRepository.findByNickname("rec")).thenReturn(Optional.of(receiver));
 
-            List<User> result = friendService.selectFriend(new SelectFriendDto("rec"));
+            List<UserSearchResultDto> result =
+                    friendService.selectFriend(requester, new SelectFriendDto("rec"));
 
-            assertThat(result).containsExactly(receiver);
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).userId()).isEqualTo(2L);
+            assertThat(result.get(0).nickname()).isEqualTo("rec");
+            assertThat(result.get(0).relation()).isEqualTo(RelationStatus.NONE);
         }
 
         @Test
@@ -353,7 +403,8 @@ class FriendServiceTest {
         void searchByNicknameNotFound() {
             when(userRepository.findByNickname("nobody")).thenReturn(Optional.empty());
 
-            List<User> result = friendService.selectFriend(new SelectFriendDto("nobody"));
+            List<UserSearchResultDto> result =
+                    friendService.selectFriend(requester, new SelectFriendDto("nobody"));
 
             assertThat(result).isEmpty();
         }
@@ -361,7 +412,21 @@ class FriendServiceTest {
         @Test
         @DisplayName("nickname null → 빈 리스트 반환")
         void searchWithNullNickname() {
-            List<User> result = friendService.selectFriend(new SelectFriendDto(null));
+            List<UserSearchResultDto> result =
+                    friendService.selectFriend(requester, new SelectFriendDto(null));
+
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("나를 차단한 사용자는 검색 결과에서 빠진다")
+        void excludesUsersWhoBlockedMe() {
+            when(userRepository.findByNickname("rec")).thenReturn(Optional.of(receiver));
+            when(friendRepository.findFriendsRelations(1L, 2L))
+                    .thenReturn(List.of(Friend.createBlock(receiver, requester)));
+
+            List<UserSearchResultDto> result =
+                    friendService.selectFriend(requester, new SelectFriendDto("rec"));
 
             assertThat(result).isEmpty();
         }
