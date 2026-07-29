@@ -2,10 +2,10 @@ package com.example.highteenday_backend.services.domain;
 
 import com.example.highteenday_backend.domain.Token.Token;
 import com.example.highteenday_backend.domain.Token.TokenRepository;
+import com.example.highteenday_backend.domain.port.TokenCachePort;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.domain.users.vo.Email;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -16,14 +16,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
-
-import org.springframework.data.redis.RedisConnectionFailureException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -42,18 +38,12 @@ class TokenServiceTest {
 
     @Mock private TokenRepository tokenRepository;
     @Mock private UserRepository userRepository;
-    @Mock private StringRedisTemplate tokenRedisTemplate;
-    @Mock private ValueOperations<String, String> valueOps;
+    @Mock private TokenCachePort tokenCache;
 
     @InjectMocks
     private TokenService tokenService;
 
     private final User user = User.builder().id(1L).email(new Email("u@test.com")).build();
-
-    @BeforeEach
-    void setUp() {
-        when(tokenRedisTemplate.opsForValue()).thenReturn(valueOps);
-    }
 
     // ──────────────────────────────────────────────
     // saveOrUpdate
@@ -63,7 +53,7 @@ class TokenServiceTest {
     class SaveOrUpdate {
 
         @Test
-        @DisplayName("기존 토큰이 있으면 Redis 구키 삭제 후 DB·Redis 모두 갱신한다")
+        @DisplayName("기존 토큰이 있으면 캐시 구키 삭제 후 DB·캐시 모두 갱신한다")
         void updatesExistingToken() {
             Token existing = Token.builder()
                     .id(10L).user(user)
@@ -75,19 +65,19 @@ class TokenServiceTest {
 
             tokenService.saveOrUpdate("u@test.com", "new-refresh", "new-access");
 
-            // 기존 Redis 키 삭제 (rotation)
-            verify(tokenRedisTemplate).delete("RT:old-refresh");
+            // 기존 캐시 키 삭제 (rotation)
+            verify(tokenCache).delete("old-refresh");
             // DB 갱신
             assertThat(existing.getRefreshToken()).isEqualTo("new-refresh");
             assertThat(existing.getAccessToken()).isEqualTo("new-access");
             assertThat(existing.getExpiresAt()).isAfter(LocalDateTime.now());
             verify(tokenRepository).save(existing);
-            // Redis 신규 키 저장
-            verify(valueOps).set(eq("RT:new-refresh"), eq("u@test.com"), eq(Duration.ofDays(7)));
+            // 캐시 신규 키 저장
+            verify(tokenCache).put(eq("new-refresh"), eq("u@test.com"), eq(Duration.ofDays(7)));
         }
 
         @Test
-        @DisplayName("토큰이 없으면 새 엔티티를 만들어 DB·Redis에 저장한다")
+        @DisplayName("토큰이 없으면 새 엔티티를 만들어 DB·캐시에 저장한다")
         void createsNewTokenWhenAbsent() {
             when(userRepository.findByEmail("u@test.com")).thenReturn(Optional.of(user));
             when(tokenRepository.findByUser(user)).thenReturn(Optional.empty());
@@ -101,7 +91,7 @@ class TokenServiceTest {
             assertThat(saved.getRefreshToken()).isEqualTo("r1");
             assertThat(saved.getAccessToken()).isEqualTo("a1");
             assertThat(saved.getExpiresAt()).isAfter(LocalDateTime.now());
-            verify(valueOps).set(eq("RT:r1"), eq("u@test.com"), eq(Duration.ofDays(7)));
+            verify(tokenCache).put(eq("r1"), eq("u@test.com"), eq(Duration.ofDays(7)));
         }
 
         @Test
@@ -113,37 +103,6 @@ class TokenServiceTest {
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("사용자 없음");
         }
-
-        @Test
-        @DisplayName("기존 키 Redis delete 장애 시에도 DB 저장은 수행된다")
-        void dbSaveSucceedsWhenRedisDeleteFails() {
-            Token existing = Token.builder()
-                    .id(10L).user(user)
-                    .refreshToken("old-rf").accessToken("old-ac")
-                    .expiresAt(LocalDateTime.now().plusDays(3))
-                    .build();
-            when(userRepository.findByEmail("u@test.com")).thenReturn(Optional.of(user));
-            when(tokenRepository.findByUser(user)).thenReturn(Optional.of(existing));
-            when(tokenRedisTemplate.delete(anyString()))
-                    .thenThrow(new RedisConnectionFailureException("down"));
-
-            assertThatCode(() -> tokenService.saveOrUpdate("u@test.com", "new-rf", "new-ac"))
-                    .doesNotThrowAnyException();
-            verify(tokenRepository).save(existing);
-        }
-
-        @Test
-        @DisplayName("신규 키 Redis set 장애 시에도 DB 저장은 수행된다")
-        void dbSaveSucceedsWhenRedisSetFails() {
-            when(userRepository.findByEmail("u@test.com")).thenReturn(Optional.of(user));
-            when(tokenRepository.findByUser(user)).thenReturn(Optional.empty());
-            org.mockito.Mockito.doThrow(new RedisConnectionFailureException("down"))
-                    .when(valueOps).set(anyString(), anyString(), any(Duration.class));
-
-            assertThatCode(() -> tokenService.saveOrUpdate("u@test.com", "rf", "ac"))
-                    .doesNotThrowAnyException();
-            verify(tokenRepository).save(any(Token.class));
-        }
     }
 
     // ──────────────────────────────────────────────
@@ -154,7 +113,7 @@ class TokenServiceTest {
     class DeleteByUserEmail {
 
         @Test
-        @DisplayName("토큰이 존재하면 Redis 키와 DB 레코드를 모두 삭제한다")
+        @DisplayName("토큰이 존재하면 캐시 키와 DB 레코드를 모두 삭제한다")
         void deletesRedisAndDb() {
             Token token = Token.builder()
                     .user(user).refreshToken("rf-token").accessToken("ac-token")
@@ -164,19 +123,19 @@ class TokenServiceTest {
 
             tokenService.deleteByUserEmail("u@test.com");
 
-            verify(tokenRedisTemplate).delete("RT:rf-token");
+            verify(tokenCache).delete("rf-token");
             verify(tokenRepository).delete(token);
         }
 
         @Test
-        @DisplayName("토큰이 없으면 Redis·DB 삭제 없이 정상 종료한다")
+        @DisplayName("토큰이 없으면 캐시·DB 삭제 없이 정상 종료한다")
         void doesNothingWhenTokenAbsent() {
             when(userRepository.findByEmail("u@test.com")).thenReturn(Optional.of(user));
             when(tokenRepository.findByUser(user)).thenReturn(Optional.empty());
 
             tokenService.deleteByUserEmail("u@test.com");
 
-            verify(tokenRedisTemplate, never()).delete(anyString());
+            verify(tokenCache, never()).delete(anyString());
             verify(tokenRepository, never()).delete(any(Token.class));
         }
 
@@ -189,21 +148,6 @@ class TokenServiceTest {
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("사용자 없음");
         }
-
-        @Test
-        @DisplayName("Redis delete 장애 시에도 DB 삭제는 수행된다")
-        void dbDeleteSucceedsWhenRedisDown() {
-            Token token = Token.builder()
-                    .user(user).refreshToken("rf").accessToken("ac").build();
-            when(userRepository.findByEmail("u@test.com")).thenReturn(Optional.of(user));
-            when(tokenRepository.findByUser(user)).thenReturn(Optional.of(token));
-            when(tokenRedisTemplate.delete(anyString()))
-                    .thenThrow(new RedisConnectionFailureException("down"));
-
-            assertThatCode(() -> tokenService.deleteByUserEmail("u@test.com"))
-                    .doesNotThrowAnyException();
-            verify(tokenRepository).delete(token);
-        }
     }
 
     // ──────────────────────────────────────────────
@@ -214,10 +158,10 @@ class TokenServiceTest {
     class FindByRefreshToken {
 
         @Test
-        @DisplayName("Redis HIT — DB 조회 없이 Token을 반환한다")
-        void returnsTokenOnRedisHit() {
+        @DisplayName("캐시 HIT — DB refreshToken 조회 없이 Token을 반환한다")
+        void returnsTokenOnCacheHit() {
             Token token = Token.builder().user(user).refreshToken("rt1").build();
-            when(valueOps.get("RT:rt1")).thenReturn("u@test.com");
+            when(tokenCache.get("rt1")).thenReturn(Optional.of("u@test.com"));
             when(userRepository.findByEmail("u@test.com")).thenReturn(Optional.of(user));
             when(tokenRepository.findByUser(user)).thenReturn(Optional.of(token));
 
@@ -228,26 +172,26 @@ class TokenServiceTest {
         }
 
         @Test
-        @DisplayName("Redis MISS + DB 유효 — Redis에 재적재하고 Token을 반환한다")
-        void repopulatesRedisOnCacheMiss() {
+        @DisplayName("캐시 MISS + DB 유효 — 캐시에 재적재하고 Token을 반환한다")
+        void repopulatesCacheOnMiss() {
             LocalDateTime future = LocalDateTime.now().plusDays(3);
             Token token = Token.builder().user(user).refreshToken("rt2").expiresAt(future).build();
-            when(valueOps.get("RT:rt2")).thenReturn(null);
+            when(tokenCache.get("rt2")).thenReturn(Optional.empty());
             when(tokenRepository.findByRefreshToken("rt2")).thenReturn(Optional.of(token));
 
             Token result = tokenService.findByRefreshTokenOrThrow("rt2");
 
             assertThat(result).isSameAs(token);
-            // 남은 TTL로 Redis 재적재
-            verify(valueOps).set(eq("RT:rt2"), eq("u@test.com"), any(Duration.class));
+            // 남은 TTL로 캐시 재적재
+            verify(tokenCache).put(eq("rt2"), eq("u@test.com"), any(Duration.class));
         }
 
         @Test
-        @DisplayName("Redis MISS + DB 만료 — DB에서 삭제 후 예외를 던진다")
+        @DisplayName("캐시 MISS + DB 만료 — DB에서 삭제 후 예외를 던진다")
         void deletesExpiredTokenAndThrows() {
             LocalDateTime past = LocalDateTime.now().minusSeconds(1);
             Token token = Token.builder().user(user).refreshToken("rt3").expiresAt(past).build();
-            when(valueOps.get("RT:rt3")).thenReturn(null);
+            when(tokenCache.get("rt3")).thenReturn(Optional.empty());
             when(tokenRepository.findByRefreshToken("rt3")).thenReturn(Optional.of(token));
 
             assertThatThrownBy(() -> tokenService.findByRefreshTokenOrThrow("rt3"))
@@ -255,13 +199,13 @@ class TokenServiceTest {
                     .hasMessageContaining("만료");
 
             verify(tokenRepository).delete(token);
-            verify(valueOps, never()).set(anyString(), anyString(), any(Duration.class));
+            verify(tokenCache, never()).put(anyString(), anyString(), any(Duration.class));
         }
 
         @Test
-        @DisplayName("Redis MISS + DB 없음 — 예외를 던진다")
+        @DisplayName("캐시 MISS + DB 없음 — 예외를 던진다")
         void throwsWhenNotInDbEither() {
-            when(valueOps.get("RT:bad")).thenReturn(null);
+            when(tokenCache.get("bad")).thenReturn(Optional.empty());
             when(tokenRepository.findByRefreshToken("bad")).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> tokenService.findByRefreshTokenOrThrow("bad"))
@@ -270,9 +214,9 @@ class TokenServiceTest {
         }
 
         @Test
-        @DisplayName("Redis HIT이지만 DB에 토큰이 없으면 예외를 던진다")
-        void throwsWhenRedisHitButTokenGoneFromDb() {
-            when(valueOps.get("RT:rt4")).thenReturn("u@test.com");
+        @DisplayName("캐시 HIT이지만 DB에 토큰이 없으면 예외를 던진다")
+        void throwsWhenCacheHitButTokenGoneFromDb() {
+            when(tokenCache.get("rt4")).thenReturn(Optional.of("u@test.com"));
             when(userRepository.findByEmail("u@test.com")).thenReturn(Optional.of(user));
             when(tokenRepository.findByUser(user)).thenReturn(Optional.empty());
 
@@ -282,12 +226,11 @@ class TokenServiceTest {
         }
 
         @Test
-        @DisplayName("Redis 장애 시 DB로 폴백하여 Token을 반환한다")
-        void fallsBackToDbWhenRedisDown() {
+        @DisplayName("캐시 장애 시(Optional.empty 반환) DB로 폴백하여 Token을 반환한다")
+        void fallsBackToDbWhenCacheDown() {
             LocalDateTime future = LocalDateTime.now().plusDays(3);
             Token token = Token.builder().user(user).refreshToken("rt5").expiresAt(future).build();
-            when(tokenRedisTemplate.opsForValue())
-                    .thenThrow(new RedisConnectionFailureException("down"));
+            when(tokenCache.get("rt5")).thenReturn(Optional.empty());
             when(tokenRepository.findByRefreshToken("rt5")).thenReturn(Optional.of(token));
 
             Token result = tokenService.findByRefreshTokenOrThrow("rt5");
