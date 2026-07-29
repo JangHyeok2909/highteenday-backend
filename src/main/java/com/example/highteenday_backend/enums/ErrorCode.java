@@ -46,6 +46,10 @@ public enum ErrorCode {
     // school
     SCHOOL_NOT_ASSIGNED(BAD_REQUEST, "급식 조회를 위해 학교 배정이 필요합니다."),
 
+    // timetable
+    TIMETABLE_TEMPLATE_NOT_FOUND(NOT_FOUND, "시간표 템플릿을 찾을 수 없습니다."),
+    DEFAULT_TIMETABLE_TEMPLATE_NOT_FOUND(NOT_FOUND, "기본으로 설정된 시간표가 없습니다."),
+
     // friend
     FRIEND_NOT_FOUND(NOT_FOUND, "친구 관계가 아닙니다."),
 

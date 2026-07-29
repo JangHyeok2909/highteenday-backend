@@ -7,7 +7,6 @@ import com.example.highteenday_backend.domain.friends.FriendReqRepository;
 import com.example.highteenday_backend.domain.notification.Notification;
 import com.example.highteenday_backend.domain.notification.NotificationRepository;
 import com.example.highteenday_backend.domain.posts.Post;
-import com.example.highteenday_backend.domain.schools.UserTimetables.UserTimetable;
 import com.example.highteenday_backend.domain.schools.subjects.Subject;
 import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
 import com.example.highteenday_backend.domain.users.User;
@@ -15,11 +14,11 @@ import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.domain.users.vo.*;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.dtos.RequestPostDto;
+import com.example.highteenday_backend.dtos.RequestTimetableDto;
 import com.example.highteenday_backend.enums.*;
 import com.example.highteenday_backend.eventEntities.events.FriendRequestAcceptedEvent;
 import com.example.highteenday_backend.eventEntities.events.FriendRequestSentEvent;
 import com.example.highteenday_backend.services.TimetableTemplateService;
-import com.example.highteenday_backend.services.UserTimetableService;
 import com.example.highteenday_backend.services.domain.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +37,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DataInitializer {
 
+    private static final List<String> SUBJECT_POOL = List.of(
+            "국어", "문학", "수학", "미적분", "확률과통계", "영어", "영어독해", "한국사",
+            "통합사회", "생활과윤리", "통합과학", "물리학", "화학", "생명과학", "지구과학",
+            "체육", "음악", "미술", "정보", "일본어"
+    );
+
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
     private final FriendReqRepository friendReqRepository;
@@ -50,7 +55,6 @@ public class DataInitializer {
     private final UserService userService;
     private final SchoolService schoolService;
     private final TimetableTemplateService templateService;
-    private final UserTimetableService timetableService;
     private final SubjectService subjectService;
     private final TimetableSubjectService timetableSubjectService;
     private final ApplicationEventPublisher eventPublisher;
@@ -65,7 +69,7 @@ public class DataInitializer {
         hotPostLikeDataInit();
         scrapDataInit(testUser);
         notificationDataInit(testUser);
-        dafultTimetableDatasInit(testUser);
+        timetableDataInit();
     }
 
     public void userDataInit(){
@@ -222,36 +226,50 @@ public class DataInitializer {
         log.info("Test notifications initialized. receiver=test1@gmail.com");
     }
 
-    public void dafultTimetableDatasInit(User user){
-        TimetableTemplate template = TimetableTemplate.builder()
-                .user(user)
-                .templateName("test default template")
-                .grade(Grade.JUNIOR)
-                .semester(Semester.FIRST)
-                .isDefault(true)
-                .build();
-        TimetableTemplate savedTemplate= templateService.save(template);
-
-        List<Subject> subjects = new ArrayList<>();
-        for(int i=1;i<=7;i++){
-            Subject subject = Subject.builder()
-                    .subjectName("test subject" + i)
-                    .timetableTemplate(savedTemplate)
-                    .build();
-            subjects.add(subjectService.save(subject));
+    public void timetableDataInit(){
+        int userCount = 10;
+        for(int i=1;i<=userCount;i++){
+            User user = userService.findByEmail("test" + i + "@gmail.com");
+            if(!templateService.findByUser(user).isEmpty()) continue;
+            userTimetableInit(user, i);
         }
-        for (int i=1;i<7;i++) {
-            for(int j=0;j<7;j++){
-                UserTimetable timetable = UserTimetable.builder()
-                        .timetableTemplate(savedTemplate)
-                        .subject(subjects.get(j))
-                        .period(String.valueOf(j+1))
-                        .day(DayOfWeek.of(i))
-                        .build();
-                timetableService.save(timetable);
+    }
+
+    // 테스트 계정마다 학년/학기, 과목 구성, 요일별 교시 수, 배치 순서를 모두 다르게 생성한다.
+    private void userTimetableInit(User user, int seed){
+        Grade grade = Grade.values()[(seed-1) % Grade.values().length];
+        Semester semester = Semester.values()[(seed-1) % Semester.values().length];
+
+        TimetableTemplate template = templateService.save(TimetableTemplate.builder()
+                .user(user)
+                .templateName(user.getNicknameValue() + "의 " + grade.getField() + " " + semester.getField() + " 시간표")
+                .grade(grade)
+                .semester(semester)
+                .isDefault(true)
+                .build());
+
+        // 과목 풀에서 시작 위치를 계정마다 다르게 잡아 과목 구성이 겹치지 않도록 한다.
+        int subjectCount = 6 + (seed % 3);
+        List<Subject> subjects = new ArrayList<>();
+        for(int i=0;i<subjectCount;i++){
+            subjects.add(subjectService.save(Subject.builder()
+                    .subjectName(SUBJECT_POOL.get(((seed-1) * 2 + i) % SUBJECT_POOL.size()))
+                    .timetableTemplate(template)
+                    .build()));
+        }
+
+        int periodsPerDay = 5 + (seed % 3);
+        for(int day=1;day<=5;day++){
+            for(int period=1;period<=periodsPerDay;period++){
+                Subject subject = subjects.get(((day-1) * periodsPerDay + (period-1) + seed) % subjects.size());
+                timetableSubjectService.createTimetableAndIncHours(subject, template, RequestTimetableDto.builder()
+                        .subjectId(subject.getId())
+                        .day(DayOfWeek.of(day))
+                        .period(String.valueOf(period))
+                        .build());
             }
         }
-        log.info("Default timetable initialized. userId={}", user.getId());
-
+        log.info("Timetable initialized. userId={}, template={}, subjects={}, periodsPerDay={}",
+                user.getId(), template.getTemplateName(), subjectCount, periodsPerDay);
     }
 }

@@ -51,6 +51,21 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
     List<Long> findFriendIdsAmong(@Param("me") Long meId,
                                   @Param("candidates") Collection<Long> candidateIds);
 
+    // A B가 서로 차단하지 않은 친구 관계인지 확인
+    @Query("""
+            SELECT CASE WHEN COUNT(f1) > 0 THEN true ELSE false END
+            FROM Friend f1
+            WHERE f1.user.id = :me AND f1.friend.id = :friend
+                AND f1.status = com.example.highteenday_backend.enums.FriendStatus.FRIEND
+                AND EXISTS (
+                    SELECT 1
+                    FROM Friend f2
+                    WHERE f2.user.id = :friend AND f2.friend.id = :me
+                        AND f2.status = com.example.highteenday_backend.enums.FriendStatus.FRIEND
+                )
+            """)
+    boolean existsFriendship(@Param("me") Long meId, @Param("friend") Long friendId);
+
     // A B의 차단 관계 검색( A 기준 )
     Optional<Friend> findByUserAndFriend(User user, User friend);
 
