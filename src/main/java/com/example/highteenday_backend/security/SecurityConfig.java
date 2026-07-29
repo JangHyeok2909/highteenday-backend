@@ -72,6 +72,9 @@ public class SecurityConfig {
                         }))
                 )
                 .authorizeHttpRequests(auth -> auth
+                        // WebSocket 엔드포인트 (SockJS 핸드셰이크)
+                        .requestMatchers("/ws/**").permitAll()
+
                         // 중복 체크는 인증 불필요 (GET /api/user/** authenticated 규칙보다 먼저 선언)
                         .requestMatchers(HttpMethod.GET, "/api/user/check/**").permitAll()
 
@@ -83,7 +86,8 @@ public class SecurityConfig {
                                 "/api/mypage/**",
                                 "/api/timetableTemplates/**",
                                 "/api/schools/meals/**",
-                                "/api/notifications/**"
+                                "/api/notifications/**",
+                                "/api/chat/**"
                         ).authenticated()
 
                         // POST/DELETE 요청 중 인증 필요 경로
