@@ -205,6 +205,34 @@ ALB
 
 ## Git Rules
 
+### Branching — always base on `develop`
+
+`develop` is the integration branch; `main` is the release line. All day-to-day
+work branches off `develop` and merges back into `develop`.
+
+- **Always create new branches from `develop`**, never from `main` and never from
+  whatever branch happens to be checked out:
+  ```bash
+  git fetch origin
+  git switch -c <type>/<short-description> origin/develop
+  ```
+- **Always open pull requests against `develop`** as the base branch:
+  ```bash
+  gh pr create --base develop
+  ```
+  GitHub's repository default branch is what the PR form pre-selects. If it is
+  still `main`, the base **must** be switched to `develop` manually — otherwise
+  the diff includes every commit `develop` is ahead of `main` and the PR becomes
+  unreviewable.
+- Branch names use the same prefixes as commit types: `feature/`, `fix/`,
+  `refactor/`, `test/`, `chore/`, `perf/`.
+- Never merge or rebase a branch onto `main` directly. `main` only ever receives
+  `develop`.
+- Before starting work on an existing branch, bring it up to date with
+  `develop` (`git merge origin/develop`, or rebase if the branch is unpushed).
+
+### Commits
+
 - **Commit messages must be written in English**
 - Follow Conventional Commits format: `type: short description`
   - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`
@@ -216,6 +244,8 @@ ALB
   - What benefit it brings 
 - **Always ask before committing AND pushing** — never commit or push without explicit user confirmation
 - Never force-push `main` without explicit user instruction
+- Never force-push a shared branch without explicit user instruction — a teammate
+  may have it checked out
 - Prefer one focused commit per logical change; squash noise commits before pushing
 
 ---
