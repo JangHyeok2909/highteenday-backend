@@ -1,4 +1,4 @@
-package com.example.highteenday_backend.Utils;
+package com.example.highteenday_backend.utils;
 
 import com.example.highteenday_backend.domain.posts.Post;
 
