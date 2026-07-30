@@ -66,7 +66,7 @@ public class CommentService {
                         .authorId(userId)
                         .postAuthorId(post.getUser().getId())
                         .parentCommentAuthorId(
-                                comment.getParent() !=null?comment.getParent().getId():null
+                                comment.getParent() !=null?comment.getParent().getUser().getId():null
                         )
                         .content(comment.getContent())
                         .build()

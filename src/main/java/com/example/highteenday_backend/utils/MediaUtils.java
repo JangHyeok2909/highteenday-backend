@@ -1,4 +1,4 @@
-package com.example.highteenday_backend.Utils;
+package com.example.highteenday_backend.utils;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
