@@ -1,0 +1,78 @@
+# 성능 회귀 테스트 — GitHub Actions 워크플로.
+# 사용: 이 파일을 저장소 루트 .github/workflows/perf-regression.yml 로 복사.
+#
+# 전략:
+#  - PR마다 도는 무거운 테스트는 비현실적 → develop 머지 시 + 수동 트리거 + 주간 스케줄
+#  - CI 러너는 로컬 기준 환경과 다르므로, CI 자체 baseline을 별도로 관리한다
+#    (regression/baseline.json은 로컬 기준, CI는 아티팩트로 유지)
+#  - 짧은 시나리오(HOLD 축소)로 "큰 회귀"만 잡는다. 정밀 측정은 로컬 실험의 몫.
+
+name: perf-regression
+on:
+  push:
+    branches: [develop]
+  schedule:
+    - cron: "0 18 * * 0"   # 매주 일 03:00 KST
+  workflow_dispatch:
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start perf stack
+        working-directory: performance
+        run: |
+          cp environment/.env.perf.example environment/.env.perf
+          docker compose -f environment/docker-compose.perf.yml --env-file environment/.env.perf up -d --build
+          # 앱 healthy 대기
+          timeout 180 bash -c 'until curl -sf localhost:8080/actuator/health; do sleep 5; done'
+
+      - name: Seed data (smoke profile)
+        working-directory: performance
+        run: node datasets/seed.js --profile smoke --concurrency 5
+
+      - name: Install k6
+        run: |
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install -y k6
+
+      - name: Run regression scenario (축소판 normal-day)
+        working-directory: performance
+        run: |
+          mkdir -p reports/raw
+          k6 run scenarios/normal-day.js -e DATASET=smoke -e VUS=30 -e HOLD=3m
+
+      - name: Restore CI baseline
+        uses: actions/cache@v4
+        with:
+          path: performance/regression/ci-baseline.json
+          key: perf-ci-baseline-v1
+
+      - name: Compare against baseline
+        working-directory: performance
+        run: |
+          LATEST=$(ls -t reports/raw/normal-day-*.summary.json | head -1)
+          if [ ! -f regression/ci-baseline.json ]; then
+            echo "CI baseline 없음 — 이번 결과를 baseline으로 저장하고 통과 처리"
+            cp regression/baseline.json regression/baseline.local.bak 2>/dev/null || true
+            node tools/compare.js --save-baseline "$LATEST"
+            cp regression/baseline.json regression/ci-baseline.json
+            mv regression/baseline.local.bak regression/baseline.json 2>/dev/null || true
+          else
+            cp regression/baseline.json regression/baseline.local.bak 2>/dev/null || true
+            cp regression/ci-baseline.json regression/baseline.json
+            node tools/compare.js "$LATEST"
+            mv regression/baseline.local.bak regression/baseline.json 2>/dev/null || true
+          fi
+
+      - name: Upload raw reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-reports-${{ github.run_number }}
+          path: performance/reports/raw/
+          retention-days: 30
