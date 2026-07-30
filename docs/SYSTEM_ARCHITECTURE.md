@@ -342,7 +342,7 @@ src/main/java/com/example/highteenday_backend/
 │       ├── CustomUserDetailsService.java
 │       └── JwtCookieService.java
 │
-└── Utils/
+└── utils/
     ├── HotScoreCalculator.java
     ├── MediaUtils.java
     └── PageUtils.java
