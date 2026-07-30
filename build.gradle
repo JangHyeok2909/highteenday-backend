@@ -30,6 +30,9 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	// DB 마이그레이션. flyway-mysql 은 MySQL 8 방언 지원을 위해 별도로 필요하다.
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-mysql'
 	compileOnly 'org.projectlombok:lombok:1.18.30'
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	annotationProcessor 'org.projectlombok:lombok:1.18.30'
@@ -73,4 +76,6 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// 마이그레이션은 MySQL 문법이고 테스트는 H2를 쓴다. 테스트 스키마는 Hibernate가 만든다.
+	systemProperty 'spring.flyway.enabled', 'false'
 }
