@@ -40,6 +40,9 @@ public final class PublicEndpoints {
             // OAuth2 로그인 시작 및 provider 콜백
             "/oauth2/**",
             // 서블릿 컨테이너의 에러 디스패치
-            "/error"
+            "/error",
+            // SockJS 핸드셰이크. 채팅 구독 권한은 HTTP 계층이 아니라 STOMP 계층에서
+            // WebSocketAuthChannelInterceptor가 CONNECT/SUBSCRIBE 시점에 검사한다.
+            "/ws/**"
     };
 }

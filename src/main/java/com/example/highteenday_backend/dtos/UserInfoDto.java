@@ -5,6 +5,7 @@ import lombok.Builder;
 
 @Builder
 public record UserInfoDto(
+        Long id,
         String name,
         String nickname,
         String email,

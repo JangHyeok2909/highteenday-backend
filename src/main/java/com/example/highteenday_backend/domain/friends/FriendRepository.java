@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,6 +35,21 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
                 OR (f.USR_id = :friend AND f.USR_frd_id = :me)
             """, nativeQuery = true)
     List<Friend> findFriendsRelations(@Param("me") Long meId, @Param("friend") Long friendId);
+
+    // 후보 목록 중 나와 친구인 사용자 ID만 추린다. 단체방 초대 시 1인 1쿼리를 피하기 위함.
+    @Query(value = """
+            SELECT f.USR_frd_id
+            FROM friends f
+            WHERE f.USR_id = :me AND f.FRD_status = 'FRIEND' AND f.USR_frd_id IN (:candidates)
+
+            UNION
+
+            SELECT f.USR_id
+            FROM friends f
+            WHERE f.USR_frd_id = :me AND f.FRD_status = 'FRIEND' AND f.USR_id IN (:candidates)
+            """, nativeQuery = true)
+    List<Long> findFriendIdsAmong(@Param("me") Long meId,
+                                  @Param("candidates") Collection<Long> candidateIds);
 
     // A B가 서로 차단하지 않은 친구 관계인지 확인
     @Query("""

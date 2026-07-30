@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,7 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserService userService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createCommentNotification(Long senderId, Long receiverId, Long postId, String content) {
@@ -55,7 +57,7 @@ public class NotificationService {
     private void saveNotification(User sender, User receiver, NotificationCategory category,
                                   EntityType entityType, Long entityId,
                                   String message, String contentMessage) {
-        notificationRepository.save(
+        Notification notification = notificationRepository.save(
                 Notification.builder()
                         .receiver(receiver)
                         .sender(sender)
@@ -65,6 +67,11 @@ public class NotificationService {
                         .message(message)
                         .contentMessage(contentMessage)
                         .build()
+        );
+
+        NotificationDto dto = NotificationDto.fromEntity(notification);
+        messagingTemplate.convertAndSendToUser(
+                String.valueOf(receiver.getId()), "/queue/notifications", dto
         );
     }
 

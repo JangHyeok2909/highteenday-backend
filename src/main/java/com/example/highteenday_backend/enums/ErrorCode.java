@@ -51,7 +51,22 @@ public enum ErrorCode {
     DEFAULT_TIMETABLE_TEMPLATE_NOT_FOUND(NOT_FOUND, "기본으로 설정된 시간표가 없습니다."),
 
     // friend
-    FRIEND_NOT_FOUND(NOT_FOUND, "친구 관계가 아닙니다.")
+    FRIEND_NOT_FOUND(NOT_FOUND, "친구 관계가 아닙니다."),
+
+    // chat
+    CHAT_ROOM_NOT_FOUND(NOT_FOUND, "채팅방을 찾을 수 없습니다."),
+    CHAT_NOT_PARTICIPANT(FORBIDDEN, "채팅방 참가자가 아닙니다."),
+    CHAT_NOT_FRIENDS(BAD_REQUEST, "친구 관계가 아닌 사용자와 채팅할 수 없습니다."),
+    CHAT_ROOM_ALREADY_EXISTS(CONFLICT, "이미 해당 사용자와의 채팅방이 존재합니다."),
+    CHAT_ROOM_FULL(BAD_REQUEST, "채팅방 정원이 가득 찼습니다."),
+    CHAT_NO_PERMISSION(FORBIDDEN, "채팅방에 대한 권한이 없습니다."),
+    CHAT_CANNOT_KICK_OWNER(BAD_REQUEST, "방장은 강퇴할 수 없습니다."),
+    CHAT_CANNOT_KICK_SELF(BAD_REQUEST, "자기 자신은 강퇴할 수 없습니다. 나가기를 이용해주세요."),
+    CHAT_ALREADY_PARTICIPANT(CONFLICT, "이미 참여 중인 사용자입니다."),
+    CHAT_NOT_GROUP_ROOM(BAD_REQUEST, "단체 채팅방이 아닙니다."),
+    CHAT_INVALID_MEMBER_COUNT(BAD_REQUEST, "단체 채팅방은 초대할 멤버가 1명 이상이어야 합니다."),
+    CHAT_INVALID_ROOM_NAME(BAD_REQUEST, "채팅방 이름은 1~30자여야 합니다."),
+    CHAT_EMPTY_MESSAGE(BAD_REQUEST, "빈 메시지는 전송할 수 없습니다.")
     ;
 
     private final HttpStatus httpStatus;

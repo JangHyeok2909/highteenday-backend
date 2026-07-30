@@ -48,13 +48,7 @@
 
 ## 아키텍처
 
-### 시스템 아키텍처
-
-![시스템 아키텍처](docs/images/full-architecture.png)
-
----
-
-### 배포 아키텍처
+### 전체 아키텍처
 
 ![배포아키텍쳐](docs/images/deploy-architecture.png)
 
@@ -70,20 +64,52 @@
 - 환경 일관성
 - 롤백 용이
 
----
 
 ####  CI/CD
 
 git push → GitHub Actions → ECR → EC2 배포
 
 
----
 
 ### 백엔드 레이어 아키텍처
 
 ![레이어 아키텍처](docs/images/layer-architecture.png)
 
+이 프로젝트는 전통적인 계층형 아키텍처를 기반으로 구성하되,
+Redis, S3 같은 외부 인프라에 서비스 로직이 직접 결합되지 않도록
+일부 영역에 Port/Adapter 패턴을 적용함.
+
+- Controller → 요청/응답 처리
+- Service → 비즈니스 로직 및 트랜잭션 관리
+- Domain → Entity / Repository / Value Object
+- Infrastructure → Redis, S3, QueryDSL 구현
+
+조회수 캐싱, 핫게시글 랭킹, 토큰 관리처럼
+트래픽과 성능 영향을 크게 받는 기능들을
+가용성과 성능을 우선하는 방향으로 설계함.
+
+
+### Event-driven architecture
+
+댓글 생성, 좋아요, 스크랩 등의 행동 이후 발생하는 부가 작업은
+Spring Event 기반으로 분리했습니다.
+
+예:
+- 댓글 생성 → 알림 생성
+- 댓글/좋아요/스크랩 → 핫게시글 점수 갱신
+
+`@TransactionalEventListener(AFTER_COMMIT)`을 사용하여
+원본 트랜잭션이 성공적으로 커밋된 이후에만 후속 작업이 실행되도록 구성했습니다.
+
+이를 통해:
+- 댓글 서비스가 알림 시스템에 직접 의존하지 않음
+- 부가 기능 실패가 핵심 기능 rollback으로 이어지지 않음
+- 새로운 부가 기능 추가 시 결합도 증가 방지
+
+구조를 얻을 수 있었습니다.
+
 ---
+
 
 ## 데이터 설계 (ERD)
 
@@ -260,7 +286,7 @@ sequenceDiagram
 
 Redis Sorted Set 기반 실시간 인기 게시글 랭킹 시스템입니다.
 
-스코어 계산 방식은 용도에 따라 두 가지로 나뉩니다.
+스코어 계산 방식은 용도에 따라 두 가지로 나뉜다.
 
 **최신 핫게시글** (`calculateRecentHotScore`)
 ```
@@ -489,6 +515,31 @@ Redis 기반 캐싱 적용
 
 
 자세한 내용:https://janghyeok.tistory.com/36
+
+---
+## 장애 대응 전략
+
+Redis는 성능 최적화를 위한 캐시 레이어로 사용하며,
+데이터의 정본(Source of Truth)은 MySQL로 유지했습니다.
+
+따라서 Redis 장애 시에도
+서비스 자체는 동작 가능하도록 설계했습니다.
+
+### 적용 전략
+
+- Redis 조회 실패 시 → DB fallback
+- 조회수 캐싱 실패 시 → 기능은 유지하고 일부 데이터 유실 허용
+- 핫게시글 Redis 장애 시 → DB 기반 랭킹 fallback
+- Refresh Token 조회 실패 시 → DB 재조회 후 Redis 재적재
+
+### 설계 의도
+
+조회수, 캐시, 랭킹 데이터는
+강한 정합성보다 가용성과 응답 속도를 우선했습니다.
+
+반면 인증, 사용자 정보 같은 핵심 데이터는
+DB를 기준으로 처리하여 안정성을 유지했습니다.
+
 
 ---
 
