@@ -9,7 +9,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.ExceptionTranslationFilter;
@@ -53,13 +52,16 @@ public class SecurityConfig {
                         .configurationSource(request -> {
                             CorsConfiguration config = new CorsConfiguration();
                             config.setAllowedOriginPatterns(List.of(
-                                    "https://highteenday.duckdns.org",
+                                    "https://highteenday.org",
+                                    "https://www.highteenday.org",
                                     "http://localhost:3000",
                                     "http://localhost:8080"
                             ));
                             config.setAllowCredentials(true);
-                            config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                            config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
                             config.setAllowedHeaders(List.of("*"));
+                            config.setExposedHeaders(List.of("Location"));
+
                             return config;
                         }))
                 .exceptionHandling(exceptionHandling ->
@@ -70,24 +72,38 @@ public class SecurityConfig {
                         }))
                 )
                 .authorizeHttpRequests(auth -> auth
+                        // WebSocket 엔드포인트 (SockJS 핸드셰이크)
+                        .requestMatchers("/ws/**").permitAll()
+
+                        // 중복 체크는 인증 불필요 (GET /api/user/** authenticated 규칙보다 먼저 선언)
+                        .requestMatchers(HttpMethod.GET, "/api/user/check/**").permitAll()
+
                         // GET 요청 중 인증 필요 경로
                         .requestMatchers(HttpMethod.GET,
                                 "/api/user/OAuth2UserInfo",
                                 "/api/user/loginUser",
+                                "/api/user/**",
                                 "/api/mypage/**",
-                                "/api/timetableTemplates/**"
+                                "/api/timetableTemplates/**",
+                                "/api/schools/meals/**",
+                                "/api/notifications/**",
+                                "/api/chat/**"
                         ).authenticated()
+
+                        // POST/DELETE 요청 중 인증 필요 경로
+                        .requestMatchers(HttpMethod.POST, "/api/user/logout").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/user/account").authenticated()
 
                         // POST 요청 중 인증 없이 허용하는 경로
                         .requestMatchers(HttpMethod.POST,
                                 "/api/user/register",
                                 "/api/user/login",
-                                "/api/user/check/nickname",
-                                "/api/user/check/email",
+                                "/api/token/refresh",
                                 "/error"
                         ).permitAll()
                         // 그 외 모든 GET 요청은 허용
                         .requestMatchers(HttpMethod.GET, "/**").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 그 외 모든 요청은 인증 필요
                         .anyRequest().authenticated()
                 )
@@ -95,6 +111,14 @@ public class SecurityConfig {
 
                 // 로그인 부분
                 .oauth2Login(oauth -> oauth
+                        //client->server 로그인 시작 url
+                        .authorizationEndpoint(endpoint ->
+                                endpoint.baseUri("/oauth2/authorization")
+                        )
+                        //provider->server 콜백 url
+                        .redirectionEndpoint(endpoint ->
+                                endpoint.baseUri("/oauth2/login/code/*")
+                        )
                         .userInfoEndpoint(c -> c.userService(customOAuth2UserService))
                         .successHandler(oAuth2SuccessHandler))
 
@@ -104,17 +128,12 @@ public class SecurityConfig {
     }
 
     @Bean
-    public BCryptPasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-    @Bean
     public WebSecurityCustomizer securityCustomizer() {
         return (web) -> web.ignoring().requestMatchers(
                 "/swagger-ui/**",
-                "/swagger-resources/**",
-                "/v3/api-docs/**",
-                "/webjars/**",
-                "/favicon.ico"
+                "/swagger/**",
+                "/favicon.ico",
+                "/actuator/health"
         );
     }
 }

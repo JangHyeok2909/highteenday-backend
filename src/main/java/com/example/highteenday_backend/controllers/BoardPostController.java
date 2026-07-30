@@ -1,17 +1,14 @@
 package com.example.highteenday_backend.controllers;
 
 
-import com.example.highteenday_backend.Utils.PageUtils;
-import com.example.highteenday_backend.domain.boards.Board;
-import com.example.highteenday_backend.domain.posts.Post;
-import com.example.highteenday_backend.dtos.paged.PagedPostsDto;
+import com.example.highteenday_backend.dtos.PostPreviewDto;
+import com.example.highteenday_backend.dtos.paged.PageResponse;
+import com.example.highteenday_backend.dtos.paged.PostListingDto;
 import com.example.highteenday_backend.enums.SortType;
-import com.example.highteenday_backend.services.domain.BoardService;
 import com.example.highteenday_backend.services.domain.PostService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,22 +19,48 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/boards/{boardId}/posts")
 public class BoardPostController {
-    private final BoardService boardService;
     private final PostService postService;
-    static final int PAGE_SIZE = 10;
+    static final int DEFAULT_SIZE = 10;
 
+//    @Operation(summary = "게시글 리스트 조회",description = "boardId의 게시판에 해당되는 게시글 리스트 조회")
+//    @GetMapping()
+//    public ResponseEntity<PageResponse> getPostsByBoardId(@PathVariable Long boardId,
+//                                                           @RequestParam Integer page,
+//                                                           @RequestParam SortType sortType){
+//        if(page == null) page = 0;
+//         PostListingDto dto= PostListingDto.builder()
+//                .boardId(boardId)
+//                .page(page)
+//                 .sortType(sortType)
+//                 .size(PAGE_SIZE)
+//                 .build();
+//        PageResponse<PostPreviewDto> pagedPostDResponseDto = postService.getPagedPostsByBoardId(dto);
+//
+//
+//        return ResponseEntity.ok(pagedPostDResponseDto);
+//    }
     @Operation(summary = "게시글 리스트 조회",description = "boardId의 게시판에 해당되는 게시글 리스트 조회")
     @GetMapping()
-    public ResponseEntity<PagedPostsDto> getPostsByBoardId(@PathVariable Long boardId,
-                                                           @RequestParam Integer page,
-                                                           @RequestParam SortType sortType){
-        Board board = boardService.findById(boardId);
+    public ResponseEntity<PageResponse> getPostsByBoardId(@PathVariable Long boardId,
+                                                          @RequestParam(defaultValue = "0") Integer page,
+                                                          @RequestParam(defaultValue = "RECENT") SortType sortType,
+                                                          @RequestParam(defaultValue = "10") int size,
+                                                          @RequestParam(required = false) Long lastSeedId,
+                                                          @RequestParam(defaultValue = "true") boolean isRandomPage){
         if(page == null) page = 0;
-        Page<Post> pagedPosts = postService.getPagedPostsByBoardId(boardId, page, PAGE_SIZE,sortType);
+        if(size <= 0 || size > 50) size = DEFAULT_SIZE;
+        PostListingDto dto= PostListingDto.builder()
+                .boardId(boardId)
+                .page(page)
+                .sortType(sortType)
+                .size(size)
+                .lastSeedId(lastSeedId)
+                .isRandomPage(isRandomPage)
+                .build();
 
-        PagedPostsDto pagedPostsDto = PageUtils.postsToDto(pagedPosts);
-        return ResponseEntity.ok(pagedPostsDto);
+        List<PostPreviewDto> postPrevs = postService.getPagedPosts(dto);
+        Long count = postService.getPostCount(boardId);
+        PageResponse pagedPosts = new PageResponse<>(postPrevs, page, size, count);
+        return ResponseEntity.ok(pagedPosts);
     }
-
-
 }

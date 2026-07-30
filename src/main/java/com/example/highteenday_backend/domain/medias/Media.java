@@ -37,22 +37,23 @@ public class Media {
     @Column(name = "MDA_content_type",length = 100,nullable = false)
     private String contentType;
 
+    @Enumerated(EnumType.STRING)
     @Column(name ="MDA_CAT")
     private MediaCategory mediaCategory;
 
     //null이 아닐 경우 게시글 이미지
     @ManyToOne(fetch = FetchType.LAZY ,optional = true)
-    @JoinColumn(name = "PST_id")
+    @JoinColumn(name = "PST_id", foreignKey = @ForeignKey(name = "fk_medias_pst"))
     private Post post;
 
     //null이 아닐 경우 유저 프로필 이미지
     @ManyToOne(fetch = FetchType.LAZY ,optional = true)
-    @JoinColumn(name = "USR_profile_owner_id_")
+    @JoinColumn(name = "USR_profile_owner_id_", foreignKey = @ForeignKey(name = "fk_medias_usr_profile"))
     private User profileOwner;
 
     //null이 아닐 경우 댓글 이미지
     @ManyToOne(fetch = FetchType.LAZY ,optional = true)
-    @JoinColumn(name = "CMT_id")
+    @JoinColumn(name = "CMT_id", foreignKey = @ForeignKey(name = "fk_medias_cmt"))
     private Comment comment;
 
     public void setPost(Post post){

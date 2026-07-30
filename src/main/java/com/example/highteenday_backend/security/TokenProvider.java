@@ -2,8 +2,8 @@ package com.example.highteenday_backend.security;
 
 
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.dtos.TokenPair;
 import com.example.highteenday_backend.domain.users.UserRepository;
-import com.example.highteenday_backend.dtos.Login.OAuth2UserInfo;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.services.domain.TokenService;
@@ -22,6 +22,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.util.*;
 import java.util.stream.Collectors;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -29,16 +30,17 @@ public class TokenProvider {
     @Value("${jwt.key}")
     private String key;
     private SecretKey secretKey;
+    private final TokenService tokenService;
+    private final UserRepository userRepository;
+
 
     private static final long ACCESS_TOKEN_EXPIRE_TIME = 1000 * 60 * 30L; // 30분
     private static final long REFRESH_TOKEN_EXPIRE_TIME = 1000 * 60 * 60L * 24 * 7; // 7일
     private static final String KEY_ROLE = "role";
 
-    private final TokenService tokenService;
-    private final UserRepository userRepository;
 
     @PostConstruct
-    private void settSecretKey() {
+    private void setSecretKey() {
         secretKey = Keys.hmacShaKeyFor(key.getBytes());
     }
 
@@ -46,23 +48,41 @@ public class TokenProvider {
     public String generateAccessToken(Authentication authentication){
         return generateToken(authentication, ACCESS_TOKEN_EXPIRE_TIME);
     }
-    // refreshToken 발급
-    public void generateRefreshToken(Authentication authentication, String accessToken){
-        System.out.println("Authorities: {}" + authentication.getAuthorities().stream()
+    // refreshToken 발급 — ROLE_GUEST 면 null 반환
+    public String generateRefreshToken(Authentication authentication, String accessToken){
+        log.debug("Refresh token issued. authorities={}", authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList()));
         CustomUserPrincipal principal = (CustomUserPrincipal) authentication.getPrincipal();
-        String userKey = principal.getUser() != null ? principal.getUser().getEmail() : (String) principal.getAttributes().get("email");
+        String userKey = principal.getUser() != null ? principal.getUser().getEmailValue() : (String) principal.getAttributes().get("email");
 
         boolean isGuest = authentication.getAuthorities().stream()
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
 
         if(isGuest){
-            return;
+            return null;
         }
 
         String refreshToken = generateToken(authentication, REFRESH_TOKEN_EXPIRE_TIME);
         tokenService.saveOrUpdate(userKey, refreshToken, accessToken);
+        return refreshToken;
+    }
+
+    // refreshToken 으로 accessToken + refreshToken 재발급 (rotation)
+    public TokenPair reissueTokens(String refreshToken){
+        // 1. 서명/만료 검증
+        Authentication authentication = getAuthentication(refreshToken);
+
+        // 2. DB에 저장된 토큰인지 확인 (서버 측 폐기 여부 체크)
+        tokenService.findByRefreshTokenOrThrow(refreshToken);
+
+        // 3. 새 accessToken 발급
+        String newAccessToken = generateAccessToken(authentication);
+
+        // 4. 새 refreshToken 발급 + DB 갱신 (rotation)
+        String newRefreshToken = generateRefreshToken(authentication, newAccessToken);
+
+        return new TokenPair(newAccessToken, newRefreshToken);
     }
     // 생성 로직
     private String generateToken(Authentication authentication, long expireTime){
@@ -77,9 +97,9 @@ public class TokenProvider {
         CustomUserPrincipal customUserPrincipal = (CustomUserPrincipal) authentication.getPrincipal();
 
         return Jwts.builder()
-                .setSubject(customUserPrincipal.getUser().getEmail())
+                .setSubject(customUserPrincipal.getUser().getEmailValue())
                 .claim(KEY_ROLE, authorities)
-                .claim("name", customUserPrincipal.getUser().getName())
+                .claim("name", customUserPrincipal.getUser().getNameValue())
                 .claim("provider", customUserPrincipal.getUser().getProvider())
                 .setIssuedAt(now)
                 .setExpiration(expiredDate)
@@ -104,17 +124,10 @@ public class TokenProvider {
         attributes.put("name", name);
         attributes.put("provider", provider);
 
-        if ("ROLE_GUEST".equals(role)) {
-            OAuth2UserInfo oAuth2UserInfo = new OAuth2UserInfo(name, email, provider);
-            CustomUserPrincipal principal = new CustomUserPrincipal(oAuth2UserInfo, attributes, role);
-
-            return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
-        }
-
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("유저 없음"));
 
-        CustomUserPrincipal principal = new CustomUserPrincipal(user, attributes, role);
+        CustomUserPrincipal principal = new CustomUserPrincipal(user, attributes, false);
 
         return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
     }

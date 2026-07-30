@@ -12,15 +12,16 @@ import com.example.highteenday_backend.services.domain.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 
 
+@Slf4j
 @Tag(name = "댓글 API", description = "댓글 관련 조회,생성,수정,삭제 API")
 @RequiredArgsConstructor
 @RestController
@@ -28,30 +29,30 @@ import java.util.List;
 public class CommentController {
     private final PostService postService;
     private final CommentService commentService;
-    private final CommentReactService commentReactService;
+    private final CommentReactionService commentReactionService;
+    private final CommentAnonymizationService commentAnonymizationService;
 
     @Operation(summary = "댓글 리스트 조회",description = "postId에 해당하는 게시글의 댓글 리스트 조회")
     @GetMapping()
-    public ResponseEntity<List<CommentDto>> getComments(@PathVariable Long postId,
-                                                        @AuthenticationPrincipal CustomUserPrincipal userPrincipal){
-        System.out.println("get comments 진입" );
+    public ResponseEntity<List<CommentDto>> getComments(
+            @PathVariable Long postId,
+            @AuthenticationPrincipal CustomUserPrincipal userPrincipal){
+
+        log.debug("Fetching comments. postId={}", postId);
         Post post = postService.findById(postId);
         List<Comment> comments = commentService.getCommentsByPost(post);
-        List<CommentDto> dtos = new ArrayList<>();
+        List<CommentDto> dtos = commentAnonymizationService.anonymize(post, comments);
 
-        for (Comment c : comments){
-            CommentDto dto = c.toDto();
-            if(userPrincipal != null) {
-                System.out.println("userPrincipal.getUser()="+userPrincipal.getUser().toString());
-                User user = userPrincipal.getUser();
-                LikeStateDto likeDto = commentReactService.getLikeSatateDto(c, user);
+        if (userPrincipal != null) {
+            User user = userPrincipal.getUser();
+            for (int i = 0; i < comments.size(); i++) {
+                Comment c = comments.get(i);
+                CommentDto dto = dtos.get(i);
+                LikeStateDto likeDto = commentReactionService.getLikeSatateDto(c, user);
                 dto.setLiked(likeDto.isLiked());
                 dto.setDisliked(likeDto.isDisliked());
-                dto.setOwner(user.getId() == c.getUser().getId());
-            } else{
-                System.out.println("userPrincipal is null, commentId="+c.getId());
+                dto.setOwner(user.getId().equals(c.getUser().getId()));
             }
-            dtos.add(dto);
         }
 
         return ResponseEntity.ok(dtos);
@@ -61,7 +62,7 @@ public class CommentController {
     @GetMapping("/{commentId}")
     public ResponseEntity<CommentDto> getCommentByIdTest(@PathVariable Long commentId){
         Comment comment = commentService.findCommentById(commentId);
-        return ResponseEntity.ok(comment.toDto());
+        return ResponseEntity.ok(CommentDto.fromEntity(comment));
     }
 
     @Operation(summary = "댓글 생성")
@@ -78,7 +79,7 @@ public class CommentController {
     }
 
     @Operation(summary = "댓글 수정")
-    @PutMapping("/{commentId}")
+    @PatchMapping("/{commentId}")
     public ResponseEntity updateComment(@PathVariable Long commentId,
                                         @RequestBody RequestCommentDto dto,
                                         @AuthenticationPrincipal CustomUserPrincipal userPrincipal){
@@ -106,7 +107,7 @@ public class CommentController {
 //        List<CommentDto> dtos = new ArrayList<>();
 //
 //        for (Comment c : comments){
-//            CommentDto dto = c.toDto();
+//            CommentDto dto = CommentDto.fromEntity(c);
 //            User user = userService.findById(userId);
 //            if(commentLikeService.isLikedByUser(c,user)) dto.setLiked(true);
 //            else if(commentDislikeService.isDislikedByUser(c,user)) dto.setDisliked(true);

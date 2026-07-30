@@ -1,19 +1,15 @@
 package com.example.highteenday_backend.security;
 
-import com.example.highteenday_backend.domain.users.UserRepository;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.Cookie;
+import com.example.highteenday_backend.services.security.JwtCookieService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 
@@ -22,54 +18,25 @@ import java.io.IOException;
 @Slf4j
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
-    private final UserRepository userRepository;
-    private final TokenProvider tokenProvider;
+    private final JwtCookieService jwtCookieService;
 
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
+
+    //oauth 로그인 성공시, jwt access/refresh 토큰을 쿠키에 저장하고, 신규 유저 여부에 따라 프론트엔드 리다이렉트를 결정.
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
                                         HttpServletResponse response,
-                                        Authentication authentication) throws IOException, ServletException {
+                                        Authentication authentication) throws IOException {
 
-        log.info("successhandler 진입");
-//        CustomUserPrincipal customUserPrincipal = (CustomUserPrincipal) authentication.getPrincipal();
-//        log.info(customUserPrincipal.getAttribute("registrationId") + " OAuth 전체 attributes: {}", customUserPrincipal.getAttributes());
+        log.debug("OAuth2 success handler entered.");
+        boolean isNew = ((CustomUserPrincipal) authentication.getPrincipal()).isNewUser();
 
-//        String email = customUserPrincipal.getAttribute("parsed_email");
-//
-        OAuth2AuthenticationToken authToken = (OAuth2AuthenticationToken) authentication;
-        String registrationId = authToken.getAuthorizedClientRegistrationId();
-        System.out.println("registrationId = { " + registrationId + " }");
-
-        CustomUserPrincipal customUserPrincipal = (CustomUserPrincipal) authToken.getPrincipal();
-
-        // user가 null인지 확인 후 출력
-        if (customUserPrincipal.getUser() != null) {
-            System.out.println("CustomUserPrincipal name = " + customUserPrincipal.getUser().getName());
-            System.out.println("CustomUserPrincipal email = " + customUserPrincipal.getUser().getEmail());
-        } else if (customUserPrincipal.getAttribute("email") != null) {
-            // fallback: OAuth2UserInfo 기반일 경우
-            System.out.println("OAuth2 attribute name = " + customUserPrincipal.getAttribute("name"));
-            System.out.println("OAuth2 attribute email = " + customUserPrincipal.getAttribute("email"));
-        }
-
-
-        boolean isGuest = authentication.getAuthorities().stream()
-                .anyMatch(auth -> auth.getAuthority().equals("ROLE_GUEST"));
-
-        String accessToken = tokenProvider.generateAccessToken(authentication);
-        tokenProvider.generateRefreshToken(authentication, accessToken);
-
-        // smaeSite 설정
-        String cookie = "accessToken=" + accessToken +
-                "; Path=/; Max-Age=3600; HttpOnly; Secure; SameSite=None";
-        response.addHeader("Set-Cookie", cookie);
-
-
-        // "회원가입 페이지" : "로그인 성공 페이지"
-        if(isGuest){
-            response.sendRedirect("/register");
+        jwtCookieService.setJwtCookie(authentication, response);
+        if (isNew) {
+            response.sendRedirect(frontendUrl + "/welcome");
         } else {
-            response.sendRedirect("/post/view");
+            response.sendRedirect(frontendUrl);
         }
     }
 }

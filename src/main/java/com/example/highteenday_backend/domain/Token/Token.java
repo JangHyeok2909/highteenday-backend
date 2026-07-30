@@ -4,6 +4,8 @@ import com.example.highteenday_backend.domain.users.User;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Builder
 @Entity
 @Getter
@@ -15,7 +17,7 @@ public class Token {
     private Long id;
 
     @OneToOne
-    @JoinColumn(name = "id")
+    @JoinColumn(name = "USR_id", foreignKey = @ForeignKey(name = "fk_token_usr"))
     private User user;
 
     // 토큰 길이 다시 검토, ( 길이 줄일지 | 유니크를 없에고 검증 로직 추가할지 )
@@ -24,8 +26,12 @@ public class Token {
     @Column(name = "TNK_access", length = 500, unique = true)
     private String accessToken;
 
-    public Token updateRefreshToken(String refreshToken){
+    @Column(name = "TNK_expires_at")
+    private LocalDateTime expiresAt;
+
+    public Token updateRefreshToken(String refreshToken, LocalDateTime expiresAt){
         this.refreshToken = refreshToken;
+        this.expiresAt = expiresAt;
         return this;
     }
     public void updateAccessToken(String accessToken){

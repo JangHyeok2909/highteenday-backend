@@ -1,0 +1,28 @@
+services:
+
+  # ==============================
+  # Spring Boot App (production)
+  #
+  # Image is built by GitHub Actions and pushed to Amazon ECR.
+  # EC2 pulls the pre-built image — no build step on the server.
+  #
+  # MySQL (RDS) and Redis are assumed to be already running on
+  # the EC2 host. network_mode: host allows the container to
+  # reach EC2's localhost directly (e.g. Redis on localhost:6379).
+  # ==============================
+  app:
+    image: ${ECR_IMAGE}
+    container_name: highteenday-app
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      JWT_KEY: ${JWT_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      NEIS_API_KEY: ${NEIS_API_KEY}

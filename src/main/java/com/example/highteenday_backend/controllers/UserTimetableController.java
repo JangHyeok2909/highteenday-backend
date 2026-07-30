@@ -48,21 +48,21 @@ public class UserTimetableController {
 
     @Operation(summary = "시간표 전체 조회", description = "timetableTemplatesId에 해당하는 시간표 전체 조회")
     @GetMapping("/{timetableTemplatesId}/userTimetables")
-    private ResponseEntity<List<UserTimetableDto>> getTimetables(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-                                                                 @PathVariable Long timetableTemplatesId){
+    public ResponseEntity<List<UserTimetableDto>> getTimetables(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
+                                                                @PathVariable Long timetableTemplatesId){
         User user = userPrincipal.getUser();
         TimetableTemplate template = templateService.findById(timetableTemplatesId);
-        if(template.getUser().getId() != user.getId()) return ResponseEntity.badRequest().build();
+        if(!template.getUser().getId().equals(user.getId())) return ResponseEntity.badRequest().build();
         List<UserTimetable> timetables = template.getTimetables();
         List<UserTimetableDto> timetableDtos = new ArrayList<>();
         for(UserTimetable utt:timetables){
-            timetableDtos.add(utt.toDto());
+            timetableDtos.add(UserTimetableDto.fromEntity(utt));
         }
         return ResponseEntity.ok(timetableDtos);
     }
     @Operation(summary = "시간표 추가", description = "과목id,요일,교시 등을 받아 해당 교시에 한시간 분량의 과목 추가")
     @PostMapping("/{timetableTemplatesId}/userTimetables")
-    private ResponseEntity<UserTimetableDto> addTimetable(
+    public ResponseEntity<UserTimetableDto> addTimetable(
             @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
             @RequestBody RequestTimetableDto dto,
             @PathVariable Long timetableTemplatesId
@@ -70,10 +70,10 @@ public class UserTimetableController {
         User user = userPrincipal.getUser();
         TimetableTemplate template = templateService.findById(timetableTemplatesId);
         Long ownerId = template.getUser().getId();
-        if(user.getId()!=ownerId) return ResponseEntity.badRequest().build();
+        if(!user.getId().equals(ownerId)) return ResponseEntity.badRequest().build();
         Subject subject = subjectService.findById(dto.getSubjectId());
         UserTimetable savedTimetable = timetableSubjectService.createTimetableAndIncHours(subject, template, dto);
-        return ResponseEntity.created(null).body(savedTimetable.toDto());
+        return ResponseEntity.created(null).body(UserTimetableDto.fromEntity(savedTimetable));
     }
 
     @Operation(summary = "시간표 삭제", description = "시간표id를 통해 한시간 분량의 해당 과목 삭제함.")
@@ -82,7 +82,7 @@ public class UserTimetableController {
                                                   @PathVariable Long userTimetableId){
         User user = userPrincipal.getUser();
         UserTimetable timetable = timetableService.findById(userTimetableId);
-        if(timetable.getTimetableTemplate().getUser().getId() != user.getId()) return ResponseEntity.badRequest().build();
+        if(!timetable.getTimetableTemplate().getUser().getId().equals(user.getId())) return ResponseEntity.badRequest().build();
         timetableSubjectService.deleteTimetableAndDecHours(timetable);
         return ResponseEntity.ok("시간표 삭제완료.");
     }
@@ -90,7 +90,7 @@ public class UserTimetableController {
     public List<UserTimetableDto> toListDto(List<UserTimetable> timetables){
         List<UserTimetableDto> timetableDtos = new ArrayList<>();
         for(UserTimetable utt:timetables){
-            timetableDtos.add(utt.toDto());
+            timetableDtos.add(UserTimetableDto.fromEntity(utt));
         }
         return timetableDtos;
     }

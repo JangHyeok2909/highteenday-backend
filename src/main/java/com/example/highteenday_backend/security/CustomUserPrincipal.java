@@ -3,7 +3,7 @@ package com.example.highteenday_backend.security;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.Login.OAuth2UserInfo;
 import com.example.highteenday_backend.enums.Provider;
-import lombok.Getter;
+import com.example.highteenday_backend.enums.Role;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -19,6 +19,7 @@ public class CustomUserPrincipal implements UserDetails, OAuth2User{
     private final Map<String, Object> attributes; // OAuth2 Attributes
     private final OAuth2UserInfo oAuth2UserInfo;
     private final Collection<? extends GrantedAuthority> authorities;
+    private final boolean isNewUser;
 
     // CustomUserPrincipal.java
     public CustomUserPrincipal(User user) {
@@ -26,20 +27,25 @@ public class CustomUserPrincipal implements UserDetails, OAuth2User{
         this.oAuth2UserInfo = null;
         this.attributes = Collections.emptyMap();
         this.authorities = List.of(new SimpleGrantedAuthority(user.getRole().name()));
+        this.isNewUser = false;
     }
 
-    public CustomUserPrincipal(User user, Map<String, Object> attributes, String role) {
+    public CustomUserPrincipal(User user, Map<String, Object> attributes, boolean isNewUser) {
         this.user = user;
         this.oAuth2UserInfo = null;
         this.attributes = attributes;
-        this.authorities = List.of(new SimpleGrantedAuthority(role));
+        this.authorities = List.of(new SimpleGrantedAuthority(Role.USER.getKey()));
+        this.isNewUser = isNewUser;
     }
+
+    public boolean isNewUser() { return isNewUser; }
 
     public CustomUserPrincipal(OAuth2UserInfo oAuth2UserInfo, Map<String, Object> attributes, String role) {
         this.user = null;
         this.oAuth2UserInfo = oAuth2UserInfo;
         this.attributes = attributes;
         this.authorities = List.of(new SimpleGrantedAuthority(role));
+        this.isNewUser = false;
     }
 
     public OAuth2UserInfo getoAuth2UserInfo() {
@@ -64,16 +70,16 @@ public class CustomUserPrincipal implements UserDetails, OAuth2User{
 
     @Override
     public String getUsername() {
-        return user != null ? user.getName() : oAuth2UserInfo.name();
+        return user != null ? user.getNameValue() : oAuth2UserInfo.name();
     }
 
     @Override
     public String getName() {
-        return user.getEmail();
+        return user.getEmailValue();
     }
 
     public String getUserEmail(){
-        return user != null ? user.getEmail() : oAuth2UserInfo.email();
+        return user != null ? user.getEmailValue() : oAuth2UserInfo.email();
     }
 
     public Provider getUserProvider() {

@@ -1,19 +1,27 @@
 package com.example.highteenday_backend.services.domain;
 
 
+import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
+import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplateRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.UserRepository;
+import com.example.highteenday_backend.domain.users.vo.*;
 import com.example.highteenday_backend.dtos.ChangeNicknameDto;
 import com.example.highteenday_backend.dtos.ChangePasswordDto;
-
+import com.example.highteenday_backend.dtos.ChangePhoneDto;
+import com.example.highteenday_backend.dtos.SchoolIdDto;
+import com.example.highteenday_backend.dtos.UserInfoDto;
 import com.example.highteenday_backend.dtos.Login.RegisterUserDto;
+import com.example.highteenday_backend.enums.Grade;
+import com.example.highteenday_backend.enums.Semester;
+import com.example.highteenday_backend.enums.Role;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
+import com.example.highteenday_backend.services.domain.SchoolService;
 import com.example.highteenday_backend.services.security.JwtCookieService;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -22,8 +30,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
+import java.util.Optional;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,6 +44,8 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtCookieService jwtCookieService;
+    private final TimetableTemplateRepository timetableTemplateRepository;
+    private final SchoolService schoolService;
 
     public User findById(Long userId){
         return userRepository.findById(userId)
@@ -43,6 +55,31 @@ public class UserService {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND,"존재하지 않는 유저, email="+email));
     }
+    public User findByNickname(String nickname){
+        return userRepository.findByNickname(nickname)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND,"존재하지 않는 유저, nickname="+nickname));
+    }
+
+    @Transactional(readOnly = true)
+    public UserInfoDto getUserInfoDto(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND, "존재하지 않는 유저, email=" + email));
+        String schoolName = user.getSchool() != null ? user.getSchool().getName() : null;
+        return UserInfoDto.builder()
+                .id(user.getId())
+                .name(user.getNameValue())
+                .email(user.getEmailValue())
+                .nickname(user.getNicknameValue())
+                .profileUrl(user.getProfileUrl())
+                .provider(user.getProvider().toString())
+                .schoolName(schoolName)
+                .phoneNum(user.getPhoneValue())
+                .userGrade(Optional.ofNullable(user.getGrade()).map(Grade::getField).orElse(null))
+                .userClass(Optional.ofNullable(user.getUserClass()).map(Object::toString).orElse(null))
+                .semester(Optional.ofNullable(user.getSemester()).map(Semester::getField).orElse(null))
+                .build();
+    }
+
     public boolean existsByNickname(String nickname){
         return userRepository.existsByNickname(nickname);
     }
@@ -60,31 +97,27 @@ public class UserService {
         if (userRepository.findByEmail(email).isPresent()) {
             throw new CustomException(ErrorCode.ALREADY_EXISTS_USER);
         }
-//        Optional<User> userOpt = userRepository.findByEmail(email);
-//        if(!userOpt.isEmpty()){
-//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("이미 가입된 유저입니다.");
-//        }
 
-        System.out.println("✅ registerUserDto.nickname = " + registerUserDto.nickname());
-        log.debug("✅ registerUserDto.nickname = " + registerUserDto.nickname());
-        User user = User.builder()
-                .nickname(registerUserDto.nickname())
-                .name(registerUserDto.name())
-                .email(registerUserDto.email())
-                .hashedPassword(passwordEncoder.encode(registerUserDto.password()))
-                .gender(registerUserDto.gender())
-                .provider(Provider.DEFAULT)
-                .phone(registerUserDto.phone())
-                .build();
+        log.info("User registration in progress. nickname={}, email={}", registerUserDto.nickname(), registerUserDto.email());
 
-        if(registerUserDto.provider()==null) user.setProvider(Provider.DEFAULT);
-        else user.setProvider(Provider.valueOf(registerUserDto.provider().toUpperCase()));
+        Provider provider = (registerUserDto.provider() == null)
+                ? Provider.DEFAULT
+                : Provider.valueOf(registerUserDto.provider().toUpperCase());
 
-        user.setHashedPassword(passwordEncoder.encode(registerUserDto.password()));
+        User user = User.createDefault(
+                new Email(registerUserDto.email()),
+                new UserName(registerUserDto.name()),
+                new Nickname(registerUserDto.nickname()),
+                Password.fromRawPassword(registerUserDto.password(), passwordEncoder),
+                registerUserDto.gender(),
+                new BirthDate(registerUserDto.birthDate()),
+                new PhoneNumber(registerUserDto.phone())
+        );
+        user.updateProvider(provider);
 
         Map<String, Object> attributes = new HashMap<>();
 
-        System.out.println("✅ 현재 제공자 : " + registerUserDto.provider());
+        log.debug("Registration provider. provider={}", registerUserDto.provider());
 
         if (user.getProvider()==Provider.DEFAULT) {
             attributes = Collections.emptyMap();
@@ -96,8 +129,10 @@ public class UserService {
 
         // 저장 후 토큰 발급하기 위한 처리 코드
         User savedUser = userRepository.saveAndFlush(user);
+        //기본 시간표 템플릿 할당
+        createDefaultTimetableTemplate(savedUser);
 
-        CustomUserPrincipal userDetails = new CustomUserPrincipal(savedUser, attributes, "ROLE_USER");
+        CustomUserPrincipal userDetails = new CustomUserPrincipal(savedUser, attributes, false);
 
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 userDetails,
@@ -109,11 +144,54 @@ public class UserService {
     }
 
 
+    @Transactional
+    public User registerOAuthUser(String email, String name, Provider provider, String profileUrl) {
+        String truncatedName = name != null && name.length() > 10 ? name.substring(0, 10) : name;
+
+        // 이메일 prefix를 기반으로 중복 없는 닉네임 생성
+        String emailPrefix = email.contains("@") ? email.split("@")[0] : email;
+        String baseNickname = emailPrefix.length() > 12 ? emailPrefix.substring(0, 12) : emailPrefix;
+        String nickname = baseNickname;
+        int suffix = 1;
+        while (userRepository.existsByNickname(nickname)) {
+            String suffixStr = String.valueOf(suffix++);
+            int maxBase = 12 - suffixStr.length();
+            nickname = (baseNickname.length() > maxBase ? baseNickname.substring(0, maxBase) : baseNickname) + suffixStr;
+        }
+
+        log.info("OAuth auto-registration. email={}, provider={}", email, provider);
+
+        User user = User.createOAuth(
+                new Email(email),
+                new UserName(truncatedName),
+                new Nickname(nickname),
+                provider,
+                profileUrl
+        );
+
+        User savedUser = userRepository.save(user);
+
+        createDefaultTimetableTemplate(savedUser);
+
+        return savedUser;
+    }
+
+    private void createDefaultTimetableTemplate(User user) {
+        TimetableTemplate defaultTemplate = TimetableTemplate.builder()
+                .user(user)
+                .templateName("기본 시간표")
+                .grade(Grade.SOPHOMORE)
+                .semester(Semester.FIRST)
+                .isDefault(true)
+                .build();
+        timetableTemplateRepository.save(defaultTemplate);
+    }
+
     // 회원 탈퇴
     @Transactional
     public void deleteAccount(User user){
         // 두번 검사하는거임, 하지말까 유난인가?
-        User findUser = userRepository.findByEmail(user.getEmail())
+        User findUser = userRepository.findByEmail(user.getEmailValue())
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         try{
@@ -130,9 +208,18 @@ public class UserService {
         }
     }
 
+    // 현재 비밀번호 일치 여부 확인
+    public boolean verifyPassword(User user, String password) {
+        if (user.getHashedPassword() == null) {
+            throw new CustomException(ErrorCode.INVALID_REQUEST);
+        }
+        return passwordEncoder.matches(password, user.getHashedPassword());
+    }
+
     // 비밀번호 변경 | 정규표현식 적용 가능
     @Transactional
-    public void modifyPassword(User user, ChangePasswordDto passwordDto) {
+    public void updatePassword(Long userId, ChangePasswordDto passwordDto) {
+        User user = findById(userId);
         if (!passwordEncoder.matches(passwordDto.pastPassword(), user.getHashedPassword())) {
             throw new CustomException(ErrorCode.INVALID_PASSWORD);
         } else if (passwordDto.pastPassword().equals(passwordDto.newPassword())) {
@@ -140,8 +227,7 @@ public class UserService {
         }
 
         try {
-            String newHashedPassword = passwordEncoder.encode(passwordDto.newPassword());
-            user.setHashedPassword(newHashedPassword);
+            user.changePassword(Password.fromRawPassword(passwordDto.newPassword(), passwordEncoder));
             userRepository.save(user);
         } catch (Exception e) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR);
@@ -150,7 +236,7 @@ public class UserService {
 
     // 닉네임 변경
     @Transactional
-    public void modifyNickname(User user, ChangeNicknameDto nicknameDto) {
+    public void updateNickname(Long userId, ChangeNicknameDto nicknameDto) {
         // 이전과 같은지 검사
         if (nicknameDto.pastNickname().equals(nicknameDto.newNickname())) {
             throw new CustomException(ErrorCode.SAME_AS_NICKNAME);
@@ -160,15 +246,36 @@ public class UserService {
             throw new CustomException(ErrorCode.INVALID_NICKNAME_FORMAT);
         }
 
+        User user = findById(userId);
         try {
-            String newNickname = nicknameDto.newNickname();
-            user.setNickname(newNickname);
+            user.changeNickname(new Nickname(nicknameDto.newNickname()));
             userRepository.save(user);
         } catch (Exception e){
             throw new CustomException(ErrorCode.INTERNAL_ERROR);
         }
     }
 
+    @Transactional
+    public void updatePhone(Long userId, ChangePhoneDto dto) {
+        if (dto.phone() != null && userRepository.existsByPhone(dto.phone())) {
+            throw new CustomException(ErrorCode.DUPLICATE_PHONE);
+        }
+        User user = findById(userId);
+        log.info("Phone number updated. userId={}", user.getId());
+        user.changePhone(new PhoneNumber(dto.phone()));
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void updateSchool(Long userId, SchoolIdDto dto) {
+        User user = findById(userId);
+        log.info("School/grade/class updated. userId={}, schoolId={}, grade={}, class={}",
+                user.getId(), dto.schoolId(), dto.grade(), dto.userClass());
+        user.updateSchool(schoolService.findById(Long.parseLong(dto.schoolId())));
+        user.updateGrade(dto.grade());
+        user.updateUserClass(dto.userClass());
+        userRepository.save(user);
+    }
 
 }
 

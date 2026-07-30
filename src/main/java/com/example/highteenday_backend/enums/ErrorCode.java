@@ -10,11 +10,11 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum ErrorCode {
     // auth
-    ILLEGAL_REGISTRATION_ID(NOT_ACCEPTABLE, "illegal registration id"),
-    TOKEN_EXPIRED(UNAUTHORIZED, "토큰이 만료되었습니다."),
-    TOKEN_NOT_FOUND(UNAUTHORIZED, "Access Token 이 쿠키에 없습니다."),
-    INVALID_TOKEN(UNAUTHORIZED, "올바르지 않은 토큰입니다."),
-    INVALID_JWT_SIGNATURE(UNAUTHORIZED, "잘못된 JWT 시그니처입니다."),
+    ILLEGAL_REGISTRATION_ID(NOT_ACCEPTABLE, "Illegal registration ID."),
+    TOKEN_EXPIRED(UNAUTHORIZED, "Token has expired."),
+    TOKEN_NOT_FOUND(UNAUTHORIZED, "Access token not found in cookies."),
+    INVALID_TOKEN(UNAUTHORIZED, "Invalid token."),
+    INVALID_JWT_SIGNATURE(UNAUTHORIZED, "Invalid JWT signature."),
 
 
     // global
@@ -35,10 +35,38 @@ public enum ErrorCode {
     SAME_AS_CURRENT_PASSWORD(BAD_REQUEST, "현재 비밀번호와 동일한 비밀번호입니다."),
     SAME_AS_NICKNAME(BAD_REQUEST, "현재 닉네임과 동일한 닉네임입니다."),
     DUPLICATE_NICKNAME(CONFLICT, "이미 사용 중인 닉네임입니다."),
-    INVALID_NICKNAME_FORMAT(BAD_REQUEST, "올바르지 않은 닉네임 형식입니다."),
+    DUPLICATE_PHONE(CONFLICT, "이미 사용 중인 전화번호입니다."),
+    INVALID_NICKNAME_FORMAT(BAD_REQUEST, "닉네임은 2~12자여야 합니다."),
+    INVALID_EMAIL_FORMAT(BAD_REQUEST, "유효하지 않은 이메일 형식입니다."),
+    INVALID_PASSWORD_FORMAT(BAD_REQUEST, "비밀번호는 8자 이상, 숫자 1개 이상, 특수문자 1개 이상 포함해야 합니다."),
+    INVALID_PHONE_FORMAT(BAD_REQUEST, "유효하지 않은 전화번호 형식입니다."),
+    INVALID_NAME_FORMAT(BAD_REQUEST, "이름은 2~8자여야 합니다."),
+    INVALID_BIRTHDATE(BAD_REQUEST, "생년월일은 15~30세 범위여야 합니다."),
+
+    // school
+    SCHOOL_NOT_ASSIGNED(BAD_REQUEST, "급식 조회를 위해 학교 배정이 필요합니다."),
+
+    // timetable
+    TIMETABLE_TEMPLATE_NOT_FOUND(NOT_FOUND, "시간표 템플릿을 찾을 수 없습니다."),
+    DEFAULT_TIMETABLE_TEMPLATE_NOT_FOUND(NOT_FOUND, "기본으로 설정된 시간표가 없습니다."),
 
     // friend
-    FRIEND_NOT_FOUND(NOT_FOUND, "친구 관계가 아닙니다.")
+    FRIEND_NOT_FOUND(NOT_FOUND, "친구 관계가 아닙니다."),
+
+    // chat
+    CHAT_ROOM_NOT_FOUND(NOT_FOUND, "채팅방을 찾을 수 없습니다."),
+    CHAT_NOT_PARTICIPANT(FORBIDDEN, "채팅방 참가자가 아닙니다."),
+    CHAT_NOT_FRIENDS(BAD_REQUEST, "친구 관계가 아닌 사용자와 채팅할 수 없습니다."),
+    CHAT_ROOM_ALREADY_EXISTS(CONFLICT, "이미 해당 사용자와의 채팅방이 존재합니다."),
+    CHAT_ROOM_FULL(BAD_REQUEST, "채팅방 정원이 가득 찼습니다."),
+    CHAT_NO_PERMISSION(FORBIDDEN, "채팅방에 대한 권한이 없습니다."),
+    CHAT_CANNOT_KICK_OWNER(BAD_REQUEST, "방장은 강퇴할 수 없습니다."),
+    CHAT_CANNOT_KICK_SELF(BAD_REQUEST, "자기 자신은 강퇴할 수 없습니다. 나가기를 이용해주세요."),
+    CHAT_ALREADY_PARTICIPANT(CONFLICT, "이미 참여 중인 사용자입니다."),
+    CHAT_NOT_GROUP_ROOM(BAD_REQUEST, "단체 채팅방이 아닙니다."),
+    CHAT_INVALID_MEMBER_COUNT(BAD_REQUEST, "단체 채팅방은 초대할 멤버가 1명 이상이어야 합니다."),
+    CHAT_INVALID_ROOM_NAME(BAD_REQUEST, "채팅방 이름은 1~30자여야 합니다."),
+    CHAT_EMPTY_MESSAGE(BAD_REQUEST, "빈 메시지는 전송할 수 없습니다.")
     ;
 
     private final HttpStatus httpStatus;

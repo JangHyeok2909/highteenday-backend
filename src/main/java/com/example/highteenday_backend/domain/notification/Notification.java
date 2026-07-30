@@ -1,10 +1,9 @@
 package com.example.highteenday_backend.domain.notification;
 
 import com.example.highteenday_backend.domain.base.BaseEntity;
-import com.example.highteenday_backend.domain.comments.CommentLike;
 import com.example.highteenday_backend.domain.friends.FriendReq;
-import com.example.highteenday_backend.domain.posts.PostLike;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.enums.EntityType;
 import com.example.highteenday_backend.enums.NotificationCategory;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -25,35 +24,33 @@ public class Notification extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_rec_id", nullable = false)
+    @JoinColumn(name = "USR_rec_id", nullable = false, foreignKey = @ForeignKey(name = "fk_notifications_usr_rec"))
     private User receiver;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_send_id")
+    @JoinColumn(name = "USR_send_id", foreignKey = @ForeignKey(name = "fk_notifications_usr_send"))
     private User sender;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "NT_CAT", nullable = false)
     private NotificationCategory category;
 
-    @Column(name = "FRD_REQ_id")
-    private Long friendReqId;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "PST_LK_id")
-    private PostLike postLike;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "CMT_LK_id")
-    private CommentLike commentLike;
-
-    @Column(name = "NT_url", length = 255)
-    private String url;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "NT_entity_type")
+    private EntityType entityType;
+    private Long entityId;
 
     @Column(name = "NT_msg", length = 255)
     private String message;
 
+    @Column(name = "NT_content_msg", length = 255)
+    private String contentMessage;
+
     @Builder.Default
     @Column(name = "NT_is_read", nullable = false)
     private Boolean isRead = false;
+
+    public void markAsRead() {
+        this.isRead = true;
+    }
 }

@@ -1,87 +1,120 @@
-name: Spring Boot CI/CD
+name: Deploy to EC2
 
 on:
   push:
-    branches: [ feature/user-security-action ]
+    branches: [ main ]
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: highteenday-backend
 
 jobs:
-  deploy-backend:
+  # ============================================================
+  # Job 1: Build Docker image on GitHub runner → push to ECR
+  # ============================================================
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # required for OIDC
+      contents: read
+
+    outputs:
+      image: ${{ steps.build.outputs.image }}
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Remove old app directory but keep application.properties
-        uses: appleboy/ssh-action@master
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::356630933123:role/github-actions-ecr-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Create ECR repository if not exists
+        run: |
+          aws ecr describe-repositories --repository-names $ECR_REPOSITORY \
+            || aws ecr create-repository --repository-name $ECR_REPOSITORY
+
+      - name: Build and push image to ECR
+        id: build
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          IMAGE=$REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+          docker build -t $IMAGE -t $REGISTRY/$ECR_REPOSITORY:latest .
+          docker push $IMAGE
+          docker push $REGISTRY/$ECR_REPOSITORY:latest
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+
+  # ============================================================
+  # Job 2: SSH to EC2 → pull image from ECR → restart container
+  # ============================================================
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      id-token: write   # required for OIDC
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::356630933123:role/github-actions-ecr-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
+          JWT_KEY: ${{ secrets.JWT_KEY }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          NEIS_API_KEY: ${{ secrets.NEIS_API_KEY }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: IMAGE,DB_URL,DB_USERNAME,DB_PASSWORD,REDIS_HOST,REDIS_PORT,JWT_KEY,S3_BUCKET,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,NEIS_API_KEY
           script: |
-            cp ~/highteenday-back-server/src/main/resources/application.properties ~/application.properties || true
-            rm -rf ~/highteenday-back-server
-
-      - name: Upload Spring Boot App to EC2
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./*"
-          target: "~/highteenday-back-server"
-          rm: false
-          overwrite: true
-          strip_components: 0
-
-      - name: Install Java 17 and PM2 on EC2
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            if ! java -version &>/dev/null; then
-              echo "Java not found. Installing OpenJDK 17..."
-              sudo apt update
-              sudo apt install -y openjdk-17-jdk
-            else
-              echo "Java is already installed."
+            # Clone repo on first deploy, otherwise pull latest
+            if [ ! -d ~/app ]; then
+              git clone https://github.com/${{ github.repository }}.git ~/app
             fi
+            cd ~/app
+            git fetch origin
+            git reset --hard origin/main
+            # Remove default compose file to prevent merging with prod config
+            rm -f docker-compose.yml
 
-            JAVA_PATH=$(readlink -f /usr/bin/java | sed "s:/bin/java::")
-            echo "Detected JAVA_HOME as $JAVA_PATH"
-            echo "export JAVA_HOME=$JAVA_PATH" >> ~/.bashrc
-            echo "export PATH=\$JAVA_HOME/bin:\$PATH" >> ~/.bashrc
+            # Login to ECR using EC2 Instance Profile (no static keys needed)
+            aws ecr get-login-password --region ap-northeast-2 | \
+              docker login --username AWS --password-stdin \
+              356630933123.dkr.ecr.ap-northeast-2.amazonaws.com
 
-            if ! command -v pm2 &> /dev/null; then
-              echo "PM2 not found. Installing PM2..."
-              sudo apt install -y npm
-              sudo npm install -g pm2
-            else
-              echo "PM2 is already installed."
-            fi
+            # Write all values from GitHub Secrets
+            printf 'ECR_IMAGE=%s\n'            "$IMAGE"               > .env
+            printf 'DB_URL=%s\n'               "$DB_URL"             >> .env
+            printf 'DB_USERNAME=%s\n'          "$DB_USERNAME"        >> .env
+            printf 'DB_PASSWORD=%s\n'          "$DB_PASSWORD"        >> .env
+            printf 'REDIS_HOST=%s\n'           "$REDIS_HOST"         >> .env
+            printf 'REDIS_PORT=%s\n'           "$REDIS_PORT"         >> .env
+            printf 'JWT_KEY=%s\n'              "$JWT_KEY"            >> .env
+            printf 'S3_BUCKET=%s\n'            "$S3_BUCKET"          >> .env
+            printf 'GOOGLE_CLIENT_ID=%s\n'     "$GOOGLE_CLIENT_ID"   >> .env
+            printf 'GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_CLIENT_SECRET" >> .env
+            printf 'NEIS_API_KEY=%s\n'         "$NEIS_API_KEY"       >> .env
 
-
-
-      - name: Run Spring Boot on EC2
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            mv ~/application.properties ~/highteenday-back-server/src/main/resources/
-
-            cd ~/highteenday-back-server
-            chmod +x ./gradlew
-            
-            ./gradlew build -x test
-
-            pm2 delete highteenday-backend || true
-
-            pm2 start "java -jar -Dserver.address=0.0.0.0 -Dserver.port=8080 build/libs/highteenday-backend-0.0.1-SNAPSHOT.jar" --name highteenday-backend
-
-            pm2 save
-
-            echo "✅ Spring Boot 서버가 PM2로 실행되었습니다."
+            # Pull pre-built image from ECR and restart (no build on EC2)
+            docker compose -f docker-compose.prod.yml --env-file .env pull
+            docker compose -f docker-compose.prod.yml --env-file .env up -d --force-recreate

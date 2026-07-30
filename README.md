@@ -1,2 +1,645 @@
-# HighteenDay Backend Server
+# HighTeenDay Backend
 
+하이틴데이는 고등학생을 위한 익명 커뮤니티 플랫폼입니다.
+
+학교에서 무슨 일이 일어나고 있는지,  
+어떤 이슈가 돌고 있는지 빠르게 알 수 있는 방법은 거의 없습니다.  
+또한 익명으로 자유롭게 의견을 나눌 수 있는 공간도 부족합니다.
+
+하이틴데이는 이러한 문제를 해결하기 위해 만들어졌습니다.
+
+사용자는 익명으로 글을 작성하고 반응을 남기며,  
+핫게시글 시스템을 통해 지금 가장 뜨거운 이슈를 실시간으로 확인할 수 있습니다.  
+또한 관심 있는 사용자와 연결되어 대화를 이어갈 수 있습니다.
+
+단순한 게시판이 아닌,  
+학생들 사이에서 실제로 정보가 흐르고 이슈가 형성되는 구조를 목표로 합니다.
+
+---
+
+## 주요 기능
+
+| 기능 | 설명 |
+|------|------|
+| 익명 게시판 | 게시글 작성·수정·삭제, 댓글·대댓글, 좋아요·싫어요, 스크랩 |
+| 소셜 로그인 | Google OAuth2 + JWT (Access/Refresh Token) |
+| 핫게시글 랭킹 | Redis Sorted Set 기반 실시간 인기글 (최신·일간) |
+| 친구 | 친구 요청·수락·거절·차단 |
+| 학교 정보 | 급식 조회 (NEIS API), 시간표 템플릿 관리 |
+| 이미지 업로드 | S3 기반 이미지 업로드 (임시 저장 → 게시글 확정 시 영구 이동) |
+
+---
+
+## 기술 스택
+
+| 분류 | 기술 |
+|------|------|
+| Framework | Spring Boot 3.4, Java 17 |
+| ORM / Query | Spring Data JPA, QueryDSL 5.0 |
+| DB | MySQL 8 |
+| Cache | Redis (Spring Data Redis) |
+| Auth | OAuth2 (Google) + JWT |
+| Storage | AWS S3 |
+| Load Test | k6 |
+| Docs | Springdoc OpenAPI (Swagger UI) |
+| CI/CD | GitHub Actions → EC2 (PM2) |
+
+---
+
+## 아키텍처
+
+### 전체 아키텍처
+
+![배포아키텍쳐](docs/images/deploy-architecture.png)
+
+#### S3 + CloudFront
+- 정적 파일 CDN 배포
+- 빠른 응답 + HTTPS 지원
+
+#### ALB
+- HTTPS 처리 및 로드밸런싱
+- 확장성 확보
+
+#### Docker
+- 환경 일관성
+- 롤백 용이
+
+
+####  CI/CD
+
+git push → GitHub Actions → ECR → EC2 배포
+
+
+
+### 백엔드 레이어 아키텍처
+
+![레이어 아키텍처](docs/images/layer-architecture.png)
+
+이 프로젝트는 전통적인 계층형 아키텍처를 기반으로 구성하되,
+Redis, S3 같은 외부 인프라에 서비스 로직이 직접 결합되지 않도록
+일부 영역에 Port/Adapter 패턴을 적용함.
+
+- Controller → 요청/응답 처리
+- Service → 비즈니스 로직 및 트랜잭션 관리
+- Domain → Entity / Repository / Value Object
+- Infrastructure → Redis, S3, QueryDSL 구현
+
+조회수 캐싱, 핫게시글 랭킹, 토큰 관리처럼
+트래픽과 성능 영향을 크게 받는 기능들을
+가용성과 성능을 우선하는 방향으로 설계함.
+
+
+### Event-driven architecture
+
+댓글 생성, 좋아요, 스크랩 등의 행동 이후 발생하는 부가 작업은
+Spring Event 기반으로 분리했습니다.
+
+예:
+- 댓글 생성 → 알림 생성
+- 댓글/좋아요/스크랩 → 핫게시글 점수 갱신
+
+`@TransactionalEventListener(AFTER_COMMIT)`을 사용하여
+원본 트랜잭션이 성공적으로 커밋된 이후에만 후속 작업이 실행되도록 구성했습니다.
+
+이를 통해:
+- 댓글 서비스가 알림 시스템에 직접 의존하지 않음
+- 부가 기능 실패가 핵심 기능 rollback으로 이어지지 않음
+- 새로운 부가 기능 추가 시 결합도 증가 방지
+
+구조를 얻을 수 있었습니다.
+
+---
+
+
+## 데이터 설계 (ERD)
+
+### Post Domain
+
+게시글, 댓글, 반응(좋아요/싫어요), 스크랩, 미디어를 포함하는 핵심 도메인입니다.
+
+![Post Domain ERD](docs/images/erd-post.png)
+
+- `Post`에 `likeCount`, `viewCount`, `commentCount`를 비정규화하여 목록 조회 시 JOIN 제거
+- `Post.nickname`을 비정규화하여 User 테이블 JOIN 없이 작성자 표시
+- `Comment`는 `parent_id` 자기참조로 대댓글 구현
+- `BaseEntity`의 `is_valid` 컬럼으로 Soft Delete 구현
+
+### User / Friend Domain
+
+소셜 로그인 기반 사용자와 친구 관계를 관리합니다.
+
+![User Domain ERD](docs/images/erd-user.png)
+
+- OAuth2 Provider(Google) + Role(GUEST, USER) 구분
+- `FriendRequests`의 `frq_status`로 요청/수락/거절 상태 관리
+- `Token` 엔티티로 Refresh Token 관리, Access Token은 HttpOnly Cookie로 전달
+
+### School Domain
+
+학교, 급식, 시간표 관련 데이터를 관리합니다.
+
+![School Domain ERD](docs/images/erd-school.png)
+
+- 급식 데이터는 매월 말일 스케줄러로 NEIS API에서 자동 수집
+- 시간표는 사용자별 템플릿 → 과목 → 요일/교시 매핑 구조
+
+---
+
+## 핵심 기능
+
+### 인증 / 인가 (OAuth2 + JWT)
+
+Google OAuth2 로그인을 지원합니다.
+
+
+#### 일반로그인 흐름
+![default login sequence](docs/images/default-login-flow.png)
+
+
+```
+POST /api/user/login
+
+→ 이메일 + 비밀번호 검증 (BCrypt)
+
+→ CustomUserPrincipal 생성
+
+→ JWT 발급 (accessToken HttpOnly 쿠키)
+```
+
+
+#### 소셜로그인
+![social login sequence](docs/images/social-login-flow.png)
+```
+→ OAuth2 인증 서버 리다이렉트
+
+→ 콜백 → CustomOAuth2UserService.loadUser()
+
+→ OAuth2SuccessHandler → JWT 발급
+```
+
+
+필터체인 
+
+```
+요청 → [TokenExceptionFilter]
+         → \[TokenAuthenticationFilter\]  ← 쿠키에서 JWT 추출 → SecurityContext 설정
+            → \[ExceptionTranslationFilter\]
+               → Controller
+```
+
+
+#### 토큰 구조
+
+| | Access Token | Refresh Token |
+|---|---|---|
+| 유효기간 | 30분 | 7일 |
+| 쿠키 Path | `/` | `/api/token/refresh` |
+| 저장 위치 | Cookie only | Cookie + DB (`Token` 테이블) |
+| 서명 알고리즘 | HMAC-SHA512 | HMAC-SHA512 |
+
+- JWT Payload: `sub`(이메일), `role`, `name`, `provider`
+- Access Token 만료 시 → `POST /api/token/refresh` 호출 → 두 토큰 모두 재발급 (Token Rotation)
+- DB에 저장된 Refresh Token이 없으면 재발급 거부 (강제 로그아웃 지원)
+
+#### 쿠키 설정 (Prod)
+
+```
+HttpOnly; Secure; SameSite=None; Domain=.highteenday.org
+```
+
+#### Role
+
+| Role | 설명 |
+|---|---|
+| `ROLE_USER` | 일반 인증 사용자 |
+| `ROLE_ADMIN` | 관리자 |
+
+자세한 내용: https://janghyeok.tistory.com/39
+
+### 게시글 조회 (Redis 조회수 캐싱)
+
+조회수를 DB에 바로 반영하면 인기 게시글에 write 부하가 집중되므로, Redis를 버퍼로 활용합니다.
+
+```
+사용자 조회 → Redis SETNX viewed:{postId}:{userId} (중복 방지, 1h TTL)
+           → Redis INCR post:views:{postId}
+
+ViewCountScheduler (60초 주기)
+           → KEYS post:views:* 스캔
+           → DB에 누적값 일괄 UPDATE
+           → Redis 키 삭제
+```
+
+### 게시글 작성 (S3 이미지 업로드)
+
+게시글 **생성 API는 이미지 파일을 받지 않습니다.** 클라이언트는 먼저 이미지를 업로드해 URL을 받은 뒤, HTML 본문(`<img src="...">`)에 넣어 `POST /api/posts`로 보냅니다. 서버는 저장된 본문에서 이미지 URL을 파싱해 **임시 객체를 영구 경로로 복사**하고, 본문 문자열의 URL을 치환합니다.
+
+#### API 역할
+
+| 단계 | 메서드 · 경로 | 설명 |
+|------|----------------|------|
+| ① 이미지 업로드 | `POST /api/media` (multipart) | S3 `tmp/{userId}/{UUID}-{파일명}` 에 저장, 응답 **`Location`** 에 임시 URL |
+| ② 게시글 작성 | `POST /api/posts` (JSON) | `title`, `content`(HTML) 만 전달 — 본문 안에 ①의 URL 포함 |
+
+#### 엔드투엔드 흐름
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant API as Backend
+    participant S3 as S3
+
+    C->>API: POST /api/media (file)
+    API->>S3: PUT tmp/{userId}/...
+    API-->>C: 201 Location: 임시 URL
+
+    C->>API: POST /api/posts (content에 img src=임시 URL)
+    API->>API: Post 저장 (id 발급)
+    API->>S3: CopyObject tmp → post-file/{postId}/...
+    API->>API: content URL 치환, Media 저장
+    API->>S3: delete tmp/{userId}/* (해당 유저 임시 폴더 비우기)
+    API-->>C: 201 /api/posts/{id}
+```
+
+#### 서버 처리 순서 (`PostMediaService`)
+
+1. **Jsoup**으로 `content` 내 모든 `<img src>` URL 수집  
+2. 각 URL에 대해 **같은 버킷 내 `CopyObject`**: 임시 키 → `post-file/{postId}/` 아래 영구 키  
+3. 복사된 객체 메타로 **`medias` 행** 생성 후 게시글과 연결  
+4. 본문 문자열에서 **임시 URL → 영구 URL** 치환 후 `Post.content` 갱신  
+5. 해당 유저 **`tmp/{userId}/` 접두 객체 일괄 삭제**
+
+#### S3 키 규칙 (요약)
+
+| 구분 | 키 패턴 |
+|------|---------|
+| 임시 업로드 | `tmp/{userId}/{UUID}-{원본파일명}` |
+| 게시글 확정 | `post-file/{postId}/` + (임시 키에서 `tmp` 접두 제거 후 경로) |
+
+#### 게시글 수정 시
+
+- 신규 본문·기존 본문에서 각각 img URL 목록을 뽑아 **추가분만** `CopyObject` + Media  
+- **기존에만 있던 URL**은 S3 객체 삭제  
+- 이미지가 하나도 없는 수정이면 본문만 갱신
+
+### 핫게시글 시스템
+
+Redis Sorted Set 기반 실시간 인기 게시글 랭킹 시스템입니다.
+
+스코어 계산 방식은 용도에 따라 두 가지로 나뉜다.
+
+**최신 핫게시글** (`calculateRecentHotScore`)
+```
+score = sign × log₁₀(max(|weighted_sum|, 1))
+weighted_sum = 5×좋아요 − 1×싫어요 + 2×스크랩 + 3×댓글 + 1×조회수
+```
+
+**일간 핫게시글** (`calculateDailyHotScore`) — 시간 감쇠 적용
+```
+score = sign × log₁₀(max(|weighted_sum|, 1)) / (경과시간 + 2)^1.5
+weighted_sum = 5×좋아요 − 2×싫어요 + 2×스크랩 + 3×댓글 + 1×조회수
+```
+
+- **로그 스케일**: 좋아요 0→10의 영향이 10→100보다 크게 반영되어 초기 반응이 중요
+- **시간 감쇠**: 오래된 글일수록 점수가 낮아져 최신 글 우대
+- **일간 핫게시글**: 상위 10개 노출 (좋아요 ≥ 10 필터)
+- **Redis ZSET**: `ZREVRANGE`로 O(log N + K) 시간에 상위 K개 조회
+- **스케줄러**: 1분 주기로 전체 게시글 스코어 갱신
+
+---
+
+## ⚡ 트러블슈팅
+
+### 좋아요/싫어요 카운트 동시성 문제
+
+#### 📌 문제
+게시글 조회 성능을 위해 like/dislike 수를 비정규화 컬럼으로 관리하던 중,
+동시 요청 환경에서 데이터 정합성이 깨지는 문제가 발생했다.
+
+- 100명의 유저가 동시에 좋아요/싫어요 요청
+- 실제 데이터와 카운트 값 불일치 (drift 발생)
+
+---
+
+#### 🧩 원인
+여러 트랜잭션이 동시에 동일 row를 읽고 업데이트하면서 **lost update** 발생
+
+---
+
+#### 🔧 해결 시도 및 결과
+
+| 방식 | 정합성 | 실패율 | 처리량 | p95 |
+|------|--------|--------|--------|------|
+| 락 없음 | ❌ | 1.68% | **205/s** | 579ms |
+| 낙관적 락 | ✅ | ❌ 79% | 81/s | 1.3s |
+| 비관적 락 | ✅ | ✅ 0% | 68/s | 951ms |
+
+- 낙관적 락: 정합성은 유지되나 충돌 시 실패율 급증 → 재시도 필요
+- 비관적 락: 정합성 완벽하지만 처리량 감소 및 응답 지연
+
+---
+
+#### 🎯 최종 선택
+락을 적용하지 않는 방식 선택 (성능 우선)
+
+- 좋아요/싫어요는 강한 정합성이 필수적인 데이터가 아님
+- 일부 오차는 허용 가능
+- 주기적 동기화(sync)로 정합성 보완
+
+---
+
+#### 🚀 개선 방향
+- 낙관적 락 + retry 전략
+- Redis 기반 캐싱 후 비동기 반영 (eventual consistency)
+
+자세한 내용:https://janghyeok.tistory.com/38
+
+---
+
+##  성능 개선 경험
+
+단순 CRUD 수준을 넘어, 실제 서비스 상황을 가정하고 트래픽을 발생시켜 병목을 분석하여 성능을 개선했습니다. 
+k6를 활용한 부하 테스트 기반으로 개선 전후를 검증했습니다.
+
+---
+
+### 1. N+1 문제 해결
+
+#### 📌 문제
+게시글 10개 조회 시 작성자 닉네임, 게시판 ID를 가져오기 위해 `User`, `Board` 테이블을 각각 지연 로딩 → 페이지당 최대 20번 추가 쿼리 발생
+
+#### 🔧 해결
+Fetch Join을 적용하여 단일 쿼리로 조회
+
+#### 📊 결과
+| 지표 | 개선 전 | 개선 후 | 개선율 |
+|------|--------|--------|--------|
+| P95 | 119ms | 73ms | ⬇️ 38% |
+| 평균 | 28ms | 17ms | ⬇️ 39% |
+| 처리량 | 1982 req/s | 2160 req/s | ⬆️ 9% |
+
+#### ⚖️ Trade-off
+- 1:N 관계에서 데이터 중복으로 메모리 사용량 증가 가능
+
+자세한 내용:https://janghyeok.tistory.com/31
+
+---
+
+### 2. 인덱싱 최적화
+
+
+#### 2-1. 특정 게시판의 삭제되지 않은 게시글 최신순 조회
+#### 📌 문제
+정렬 + 필터 조건(ex: brd_id=1 && is_valid=1 && created_at DESC)에서 인덱스를 활용하지 못해 FileSort 발생 
+→ 불필요한 정렬 비용 증가 + 응답속도 저하
+
+#### 🔧 해결
+-(brd_id, is_valid, pst_id) 복합 인덱스 추가
+- 복합 인덱스는 brd_id, is_valid, pst_id 순서로 구성하여
+정렬과 필터 조건 모두에서 효율적으로 사용 가능
+
+=>id 기준 내림차순 정렬 시 FileSort 발생과 모든 행을 순회하며 is_valid로 필터링하는 비용을 제거
+
+
+
+#### 📊 결과
+| 지표 | 인덱스 없음 | 인덱스 적용 | 개선율 |
+|------|------------|------------|--------|
+| avg | 99ms | 78ms | ⬇️ 21% |
+| P95 | 421ms | 314ms | ⬇️ 25% |
+| 처리량 | 1275 req/s | 1429 req/s | ⬆️ 12% |
+
+#### 💡 인사이트
+- 정렬 컬럼까지 포함된 복합 인덱스가 성능에 큰 영향
+- 복합 인덱스는 prefix 특성을 가지므로 
+(brd_id), (brd_id, is_valid), (brd_id, is_valid, pst_id) 조건에서 모두 활용 가능
+- 복합 인덱스의 prefix 특성으로 기존 단일 인덱스(brd_id)를 대체할 수 있으나,
+  쿼리 패턴에 따라 유지 여부를 판단해야 함
+
+
+#### ⚖️ Trade-off
+- 인덱스 증가로 쓰기 성능 저하 및 저장 공간 증가
+
+자세한 내용:https://janghyeok.tistory.com/32
+
+---
+
+### 2-2. 좋아요/조회수 정렬 성능 개선
+
+#### 📌 문제
+랜덤 페이지로 인한 OFFSET방식 + 좋아요순 조회순 정렬 조합으로 인해 
+대용량 데이터에서 Full Scan 발생 → 응답 30초 이상되는 문제 발생
+
+#### 🔧 해결
+like_count, view_count 에도 복합 인덱스 추가.
+
+#### 📊 결과
+| 지표 | 개선 전 | 개선 후 |
+|------|--------|--------|
+| avg | 15s+ | 2.2s |
+| P95 | 30s+ | 5.7s |
+
+#### 💡 인사이트
+- OFFSET 방식 + 정렬 + 대용량 데이터 조합은 최악의 성능을 초래하며,
+적절한 인덱스 없이는 실서비스 운영이 사실상 불가능.
+
+#### ⚖️ Trade-off
+- like_count, view_count는 자주 갱신되는 컬럼이므로,
+인덱스 추가 시 매번 인덱스도 갱신 → 쓰기 성능 및 I/O 증가
+- 그러나 인덱스 없이는 대용량 랜덤 페이지 조회 시 서비스 마비 수준의 성능 저하 발생
+
+---
+
+### 3. 커서 기반 페이징
+
+#### 📌 문제
+OFFSET 기반 페이징은 페이지가 뒤로 갈수록 성능 저하
+
+#### 🔧 해결
+id 기반 커서 페이징 적용
+
+#### 📊 결과
+| 지표 | 기존 | 커서 |
+|------|------|------|
+| avg | 42ms | 11ms |
+| P95 | 212ms | 32ms |
+
+
+
+#### 💡 인사이트
+- OFFSET 방식은 처음부터 원하는 데이터가 있는 위치까지 모든 행을 스캔하고,
+앞쪽의 불필요한 행을 버리는 비효율이 발생함
+
+#### ⚖️ Trade-off
+- 특정 페이지로 직접 이동 불가
+
+=> 이전/다음 페이지 조회의 경우엔 커서, 그 외에는 오프셋 방식을 혼합하여 사용.
+
+#### ⚠️ 한계
+- 커서 + 오프셋 혼합 사용 시, 뒤쪽 페이지에서 오프셋 요청이 들어오면 여전히 수만~수십만 건 데이터 스캔 발생
+- 실제 사용자가 이런 뒤 페이지를 조회할 가능성은 낮아 현재 하이브리드 방식 유지
+- 다만, 악의적 트래픽 공격이 들어오면 심각한 성능 문제가 발생할 수 있음
+
+
+자세한 내용:https://janghyeok.tistory.com/35
+
+---
+
+### 4. 캐싱 전략 적용
+
+#### 📌 문제
+게시판 목록 + 게시글 목록 + total count 조회시 반복 쿼리로 병목 발생 
+
+#### 🔧 해결
+Redis 기반 캐싱 적용
+- 게시판 목록
+- 게시글 목록
+- total count
+
+#### 📊 결과
+| 단계 | avg | P95 |
+|------|-----|-----|
+| 캐싱 없음 | 2.22s | 5.72s |
+| 게시판 목록+게시글목록만 캐싱 | 1.63s | 3.57s |
+| count도 캐싱 | 19ms | 96ms |
+
+#### 💡 인사이트
+- count 쿼리가 주요 병목 지점
+-예상과는 다르게 게시글 목록에 대한 캐싱보다 집계함수인 count에 대한 캐싱이 더 극적인 성능개선을 보임.
+
+#### ⚖️ Trade-off
+데이터 정합성 문제 
+- 게시글 생성/수정/삭제 시 Redis도 함께 업데이트해야 하므로 쓰기 비용 및 구현 복잡도 증가
+
+=> 그러나 대용량 트래픽 환경에서 서비스 안정성을 위해, 자주 조회되는 데이터에 대해 캐싱 적용 결정
+
+
+자세한 내용:https://janghyeok.tistory.com/36
+
+---
+## 장애 대응 전략
+
+Redis는 성능 최적화를 위한 캐시 레이어로 사용하며,
+데이터의 정본(Source of Truth)은 MySQL로 유지했습니다.
+
+따라서 Redis 장애 시에도
+서비스 자체는 동작 가능하도록 설계했습니다.
+
+### 적용 전략
+
+- Redis 조회 실패 시 → DB fallback
+- 조회수 캐싱 실패 시 → 기능은 유지하고 일부 데이터 유실 허용
+- 핫게시글 Redis 장애 시 → DB 기반 랭킹 fallback
+- Refresh Token 조회 실패 시 → DB 재조회 후 Redis 재적재
+
+### 설계 의도
+
+조회수, 캐시, 랭킹 데이터는
+강한 정합성보다 가용성과 응답 속도를 우선했습니다.
+
+반면 인증, 사용자 정보 같은 핵심 데이터는
+DB를 기준으로 처리하여 안정성을 유지했습니다.
+
+
+---
+
+## 리팩토링
+
+### ROLE_GUEST 플래그를 isNewUser boolean으로 교체 (OAuth2 플로우)
+
+#### 변경 내용
+
+- `CustomUserPrincipal`에 `isNewUser` 필드 추가
+- `CustomOAuth2UserService.loadUser()` 내부에서 신규 유저 등록(`registerOAuthUser()`)을 직접 수행하도록 이동
+- `OAuth2SuccessHandler`에서 유저 등록 로직 제거 — `isNewUser()` 값만 읽어 리다이렉트 경로 결정
+- `TokenProvider`의 `ROLE_GUEST` 분기 제거
+- `CustomUserPrincipal` 생성자를 `(User, Map, boolean isNewUser)` 형태로 변경
+
+#### 변경 이유
+
+기존 구현에서는 OAuth2 신규 사용자를 식별하기 위해 `ROLE_GUEST`라는 권한을 **신호(signal)** 로 사용했다.
+
+- `CustomOAuth2UserService`가 신규 유저에게 `ROLE_GUEST` 권한을 부여
+- `OAuth2SuccessHandler`가 해당 권한을 감지해 유저 등록과 리다이렉트 처리
+
+이 방식은 다음과 같은 문제를 내포하고 있었다.
+
+- **역할(Role) 시스템의 오용**: `ROLE_GUEST`는 본래 보안 접근 제어를 위한 권한 개념인데, "처음 로그인한 사용자인가"라는 임시 상태 전달 목적으로 사용되었음
+- **책임 분산**: 유저 등록 로직이 `OAuth2SuccessHandler`에 위치해, 인증 성공 핸들러가 도메인 로직까지 담당하는 구조가 됨
+- **흐름 추적 어려움**: 신규/기존 유저 분기가 두 클래스에 걸쳐 분산되어 있어 코드 흐름 파악이 어려움
+
+#### 개선 효과
+
+- **의미 명확화**: `isNewUser`는 "이 로그인이 최초 OAuth2 로그인인가"를 명시적으로 표현하며, 권한 시스템과 완전히 분리됨
+- **책임 집중**: 유저 등록과 principal 생성이 `CustomOAuth2UserService.loadUser()` 안에서 함께 처리되어 OAuth2 로그인 전체 흐름을 한 곳에서 파악 가능
+- **핸들러 단순화**: `OAuth2SuccessHandler`가 유저 등록, principal 교체, 쿠키 조립 등의 부가 책임에서 벗어나 리다이렉트 결정에만 집중
+- **`TokenProvider` 정리**: `ROLE_GUEST` 분기 제거로 토큰 발급 로직이 단순해짐
+
+---
+
+## API 엔드포인트
+
+api 명세서:https://api.highteenday.org/swagger-ui/index.html#/
+
+| 도메인 | 경로 | 주요 기능 |
+|--------|------|-----------|
+| 인증 | `/api/user/*` | OAuth2 로그인, 회원가입, 프로필 수정 |
+| 게시판 | `/api/boards` | 게시판 목록 |
+| 게시글 목록 | `/api/boards/{boardId}/posts` | 페이징 조회 (캐시, 커서, 정렬) |
+| 게시글 | `/api/posts` | CRUD, 검색 |
+| 댓글 | `/api/posts/{postId}/comments` | CRUD (대댓글 지원) |
+| 반응 | `/api/posts/{postId}/like, dislike` | 좋아요/싫어요 토글 |
+| 스크랩 | `/api/posts/{postId}/scraps` | 스크랩 토글 |
+| 핫게시글 | `/api/hotposts/daily` | 일간 인기글 TOP 10 |
+| 마이페이지 | `/api/mypage/*` | 내 글, 댓글, 스크랩 |
+| 친구 | `/api/friends/*` | 친구 요청/수락/차단 |
+| 학교 | `/api/schools/*` | 학교 검색, 급식 조회 |
+| 시간표 | `/api/timetableTemplates/*` | 시간표 템플릿 CRUD |
+| 미디어 | `/api/media` | 이미지 업로드 (S3) |
+
+---
+
+## 실행 방법
+
+### 필요 환경
+- Java 17+
+- MySQL 8
+- Redis
+
+### 실행
+
+```bash
+./gradlew build
+java -jar build/libs/highteenday-backend-0.0.1-SNAPSHOT.jar
+```
+
+### 부하 테스트
+
+```bash
+k6 run load-tests/k6-board-posts.js
+```
+
+### 환경 설정
+
+`src/main/resources/application.properties`에 아래 항목을 설정합니다.
+
+```properties
+spring.datasource.url=jdbc:mysql://localhost:3306/highteenday
+spring.datasource.username=
+spring.datasource.password=
+
+spring.data.redis.host=localhost
+spring.data.redis.port=6379
+
+jwt.secret=
+jwt.access-token-expiration=
+jwt.refresh-token-expiration=
+
+spring.security.oauth2.client.registration.google.client-id=
+spring.security.oauth2.client.registration.google.client-secret=
+
+cloud.aws.s3.bucket=
+cloud.aws.credentials.access-key=
+cloud.aws.credentials.secret-key=
+cloud.aws.region.static=
+```

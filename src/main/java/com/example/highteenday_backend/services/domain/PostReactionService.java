@@ -1,70 +1,100 @@
 package com.example.highteenday_backend.services.domain;
 
 import com.example.highteenday_backend.domain.posts.Post;
+import com.example.highteenday_backend.domain.posts.PostReaction;
+import com.example.highteenday_backend.domain.posts.PostReactionKind;
+import com.example.highteenday_backend.domain.posts.PostReactionRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.LikeStateDto;
+import com.example.highteenday_backend.eventEntities.events.PostReactedEvent;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+
+import java.util.Optional;
 
 @RequiredArgsConstructor
 @Service
 public class PostReactionService {
-    private final PostLikeService postLikeService;
-    private final PostDislikeService postDislikeService;
+
+    private final PostReactionRepository postReactionRepository;
+    private final ApplicationEventPublisher eventPublisher;
+
+    public boolean isLikedByUser(Post post, User user) {
+        return postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE);
+    }
+
+    public boolean isDislikedByUser(Post post, User user) {
+        return postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.DISLIKE);
+    }
+
+    /*
+    * valid의 상태가 false의 경우, reactionKind 무의미
+    *
+    * */
+    @Transactional
+    public void likeReact(Post post, User user) {
+        boolean liked = isLikedByUser(post, user);
+        boolean disliked = isDislikedByUser(post, user);
+        if (liked && !disliked) {   //좋아요 상태 -> valid = false 전환
+            cancelState(post, user);
+        } else { //싫어요 상태 or 상태없음 -> 좋아요 전환(생성)
+            createReaction(post, user, PostReactionKind.LIKE);
+        }
+    }
 
     @Transactional
-    public void likeReact(Post post, User user){
-        boolean liked = postLikeService.isLikedByUser(post, user);
-        boolean disliked = postDislikeService.isDislikedByUser(post, user);
-        //좋아요 누른상태
-        if(liked && !disliked){
-            postLikeService.cancelLike(post, user);
-            post.minusLikeCount();
-        }
-        //싫어요 누른상태
-        else if (!liked && disliked) {
-            postDislikeService.cancelDislike(post, user);
-            postLikeService.createLike(post, user);
-            post.plusLikeCount();
-            post.minusDislikeCount();
-        }
-        //아무것도 안 누른 상태
-        else{
-            postLikeService.createLike(post, user);
-            post.plusLikeCount();
+    public void dislikeReact(Post post, User user) {
+        boolean liked = isLikedByUser(post, user);
+        boolean disliked = isDislikedByUser(post, user);
+        if (!liked && disliked) { //싫어요 상태 -> valid = false 전환
+            cancelState(post, user);
+        } else { //좋아요 상태 or 상태없음 -> 싫어요 전환(생성)
+            createReaction(post, user,PostReactionKind.DISLIKE);
         }
     }
-    @Transactional
-    public void dislikeReact(Post post, User user){
-        boolean liked = postLikeService.isLikedByUser(post, user);
-        boolean disliked = postDislikeService.isDislikedByUser(post, user);
-        //좋아요 누른상태
-        if(liked && !disliked){
-            postLikeService.cancelLike(post, user);
-            postDislikeService.createDislike(post, user);
-            post.minusLikeCount();
-            post.plusDislikeCount();
-        }
-        //싫어요 누른상태
-        else if (!liked && disliked) {
-            postDislikeService.cancelDislike(post, user);
-            post.minusDislikeCount();
-        }
-        //아무것도 안 누른 상태
-        else{
-            postDislikeService.createDislike(post, user);
-            post.plusDislikeCount();
-        }
-    }
-    public LikeStateDto getLikeSatateDto(Post post, User user){
-        boolean isLiked = postLikeService.isLikedByUser(post, user);
-        boolean isDisliked = postDislikeService.isDislikedByUser(post, user);
+
+    public LikeStateDto getLikeSatateDto(Post post, User user) {
+        boolean isLiked = isLikedByUser(post, user);
+        boolean isDisliked = isDislikedByUser(post, user);
         return LikeStateDto.builder()
-                    .postId(post.getId())
-                    .isLiked(isLiked)
-                    .isDisliked(isDisliked)
-                    .likeCount(post.getLikeCount())
-                    .build();
+                .postId(post.getId())
+                .isLiked(isLiked)
+                .isDisliked(isDisliked)
+                .likeCount(post.getLikeCount())
+                .build();
+    }
+
+    private void cancelState(Post post, User user) {
+        postReactionRepository.findByPostAndUser(post, user)
+                .ifPresent(r -> r.cancel());
+        syncCounts(post);
+    }
+
+    private void createReaction(Post post, User user, PostReactionKind kind) {
+        Optional<PostReaction> opt = postReactionRepository.findByPostAndUser(post, user);
+        if (opt.isEmpty()) { //존재하지 않으면 insert
+            postReactionRepository.save(PostReaction.builder()
+                    .post(post)
+                    .user(user)
+                    .kind(kind)
+                    .build());
+
+            syncCounts(post);
+            eventPublisher.publishEvent(new PostReactedEvent(post.getId()));
+            return;
+        }
+        PostReaction r = opt.get();
+        r.applyState(kind);
+        syncCounts(post);
+        eventPublisher.publishEvent(new PostReactedEvent(post.getId()));
+
+    }
+
+    private void syncCounts(Post post) {
+        int likes = postReactionRepository.countByPostAndKindAndIsValidTrue(post, PostReactionKind.LIKE);
+        int dislikes = postReactionRepository.countByPostAndKindAndIsValidTrue(post, PostReactionKind.DISLIKE);
+        post.syncReactionCounts(likes, dislikes);
     }
 }

@@ -1,30 +1,38 @@
 package com.example.highteenday_backend.configs;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
 
 @Configuration
+@Profile("!test")
 public class S3Config {
-    @Value("${cloud.aws.credentials.access-key}")
-    private String accessKey;
-
-    @Value("${cloud.aws.credentials.secret-key}")
-    private String secretKey;
 
     @Value("${cloud.aws.region.static}")
     private String region;
 
+    // Production: credentials from EC2 Instance Profile (ec2-s3-role)
     @Bean
-    public AmazonS3 amazonS3() {
-        BasicAWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
-        return AmazonS3ClientBuilder.standard()
-                .withRegion(region)
-                .withCredentials(new AWSStaticCredentialsProvider(credentials))
+    @Profile("prod")
+    public S3Client s3ClientProd() {
+        return S3Client.builder()
+                .region(Region.of(region))
+                .credentialsProvider(InstanceProfileCredentialsProvider.create())
+                .build();
+    }
+
+    // Local / Dev: credentials from ~/.aws/credentials (run "aws configure" once)
+    @Bean
+    @Profile("!prod")
+    public S3Client s3ClientLocal() {
+        return S3Client.builder()
+                .region(Region.of(region))
+                .credentialsProvider(ProfileCredentialsProvider.create())
                 .build();
     }
 }

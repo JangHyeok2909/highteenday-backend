@@ -4,17 +4,14 @@ package com.example.highteenday_backend.domain.comments;
 import com.example.highteenday_backend.domain.base.BaseEntity;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
-import com.example.highteenday_backend.dtos.CommentDto;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-@Builder
 @Getter
-@AllArgsConstructor
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name= "comments")
 @Entity
 public class Comment extends BaseEntity {
@@ -24,79 +21,84 @@ public class Comment extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "USR_id", nullable = false)
+    @JoinColumn(name = "USR_id", nullable = false, foreignKey = @ForeignKey(name = "fk_comments_usr"))
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "PST_id", nullable = false)
+    @JoinColumn(name = "PST_id", nullable = false, foreignKey = @ForeignKey(name = "fk_comments_pst"))
     private Post post;
 
     // 대댓글: 자기 참조 관계
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "CMT_parent_id")
+    @JoinColumn(name = "CMT_parent_id", foreignKey = @ForeignKey(name = "fk_comments_parent"))
     private Comment parent;
 
-    @Builder.Default
     @Column(name = "CMT_is_anonymous", nullable = false)
     private boolean isAnonymous = true;
 
     @Column(name = "CMT_content", length = 10000, nullable = false)
     private String content;
 
-    @Builder.Default
     @Column(name = "CMT_like_count")
     private Integer likeCount = 0;
-    @Builder.Default
     @Column(name = "CMT_dislike_count")
     private Integer dislikeCount = 0;
 
     @Column(name = "CMT_image_url",columnDefinition = "LONGTEXT")
     private String s3Url;
 
-//    @Column(name = "CMT_report_count")
-//    private Integer reportCount = 0;
+    // === 정적 팩토리 ===
 
-    public void updateContent(String content){
-        this.content = content;
+    public static Comment create(User user, Post post, String content,
+                                 boolean isAnonymous, String imageUrl) {
+        Comment comment = new Comment();
+        comment.user = user;
+        comment.post = post;
+        comment.content = content;
+        comment.isAnonymous = isAnonymous;
+        comment.s3Url = imageUrl;
+        return comment;
     }
-    public void updateImage(String updateUrl){
-        this.s3Url = updateUrl;
-    }
-    public void setParent(Comment parent){
+
+    // === 도메인 메서드 ===
+
+    /** 대댓글 관계 설정 */
+    public void assignParent(Comment parent) {
         this.parent = parent;
     }
-    public void plusLikeCount(){
-        this.likeCount++;
-    }
-    public void plusDislikeCount(){
-        this.dislikeCount++;
-    }
-    public void minusLikeCount(){
-        this.likeCount--;
-    }
-    public void minusDislikeCount(){
-        this.dislikeCount--;
-    }
-    public void deleteImage(){
 
+    public void editContent(String content) {
+        this.content = content;
     }
 
-    public CommentDto toDto(){
-        return CommentDto.builder()
-                .id(this.id)
-                .userId(user.getId())
-                .parentId(this.parent != null ? this.parent.getId() : null)
-                .author(this.user.getNickname())
-                .content(this.content)
-                .likeCount(this.likeCount)
-                .dislikeCount(this.dislikeCount)
-                .isAnonymous(this.isAnonymous)
-                .url(s3Url)
-                .createdAt(super.getCreated())
-                .updatedAt(super.getUpdatedDate())
-                .isUpdated(super.getUpdatedBy() !=null)
-                .postId(this.post.getId())
-                .postTitle(this.post.getTitle())
-                .build();
+    public void changeImage(String imageUrl) {
+        this.s3Url = imageUrl;
+    }
+
+    public void removeImage() {
+        this.s3Url = null;
+    }
+
+    /** 반응 카운트 동기화 */
+    public void syncReactionCounts(int likeCount, int dislikeCount) {
+        this.likeCount = likeCount;
+        this.dislikeCount = dislikeCount;
+    }
+
+    // === Builder (테스트 호환) ===
+
+    @Builder
+    private Comment(Long id, User user, Post post, Comment parent,
+                    boolean isAnonymous, String content,
+                    Integer likeCount, Integer dislikeCount, String s3Url) {
+        this.id = id;
+        this.user = user;
+        this.post = post;
+        this.parent = parent;
+        this.isAnonymous = isAnonymous;
+        this.content = content;
+        this.likeCount = likeCount != null ? likeCount : 0;
+        this.dislikeCount = dislikeCount != null ? dislikeCount : 0;
+        this.s3Url = s3Url;
     }
 }
