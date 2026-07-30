@@ -50,15 +50,9 @@ public class CommentService {
     @Transactional
     public Comment createComment(Post post, User user, RequestCommentDto dto){
 
-        Comment comment = Comment.builder()
-                .user(user)
-                .post(post)
-                .content(dto.getContent())
-                .isAnonymous(dto.isAnonymous())
-                .s3Url(dto.getUrl())
-                .build();
-        if(dto.getParentId() != null) comment.setParent(findCommentById(dto.getParentId()));
-        post.updateCommentCount(post.getCommentCount()+1);
+        Comment comment = Comment.create(user, post, dto.getContent(), dto.isAnonymous(), dto.getUrl());
+        if (dto.getParentId() != null) comment.assignParent(findCommentById(dto.getParentId()));
+        post.incrementCommentCount();
 
         comment = commentRepository.save(comment);
         Long userId = user.getId();
@@ -84,7 +78,7 @@ public class CommentService {
     @Transactional
     public void updateComment(Long commentId, Long userId, RequestCommentDto dto){
         Comment comment = findCommentById(commentId);
-        comment.updateContent(dto.getContent());
+        comment.editContent(dto.getContent());
         comment.setUpdatedBy(userId);
         mediaProcessingService.processUpdateCommentMedia(comment,dto);
 
@@ -96,7 +90,7 @@ public class CommentService {
         Post post = comment.getPost();
         comment.delete();
         comment.setUpdatedBy(userId);
-        post.updateCommentCount(post.getCommentCount()-1);
+        post.decrementCommentCount();
         log.info("comment deleted. commentId={}, deletedBy={}",commentId,userId);
     }
 }

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,6 +35,36 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
                 OR (f.USR_id = :friend AND f.USR_frd_id = :me)
             """, nativeQuery = true)
     List<Friend> findFriendsRelations(@Param("me") Long meId, @Param("friend") Long friendId);
+
+    // 후보 목록 중 나와 친구인 사용자 ID만 추린다. 단체방 초대 시 1인 1쿼리를 피하기 위함.
+    @Query(value = """
+            SELECT f.USR_frd_id
+            FROM friends f
+            WHERE f.USR_id = :me AND f.FRD_status = 'FRIEND' AND f.USR_frd_id IN (:candidates)
+
+            UNION
+
+            SELECT f.USR_id
+            FROM friends f
+            WHERE f.USR_frd_id = :me AND f.FRD_status = 'FRIEND' AND f.USR_id IN (:candidates)
+            """, nativeQuery = true)
+    List<Long> findFriendIdsAmong(@Param("me") Long meId,
+                                  @Param("candidates") Collection<Long> candidateIds);
+
+    // A B가 서로 차단하지 않은 친구 관계인지 확인
+    @Query("""
+            SELECT CASE WHEN COUNT(f1) > 0 THEN true ELSE false END
+            FROM Friend f1
+            WHERE f1.user.id = :me AND f1.friend.id = :friend
+                AND f1.status = com.example.highteenday_backend.enums.FriendStatus.FRIEND
+                AND EXISTS (
+                    SELECT 1
+                    FROM Friend f2
+                    WHERE f2.user.id = :friend AND f2.friend.id = :me
+                        AND f2.status = com.example.highteenday_backend.enums.FriendStatus.FRIEND
+                )
+            """)
+    boolean existsFriendship(@Param("me") Long meId, @Param("friend") Long friendId);
 
     // A B의 차단 관계 검색( A 기준 )
     Optional<Friend> findByUserAndFriend(User user, User friend);
