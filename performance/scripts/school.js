@@ -30,8 +30,11 @@ export function todayMeal() {
       `${BASE_URL}/api/schools/meals/today`,
       tags('school', 'read', 'meal_today'),
     );
-    // 급식 정보가 없는 날은 4xx일 수 있음
-    check(res, { 'meal today not 5xx': (r) => r.status < 500 });
+    // `status < 500`으로 두면 400(SCHOOL_NOT_ASSIGNED)이 통과해버린다 — 실제로 요청의
+    // 53%가 실패하는데 checks는 100%로 보고되어, 조회 성능이 아니라 에러 경로를
+    // 측정하고 있다는 사실이 가려졌다(실측). 시드가 학교를 배정하므로 200이 정상이다.
+    // 급식이 없는 날은 200 + 빈 배열로 응답한다(확인함).
+    check(res, { 'meal today 200': (r) => r.status === 200 });
     return res;
   });
 }
@@ -42,7 +45,7 @@ export function monthMeal(year, month) {
       `${BASE_URL}/api/schools/meals/month?year=${year}&month=${month}`,
       tags('school', 'read', 'meal_month'),
     );
-    check(res, { 'meal month not 5xx': (r) => r.status < 500 });
+    check(res, { 'meal month 200': (r) => r.status === 200 });
     return res;
   });
 }
