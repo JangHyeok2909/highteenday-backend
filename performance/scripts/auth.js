@@ -6,7 +6,7 @@
  *  - refresh는 Token 테이블(DB) 조회+갱신 — DB 커넥션 경합 관찰
  *
  * 단독 실행:
- *   k6 run scripts/auth.js -e BASE_URL=http://localhost:8080 -e DATASET=small
+ *   k6 run scripts/auth.js -e BASE_URL=http://localhost:18080 -e DATASET=small
  */
 import { sleep } from 'k6';
 import { DEFAULT_THRESHOLDS, thinkTime } from './lib/config.js';
