@@ -47,3 +47,11 @@ ec2-user@*
 # Load test scripts (local only)
 k6/
 load-tests/
+
+### Performance testing (local only) ###
+# .env 패턴은 정확히 ".env"만 잡는다 — .env.perf 는 걸리지 않는다.
+# 이 파일에는 MYSQL_ROOT_PASSWORD / JWT_KEY 가 들어간다 (.env.perf.example 만 커밋한다).
+.env.*
+!.env.*.example
+# 시드 산출물 — datasets/seed.js 가 생성한다. 결정론적이라 재생성이 가능하고 용량이 크다.
+performance/datasets/generated/
