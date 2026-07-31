@@ -12,7 +12,7 @@
  *  - 채팅: 친구 쌍 일부가 1:1 방 + 소수의 단체방
  *
  * 사용법:
- *   node datasets/seed.js --profile small [--base http://localhost:8080] [--concurrency 10]
+ *   node datasets/seed.js --profile small [--base http://localhost:18080] [--concurrency 10]
  *   프로파일: smoke(20명) | small(100명) | medium(1,000명) | large(10,000명) | xlarge(100,000명)
  *
  * 산출물: datasets/generated/<profile>/{users,posts,boards}.json  ← k6가 로드
@@ -21,6 +21,17 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+
+// Node 18 미만에는 전역 fetch가 없다. 가드가 없으면 수백 건의
+// "fetch is not defined"가 개별 요청 실패로 찍히다가 마지막에 엉뚱한
+// TypeError로 죽어, 원인이 노드 버전이라는 사실이 드러나지 않는다(실측 2회).
+if (typeof fetch !== 'function') {
+  console.error(
+    `이 스크립트는 Node 18+ 가 필요하다 (전역 fetch 사용). 현재: ${process.version}\n` +
+    `  nvm-windows 예: nvm use 22.23.1`
+  );
+  process.exit(1);
+}
 
 // ---------- 설정 ----------
 
@@ -32,7 +43,7 @@ function arg(name, def) {
   return i >= 0 ? args[i + 1] : def;
 }
 const PROFILE_NAME = arg('profile', 'small');
-const BASE = arg('base', 'http://localhost:8080');
+const BASE = arg('base', 'http://localhost:18080');
 const CONCURRENCY = Number(arg('concurrency', 10));
 const P = PROFILES[PROFILE_NAME];
 if (!P) {
@@ -108,6 +119,9 @@ class Session {
   }
 }
 
+/** 워커가 이 값을 반환하면 "일을 하지 않고 건너뛰었다"로 집계된다 (성공으로 세지 않는다). */
+const SKIP = Symbol('skip');
+
 /**
  * 제한 동시성 실행기.
  *
@@ -118,25 +132,43 @@ class Session {
  * 재시도한다. reactions/scraps는 멱등(같은 반응 반복은 토글/무시)이라 재시도가 안전하다.
  */
 async function pooled(items, worker, concurrency = CONCURRENCY, label = '') {
-  let done = 0, failed = 0;
+  let processed = 0, ok = 0, failed = 0, skipped = 0;
   const queue = [...items.entries()];
+
+  const tally = (r) => { if (r === SKIP) skipped++; else ok++; };
+
   async function lane() {
     while (queue.length) {
       const [i, item] = queue.shift();
       try {
-        await worker(item, i);
+        tally(await worker(item, i));
       } catch (e) {
+        let recovered = false;
         if (/[Dd]eadlock/.test(e.message)) {
-          try { await worker(item, i); continue; } catch (e2) { e = e2; }
+          // 재시도 성공도 반드시 집계한다. (이전에는 continue로 빠져나가 카운터에서 누락됐다.)
+          try { tally(await worker(item, i)); recovered = true; } catch (e2) { e = e2; }
         }
-        failed++;
-        if (failed <= 5) console.error(`  ! ${label}[${i}]: ${e.message}`);
+        if (!recovered) {
+          failed++;
+          if (failed <= 5) console.error(`  ! ${label}[${i}]: ${e.message}`);
+        }
       }
-      if (++done % 200 === 0) process.stdout.write(`  ${label}: ${done}/${items.length}\r`);
+      if (++processed % 200 === 0) process.stdout.write(`  ${label}: ${processed}/${items.length}\r`);
     }
   }
   await Promise.all(Array.from({ length: concurrency }, lane));
-  console.log(`  ${label}: ${done}/${items.length} 완료 (실패 ${failed})`);
+
+  // "처리 개수"가 아니라 "실제 생성 개수"를 보고한다. 이전에는 조용히 건너뛴 작업까지
+  // 완료로 세어 "500/500 완료 (실패 0)"인데 실제로는 187건만 생성된 상태를 성공으로
+  // 보고했다(실측). 데이터셋이 명세에 미달하면 그 위의 모든 실험이 무효가 되므로
+  // 여기서 크게 드러내야 한다.
+  const parts = [`성공 ${ok}`];
+  if (failed) parts.push(`실패 ${failed}`);
+  if (skipped) parts.push(`건너뜀 ${skipped}`);
+  console.log(`  ${label}: ${processed}/${items.length} 처리 (${parts.join(', ')})`);
+  if (ok < items.length) {
+    console.log(`    ⚠ 목표 ${items.length}건 중 ${items.length - ok}건 미생성 — 데이터셋이 명세에 미달한다.`);
+  }
 }
 
 // ---------- 생성 단계 ----------
@@ -188,6 +220,61 @@ async function loginAll(users) {
   return sessions;
 }
 
+/**
+ * 사용자에게 학교/학년/반을 배정한다.
+ *
+ * users의 `schoolIdx`는 원래 친구 클러스터링 계산에만 쓰였고 실제 계정에는 반영되지
+ * 않았다. 그 결과 급식처럼 학교 배정을 요구하는 경로가 전부 400(SCHOOL_NOT_ASSIGNED)이
+ * 되어, `scripts/school.js`가 요청의 절반을 실패하면서도 checks는 100%로 통과하는
+ * 상태였다(실측: 실패율 53.1%, checks 100% — 검증이 `status < 500`이라 400을 놓쳤다).
+ *
+ * schools 테이블은 마이그레이션으로 이미 채워져 있다(2401개, SCH_id 1~2401).
+ * schoolIdx(0-based)를 SCH_id(1-based)에 그대로 대응시키면 "같은 schoolIdx = 같은 학교"가
+ * 유지되므로 친구 클러스터 전제도 그대로다.
+ */
+async function assignSchools(users, sessions) {
+  console.log('  학교/학년/반 배정');
+  await pooled(users, async (u, i) => {
+    const s = sessions[i];
+    if (!s) return SKIP;                       // 세션 없는 계정은 배정 불가 — 건너뜀으로 집계
+    const r = await s.json('PATCH', '/api/user/school', {
+      schoolId: String(u.schoolIdx + 1),       // SchoolIdDto.schoolId 는 String 이다
+      grade: u.grade,
+      userClass: 1 + (i % 10),
+    });
+    if (r.status >= 400) {
+      throw new Error(`school ${r.status}: ${JSON.stringify(r.data).slice(0, 150)}`);
+    }
+  }, CONCURRENCY, 'school');
+}
+
+/**
+ * 세션이 확보된 사용자 인덱스만 추린다.
+ *
+ * 가입/로그인이 실패한 계정을 남겨둔 채 zipf(users.length)로 작성자를 뽑으면, 그 계정이
+ * 뽑힐 때마다 작업이 조용히 버려진다. 게다가 Zipf는 낮은 인덱스(헤비 유저)를 압도적으로
+ * 자주 뽑으므로 상위 몇 명만 실패해도 손실이 증폭된다.
+ *
+ * 실측(small): 100명 중 8명이 로그인에 실패하자 글이 500건 중 187건만 생성됐는데도
+ * "500/500 완료 (실패 0)"으로 보고됐고, 작성자 분포도 Zipf가 아니라 거의 균등해져
+ * (최다 작성자 12건) datasets/README.md가 전제하는 Hot Data 편중이 사라졌다.
+ * 편중을 전제로 한 병목(BTL-001/003/004)은 이런 데이터로는 재현되지 않는다.
+ *
+ * 살아있는 세션만 모아 그 위에서 Zipf를 돌리면 생성 개수와 분포 형태가 모두 보존된다.
+ * (누가 헤비 유저가 되는지는 바뀌지만, 실험에 필요한 것은 특정 계정이 아니라 분포다.)
+ */
+function liveAuthors(sessions) {
+  const live = [];
+  for (let i = 0; i < sessions.length; i++) if (sessions[i]) live.push(i);
+  if (live.length === 0) {
+    throw new Error('사용 가능한 세션이 없다 — 회원가입/로그인 단계를 먼저 확인할 것');
+  }
+  if (live.length < sessions.length) {
+    console.log(`  ⚠ 세션 확보 ${live.length}/${sessions.length}명 — 작성자 풀을 이 범위로 제한한다`);
+  }
+  return live;
+}
+
 async function fetchBoards(sessions) {
   const s = sessions.find(Boolean);
   const r = await s.json('GET', '/api/boards');
@@ -201,12 +288,12 @@ async function fetchBoards(sessions) {
 
 async function createPosts(users, sessions, boards) {
   console.log(`[3/6] 게시글 ${P.posts}건 (작성자 Zipf 편중)`);
+  const live = liveAuthors(sessions);
   const posts = [];
   const jobs = Array.from({ length: P.posts }, (_, i) => i);
   await pooled(jobs, async (i) => {
-    const authorIdx = zipf(users.length);          // 헤비 유저 편중
+    const authorIdx = live[zipf(live.length)];     // 살아있는 세션 위에서 헤비 유저 편중
     const s = sessions[authorIdx];
-    if (!s) return;
     const board = boards[randInt(boards.length)];
     const r = await s.json('POST', '/api/posts', {
       boardId: board.id,
@@ -230,13 +317,15 @@ async function createPosts(users, sessions, boards) {
 
 async function createEngagement(users, sessions, posts) {
   console.log(`[4/6] 댓글 ${P.comments} + 반응 ${P.reactions} + 스크랩 ${P.scraps} (게시글 Zipf 편중)`);
+  const live = liveAuthors(sessions);
+  if (posts.length === 0) throw new Error('게시글이 없다 — 3단계(게시글 생성)를 먼저 확인할 것');
+
   const commentJobs = Array.from({ length: P.comments }, () => ({
     post: posts[zipf(posts.length)],
-    author: zipf(users.length),
+    author: live[zipf(live.length)],
   }));
   await pooled(commentJobs, async (j) => {
     const s = sessions[j.author];
-    if (!s || !j.post) return;
     const r = await s.json('POST', `/api/posts/${j.post.id}/comments`, {
       parentId: null, content: pick(COMMENTS_POOL), anonymous: rand() < 0.6, url: null,
     });
@@ -245,11 +334,10 @@ async function createEngagement(users, sessions, posts) {
 
   const reactionJobs = Array.from({ length: P.reactions }, () => ({
     post: posts[zipf(posts.length)],
-    user: randInt(users.length),
+    user: live[randInt(live.length)],
   }));
   await pooled(reactionJobs, async (j) => {
     const s = sessions[j.user];
-    if (!s || !j.post) return;
     const type = rand() < 0.85 ? 'LIKE' : 'DISLIKE';
     const r = await s.json('POST', `/api/posts/${j.post.id}/reaction?type=${type}`);
     if (r.status >= 500) throw new Error(`reaction ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
@@ -257,11 +345,10 @@ async function createEngagement(users, sessions, posts) {
 
   const scrapJobs = Array.from({ length: P.scraps }, () => ({
     post: posts[zipf(posts.length)],
-    user: randInt(users.length),
+    user: live[randInt(live.length)],
   }));
   await pooled(scrapJobs, async (j) => {
     const s = sessions[j.user];
-    if (!s || !j.post) return;
     const r = await s.json('POST', `/api/posts/${j.post.id}/scraps`);
     if (r.status >= 500) throw new Error(`scrap ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
   }, CONCURRENCY, 'scraps');
@@ -341,6 +428,7 @@ async function createChat(users, sessions, pairs) {
   const users = buildUsers();
   await registerUsers(users);
   const sessions = await loginAll(users);
+  await assignSchools(users, sessions);
   const boards = await fetchBoards(sessions);
   const posts = await createPosts(users, sessions, boards);
   await createEngagement(users, sessions, posts);
