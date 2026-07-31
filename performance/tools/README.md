@@ -1,12 +1,47 @@
 # Tools — 도구 모음
 
-## 이 저장소의 자체 도구
+## Performance Management System
+
+설계 배경과 전체 구조는 [`../PERFORMANCE-MANAGEMENT.md`](../PERFORMANCE-MANAGEMENT.md) 참고.
 
 | 도구 | 용도 | 사용법 |
 |------|------|--------|
-| `compare.js` | baseline 대비 회귀 판정 | `node tools/compare.js <summary.json>` — regression/README 참고 |
+| **`perf-run.js`** | **표준 진입점** — k6 실행 → 지표 수집 → 회귀 판정 → 리포트 생성 | `node tools/perf-run.js scenarios/normal-day.js` |
+| `collect.js` | 2단계 수집기 (운영 지표 조회 + 회귀 분석 + 리포트) | `node tools/collect.js <runId> --force --no-wait` |
+| `history.js` | 이력/추세 대시보드 생성 | `node tools/history.js` · `--print` · `--rebuild` |
+| `migrate-raw.js` | 과거 `reports/raw/*.summary.json` 이관 | `node tools/migrate-raw.js --dry-run` |
+
+```bash
+# 대부분의 경우 이것만 쓰면 된다
+node tools/perf-run.js scenarios/normal-day.js --note "인덱스 추가 후"
+
+# 리포트만 다시 만들기 (k6 재실행 없이)
+node tools/collect.js <runId> --force --no-wait
+```
+
+### `lib/` — 내부 모듈
+
+| 모듈 | 책임 |
+|------|------|
+| `promql.js` | Prometheus HTTP 클라이언트 (재시도·부분 실패 허용) |
+| `metrics-catalog.js` | **운영 지표 정의** — 지표 추가는 여기 한 줄이면 끝 |
+| `regression.js` | 회귀 판정 엔진 + 병목 가설 생성 |
+| `repository.js` | 이력 저장/조회, 기준선 선택 |
+| `report.js` | HTML 보고서 생성 |
+| `grafana.js` | 테스트 구간이 박힌 딥링크 생성 |
+| `format.js` | 표시 포맷 (콘솔/HTML 공용) |
+
+## 기타 자체 도구
+
+| 도구 | 용도 | 사용법 |
+|------|------|--------|
+| `compare.js` | *(구버전)* baseline 파일 대비 회귀 판정 | `node tools/compare.js <summary.json>` |
 | `chaos-redis-flap.sh` | Redis 순단 반복 주입 | `tools/chaos-redis-flap.sh 3 10 60` (3회, 10초 정지, 60초 간격) |
 | `chaos-cpu-squeeze.sh` | 앱 CPU 제한 주입 | `tools/chaos-cpu-squeeze.sh 1 300 2` |
+
+> `compare.js`는 k6 지표만 보고 `regression/baseline.json` 하나를 기준으로 삼는 구버전이다.
+> 과거 `reports/raw/` 파일과 함께 계속 동작하지만, 신규 작업은 `perf-run.js`를 쓴다 —
+> 운영 지표 연동, 이력 기반 자동 기준선, 추세 분석이 그쪽에만 있다.
 
 네트워크 지연 주입(tc netem)은 Linux 호스트 전용:
 ```bash
