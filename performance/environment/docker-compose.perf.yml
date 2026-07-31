@@ -181,6 +181,21 @@ services:
       - /var/lib/docker/:/var/lib/docker:ro
 
 volumes:
+  # 데이터셋 프로파일마다 MySQL 볼륨을 분리한다.
+  #
+  # 이유: 시드는 API 기반이라 large 이상은 적재에 수 시간이 걸린다. 볼륨이 하나뿐이면
+  # 프로파일 전환 = down -v + 전체 재시드가 되어, 한 번 large로 넘어가면 small로
+  # 되돌아오는 비용이 비현실적이 된다. 규모별 비교(예: 페이징 병목이 large에서만
+  # 재현되는가)는 프로파일 간 왕복이 싸야 성립한다.
+  #
+  # 볼륨을 분리하면 시드 비용은 프로파일당 1회만 내고, 이후 전환은 컨테이너 재생성
+  # 수준으로 끝난다. 교차 오염(시드 중복 실행 등)도 다른 프로파일로 번지지 않는다.
+  #
+  # 전환:  DATASET_PROFILE=large docker compose -f ... up -d
+  # 주의:  MySQL만 분리된다. Redis는 볼륨이 없어 프로파일이 바뀌어도 컨테이너가
+  #        재생성되지 않으면 이전 프로파일의 캐시/카운터가 남는다 —
+  #        전환 시 반드시 FLUSHALL 할 것 (environment/bootstrap.js가 자동으로 처리).
   perf-mysql-data:
+    name: perf-mysql-data-${DATASET_PROFILE:-medium}
   perf-prom-data:
   perf-grafana-data:
