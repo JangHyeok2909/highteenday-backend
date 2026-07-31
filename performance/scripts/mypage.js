@@ -20,10 +20,12 @@ export function userInfo() {
   });
 }
 
-export function myPosts(page = 0) {
+// sortType은 필수 파라미터다 — 빼면 400("Required request parameter 'sortType' ...")이 떨어져
+// 부하가 조회 경로가 아니라 에러 경로를 때린다(실측). 값: LIKE | VIEW | RECENT.
+export function myPosts(page = 0, sortType = 'RECENT') {
   return withAuth(() => {
     const res = http.get(
-      `${BASE_URL}/api/mypage/posts?page=${page}`,
+      `${BASE_URL}/api/mypage/posts?page=${page}&sortType=${sortType}`,
       tags('mypage', 'read', 'my_posts'),
     );
     check(res, { 'my posts 200': (r) => r.status === 200 });
@@ -31,10 +33,10 @@ export function myPosts(page = 0) {
   });
 }
 
-export function myComments(page = 0) {
+export function myComments(page = 0, sortType = 'RECENT') {
   return withAuth(() => {
     const res = http.get(
-      `${BASE_URL}/api/mypage/comments?page=${page}`,
+      `${BASE_URL}/api/mypage/comments?page=${page}&sortType=${sortType}`,
       tags('mypage', 'read', 'my_comments'),
     );
     check(res, { 'my comments 200': (r) => r.status === 200 });
