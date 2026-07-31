@@ -94,6 +94,22 @@ flowchart LR
 노출 설정은 컴포즈가 환경변수로 주입한다
 (`MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,prometheus,metrics`). 운영 프로파일에는 영향 없음.
 
+### 지표 생성 설정은 base `application.properties`에 있다 (전 환경 공통)
+
+노출(exposure)은 perf 환경만 열지만, **지표를 만들어내는 설정 자체는 dev/prod에서도
+동일하게 필요**하므로 프로파일 파일이 아니라 base에 둔다. 없으면 조용히 지표가
+비어 있고, 대시보드 패널만 "No data"로 뜬다(실측 확인됨):
+
+| 설정 | 없을 때 증상 |
+|------|--------------|
+| `server.tomcat.mbeanregistry.enabled=true` | `tomcat_sessions_*`만 나오고 `tomcat_threads_*`(busy/current/config.max)가 **아예 생성되지 않음** — 스레드 풀 포화(BTL-002) 관측 불가 |
+| `management.metrics.distribution.percentiles-histogram.http.server.requests=true` | `_count/_sum/_max`만 노출되고 `_bucket`이 없어 `histogram_quantile()`이 빈 결과 — 서버 관점 P95 계산 불가 |
+| `management.metrics.distribution.percentiles-histogram.hikaricp.connections.acquire=true` | 위와 동일 — 커넥션 획득 대기 P99 계산 불가 |
+
+`min/max-expected-value`로 버킷 범위를 좁혀둔 이유는 카디널리티다. 범위를 열어두면
+타이머 하나당 버킷이 70개 이상 생기고 `http.server.requests`는 (uri × method × status)마다
+곱해진다. 현재 설정(5ms~10s)에서 **시리즈당 51개**로 측정됨.
+
 ## 스키마: Flyway가 소유한다
 
 `build.gradle`에 `flyway-core` + `flyway-mysql`이 있고, `spring.jpa.hibernate.ddl-auto=none` +
@@ -199,6 +215,48 @@ app.cookie-same-site=None
 `AppStartupRunner`의 `@Profile("!prod")`는 활성 프로파일 목록에 `prod`가
 포함되어 있으면 여전히 비활성 상태를 유지하므로 크래시 루프 문제도 그대로 회피된다.
 
+## 실측으로 확인한 문제: cAdvisor가 컨테이너별 지표를 만들지 못한다 (Docker Desktop + containerd)
+
+**증상**: "컨테이너 CPU" 패널만 No data. Prometheus의 cadvisor 타겟은 `up`이고
+`container_cpu_usage_seconds_total`도 존재하지만, 라벨이 cgroup 루트 집계뿐이다
+(`id="/"`, `/docker`, `/restricted`). 대시보드 쿼리가 쓰는 `name="perf-app"` 같은
+**컨테이너별 시계열이 하나도 없다**.
+
+**원인**: Docker Desktop이 containerd 이미지 스토어를 쓰면 스토리지 드라이버가
+`overlayfs`(`io.containerd.snapshotter.v1`)로 보고된다 — 클래식 도커의 `overlay2`가 아니다.
+cAdvisor는 이 이름을 그대로 경로에 끼워넣어 도커 레이어 메타데이터를 찾는데,
+containerd 스토어에는 그 경로가 존재하지 않는다:
+
+```
+docker info --format "{{.Driver}}"            # → overlayfs
+docker info --format "{{json .DriverStatus}}" # → [["driver-type","io.containerd.snapshotter.v1"]]
+
+docker logs perf-cadvisor | grep "read-write layer"
+# E... Failed to create existing container: /docker/<id>: failed to identify the
+#      read-write layer ID ... open /rootfs/var/lib/docker/image/overlayfs/layerdb/
+#      mounts/<id>/mount-id: no such file or directory
+```
+
+파일시스템 지표만 빠지는 게 아니라 **컨테이너 핸들러 생성 자체가 실패**하므로 CPU/메모리까지
+전부 사라진다. 설정값 하나로 우회되지 않는다.
+
+**해결 선택지** (위에서부터 권장):
+
+| 안 | 방법 | 비용 / 주의 |
+|----|------|-------------|
+| A | Docker Desktop → Settings → General → **"Use containerd for pulling and storing images" 해제** 후 재시작 | 드라이버가 `overlay2`로 돌아가 cAdvisor가 정상 동작. 대시보드 쿼리·문서 수정 불필요. 이미지 재빌드/재pull 필요(named volume 데이터는 유지). **가장 먼저 시도할 것** |
+| B | cAdvisor를 containerd 핸들러로 기동 (`--containerd=/run/containerd/containerd.sock --containerd-namespace=moby` + 소켓 마운트) | `name=` 라벨이 사라져 `container_label_com_docker_compose_service`로 쿼리를 다시 써야 함 |
+| C | cAdvisor 대신 Docker API 기반 stats 익스포터 사용 (`/var/run/docker.sock` 마운트) | `docker stats`는 API를 쓰므로 이 문제와 무관하게 항상 동작. 쿼리 재작성 필요 |
+| D | 스택을 실제 Linux 호스트에서 기동 (WSL2 Ubuntu 배포판에 docker-ce 직접 설치 / Linux VM) | cAdvisor 설계대로 동작. Docker Desktop VM 계층이 사라져 CPU·디스크 측정 정확도 자체가 올라감 — 부하기 분리 원칙과도 맞음 |
+
+**임시 대안 (부분 관측)**: cAdvisor 없이도 아래는 지금 바로 쓸 수 있다.
+
+- 앱: `process_cpu_usage * system_cpu_count` → 코어 수 환산 (Micrometer, 이미 노출 중)
+- Redis: `rate(redis_cpu_user_seconds_total[1m]) + rate(redis_cpu_sys_seconds_total[1m])`
+- **MySQL: mysqld-exporter에 CPU 지표가 없다 — 이 경로의 사각지대**
+  (`mysql_global_status_threads_running`은 동시성이지 CPU가 아니다).
+  MySQL CPU가 실험의 판정 근거라면 A~D 중 하나가 필요하다.
+
 ## 필수 더미 값 (OAuth2 / NEIS)
 
 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEIS_API_KEY`, `S3_BUCKET` 프로퍼티는
@@ -209,6 +267,33 @@ app.cookie-same-site=None
 테스트하려는 게 아니라면 그대로 둔다.
 
 ## 기동 / 확인 / 리셋
+
+### 데이터셋 프로파일 전환 (MySQL 볼륨 분리)
+
+MySQL 데이터 볼륨은 프로파일별로 분리된다 — `perf-mysql-data-<프로파일>`.
+`.env.perf`의 `DATASET_PROFILE`이 어느 볼륨에 연결할지 결정한다.
+
+```bash
+# .env.perf 에서 DATASET_PROFILE=small 로 바꾼 뒤
+docker compose -f environment/docker-compose.perf.yml --env-file environment/.env.perf up -d
+
+# 리셋/전환 후 필수 절차를 한 번에 (게시판 + daily_hot_post + Redis FLUSHALL + 시드)
+node environment/bootstrap.js --profile small
+```
+
+시드는 API 기반이라 large 이상은 적재에 수 시간이 걸린다. 볼륨을 분리해두면 그 비용을
+**프로파일당 1회만** 내고, 이후 전환은 컨테이너 재생성 수준으로 끝난다. 규모별 비교
+(예: 페이징 병목이 large에서만 재현되는가)는 프로파일 간 왕복이 싸야 성립한다.
+
+`bootstrap.js`가 대신 막아주는 것들:
+
+| 검사 | 안 하면 |
+|------|---------|
+| 실제 마운트된 볼륨 ↔ `--profile` 일치 | medium 데이터를 small 볼륨에 부어 두 프로파일이 동시에 오염된다 |
+| 게시판 5행 선삽입 | `seed.js`가 `/api/boards`에서 빈 배열을 받아 조용히 실패 |
+| `daily_hot_post` 생성 | `GET /api/hotposts/daily`가 항상 500 (BTL-009) |
+| Redis FLUSHALL | **MySQL 볼륨만 분리된다.** 전환해도 Redis는 살아있어 이전 프로파일의 캐시/카운터가 남는다 |
+| 시드 중복 실행 차단 | 계정만 건너뛰고 글/댓글은 매번 새로 만들어져 명세의 2배가 된다(실측: small 500 → 1065) |
 
 ```bash
 cp environment/.env.perf.example environment/.env.perf

@@ -28,7 +28,7 @@ flowchart LR
 ```bash
 cd performance                       # 반드시 performance/ 루트에서
 k6 run scenarios/normal-day.js       # 기본 설정
-k6 run scenarios/normal-day.js -e VUS=100 -e HOLD=5m -e BASE_URL=http://localhost:8080
+k6 run scenarios/normal-day.js -e VUS=100 -e HOLD=5m -e BASE_URL=http://localhost:18080
 # Prometheus로 실시간 메트릭 전송 시:
 k6 run -o experimental-prometheus-rw scenarios/normal-day.js
 ```
