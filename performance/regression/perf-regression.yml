@@ -1,11 +1,17 @@
 # 성능 회귀 테스트 — GitHub Actions 워크플로.
 # 사용: 이 파일을 저장소 루트 .github/workflows/perf-regression.yml 로 복사.
 #
-# 전략:
+# 전략
 #  - PR마다 도는 무거운 테스트는 비현실적 → develop 머지 시 + 수동 트리거 + 주간 스케줄
-#  - CI 러너는 로컬 기준 환경과 다르므로, CI 자체 baseline을 별도로 관리한다
-#    (regression/baseline.json은 로컬 기준, CI는 아티팩트로 유지)
 #  - 짧은 시나리오(HOLD 축소)로 "큰 회귀"만 잡는다. 정밀 측정은 로컬 실험의 몫.
+#
+# 이력 관리 방식 (중요)
+#  이전 버전은 baseline.json 파일 하나를 캐시에 넣고 덮어썼다. 그 방식은 두 가지가 아쉽다.
+#   1) 기준이 단 하나뿐이라 "언제부터 느려졌나"를 되짚을 수 없다.
+#   2) 캐시가 만료되면 기준이 통째로 사라진다.
+#  지금은 reports/runs/ 와 reports/index.json 전체를 캐시에 유지한다. 수집기가 알아서
+#  같은 시나리오·같은 환경의 직전 실행을 기준으로 잡으므로, 파일을 손으로 갈아끼울 필요가 없고
+#  이력이 쌓일수록 추세 분석(tools/history.js)이 정확해진다.
 
 name: perf-regression
 on:
@@ -14,6 +20,16 @@ on:
   schedule:
     - cron: "0 18 * * 0"   # 매주 일 03:00 KST
   workflow_dispatch:
+    inputs:
+      scenario:
+        description: "실행할 시나리오 경로"
+        default: "scenarios/normal-day.js"
+      vus:
+        description: "VU 수"
+        default: "30"
+      hold:
+        description: "유지 시간"
+        default: "3m"
 
 jobs:
   perf:
@@ -21,14 +37,34 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 브랜치명/커밋 메타데이터 수집에 필요
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # 이력 복원 — 회귀 비교의 기준선이자 추세 분석의 입력.
+      # restore-keys 로 이전 실행분을 물려받아, 캐시 키가 바뀌어도 이력이 끊기지 않게 한다.
+      - name: Restore performance history
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            performance/reports/runs
+            performance/reports/index.json
+          key: perf-history-${{ github.run_number }}
+          restore-keys: |
+            perf-history-
 
       - name: Start perf stack
         working-directory: performance
         run: |
           cp environment/.env.perf.example environment/.env.perf
           docker compose -f environment/docker-compose.perf.yml --env-file environment/.env.perf up -d --build
-          # 앱 healthy 대기
-          timeout 180 bash -c 'until curl -sf localhost:8080/actuator/health; do sleep 5; done'
+          timeout 180 bash -c 'until curl -sf localhost:18080/actuator/health; do sleep 5; done'
+          # Prometheus 가 타깃을 실제로 스크레이프하는지 확인한다.
+          # 여기서 확인하지 않으면 운영 지표가 통째로 빈 채로 리포트가 나온다.
+          timeout 120 bash -c 'until curl -sf "localhost:9090/api/v1/query?query=up{job=\"spring-app\"}" | grep -q "\"value\""; do sleep 5; done'
 
       - name: Seed data (smoke profile)
         working-directory: performance
@@ -40,39 +76,71 @@ jobs:
           echo "deb [signed-by=/usr/share/keyrings/k6.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
           sudo apt-get update && sudo apt-get install -y k6
 
-      - name: Run regression scenario (축소판 normal-day)
+      # perf-run 이 k6 실행 → 지표 수집 → 회귀 판정 → 리포트 생성을 한 번에 처리한다.
+      # --warmup 60: ramp-up 구간의 JIT 워밍업을 자원 통계에서 제외해 CI 러너의 콜드스타트 편차를 줄인다.
+      - name: Run performance test
         working-directory: performance
+        env:
+          PERF_ENV: ci   # 로컬 실행과 기준선이 섞이지 않도록 환경을 분리한다
         run: |
-          mkdir -p reports/raw
-          k6 run scenarios/normal-day.js -e DATASET=smoke -e VUS=30 -e HOLD=3m
+          node tools/perf-run.js "${{ github.event.inputs.scenario || 'scenarios/normal-day.js' }}" \
+            --env ci \
+            --vus "${{ github.event.inputs.vus || '30' }}" \
+            --hold "${{ github.event.inputs.hold || '3m' }}" \
+            --dataset smoke \
+            --warmup 60 \
+            --wait 30 \
+            --note "CI run #${{ github.run_number }} on ${{ github.ref_name }}"
 
-      - name: Restore CI baseline
-        uses: actions/cache@v4
+      - name: Build history dashboard
+        if: always()
+        working-directory: performance
+        run: node tools/history.js --env ci || true
+
+      - name: Save performance history
+        if: always()
+        uses: actions/cache/save@v4
         with:
-          path: performance/regression/ci-baseline.json
-          key: perf-ci-baseline-v1
+          path: |
+            performance/reports/runs
+            performance/reports/index.json
+          key: perf-history-${{ github.run_number }}
 
-      - name: Compare against baseline
-        working-directory: performance
-        run: |
-          LATEST=$(ls -t reports/raw/normal-day-*.summary.json | head -1)
-          if [ ! -f regression/ci-baseline.json ]; then
-            echo "CI baseline 없음 — 이번 결과를 baseline으로 저장하고 통과 처리"
-            cp regression/baseline.json regression/baseline.local.bak 2>/dev/null || true
-            node tools/compare.js --save-baseline "$LATEST"
-            cp regression/baseline.json regression/ci-baseline.json
-            mv regression/baseline.local.bak regression/baseline.json 2>/dev/null || true
-          else
-            cp regression/baseline.json regression/baseline.local.bak 2>/dev/null || true
-            cp regression/ci-baseline.json regression/baseline.json
-            node tools/compare.js "$LATEST"
-            mv regression/baseline.local.bak regression/baseline.json 2>/dev/null || true
-          fi
-
-      - name: Upload raw reports
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: perf-reports-${{ github.run_number }}
-          path: performance/reports/raw/
+          path: |
+            performance/reports/runs/
+            performance/reports/history.html
+            performance/reports/index.json
           retention-days: 30
+
+      # 회귀가 났을 때 로그를 파고들지 않아도 PR/커밋에서 바로 보이게 한다.
+      - name: Job summary
+        if: always()
+        working-directory: performance
+        run: |
+          node -e '
+            const fs=require("fs");
+            const idx=JSON.parse(fs.readFileSync("reports/index.json","utf8"));
+            const r=idx.runs[idx.runs.length-1];
+            if(!r) process.exit(0);
+            const f=(v,d=1)=>v==null?"—":Number(v).toFixed(d);
+            const out=[
+              `## 성능 테스트 결과 — ${r.scenario} (${r.verdict})`,``,
+              `| 지표 | 값 |`,`|---|---|`,
+              `| 평균 | ${f(r.avg)} ms |`,
+              `| P95 | ${f(r.p95)} ms |`,
+              `| P99 | ${f(r.p99)} ms |`,
+              `| TPS | ${f(r.tps,2)} |`,
+              `| 오류율 | ${f((r.errorRate||0)*100,2)} % |`,
+              `| CPU 포화도 | ${f(r.cpuMaxPct,0)} % |`,
+              `| Heap 최대 | ${f((r.heapMaxBytes||0)/1048576,0)} MB |`,
+              `| GC 최대 정지 | ${f(r.gcPauseMaxMs)} ms |`,
+              `| Slow Query | ${f(r.mysqlSlowQueries,0)} |`,
+              ``,`상세 보고서는 아티팩트 \`perf-reports-${process.env.GITHUB_RUN_NUMBER}\` 를 확인하세요.`,
+            ].join("\n");
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, out);
+          '
