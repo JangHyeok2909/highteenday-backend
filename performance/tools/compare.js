@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 /**
- * 회귀 비교기 — k6 summary JSON을 baseline과 비교해 회귀를 판정한다.
+ * 회귀 비교기 (구버전) — k6 summary JSON을 baseline 파일 하나와 비교한다.
+ *
+ * ⚠ 신규 작업은 tools/perf-run.js 를 사용하세요.
+ *   이 스크립트는 k6 지표만 보고, 기준선을 수동으로 갱신해야 하며, 이력이 남지 않습니다.
+ *   새 파이프라인은 운영 지표(CPU/GC/DB/Redis) 연동, 이력 기반 자동 기준선 선택,
+ *   추세 분석을 제공합니다 — ../PERFORMANCE-MANAGEMENT.md 참고.
+ *   이 파일은 과거 reports/raw/ 산출물과의 호환을 위해 유지됩니다.
  *
  * 사용법:
  *   node tools/compare.js --save-baseline reports/raw/normal-day-XXX.summary.json
