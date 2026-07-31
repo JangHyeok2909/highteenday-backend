@@ -34,8 +34,8 @@ p6spy가 이미 의존성에 있다(`p6spy-spring-boot-starter`) — 쿼리 수 
 # 1단계 (기능 검증): 단일 요청의 쿼리 수 세기 — 부하 없이
 #   댓글 5개 글 vs 100개 글 각각 curl 1회 → p6spy 로그의 쿼리 수 비교
 docker logs perf-app --tail 0 -f | grep -c "select" &   # 또는 spy.log 확인
-curl -s "localhost:8080/api/posts/<댓글5개글>/comments" > /dev/null
-curl -s "localhost:8080/api/posts/<댓글100개글>/comments" > /dev/null
+curl -s "localhost:18080/api/posts/<댓글5개글>/comments" > /dev/null
+curl -s "localhost:18080/api/posts/<댓글100개글>/comments" > /dev/null
 
 # 2단계 (부하 검증): 댓글 열람 편중 부하에서 지연 분포
 k6 run -o experimental-prometheus-rw scripts/comments.js -e VUS=50 -e DURATION=5m -e DATASET=medium
