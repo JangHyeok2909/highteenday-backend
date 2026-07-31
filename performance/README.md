@@ -60,15 +60,18 @@ docker compose -f environment/docker-compose.perf.yml --env-file environment/.en
 # 1. 시드
 node datasets/seed.js --profile medium
 
-# 2~3. 스모크 → 기준선  (모든 k6 명령은 performance/ 루트에서)
-k6 run scripts/posts.js -e DATASET=medium -e VUS=5 -e DURATION=1m
-K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write \
-K6_PROMETHEUS_RW_TREND_STATS="p(50),p(95),p(99),avg,max" \
-k6 run -o experimental-prometheus-rw scenarios/normal-day.js -e DATASET=medium
+# 2~3. 스모크 → 기준선  (모든 명령은 performance/ 루트에서)
+node tools/perf-run.js scripts/posts.js --vus 5 --duration 1m --dataset medium
+node tools/perf-run.js scenarios/normal-day.js --dataset medium --warmup 300
 
-# 기준선 저장
-node tools/compare.js --save-baseline reports/raw/normal-day-<ts>.summary.json
+# 결과 확인
+node tools/history.js          # reports/history.html — 이력과 추세
+# 개별 보고서: reports/runs/<runId>/report.html
 ```
+
+> `perf-run.js`가 k6 실행 → 운영 지표 수집 → 회귀 판정 → 보고서 생성까지 한 번에 처리한다.
+> 기준선을 손으로 저장할 필요가 없다 — 같은 시나리오·환경의 직전 실행이 자동으로 기준이 된다.
+> 구조와 설계 근거: [`PERFORMANCE-MANAGEMENT.md`](PERFORMANCE-MANAGEMENT.md)
 
 ## 5. 디렉터리 구조
 
@@ -82,12 +85,15 @@ performance/
 ├── environment/       # 컴포즈 스택 + MySQL/Redis/JVM 고정 설정 + 환경 명세
 ├── metrics/           # 지표 정의(PromQL) + Grafana 대시보드
 ├── experiments/       # 가설 기반 실험 대장 (EXP-001~) + 템플릿
-├── reports/           # raw(자동 산출) + summary(실험 요약)
-├── bottlenecks/       # 병목 카탈로그 (BTL-001~007) — 원인/영향/재현/해결
+├── reports/           # runs/(실행별 저장소) + index.json + history.html + raw(구버전)
+├── bottlenecks/       # 병목 카탈로그 (BTL-001~012) — 원인/영향/재현/해결
 ├── optimizations/     # 개선 기록 (Before/After 수치 필수)
-├── regression/        # baseline + 판정 규칙 + CI 워크플로
-└── tools/             # compare.js, 카오스 주입 스크립트, 도구 카탈로그
+├── regression/        # rules.json(회귀 판정 규칙) + CI 워크플로
+└── tools/             # perf-run/collect/history + lib/(수집·분석·리포트 엔진)
 ```
+
+성능 관리 파이프라인의 구조와 설계 근거는 별도 문서로 분리했다:
+**[`PERFORMANCE-MANAGEMENT.md`](PERFORMANCE-MANAGEMENT.md)**
 
 ## 6. 사용 도구
 
@@ -114,12 +120,13 @@ Redis 7.2 384MB(allkeys-lru). 부하기와 서버 분리 원칙. 상세와 재�
 
 | 무엇을 | 어디서 |
 |--------|--------|
-| 실시간 그래프 | Grafana http://localhost:3001 → "HighTeenDay Performance Overview" |
-| 실행 요약 | k6 종료 화면 + `reports/raw/*.summary.{json,csv,html}` |
+| **실행 보고서** (성능+인프라+회귀 통합) | `reports/runs/<runId>/report.html` |
+| **이력 / 추세** | `reports/history.html` — `node tools/history.js` |
+| 실시간 그래프 | Grafana http://localhost:3001 (보고서의 딥링크가 구간까지 맞춰 준다) |
+| 회귀 여부 | 보고서 상단 판정 배지 / CI perf-regression |
 | 실험 결론 | `experiments/EXP-*/README.md` §7~12 (원자료 링크 포함) |
 | 병목 지식 | `bottlenecks/` — 상태(의심/확정/해소)와 재현 명령 |
 | 개선 증거 | `optimizations/OPT-*.md` Before/After 표 |
-| 회귀 여부 | `node tools/compare.js <summary.json>` / CI perf-regression |
 
 ## 부록: 트래픽 모델
 
