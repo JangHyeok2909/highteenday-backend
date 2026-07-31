@@ -25,7 +25,7 @@
 
 ```bash
 # 부하 없이 확정 가능: 댓글 5개 글 vs 100개 글 각 1회 호출, p6spy 로그 쿼리 수 비교
-curl -s "localhost:8080/api/posts/<id>/comments" > /dev/null
+curl -s "localhost:18080/api/posts/<id>/comments" > /dev/null
 # 쿼리 수가 댓글 수에 비례하면 확정
 ```
 
