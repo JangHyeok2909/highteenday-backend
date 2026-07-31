@@ -2,12 +2,12 @@
  * 전역 설정 — 모든 스크립트/시나리오가 이 파일을 통해 환경을 주입받는다.
  *
  * 환경변수로 오버라이드:
- *   BASE_URL   대상 서버 (기본 http://localhost:8080)
+ *   BASE_URL   대상 서버 (기본 http://localhost:18080 — docker-compose.perf.yml 호스트 포트)
  *   WS_URL     WebSocket 엔드포인트 (기본 BASE_URL 기반 자동 유도)
  *   DATASET    datasets/generated/<DATASET>/ 아래의 시드 데이터 사용 (기본 small)
  *   THINK_MIN / THINK_MAX  Think time 범위(초)
  */
-export const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
+export const BASE_URL = __ENV.BASE_URL || 'http://localhost:18080';
 
 export const WS_URL =
   __ENV.WS_URL ||
