@@ -1,0 +1,3510 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Performance History</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --surface: #fcfcfb;
+  --plane: #f9f9f7;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --seq-100: #cde2fb;
+  --seq-450: #2a78d6;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --good-text: #006300;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #1a1a19;
+    --plane: #0d0d0d;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --seq-100: #184f95;
+    --seq-450: #3987e5;
+    --good-text: #0ca30c;
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #1a1a19; --plane: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  --seq-100: #184f95; --seq-450: #3987e5; --good-text: #0ca30c;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0 0 4rem;
+  background: var(--plane); color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 15px; margin: 0 0 14px; letter-spacing: 0.02em; text-transform: uppercase;
+     color: var(--ink-2); font-weight: 600; }
+h3 { font-size: 13px; margin: 20px 0 8px; color: var(--ink-2); font-weight: 600; }
+a { color: var(--series-1); }
+
+/* ── 헤더 ── */
+.head { background: var(--surface); border-bottom: 1px solid var(--border); padding: 26px 0 22px; margin-bottom: 26px; }
+.head-top { display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap; }
+.head-title { flex: 1 1 320px; min-width: 0; }
+.sub { color: var(--ink-muted); font-size: 13px; }
+
+.verdict {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border-radius: 8px; font-weight: 700; font-size: 14px;
+  border: 2px solid; white-space: nowrap;
+}
+.verdict .ico { font-size: 15px; line-height: 1; }
+.v-PASS { color: var(--good-text); border-color: var(--good); background: color-mix(in srgb, var(--good) 10%, transparent); }
+.v-WARN { color: var(--ink); border-color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, transparent); }
+.v-FAIL { color: var(--critical); border-color: var(--critical); background: color-mix(in srgb, var(--critical) 10%, transparent); }
+
+/* ── 메타 그리드 ── */
+.meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 1px;
+        background: var(--border); border: 1px solid var(--border); border-radius: 8px;
+        overflow: hidden; margin-top: 20px; }
+.meta div { background: var(--surface); padding: 9px 12px; }
+.meta dt { color: var(--ink-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin: 0; }
+.meta dd { margin: 2px 0 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+
+/* ── 섹션/카드 ── */
+section { margin-bottom: 34px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+
+/* ── KPI 타일 ── */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.kpi .label { color: var(--ink-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.kpi .value { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; margin-top: 3px; }
+.kpi .foot { font-size: 12px; color: var(--ink-2); margin-top: 3px; display: flex; align-items: center; gap: 5px; }
+
+/* ── 델타 표기: 아이콘 + 텍스트 + 색 (색 단독 금지) ── */
+.d-good { color: var(--good-text); font-weight: 600; }
+.d-bad  { color: var(--critical); font-weight: 600; }
+.d-flat { color: var(--ink-muted); }
+
+/* ── 표 ── */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--grid); }
+th { color: var(--ink-muted); font-weight: 600; font-size: 11px; text-transform: uppercase;
+     letter-spacing: 0.04em; border-bottom: 1px solid var(--axis); white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: none; }
+.scroll { overflow-x: auto; }
+
+/* ── 포화도 막대 ── */
+.meter { display: flex; align-items: center; gap: 9px; min-width: 148px; }
+.meter .track { flex: 1; height: 7px; background: var(--grid); border-radius: 4px; overflow: hidden; min-width: 60px; }
+.meter .fill { height: 100%; border-radius: 4px; background: var(--seq-450); }
+.meter .pct { font-variant-numeric: tabular-nums; font-size: 12px; min-width: 42px; text-align: right; color: var(--ink-2); }
+.fill.s-warning { background: var(--warning); }
+.fill.s-serious { background: var(--serious); }
+.fill.s-critical { background: var(--critical); }
+
+/* ── 병목 가설 ── */
+.hint { display: flex; gap: 11px; padding: 12px 0; border-bottom: 1px solid var(--grid); }
+.hint:last-child { border-bottom: none; }
+.hint .n { width: 21px; height: 21px; flex: none; border-radius: 50%; background: var(--critical);
+           color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.hint .t { font-weight: 650; margin-bottom: 2px; }
+.hint .d { color: var(--ink-2); font-size: 13px; }
+
+/* ── 스파크라인 ── */
+.sparks { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 14px; }
+.spark { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; }
+.spark .st { font-size: 12px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.spark .sv { font-size: 19px; font-weight: 650; margin: 2px 0 6px; letter-spacing: -0.01em; }
+.spark svg { display: block; width: 100%; height: 40px; overflow: visible; }
+.spark .range { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-muted);
+                font-variant-numeric: tabular-nums; margin-top: 3px; }
+
+/* ── 링크 버튼 ── */
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.links a { display: inline-block; padding: 7px 13px; border: 1px solid var(--border); border-radius: 7px;
+           background: var(--surface); text-decoration: none; font-size: 13px; font-weight: 550; }
+.links a:hover { border-color: var(--series-1); }
+.links a.primary { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 5px;
+         font-size: 11px; font-weight: 650; border: 1px solid; white-space: nowrap; }
+.b-PASS { color: var(--good-text); border-color: var(--good); }
+.b-WARN { color: var(--ink); border-color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, transparent); }
+.b-FAIL { color: var(--critical); border-color: var(--critical); }
+.b-SKIP { color: var(--ink-muted); border-color: var(--axis); }
+
+.empty { color: var(--ink-muted); font-style: italic; padding: 10px 0; }
+.note { color: var(--ink-2); font-size: 12.5px; margin-top: 10px; padding-left: 11px; border-left: 2px solid var(--grid); }
+footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 34px; }
+
+.hist-table { font-size: 12.5px; }
+.hist-table td, .hist-table th { padding: 6px 8px; white-space: nowrap; }
+</style>
+</head><body>
+<div class="head"><div class="wrap">
+  <div class="head-top">
+    <div class="head-title">
+      <h1>Performance History</h1>
+      <div class="sub">61회 실행 · 14개 시나리오 · 최종 2026-07-31 16:35:42 KST</div>
+    </div>
+  </div>
+  <dl class="meta">
+    <div><dt>총 실행</dt><dd>61</dd></div>
+    <div><dt>시나리오</dt><dd>14</dd></div>
+    <div><dt>실패</dt><dd>23</dd></div>
+    <div><dt>경고</dt><dd>3</dd></div>
+    <div><dt>기간</dt><dd style="font-size:12px">2026-07-31 ~ 2026-07-31</dd></div>
+  </dl>
+</div></div>
+
+<div class="wrap">
+  <section>
+    <h2>시나리오 현황</h2>
+    <div class="card scroll"><table>
+      <thead><tr><th>시나리오</th><th class="num">실행 수</th><th>최종 실행</th>
+        <th class="num">최종 P95</th><th class="num">최종 TPS</th><th>판정</th></tr></thead>
+      <tbody><tr>
+      <td><b>auth</b></td>
+      <td class="num">7</td>
+      <td style="font-size:12px">2026-07-31 16:15</td>
+      <td class="num">149ms</td>
+      <td class="num">0.64</td>
+      <td><span class="badge b-FAIL">FAIL</span></td>
+    </tr><tr>
+      <td><b>boards</b></td>
+      <td class="num">5</td>
+      <td style="font-size:12px">2026-07-31 15:04</td>
+      <td class="num">44ms</td>
+      <td class="num">0.57</td>
+      <td><span class="badge b-FAIL">FAIL</span></td>
+    </tr><tr>
+      <td><b>chat-rest</b></td>
+      <td class="num">4</td>
+      <td style="font-size:12px">2026-07-31 15:04</td>
+      <td class="num">113ms</td>
+      <td class="num">0.37</td>
+      <td><span class="badge b-FAIL">FAIL</span></td>
+    </tr><tr>
+      <td><b>chat-ws</b></td>
+      <td class="num">4</td>
+      <td style="font-size:12px">2026-07-31 15:05</td>
+      <td class="num">121ms</td>
+      <td class="num">0.68</td>
+      <td><span class="badge b-PASS">PASS</span></td>
+    </tr><tr>
+      <td><b>comments</b></td>
+      <td class="num">4</td>
+      <td style="font-size:12px">2026-07-31 15:05</td>
+      <td class="num">1.87s</td>
+      <td class="num">0.64</td>
+      <td><span class="badge b-FAIL">FAIL</span></td>
+    </tr><tr>
+      <td><b>friends</b></td>
+      <td class="num">4</td>
+      <td style="font-size:12px">2026-07-31 15:05</td>
+      <td class="num">92ms</td>
+      <td class="num">0.48</td>
+      <td><span class="badge b-WARN">WARN</span></td>
+    </tr><tr>
+      <td><b>mypage</b></td>
+      <td class="num">4</td>
+      <td style="font-size:12px">2026-07-31 15:06</td>
+      <td class="num">137ms</td>
+      <td class="num">0.40</td>
+      <td><span class="badge b-FAIL">FAIL</span></td>
+    </tr><tr>
+      <td><b>normal-day</b></td>
+      <td class="num">1</td>
+      <td style="font-size:12px">2026-07-31 16:22</td>
+      <td class="num">109ms</td>
+      <td class="num">0.50</td>
+      <td><span class="badge b-PASS">PASS</span></td>
+    </tr><tr>
+      <td><b>notifications</b></td>
+      <td class="num">4</td>
+      <td style="font-size:12px">2026-07-31 15:06</td>
+      <td class="num">95ms</td>
+      <td class="num">0.69</td>
+      <td><span class="badge b-PASS">PASS</span></td>
+    </tr><tr>
+      <td><b>posts</b></td>
+      <td class="num">8</td>
+      <td style="font-size:12px">2026-07-31 16:35</td>
+      <td class="num">104ms</td>
+      <td class="num">0.54</td>
+      <td><span class="badge b-PASS">PASS</span></td>
+    </tr><tr>
+      <td><b>reactions</b></td>
+      <td class="num">4</td>
+      <td style="font-size:12px">2026-07-31 15:07</td>
+      <td class="num">98ms</td>
+      <td class="num">1.13</td>
+      <td><span class="badge b-WARN">WARN</span></td>
+    </tr><tr>
+      <td><b>school</b></td>
+      <td class="num">4</td>
+      <td style="font-size:12px">2026-07-31 15:07</td>
+      <td class="num">92ms</td>
+      <td class="num">0.89</td>
+      <td><span class="badge b-PASS">PASS</span></td>
+    </tr><tr>
+      <td><b>scraps</b></td>
+      <td class="num">4</td>
+      <td style="font-size:12px">2026-07-31 15:07</td>
+      <td class="num">93ms</td>
+      <td class="num">0.51</td>
+      <td><span class="badge b-PASS">PASS</span></td>
+    </tr><tr>
+      <td><b>timetable</b></td>
+      <td class="num">4</td>
+      <td style="font-size:12px">2026-07-31 15:08</td>
+      <td class="num">94ms</td>
+      <td class="num">0.68</td>
+      <td><span class="badge b-PASS">PASS</span></td>
+    </tr></tbody>
+    </table></div>
+  </section>
+
+  <section>
+      <h2>auth — 추세 (7회)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 7회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>GC 최대 정지</b> 4.0ms → 37ms (+825.0%)<br>· <b>CPU 포화도</b> 1.0% → 4.1% (+294.2%)<br>· <b>Slow Query</b> 9 → 19 (+104.0%)<br>· <b>MySQL QPS</b> 12.5/s → 19.6/s (+56.1%)<br>· <b>P95 응답시간</b> 117ms → 176ms (+50.5%)<br>· <b>평균 응답시간</b> 52ms → 57ms (+10.6%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+        </div>
+      </div>
+      <div class="sparks"><div class="spark">
+        <div class="st">P95 응답시간</div>
+        <div class="sv">149ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,36.09 L16.67,33.09 L33.33,35.37 L50.00,3.00 L66.67,30.04 L83.33,37.00 L100.00,33.38 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,36.09 L16.67,33.09 L33.33,35.37 L50.00,3.00 L66.67,30.04 L83.33,37.00 L100.00,33.38" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="33.38" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>7회 · min 91ms</span>
+          <span><span class="d-bad">▲ +50.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">평균 응답시간</div>
+        <div class="sv">54ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,36.93 L16.67,35.45 L33.33,35.74 L50.00,3.00 L66.67,32.42 L83.33,37.00 L100.00,34.87 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,36.93 L16.67,35.45 L33.33,35.74 L50.00,3.00 L66.67,32.42 L83.33,37.00 L100.00,34.87" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="34.87" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>7회 · min 48ms</span>
+          <span><span class="d-bad">▲ +10.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">P99 응답시간</div>
+        <div class="sv">166ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P99 응답시간">
+  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">TPS</div>
+        <div class="sv">0.6/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,33.67 L16.67,34.39 L33.33,28.54 L50.00,37.00 L66.67,9.67 L83.33,3.00 L100.00,4.98 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,33.67 L16.67,34.39 L33.33,28.54 L50.00,37.00 L66.67,9.67 L83.33,3.00 L100.00,4.98" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="4.98" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>7회 · min 0.3/s</span>
+          <span><span class="d-good">▲ +75.2%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">RPS</div>
+        <div class="sv">1.9/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
+  <path d="M0.00,33.67 L16.67,34.39 L33.33,28.54 L50.00,37.00 L66.67,9.67 L83.33,3.00 L100.00,4.98 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,33.67 L16.67,34.39 L33.33,28.54 L50.00,37.00 L66.67,9.67 L83.33,3.00 L100.00,4.98" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="4.98" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>7회 · min 1.0/s</span>
+          <span><span class="d-good">▲ +75.2%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">오류율</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,37.00 L16.67,37.00 L33.33,37.00 L50.00,37.00 L66.67,37.00 L83.33,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L16.67,37.00 L33.33,37.00 L50.00,37.00 L66.67,37.00 L83.33,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">CPU 포화도</div>
+        <div class="sv">2.9%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,37.00 L16.67,36.95 L33.33,32.88 L50.00,3.00 L66.67,34.92 L83.33,35.54 L100.00,35.91 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L16.67,36.95 L33.33,32.88 L50.00,3.00 L66.67,34.92 L83.33,35.54 L100.00,35.91" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="35.91" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>7회 · min 0.9%</span>
+          <span><span class="d-bad">▲ +294.2%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Heap 최대</div>
+        <div class="sv">360 MB</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,8.24 L16.67,3.00 L33.33,23.91 L50.00,34.66 L66.67,9.58 L83.33,37.00 L100.00,28.81 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,8.24 L16.67,3.00 L33.33,23.91 L50.00,34.66 L66.67,9.58 L83.33,37.00 L100.00,28.81" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="28.81" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>7회 · min 235 MB</span>
+          <span><span class="d-good">▼ -53.2%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">GC 최대 정지</div>
+        <div class="sv">0.0ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,35.36 L16.67,37.00 L33.33,3.00 L50.00,26.76 L66.67,16.93 L83.33,16.93 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,35.36 L16.67,37.00 L33.33,3.00 L50.00,26.76 L66.67,16.93 L83.33,16.93 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>7회 · min 0.0ms</span>
+          <span><span class="d-bad">▲ +825.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Slow Query</div>
+        <div class="sv">21</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,30.74 L16.67,30.74 L33.33,37.00 L50.00,31.99 L66.67,7.42 L83.33,8.52 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,30.74 L16.67,30.74 L33.33,37.00 L50.00,31.99 L66.67,7.42 L83.33,8.52 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>7회 · min 7</span>
+          <span><span class="d-bad">▲ +104.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">MySQL QPS</div>
+        <div class="sv">20.6/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
+  <path d="M0.00,31.76 L16.67,32.24 L33.33,27.70 L50.00,37.00 L66.67,9.58 L83.33,3.62 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,31.76 L16.67,32.24 L33.33,27.70 L50.00,37.00 L66.67,9.58 L83.33,3.62 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>7회 · min 11.1/s</span>
+          <span><span class="d-bad">▲ +56.1%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Redis 적중률</div>
+        <div class="sv">100.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
+  <path d="M0.00,3.00 L16.67,37.00 L33.33,3.00 L50.00,3.00 L66.67,3.00 L83.33,3.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L16.67,37.00 L33.33,3.00 L50.00,3.00 L66.67,3.00 L83.33,3.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>7회 · min 100.0%</span>
+          <span><span class="d-flat">· 0.0%</span></span>
+        </div>
+      </div></div>
+    </section><section>
+      <h2>boards — 추세 (5회)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 5회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>GC 최대 정지</b> 2.0ms → 25ms (+1150.0%)<br>· <b>CPU 포화도</b> 1.9% → 7.9% (+319.3%)<br>· <b>Slow Query</b> 12 → 18 (+46.8%)<br>· <b>MySQL QPS</b> 35.1/s → 44.1/s (+25.6%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+        </div>
+      </div>
+      <div class="sparks"><div class="spark">
+        <div class="st">P95 응답시간</div>
+        <div class="sv">44ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,3.00 L25.00,37.00 L50.00,34.16 L75.00,30.44 L100.00,18.57 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L25.00,37.00 L50.00,34.16 L75.00,30.44 L100.00,18.57" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="18.57" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>5회 · min 16ms</span>
+          <span><span class="d-good">▼ -38.2%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">평균 응답시간</div>
+        <div class="sv">27ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,14.40 L25.00,37.00 L50.00,29.63 L75.00,25.93 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,14.40 L25.00,37.00 L50.00,29.63 L75.00,25.93 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>5회 · min 9.6ms</span>
+          <span><span class="d-flat">▼ -0.8%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">TPS</div>
+        <div class="sv">0.6/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,6.76 L25.00,37.00 L50.00,19.34 L75.00,14.08 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,6.76 L25.00,37.00 L50.00,19.34 L75.00,14.08 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>5회 · min 0.4/s</span>
+          <span><span class="d-good">▲ +9.7%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">RPS</div>
+        <div class="sv">1.1/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
+  <path d="M0.00,6.76 L25.00,37.00 L50.00,19.34 L75.00,14.08 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,6.76 L25.00,37.00 L50.00,19.34 L75.00,14.08 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>5회 · min 0.7/s</span>
+          <span><span class="d-good">▲ +9.7%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">오류율</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,37.00 L25.00,37.00 L50.00,37.00 L75.00,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L25.00,37.00 L50.00,37.00 L75.00,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">CPU 포화도</div>
+        <div class="sv">37.8%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,36.95 L25.00,35.73 L50.00,37.00 L75.00,30.79 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,36.95 L25.00,35.73 L50.00,37.00 L75.00,30.79 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>5회 · min 1.2%</span>
+          <span><span class="d-bad">▲ +319.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Heap 최대</div>
+        <div class="sv">288 MB</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,9.64 L25.00,8.20 L50.00,3.00 L75.00,25.71 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,9.64 L25.00,8.20 L50.00,3.00 L75.00,25.71 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>5회 · min 288 MB</span>
+          <span><span class="d-good">▼ -35.2%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">GC 최대 정지</div>
+        <div class="sv">25ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,35.36 L25.00,37.00 L50.00,37.00 L75.00,3.00 L100.00,26.76 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,35.36 L25.00,37.00 L50.00,37.00 L75.00,3.00 L100.00,26.76" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="26.76" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>5회 · min 0.0ms</span>
+          <span><span class="d-bad">▲ +1150.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Slow Query</div>
+        <div class="sv">17</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,16.13 L25.00,37.00 L50.00,9.75 L75.00,3.00 L100.00,13.82 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,16.13 L25.00,37.00 L50.00,9.75 L75.00,3.00 L100.00,13.82" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="13.82" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>5회 · min 9</span>
+          <span><span class="d-bad">▲ +46.8%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">MySQL QPS</div>
+        <div class="sv">44.1/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
+  <path d="M0.00,21.67 L25.00,37.00 L50.00,19.30 L75.00,3.00 L100.00,12.52 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,21.67 L25.00,37.00 L50.00,19.30 L75.00,3.00 L100.00,12.52" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="12.52" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>5회 · min 31.0/s</span>
+          <span><span class="d-bad">▲ +25.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Redis 적중률</div>
+        <div class="sv">100.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
+  <path d="M0.00,37.00 L25.00,37.00 L50.00,3.00 L75.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L25.00,37.00 L50.00,3.00 L75.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>5회 · min 100.0%</span>
+          <span><span class="d-flat">▲ +0.0%</span></span>
+        </div>
+      </div></div>
+    </section><section>
+      <h2>chat-rest — 추세 (4회)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 4회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>GC 최대 정지</b> 2.0ms → 54ms (+2600.0%)<br>· <b>CPU 포화도</b> 1.8% → 8.0% (+352.3%)<br>· <b>평균 응답시간</b> 27ms → 34ms (+23.6%)<br>· <b>P95 응답시간</b> 92ms → 110ms (+19.0%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+        </div>
+      </div>
+      <div class="sparks"><div class="spark">
+        <div class="st">P95 응답시간</div>
+        <div class="sv">113ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,37.00 L33.33,16.49 L66.67,10.54 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,16.49 L66.67,10.54 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 83ms</span>
+          <span><span class="d-bad">▲ +19.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">평균 응답시간</div>
+        <div class="sv">41ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,31.08 L33.33,37.00 L66.67,35.29 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,31.08 L33.33,37.00 L66.67,35.29 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 26ms</span>
+          <span><span class="d-bad">▲ +23.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">TPS</div>
+        <div class="sv">0.4/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,7.94 L33.33,37.00 L66.67,28.83 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,7.94 L33.33,37.00 L66.67,28.83 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.3/s</span>
+          <span><span class="d-good">▲ +3.7%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">RPS</div>
+        <div class="sv">1.9/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
+  <path d="M0.00,7.94 L33.33,37.00 L66.67,28.83 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,7.94 L33.33,37.00 L66.67,28.83 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 1.5/s</span>
+          <span><span class="d-good">▲ +3.7%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">오류율</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">CPU 포화도</div>
+        <div class="sv">12.5%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,35.39 L33.33,37.00 L66.67,30.85 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,35.39 L33.33,37.00 L66.67,30.85 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 1.5%</span>
+          <span><span class="d-bad">▲ +352.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Heap 최대</div>
+        <div class="sv">313 MB</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,8.52 L33.33,3.00 L66.67,24.29 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,8.52 L33.33,3.00 L66.67,24.29 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 313 MB</span>
+          <span><span class="d-good">▼ -46.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">GC 최대 정지</div>
+        <div class="sv">25ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,35.36 L33.33,37.00 L66.67,3.00 L100.00,26.76 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,35.36 L33.33,37.00 L66.67,3.00 L100.00,26.76" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="26.76" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0ms</span>
+          <span><span class="d-bad">▲ +2600.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Slow Query</div>
+        <div class="sv">8</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,24.34 L33.33,24.32 L66.67,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,24.34 L33.33,24.32 L66.67,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 8</span>
+          <span><span class="d-bad">▲ +4.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">MySQL QPS</div>
+        <div class="sv">21.7/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
+  <path d="M0.00,3.23 L33.33,37.00 L66.67,20.87 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.23 L33.33,37.00 L66.67,20.87 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 16.5/s</span>
+          <span><span class="d-bad">▲ +6.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Redis 적중률</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div></div>
+    </section><section>
+      <h2>chat-ws — 추세 (4회)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 4회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>CPU 포화도</b> 2.3% → 3.9% (+66.3%)<br>· <b>P95 응답시간</b> 89ms → 106ms (+18.6%)<br>· <b>Slow Query</b> 7 → 8 (+17.0%)<br>· <b>평균 응답시간</b> 44ms → 48ms (+10.9%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+        </div>
+      </div>
+      <div class="sparks"><div class="spark">
+        <div class="st">P95 응답시간</div>
+        <div class="sv">121ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,31.00 L33.33,37.00 L66.67,32.33 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,31.00 L33.33,37.00 L66.67,32.33 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 86ms</span>
+          <span><span class="d-bad">▲ +18.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">평균 응답시간</div>
+        <div class="sv">52ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,25.66 L33.33,37.00 L66.67,26.21 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,25.66 L33.33,37.00 L66.67,26.21 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 42ms</span>
+          <span><span class="d-bad">▲ +10.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">TPS</div>
+        <div class="sv">0.7/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,37.00 L33.33,5.92 L66.67,8.21 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,5.92 L66.67,8.21 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.6/s</span>
+          <span><span class="d-good">▲ +3.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">RPS</div>
+        <div class="sv">1.4/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
+  <path d="M0.00,37.00 L33.33,5.92 L66.67,8.21 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,5.92 L66.67,8.21 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 1.3/s</span>
+          <span><span class="d-good">▲ +3.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">오류율</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">CPU 포화도</div>
+        <div class="sv">5.5%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,35.52 L33.33,37.00 L66.67,36.96 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,35.52 L33.33,37.00 L66.67,36.96 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 2.3%</span>
+          <span><span class="d-bad">▲ +66.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Heap 최대</div>
+        <div class="sv">363 MB</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,9.47 L33.33,3.00 L66.67,25.74 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,9.47 L33.33,3.00 L66.67,25.74 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 363 MB</span>
+          <span><span class="d-good">▼ -44.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">GC 최대 정지</div>
+        <div class="sv">25ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,3.00 L100.00,26.76 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,3.00 L100.00,26.76" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="26.76" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Slow Query</div>
+        <div class="sv">7</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,37.00 L33.33,3.01 L66.67,3.00 L100.00,13.71 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,3.01 L66.67,3.00 L100.00,13.71" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="13.71" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 5</span>
+          <span><span class="d-bad">▲ +17.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">MySQL QPS</div>
+        <div class="sv">21.2/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
+  <path d="M0.00,37.00 L33.33,3.00 L66.67,17.27 L100.00,27.13 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,3.00 L66.67,17.27 L100.00,27.13" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="27.13" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 19.9/s</span>
+          <span><span class="d-flat">▼ -1.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Redis 적중률</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div></div>
+    </section><section>
+      <h2>comments — 추세 (4회)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 4회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>GC 최대 정지</b> 8.5ms → 54ms (+535.3%)<br>· <b>P95 응답시간</b> 332ms → 1.04s (+212.9%)<br>· <b>평균 응답시간</b> 87ms → 192ms (+119.6%)<br>· <b>RPS</b> 2.2/s → 1.7/s (-21.3%)<br>· <b>CPU 포화도</b> 4.6% → 5.4% (+18.5%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+        </div>
+      </div>
+      <div class="sparks"><div class="spark">
+        <div class="st">P95 응답시간</div>
+        <div class="sv">1.87s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,32.32 L33.33,36.59 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,32.32 L33.33,36.59 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 208ms</span>
+          <span><span class="d-bad">▲ +212.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">평균 응답시간</div>
+        <div class="sv">311ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,33.42 L33.33,36.36 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,33.42 L33.33,36.36 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 72ms</span>
+          <span><span class="d-bad">▲ +119.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">TPS</div>
+        <div class="sv">0.6/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,23.66 L33.33,3.00 L66.67,17.49 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,23.66 L33.33,3.00 L66.67,17.49 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.6/s</span>
+          <span><span class="d-bad">▼ -9.4%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">RPS</div>
+        <div class="sv">1.6/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
+  <path d="M0.00,3.00 L33.33,23.34 L66.67,28.57 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,23.34 L66.67,28.57 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 1.6/s</span>
+          <span><span class="d-bad">▼ -21.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">오류율</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,3.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0%</span>
+          <span><span class="d-good">▼ -100.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">CPU 포화도</div>
+        <div class="sv">6.7%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,25.59 L33.33,37.00 L66.67,36.36 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,25.59 L33.33,37.00 L66.67,36.36 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 4.2%</span>
+          <span><span class="d-bad">▲ +18.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Heap 최대</div>
+        <div class="sv">393 MB</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,5.15 L33.33,3.00 L66.67,15.16 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,5.15 L33.33,3.00 L66.67,15.16 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 393 MB</span>
+          <span><span class="d-good">▼ -35.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">GC 최대 정지</div>
+        <div class="sv">25ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,37.00 L33.33,30.04 L66.67,3.00 L100.00,26.76 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,30.04 L66.67,3.00 L100.00,26.76" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="26.76" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0ms</span>
+          <span><span class="d-bad">▲ +535.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Slow Query</div>
+        <div class="sv">4</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,28.05 L33.33,10.16 L66.67,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,28.05 L33.33,10.16 L66.67,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 4</span>
+          <span><span class="d-flat">▼ -1.7%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">MySQL QPS</div>
+        <div class="sv">315.7/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
+  <path d="M0.00,20.35 L33.33,35.63 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,20.35 L33.33,35.63 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 234.2/s</span>
+          <span><span class="d-bad">▲ +7.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Redis 적중률</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div></div>
+    </section><section>
+      <h2>friends — 추세 (4회)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 4회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>Heap 최대</b> 426 MB → 652 MB (+53.2%)<br>· <b>CPU 포화도</b> 5.9% → 8.9% (+52.2%)<br>· <b>GC 최대 정지</b> 11ms → 13ms (+19.0%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+        </div>
+      </div>
+      <div class="sparks"><div class="spark">
+        <div class="st">P95 응답시간</div>
+        <div class="sv">92ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,18.43 L33.33,3.00 L66.67,37.00 L100.00,24.51 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,18.43 L33.33,3.00 L66.67,37.00 L100.00,24.51" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="24.51" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 89ms</span>
+          <span><span class="d-good">▼ -5.2%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">평균 응답시간</div>
+        <div class="sv">38ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,25.69 L33.33,33.51 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,25.69 L33.33,33.51 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 30ms</span>
+          <span><span class="d-bad">▲ +6.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">TPS</div>
+        <div class="sv">0.5/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,3.28 L33.33,37.00 L66.67,24.73 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.28 L33.33,37.00 L66.67,24.73 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.3/s</span>
+          <span><span class="d-good">▲ +6.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">RPS</div>
+        <div class="sv">1.7/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
+  <path d="M0.00,8.69 L33.33,32.18 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,8.69 L33.33,32.18 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 1.4/s</span>
+          <span><span class="d-flat">▲ +0.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">오류율</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">CPU 포화도</div>
+        <div class="sv">13.6%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,26.64 L33.33,35.62 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,26.64 L33.33,35.62 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 4.2%</span>
+          <span><span class="d-bad">▲ +52.2%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Heap 최대</div>
+        <div class="sv">556 MB</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,37.00 L33.33,31.16 L66.67,3.00 L100.00,21.52 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,31.16 L66.67,3.00 L100.00,21.52" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="21.52" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 395 MB</span>
+          <span><span class="d-bad">▲ +53.2%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">GC 최대 정지</div>
+        <div class="sv">25ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,31.56 L33.33,13.88 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,31.56 L33.33,13.88 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0ms</span>
+          <span><span class="d-bad">▲ +19.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Slow Query</div>
+        <div class="sv">18</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,3.00 L33.33,11.37 L66.67,11.38 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,11.37 L66.67,11.38 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 18</span>
+          <span><span class="d-good">▼ -12.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">MySQL QPS</div>
+        <div class="sv">15.9/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
+  <path d="M0.00,3.00 L33.33,26.77 L66.67,37.00 L100.00,3.84 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,26.77 L66.67,37.00 L100.00,3.84" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.84" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 13.3/s</span>
+          <span><span class="d-good">▼ -2.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Redis 적중률</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div></div>
+    </section><section>
+      <h2>mypage — 추세 (4회)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 4회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>CPU 포화도</b> 5.4% → 8.3% (+53.9%)<br>· <b>Heap 최대</b> 446 MB → 670 MB (+50.5%)<br>· <b>GC 최대 정지</b> 11ms → 13ms (+19.0%)<br>· <b>평균 응답시간</b> 33ms → 39ms (+18.5%)<br>· <b>P95 응답시간</b> 100ms → 113ms (+13.7%)<br>· <b>RPS</b> 1.6/s → 1.4/s (-11.5%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+        </div>
+      </div>
+      <div class="sparks"><div class="spark">
+        <div class="st">P95 응답시간</div>
+        <div class="sv">137ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,37.00 L33.33,15.97 L66.67,32.93 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,15.97 L66.67,32.93 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 83ms</span>
+          <span><span class="d-bad">▲ +13.7%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">평균 응답시간</div>
+        <div class="sv">43ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,37.00 L33.33,15.26 L66.67,19.45 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,15.26 L66.67,19.45 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 29ms</span>
+          <span><span class="d-bad">▲ +18.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">TPS</div>
+        <div class="sv">0.4/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,23.46 L33.33,3.00 L66.67,12.08 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,23.46 L33.33,3.00 L66.67,12.08 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.4/s</span>
+          <span><span class="d-bad">▼ -6.4%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">RPS</div>
+        <div class="sv">1.3/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
+  <path d="M0.00,11.36 L33.33,3.00 L66.67,15.17 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,11.36 L33.33,3.00 L66.67,15.17 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 1.3/s</span>
+          <span><span class="d-bad">▼ -11.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">오류율</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,3.00 L33.33,5.91 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,5.91 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0%</span>
+          <span><span class="d-good">▼ -100.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">CPU 포화도</div>
+        <div class="sv">13.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,25.92 L33.33,35.21 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,25.92 L33.33,35.21 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 3.6%</span>
+          <span><span class="d-bad">▲ +53.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Heap 최대</div>
+        <div class="sv">572 MB</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,37.00 L33.33,30.83 L66.67,3.00 L100.00,21.84 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,30.83 L66.67,3.00 L100.00,21.84" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="21.84" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 413 MB</span>
+          <span><span class="d-bad">▲ +50.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">GC 최대 정지</div>
+        <div class="sv">25ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,31.56 L33.33,13.88 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,31.56 L33.33,13.88 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0ms</span>
+          <span><span class="d-bad">▲ +19.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Slow Query</div>
+        <div class="sv">7</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,16.91 L33.33,3.00 L66.67,22.30 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,16.91 L33.33,3.00 L66.67,22.30 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 7</span>
+          <span><span class="d-good">▼ -18.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">MySQL QPS</div>
+        <div class="sv">11.5/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
+  <path d="M0.00,37.00 L33.33,25.69 L66.67,3.00 L100.00,20.01 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,25.69 L66.67,3.00 L100.00,20.01" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="20.01" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 10.9/s</span>
+          <span><span class="d-bad">▲ +6.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Redis 적중률</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div></div>
+    </section><section>
+      <h2>notifications — 추세 (4회)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 4회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>Heap 최대</b> 460 MB → 689 MB (+49.8%)<br>· <b>CPU 포화도</b> 3.6% → 4.3% (+19.8%)<br>· <b>GC 최대 정지</b> 11ms → 13ms (+19.0%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+        </div>
+      </div>
+      <div class="sparks"><div class="spark">
+        <div class="st">P95 응답시간</div>
+        <div class="sv">95ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,3.00 L33.33,33.41 L66.67,37.00 L100.00,31.75 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,33.41 L66.67,37.00 L100.00,31.75" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="31.75" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 89ms</span>
+          <span><span class="d-good">▼ -16.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">평균 응답시간</div>
+        <div class="sv">42ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,3.00 L33.33,24.12 L66.67,37.00 L100.00,24.06 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,24.12 L66.67,37.00 L100.00,24.06" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="24.06" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 38ms</span>
+          <span><span class="d-good">▼ -11.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">TPS</div>
+        <div class="sv">0.7/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,37.00 L33.33,3.00 L66.67,22.66 L100.00,31.66 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,3.00 L66.67,22.66 L100.00,31.66" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="31.66" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.6/s</span>
+          <span><span class="d-bad">▼ -9.1%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">RPS</div>
+        <div class="sv">1.7/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
+  <path d="M0.00,37.00 L33.33,3.00 L66.67,16.54 L100.00,28.31 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,3.00 L66.67,16.54 L100.00,28.31" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="28.31" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 1.5/s</span>
+          <span><span class="d-bad">▼ -2.8%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">오류율</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,5.18 L33.33,22.03 L66.67,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,5.18 L33.33,22.03 L66.67,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0%</span>
+          <span><span class="d-good">▼ -27.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">CPU 포화도</div>
+        <div class="sv">5.6%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,28.52 L33.33,30.88 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,28.52 L33.33,30.88 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 3.1%</span>
+          <span><span class="d-bad">▲ +19.8%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Heap 최대</div>
+        <div class="sv">587 MB</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,37.00 L33.33,30.70 L66.67,3.00 L100.00,22.03 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,30.70 L66.67,3.00 L100.00,22.03" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="22.03" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 426 MB</span>
+          <span><span class="d-bad">▲ +49.8%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">GC 최대 정지</div>
+        <div class="sv">25ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,31.56 L33.33,13.88 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,31.56 L33.33,13.88 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0ms</span>
+          <span><span class="d-bad">▲ +19.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Slow Query</div>
+        <div class="sv">8</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,3.00 L33.33,26.20 L66.67,37.00 L100.00,26.23 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,26.20 L66.67,37.00 L100.00,26.23" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="26.23" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 8</span>
+          <span><span class="d-good">▼ -7.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">MySQL QPS</div>
+        <div class="sv">17.5/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
+  <path d="M0.00,30.24 L33.33,3.00 L66.67,14.73 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,30.24 L33.33,3.00 L66.67,14.73 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 17.5/s</span>
+          <span><span class="d-good">▼ -3.4%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Redis 적중률</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div></div>
+    </section><section>
+      <h2>posts — 추세 (8회)</h2>
+      
+      <div class="sparks"><div class="spark">
+        <div class="st">P95 응답시간</div>
+        <div class="sv">104ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,3.00 L14.29,35.57 L28.57,30.40 L42.86,36.58 L57.14,37.00 L71.43,15.41 L85.71,34.12 L100.00,36.13 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L14.29,35.57 L28.57,30.40 L42.86,36.58 L57.14,37.00 L71.43,15.41 L85.71,34.12 L100.00,36.13" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="36.13" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>8회 · min 80ms</span>
+          <span><span class="d-good">▼ -30.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">평균 응답시간</div>
+        <div class="sv">33ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,3.00 L14.29,26.69 L28.57,24.74 L42.86,36.74 L57.14,37.00 L71.43,10.18 L85.71,31.99 L100.00,35.79 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L14.29,26.69 L28.57,24.74 L42.86,36.74 L57.14,37.00 L71.43,10.18 L85.71,31.99 L100.00,35.79" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="35.79" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>8회 · min 30ms</span>
+          <span><span class="d-good">▼ -37.4%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">P99 응답시간</div>
+        <div class="sv">236ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P99 응답시간">
+  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">TPS</div>
+        <div class="sv">0.5/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,33.90 L14.29,3.00 L28.57,37.00 L42.86,35.80 L57.14,36.25 L71.43,36.83 L85.71,31.99 L100.00,33.44 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,33.90 L14.29,3.00 L28.57,37.00 L42.86,35.80 L57.14,36.25 L71.43,36.83 L85.71,31.99 L100.00,33.44" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="33.44" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>8회 · min 0.3/s</span>
+          <span><span class="d-flat">▲ +0.1%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">RPS</div>
+        <div class="sv">2.8/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
+  <path d="M0.00,34.14 L14.29,3.00 L28.57,36.66 L42.86,36.10 L57.14,36.39 L71.43,37.00 L85.71,32.45 L100.00,32.90 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,34.14 L14.29,3.00 L28.57,36.66 L42.86,36.10 L57.14,36.39 L71.43,37.00 L85.71,32.45 L100.00,32.90" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="32.90" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>8회 · min 1.3/s</span>
+          <span><span class="d-good">▲ +8.8%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">오류율</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,37.00 L14.29,3.00 L28.57,37.00 L42.86,37.00 L57.14,37.00 L71.43,37.00 L85.71,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L14.29,3.00 L28.57,37.00 L42.86,37.00 L57.14,37.00 L71.43,37.00 L85.71,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">CPU 포화도</div>
+        <div class="sv">3.4%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,25.42 L14.29,3.00 L28.57,34.67 L42.86,36.22 L57.14,37.00 L71.43,31.53 L85.71,30.11 L100.00,36.15 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,25.42 L14.29,3.00 L28.57,34.67 L42.86,36.22 L57.14,37.00 L71.43,31.53 L85.71,30.11 L100.00,36.15" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="36.15" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>8회 · min 2.9%</span>
+          <span><span class="d-good">▼ -32.8%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Heap 최대</div>
+        <div class="sv">533 MB</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,37.00 L14.29,23.16 L28.57,26.37 L42.86,29.73 L57.14,3.00 L71.43,24.12 L85.71,23.22 L100.00,30.44 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L14.29,23.16 L28.57,26.37 L42.86,29.73 L57.14,3.00 L71.43,24.12 L85.71,23.22 L100.00,30.44" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="30.44" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>8회 · min 458 MB</span>
+          <span><span class="d-bad">▲ +8.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">GC 최대 정지</div>
+        <div class="sv">0.0ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,3.00 L16.67,36.31 L33.33,34.05 L50.00,37.00 L66.67,28.15 L83.33,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L16.67,36.31 L33.33,34.05 L50.00,37.00 L66.67,28.15 L83.33,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>7회 · min 0.0ms</span>
+          <span><span class="d-good">▼ -100.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Slow Query</div>
+        <div class="sv">29</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,29.31 L14.29,3.00 L28.57,34.47 L42.86,37.00 L57.14,36.24 L71.43,35.21 L85.71,32.09 L100.00,28.69 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,29.31 L14.29,3.00 L28.57,34.47 L42.86,37.00 L57.14,36.24 L71.43,35.21 L85.71,32.09 L100.00,28.69" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="28.69" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>8회 · min 6</span>
+          <span><span class="d-good">▼ -23.7%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">MySQL QPS</div>
+        <div class="sv">28.8/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
+  <path d="M0.00,33.92 L14.29,3.00 L28.57,37.00 L42.86,32.54 L57.14,36.64 L71.43,36.60 L85.71,32.65 L100.00,33.14 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,33.92 L14.29,3.00 L28.57,37.00 L42.86,32.54 L57.14,36.64 L71.43,36.60 L85.71,32.65 L100.00,33.14" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="33.14" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>8회 · min 16.3/s</span>
+          <span><span class="d-good">▼ -18.7%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Redis 적중률</div>
+        <div class="sv">98.8%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
+  <path d="M0.00,8.11 L14.29,5.14 L28.57,12.09 L42.86,3.00 L57.14,37.00 L71.43,19.40 L85.71,7.79 L100.00,6.88 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,8.11 L14.29,5.14 L28.57,12.09 L42.86,3.00 L57.14,37.00 L71.43,19.40 L85.71,7.79 L100.00,6.88" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="6.88" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>8회 · min 89.9%</span>
+          <span><span class="d-bad">▼ -2.1%</span></span>
+        </div>
+      </div></div>
+    </section><section>
+      <h2>reactions — 추세 (4회)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 4회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>GC 최대 정지</b> 11ms → 26ms (+142.9%)<br>· <b>Redis 적중률</b> 50.0% → 0.0% (-100.0%)<br>· <b>Slow Query</b> 4 → 7 (+75.0%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+        </div>
+      </div>
+      <div class="sparks"><div class="spark">
+        <div class="st">P95 응답시간</div>
+        <div class="sv">98ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,23.25 L33.33,10.99 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,23.25 L33.33,10.99 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 88ms</span>
+          <span><span class="d-flat">▼ -0.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">평균 응답시간</div>
+        <div class="sv">59ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,29.22 L33.33,16.90 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,29.22 L33.33,16.90 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 51ms</span>
+          <span><span class="d-flat">▲ +1.4%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">TPS</div>
+        <div class="sv">1.1/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,3.00 L33.33,18.08 L66.67,37.00 L100.00,14.98 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,18.08 L66.67,37.00 L100.00,14.98" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="14.98" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 1.0/s</span>
+          <span><span class="d-bad">▼ -9.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">RPS</div>
+        <div class="sv">2.3/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
+  <path d="M0.00,3.00 L33.33,18.08 L66.67,37.00 L100.00,14.98 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,18.08 L66.67,37.00 L100.00,14.98" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="14.98" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 1.9/s</span>
+          <span><span class="d-bad">▼ -9.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">오류율</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">CPU 포화도</div>
+        <div class="sv">6.4%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,20.45 L33.33,27.95 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,20.45 L33.33,27.95 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 3.0%</span>
+          <span><span class="d-bad">▲ +9.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Heap 최대</div>
+        <div class="sv">129 MB</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,15.55 L33.33,17.26 L66.67,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,15.55 L33.33,17.26 L66.67,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 129 MB</span>
+          <span><span class="d-good">▼ -13.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">GC 최대 정지</div>
+        <div class="sv">51ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,34.33 L33.33,25.67 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,34.33 L33.33,25.67 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0ms</span>
+          <span><span class="d-bad">▲ +142.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Slow Query</div>
+        <div class="sv">7</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,37.00 L33.33,23.40 L66.67,3.00 L100.00,6.41 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,23.40 L66.67,3.00 L100.00,6.41" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="6.41" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 3</span>
+          <span><span class="d-bad">▲ +75.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">MySQL QPS</div>
+        <div class="sv">30.7/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
+  <path d="M0.00,4.38 L33.33,3.00 L66.67,37.00 L100.00,16.05 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,4.38 L33.33,3.00 L66.67,37.00 L100.00,16.05" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="16.05" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 23.6/s</span>
+          <span><span class="d-good">▼ -22.1%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Redis 적중률</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
+  <path d="M0.00,37.00 L33.33,3.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,3.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0%</span>
+          <span><span class="d-bad">▼ -100.0%</span></span>
+        </div>
+      </div></div>
+    </section><section>
+      <h2>school — 추세 (4회)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 4회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>GC 최대 정지</b> 11ms → 26ms (+142.9%)<br>· <b>MySQL QPS</b> 12.3/s → 18.6/s (+51.6%)<br>· <b>Slow Query</b> 7 → 10 (+46.2%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+        </div>
+      </div>
+      <div class="sparks"><div class="spark">
+        <div class="st">P95 응답시간</div>
+        <div class="sv">92ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,26.13 L33.33,3.00 L66.67,29.41 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,26.13 L33.33,3.00 L66.67,29.41 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 92ms</span>
+          <span><span class="d-good">▼ -3.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">평균 응답시간</div>
+        <div class="sv">42ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,3.00 L33.33,19.34 L66.67,37.00 L100.00,14.42 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,19.34 L66.67,37.00 L100.00,14.42" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="14.42" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 40ms</span>
+          <span><span class="d-good">▼ -3.3%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">TPS</div>
+        <div class="sv">0.9/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,10.38 L33.33,21.74 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,10.38 L33.33,21.74 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.8/s</span>
+          <span><span class="d-flat">▼ -1.7%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">RPS</div>
+        <div class="sv">2.1/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
+  <path d="M0.00,3.54 L33.33,11.04 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.54 L33.33,11.04 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 1.9/s</span>
+          <span><span class="d-bad">▼ -3.8%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">오류율</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,3.00 L33.33,4.49 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,4.49 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0%</span>
+          <span><span class="d-good">▼ -100.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">CPU 포화도</div>
+        <div class="sv">6.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,7.05 L33.33,26.76 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,7.05 L33.33,26.76 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 3.0%</span>
+          <span><span class="d-good">▼ -5.8%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Heap 최대</div>
+        <div class="sv">147 MB</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,15.24 L33.33,17.21 L66.67,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,15.24 L33.33,17.21 L66.67,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 147 MB</span>
+          <span><span class="d-good">▼ -13.7%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">GC 최대 정지</div>
+        <div class="sv">51ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,34.33 L33.33,25.67 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,34.33 L33.33,25.67 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0ms</span>
+          <span><span class="d-bad">▲ +142.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Slow Query</div>
+        <div class="sv">9</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,33.92 L33.33,37.00 L66.67,3.00 L100.00,20.78 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,33.92 L33.33,37.00 L66.67,3.00 L100.00,20.78" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="20.78" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 6</span>
+          <span><span class="d-bad">▲ +46.2%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">MySQL QPS</div>
+        <div class="sv">19.2/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
+  <path d="M0.00,37.00 L33.33,32.13 L66.67,8.46 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,32.13 L66.67,8.46 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 11.7/s</span>
+          <span><span class="d-bad">▲ +51.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Redis 적중률</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div></div>
+    </section><section>
+      <h2>scraps — 추세 (4회)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 4회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>GC 최대 정지</b> 11ms → 26ms (+142.9%)<br>· <b>CPU 포화도</b> 4.3% → 4.7% (+10.0%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+        </div>
+      </div>
+      <div class="sparks"><div class="spark">
+        <div class="st">P95 응답시간</div>
+        <div class="sv">93ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,37.00 L33.33,15.34 L66.67,3.00 L100.00,31.40 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,15.34 L66.67,3.00 L100.00,31.40" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="31.40" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 88ms</span>
+          <span><span class="d-bad">▲ +7.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">평균 응답시간</div>
+        <div class="sv">42ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,37.00 L33.33,3.00 L66.67,10.41 L100.00,12.78 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,3.00 L66.67,10.41 L100.00,12.78" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="12.78" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 38ms</span>
+          <span><span class="d-bad">▲ +3.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">TPS</div>
+        <div class="sv">0.5/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,3.00 L33.33,37.00 L66.67,24.10 L100.00,28.15 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,37.00 L66.67,24.10 L100.00,28.15" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="28.15" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.5/s</span>
+          <span><span class="d-bad">▼ -2.8%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">RPS</div>
+        <div class="sv">1.5/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
+  <path d="M0.00,3.00 L33.33,37.00 L66.67,24.10 L100.00,28.15 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,37.00 L66.67,24.10 L100.00,28.15" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="28.15" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 1.5/s</span>
+          <span><span class="d-bad">▼ -2.8%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">오류율</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">CPU 포화도</div>
+        <div class="sv">6.2%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,17.80 L33.33,31.90 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,17.80 L33.33,31.90 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 3.2%</span>
+          <span><span class="d-bad">▲ +10.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Heap 최대</div>
+        <div class="sv">190 MB</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,16.31 L33.33,18.33 L66.67,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,16.31 L33.33,18.33 L66.67,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 190 MB</span>
+          <span><span class="d-good">▼ -9.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">GC 최대 정지</div>
+        <div class="sv">51ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,34.33 L33.33,25.67 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,34.33 L33.33,25.67 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0ms</span>
+          <span><span class="d-bad">▲ +142.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Slow Query</div>
+        <div class="sv">11</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,15.76 L33.33,19.58 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,15.76 L33.33,19.58 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 6</span>
+          <span><span class="d-good">▼ -4.2%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">MySQL QPS</div>
+        <div class="sv">20.2/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
+  <path d="M0.00,3.00 L33.33,37.00 L66.67,35.91 L100.00,17.44 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,37.00 L66.67,35.91 L100.00,17.44" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="17.44" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 18.9/s</span>
+          <span><span class="d-good">▼ -2.2%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Redis 적중률</div>
+        <div class="sv">100.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div></div>
+    </section><section>
+      <h2>timetable — 추세 (4회)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 4회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>GC 최대 정지</b> 8.5ms → 26ms (+200.0%)<br>· <b>CPU 포화도</b> 4.0% → 4.8% (+18.9%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+        </div>
+      </div>
+      <div class="sparks"><div class="spark">
+        <div class="st">P95 응답시간</div>
+        <div class="sv">94ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,7.11 L33.33,3.00 L66.67,37.00 L100.00,33.79 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,7.11 L33.33,3.00 L66.67,37.00 L100.00,33.79" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="33.79" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 93ms</span>
+          <span><span class="d-good">▼ -10.4%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">평균 응답시간</div>
+        <div class="sv">37ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,3.00 L33.33,37.00 L66.67,34.71 L100.00,32.24 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,37.00 L66.67,34.71 L100.00,32.24" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="32.24" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 36ms</span>
+          <span><span class="d-good">▼ -5.8%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">TPS</div>
+        <div class="sv">0.7/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,26.77 L33.33,31.60 L66.67,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,26.77 L33.33,31.60 L66.67,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.7/s</span>
+          <span><span class="d-good">▲ +13.5%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">RPS</div>
+        <div class="sv">2.0/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
+  <path d="M0.00,35.64 L33.33,31.57 L66.67,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,35.64 L33.33,31.57 L66.67,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 2.0/s</span>
+          <span><span class="d-good">▲ +13.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">오류율</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">CPU 포화도</div>
+        <div class="sv">6.2%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,22.67 L33.33,35.51 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,22.67 L33.33,35.51 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 3.4%</span>
+          <span><span class="d-bad">▲ +18.9%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Heap 최대</div>
+        <div class="sv">208 MB</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,15.34 L33.33,17.71 L66.67,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,15.34 L33.33,17.71 L66.67,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 208 MB</span>
+          <span><span class="d-good">▼ -11.6%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">GC 최대 정지</div>
+        <div class="sv">51ms</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,37.00 L33.33,25.67 L66.67,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,25.67 L66.67,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 0.0ms</span>
+          <span><span class="d-bad">▲ +200.0%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Slow Query</div>
+        <div class="sv">8</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,3.00 L33.33,5.07 L66.67,37.00 L100.00,3.01 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L33.33,5.07 L66.67,37.00 L100.00,3.01" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.01" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 5</span>
+          <span><span class="d-good">▼ -13.7%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">MySQL QPS</div>
+        <div class="sv">14.6/s</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
+  <path d="M0.00,16.32 L33.33,19.35 L66.67,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,16.32 L33.33,19.35 L66.67,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>4회 · min 14.6/s</span>
+          <span><span class="d-flat">▼ -1.7%</span></span>
+        </div>
+      </div><div class="spark">
+        <div class="st">Redis 적중률</div>
+        <div class="sv">0.0%</div>
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L33.33,37.00 L66.67,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+        <div class="range">
+          <span>min —</span>
+          <span></span>
+        </div>
+      </div></div>
+    </section>
+
+  <section>
+    <h2>실행 이력 (최신순)</h2>
+    <div class="card scroll"><table class="hist-table">
+      <thead><tr>
+        <th class="num">#</th><th>시나리오</th><th>환경</th><th>커밋</th><th>브랜치</th><th>시작</th>
+        <th class="num">VU</th><th class="num">평균</th><th class="num">P95</th><th class="num">P99</th>
+        <th class="num">TPS</th><th class="num">오류율</th><th class="num">CPU</th>
+        <th class="num">Heap</th><th class="num">Slow</th><th>판정</th>
+      </tr></thead>
+      <tbody><tr>
+      <td class="num">61</td>
+      <td><a href="runs/posts-2026-07-31T07-36-32/report.html">posts</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">94fa58e9</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">perf/add-load-testing-framework</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 16:35</td>
+      <td class="num">6</td>
+      <td class="num">33ms</td>
+      <td class="num">104ms</td>
+      <td class="num">236ms</td>
+      <td class="num">0.54</td>
+      <td class="num">0.00%</td>
+      <td class="num">3%</td>
+      <td class="num">533 MB</td>
+      <td class="num">29</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">60</td>
+      <td><a href="runs/normal-day-2026-07-31T07-30-12/report.html">normal-day</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">94fa58e9</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">perf/add-load-testing-framework</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 16:22</td>
+      <td class="num">8</td>
+      <td class="num">37ms</td>
+      <td class="num">109ms</td>
+      <td class="num">218ms</td>
+      <td class="num">0.50</td>
+      <td class="num">0.00%</td>
+      <td class="num">7%</td>
+      <td class="num">632 MB</td>
+      <td class="num">291</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">59</td>
+      <td><a href="runs/posts-2026-07-31T07-21-27/report.html">posts</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">94fa58e9</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">perf/add-load-testing-framework</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 16:20</td>
+      <td class="num">6</td>
+      <td class="num">44ms</td>
+      <td class="num">158ms</td>
+      <td class="num">287ms</td>
+      <td class="num">0.65</td>
+      <td class="num">0.00%</td>
+      <td class="num">7%</td>
+      <td class="num">615 MB</td>
+      <td class="num">20</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">58</td>
+      <td><a href="runs/auth-2026-07-31T07-15-58/report.html">auth</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">94fa58e9</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">perf/add-load-testing-framework</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 16:15</td>
+      <td class="num">5</td>
+      <td class="num">54ms</td>
+      <td class="num">149ms</td>
+      <td class="num">166ms</td>
+      <td class="num">0.64</td>
+      <td class="num">0.00%</td>
+      <td class="num">3%</td>
+      <td class="num">360 MB</td>
+      <td class="num">21</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">57</td>
+      <td><a href="runs/auth-2026-07-31T07-13-04/report.html">auth</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">abc12345</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">develop</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 16:12</td>
+      <td class="num">5</td>
+      <td class="num">48ms</td>
+      <td class="num">91ms</td>
+      <td class="num">0.0ms</td>
+      <td class="num">0.66</td>
+      <td class="num">0.00%</td>
+      <td class="num">4%</td>
+      <td class="num">235 MB</td>
+      <td class="num">19</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">56</td>
+      <td><a href="runs/auth-2026-07-31T07-11-04/report.html">auth</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 16:10</td>
+      <td class="num">5</td>
+      <td class="num">60ms</td>
+      <td class="num">203ms</td>
+      <td class="num">—</td>
+      <td class="num">0.59</td>
+      <td class="num">0.00%</td>
+      <td class="num">5%</td>
+      <td class="num">654 MB</td>
+      <td class="num">19</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">55</td>
+      <td><a href="runs/timetable-2026-07-31T06-08-19/report.html">timetable</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 15:08</td>
+      <td class="num">3</td>
+      <td class="num">37ms</td>
+      <td class="num">94ms</td>
+      <td class="num">—</td>
+      <td class="num">0.68</td>
+      <td class="num">0.00%</td>
+      <td class="num">6%</td>
+      <td class="num">208 MB</td>
+      <td class="num">8</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">54</td>
+      <td><a href="runs/scraps-2026-07-31T06-08-00/report.html">scraps</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 15:07</td>
+      <td class="num">3</td>
+      <td class="num">42ms</td>
+      <td class="num">93ms</td>
+      <td class="num">—</td>
+      <td class="num">0.51</td>
+      <td class="num">0.00%</td>
+      <td class="num">6%</td>
+      <td class="num">190 MB</td>
+      <td class="num">11</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">53</td>
+      <td><a href="runs/school-2026-07-31T06-07-38/report.html">school</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 15:07</td>
+      <td class="num">3</td>
+      <td class="num">42ms</td>
+      <td class="num">92ms</td>
+      <td class="num">—</td>
+      <td class="num">0.89</td>
+      <td class="num">0.00%</td>
+      <td class="num">6%</td>
+      <td class="num">147 MB</td>
+      <td class="num">9</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">52</td>
+      <td><a href="runs/reactions-2026-07-31T06-07-21/report.html">reactions</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 15:07</td>
+      <td class="num">3</td>
+      <td class="num">59ms</td>
+      <td class="num">98ms</td>
+      <td class="num">—</td>
+      <td class="num">1.13</td>
+      <td class="num">0.00%</td>
+      <td class="num">6%</td>
+      <td class="num">129 MB</td>
+      <td class="num">7</td>
+      <td><span class="badge b-WARN">! WARN</span></td>
+    </tr><tr>
+      <td class="num">51</td>
+      <td><a href="runs/posts-2026-07-31T06-07-03/report.html">posts</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 15:06</td>
+      <td class="num">3</td>
+      <td class="num">105ms</td>
+      <td class="num">660ms</td>
+      <td class="num">—</td>
+      <td class="num">0.28</td>
+      <td class="num">0.00%</td>
+      <td class="num">6%</td>
+      <td class="num">605 MB</td>
+      <td class="num">11</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">50</td>
+      <td><a href="runs/notifications-2026-07-31T06-06-42/report.html">notifications</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 15:06</td>
+      <td class="num">3</td>
+      <td class="num">42ms</td>
+      <td class="num">95ms</td>
+      <td class="num">—</td>
+      <td class="num">0.69</td>
+      <td class="num">0.00%</td>
+      <td class="num">6%</td>
+      <td class="num">587 MB</td>
+      <td class="num">8</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">49</td>
+      <td><a href="runs/mypage-2026-07-31T06-06-21/report.html">mypage</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 15:06</td>
+      <td class="num">3</td>
+      <td class="num">43ms</td>
+      <td class="num">137ms</td>
+      <td class="num">—</td>
+      <td class="num">0.40</td>
+      <td class="num">0.00%</td>
+      <td class="num">13%</td>
+      <td class="num">572 MB</td>
+      <td class="num">7</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">48</td>
+      <td><a href="runs/friends-2026-07-31T06-06-01/report.html">friends</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 15:05</td>
+      <td class="num">3</td>
+      <td class="num">38ms</td>
+      <td class="num">92ms</td>
+      <td class="num">—</td>
+      <td class="num">0.48</td>
+      <td class="num">0.00%</td>
+      <td class="num">14%</td>
+      <td class="num">556 MB</td>
+      <td class="num">18</td>
+      <td><span class="badge b-WARN">! WARN</span></td>
+    </tr><tr>
+      <td class="num">47</td>
+      <td><a href="runs/comments-2026-07-31T06-05-44/report.html">comments</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 15:05</td>
+      <td class="num">3</td>
+      <td class="num">311ms</td>
+      <td class="num">1.87s</td>
+      <td class="num">—</td>
+      <td class="num">0.64</td>
+      <td class="num">0.00%</td>
+      <td class="num">7%</td>
+      <td class="num">393 MB</td>
+      <td class="num">4</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">46</td>
+      <td><a href="runs/chat-ws-2026-07-31T06-05-25/report.html">chat-ws</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 15:05</td>
+      <td class="num">3</td>
+      <td class="num">52ms</td>
+      <td class="num">121ms</td>
+      <td class="num">—</td>
+      <td class="num">0.68</td>
+      <td class="num">0.00%</td>
+      <td class="num">6%</td>
+      <td class="num">363 MB</td>
+      <td class="num">7</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">45</td>
+      <td><a href="runs/chat-rest-2026-07-31T06-05-04/report.html">chat-rest</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 15:04</td>
+      <td class="num">3</td>
+      <td class="num">41ms</td>
+      <td class="num">113ms</td>
+      <td class="num">—</td>
+      <td class="num">0.37</td>
+      <td class="num">0.00%</td>
+      <td class="num">12%</td>
+      <td class="num">313 MB</td>
+      <td class="num">8</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">44</td>
+      <td><a href="runs/boards-2026-07-31T06-04-45/report.html">boards</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 15:04</td>
+      <td class="num">3</td>
+      <td class="num">27ms</td>
+      <td class="num">44ms</td>
+      <td class="num">—</td>
+      <td class="num">0.57</td>
+      <td class="num">0.00%</td>
+      <td class="num">38%</td>
+      <td class="num">288 MB</td>
+      <td class="num">17</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">43</td>
+      <td><a href="runs/auth-2026-07-31T06-04-23/report.html">auth</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 15:04</td>
+      <td class="num">3</td>
+      <td class="num">137ms</td>
+      <td class="num">639ms</td>
+      <td class="num">—</td>
+      <td class="num">0.32</td>
+      <td class="num">0.00%</td>
+      <td class="num">61%</td>
+      <td class="num">271 MB</td>
+      <td class="num">9</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">42</td>
+      <td><a href="runs/timetable-2026-07-31T05-40-04/report.html">timetable</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 14:39</td>
+      <td class="num">3</td>
+      <td class="num">37ms</td>
+      <td class="num">93ms</td>
+      <td class="num">—</td>
+      <td class="num">1.07</td>
+      <td class="num">0.00%</td>
+      <td class="num">3%</td>
+      <td class="num">962 MB</td>
+      <td class="num">5</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">41</td>
+      <td><a href="runs/scraps-2026-07-31T05-39-46/report.html">scraps</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 14:39</td>
+      <td class="num">3</td>
+      <td class="num">42ms</td>
+      <td class="num">116ms</td>
+      <td class="num">—</td>
+      <td class="num">0.52</td>
+      <td class="num">0.00%</td>
+      <td class="num">3%</td>
+      <td class="num">940 MB</td>
+      <td class="num">6</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">40</td>
+      <td><a href="runs/school-2026-07-31T05-39-29/report.html">school</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 14:39</td>
+      <td class="num">3</td>
+      <td class="num">40ms</td>
+      <td class="num">93ms</td>
+      <td class="num">—</td>
+      <td class="num">0.77</td>
+      <td class="num">0.00%</td>
+      <td class="num">3%</td>
+      <td class="num">896 MB</td>
+      <td class="num">11</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">39</td>
+      <td><a href="runs/reactions-2026-07-31T05-39-10/report.html">reactions</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 14:38</td>
+      <td class="num">3</td>
+      <td class="num">51ms</td>
+      <td class="num">88ms</td>
+      <td class="num">—</td>
+      <td class="num">0.97</td>
+      <td class="num">0.00%</td>
+      <td class="num">3%</td>
+      <td class="num">873 MB</td>
+      <td class="num">7</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">38</td>
+      <td><a href="runs/posts-2026-07-31T05-38-51/report.html">posts</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 14:38</td>
+      <td class="num">3</td>
+      <td class="num">30ms</td>
+      <td class="num">80ms</td>
+      <td class="num">—</td>
+      <td class="num">0.33</td>
+      <td class="num">0.00%</td>
+      <td class="num">3%</td>
+      <td class="num">846 MB</td>
+      <td class="num">8</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">37</td>
+      <td><a href="runs/notifications-2026-07-31T05-38-29/report.html">notifications</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 14:38</td>
+      <td class="num">3</td>
+      <td class="num">38ms</td>
+      <td class="num">89ms</td>
+      <td class="num">—</td>
+      <td class="num">0.79</td>
+      <td class="num">18.42%</td>
+      <td class="num">3%</td>
+      <td class="num">791 MB</td>
+      <td class="num">8</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">36</td>
+      <td><a href="runs/mypage-2026-07-31T05-38-10/report.html">mypage</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 14:37</td>
+      <td class="num">3</td>
+      <td class="num">36ms</td>
+      <td class="num">90ms</td>
+      <td class="num">—</td>
+      <td class="num">0.47</td>
+      <td class="num">0.00%</td>
+      <td class="num">4%</td>
+      <td class="num">769 MB</td>
+      <td class="num">8</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">35</td>
+      <td><a href="runs/friends-2026-07-31T05-37-52/report.html">friends</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 14:37</td>
+      <td class="num">3</td>
+      <td class="num">30ms</td>
+      <td class="num">89ms</td>
+      <td class="num">—</td>
+      <td class="num">0.39</td>
+      <td class="num">0.00%</td>
+      <td class="num">4%</td>
+      <td class="num">748 MB</td>
+      <td class="num">22</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">34</td>
+      <td><a href="runs/comments-2026-07-31T05-37-32/report.html">comments</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 14:37</td>
+      <td class="num">3</td>
+      <td class="num">72ms</td>
+      <td class="num">208ms</td>
+      <td class="num">—</td>
+      <td class="num">0.74</td>
+      <td class="num">0.00%</td>
+      <td class="num">4%</td>
+      <td class="num">688 MB</td>
+      <td class="num">8</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">33</td>
+      <td><a href="runs/chat-ws-2026-07-31T05-37-12/report.html">chat-ws</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 14:36</td>
+      <td class="num">3</td>
+      <td class="num">45ms</td>
+      <td class="num">91ms</td>
+      <td class="num">—</td>
+      <td class="num">0.67</td>
+      <td class="num">0.00%</td>
+      <td class="num">2%</td>
+      <td class="num">525 MB</td>
+      <td class="num">8</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">32</td>
+      <td><a href="runs/chat-rest-2026-07-31T05-36-51/report.html">chat-rest</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 14:36</td>
+      <td class="num">3</td>
+      <td class="num">27ms</td>
+      <td class="num">106ms</td>
+      <td class="num">—</td>
+      <td class="num">0.32</td>
+      <td class="num">0.00%</td>
+      <td class="num">3%</td>
+      <td class="num">495 MB</td>
+      <td class="num">11</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">31</td>
+      <td><a href="runs/boards-2026-07-31T05-36-29/report.html">boards</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 14:36</td>
+      <td class="num">3</td>
+      <td class="num">15ms</td>
+      <td class="num">26ms</td>
+      <td class="num">—</td>
+      <td class="num">0.51</td>
+      <td class="num">0.00%</td>
+      <td class="num">8%</td>
+      <td class="num">453 MB</td>
+      <td class="num">21</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">30</td>
+      <td><a href="runs/auth-2026-07-31T05-36-07/report.html">auth</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 14:35</td>
+      <td class="num">3</td>
+      <td class="num">52ms</td>
+      <td class="num">117ms</td>
+      <td class="num">—</td>
+      <td class="num">0.40</td>
+      <td class="num">0.00%</td>
+      <td class="num">8%</td>
+      <td class="num">435 MB</td>
+      <td class="num">7</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">29</td>
+      <td><a href="runs/timetable-2026-07-31T04-33-16/report.html">timetable</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:32</td>
+      <td class="num">3</td>
+      <td class="num">36ms</td>
+      <td class="num">105ms</td>
+      <td class="num">—</td>
+      <td class="num">0.75</td>
+      <td class="num">0.00%</td>
+      <td class="num">3%</td>
+      <td class="num">636 MB</td>
+      <td class="num">7</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">28</td>
+      <td><a href="runs/scraps-2026-07-31T04-32-59/report.html">scraps</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:32</td>
+      <td class="num">3</td>
+      <td class="num">44ms</td>
+      <td class="num">106ms</td>
+      <td class="num">—</td>
+      <td class="num">0.48</td>
+      <td class="num">0.00%</td>
+      <td class="num">4%</td>
+      <td class="num">602 MB</td>
+      <td class="num">8</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">27</td>
+      <td><a href="runs/school-2026-07-31T04-32-38/report.html">school</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:32</td>
+      <td class="num">3</td>
+      <td class="num">42ms</td>
+      <td class="num">98ms</td>
+      <td class="num">—</td>
+      <td class="num">0.83</td>
+      <td class="num">53.13%</td>
+      <td class="num">4%</td>
+      <td class="num">583 MB</td>
+      <td class="num">6</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">26</td>
+      <td><a href="runs/reactions-2026-07-31T04-32-22/report.html">reactions</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:32</td>
+      <td class="num">3</td>
+      <td class="num">56ms</td>
+      <td class="num">96ms</td>
+      <td class="num">—</td>
+      <td class="num">1.11</td>
+      <td class="num">0.00%</td>
+      <td class="num">4%</td>
+      <td class="num">561 MB</td>
+      <td class="num">5</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">25</td>
+      <td><a href="runs/posts-2026-07-31T04-32-03/report.html">posts</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:31</td>
+      <td class="num">3</td>
+      <td class="num">30ms</td>
+      <td class="num">92ms</td>
+      <td class="num">—</td>
+      <td class="num">0.36</td>
+      <td class="num">0.00%</td>
+      <td class="num">3%</td>
+      <td class="num">541 MB</td>
+      <td class="num">6</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">24</td>
+      <td><a href="runs/notifications-2026-07-31T04-31-43/report.html">notifications</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:31</td>
+      <td class="num">3</td>
+      <td class="num">42ms</td>
+      <td class="num">93ms</td>
+      <td class="num">—</td>
+      <td class="num">0.99</td>
+      <td class="num">8.11%</td>
+      <td class="num">4%</td>
+      <td class="num">494 MB</td>
+      <td class="num">8</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">23</td>
+      <td><a href="runs/mypage-2026-07-31T04-31-27/report.html">mypage</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:31</td>
+      <td class="num">3</td>
+      <td class="num">38ms</td>
+      <td class="num">117ms</td>
+      <td class="num">—</td>
+      <td class="num">0.49</td>
+      <td class="num">40.00%</td>
+      <td class="num">4%</td>
+      <td class="num">478 MB</td>
+      <td class="num">10</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">22</td>
+      <td><a href="runs/friends-2026-07-31T04-31-08/report.html">friends</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:30</td>
+      <td class="num">3</td>
+      <td class="num">31ms</td>
+      <td class="num">98ms</td>
+      <td class="num">—</td>
+      <td class="num">0.34</td>
+      <td class="num">0.00%</td>
+      <td class="num">5%</td>
+      <td class="num">456 MB</td>
+      <td class="num">22</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">21</td>
+      <td><a href="runs/comments-2026-07-31T04-30-47/report.html">comments</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:30</td>
+      <td class="num">3</td>
+      <td class="num">77ms</td>
+      <td class="num">227ms</td>
+      <td class="num">—</td>
+      <td class="num">0.82</td>
+      <td class="num">0.00%</td>
+      <td class="num">4%</td>
+      <td class="num">852 MB</td>
+      <td class="num">7</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">20</td>
+      <td><a href="runs/chat-ws-2026-07-31T04-30-30/report.html">chat-ws</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:30</td>
+      <td class="num">3</td>
+      <td class="num">42ms</td>
+      <td class="num">86ms</td>
+      <td class="num">—</td>
+      <td class="num">0.67</td>
+      <td class="num">0.00%</td>
+      <td class="num">2%</td>
+      <td class="num">852 MB</td>
+      <td class="num">8</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">19</td>
+      <td><a href="runs/chat-rest-2026-07-31T04-30-09/report.html">chat-rest</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:29</td>
+      <td class="num">3</td>
+      <td class="num">26ms</td>
+      <td class="num">101ms</td>
+      <td class="num">—</td>
+      <td class="num">0.31</td>
+      <td class="num">0.00%</td>
+      <td class="num">2%</td>
+      <td class="num">800 MB</td>
+      <td class="num">9</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">18</td>
+      <td><a href="runs/boards-2026-07-31T04-29-49/report.html">boards</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:29</td>
+      <td class="num">3</td>
+      <td class="num">13ms</td>
+      <td class="num">20ms</td>
+      <td class="num">—</td>
+      <td class="num">0.48</td>
+      <td class="num">0.00%</td>
+      <td class="num">1%</td>
+      <td class="num">785 MB</td>
+      <td class="num">18</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">17</td>
+      <td><a href="runs/auth-2026-07-31T04-29-27/report.html">auth</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:29</td>
+      <td class="num">3</td>
+      <td class="num">53ms</td>
+      <td class="num">154ms</td>
+      <td class="num">—</td>
+      <td class="num">0.34</td>
+      <td class="num">0.00%</td>
+      <td class="num">1%</td>
+      <td class="num">754 MB</td>
+      <td class="num">9</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">16</td>
+      <td><a href="runs/boards-2026-07-31T04-28-23/report.html">boards</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:28</td>
+      <td class="num">2</td>
+      <td class="num">9.6ms</td>
+      <td class="num">16ms</td>
+      <td class="num">—</td>
+      <td class="num">0.37</td>
+      <td class="num">0.00%</td>
+      <td class="num">3%</td>
+      <td class="num">709 MB</td>
+      <td class="num">9</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">15</td>
+      <td><a href="runs/timetable-2026-07-31T04-27-48/report.html">timetable</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:27</td>
+      <td class="num">3</td>
+      <td class="num">42ms</td>
+      <td class="num">104ms</td>
+      <td class="num">—</td>
+      <td class="num">0.80</td>
+      <td class="num">0.00%</td>
+      <td class="num">5%</td>
+      <td class="num">688 MB</td>
+      <td class="num">8</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">14</td>
+      <td><a href="runs/scraps-2026-07-31T04-27-29/report.html">scraps</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:27</td>
+      <td class="num">3</td>
+      <td class="num">38ms</td>
+      <td class="num">88ms</td>
+      <td class="num">—</td>
+      <td class="num">0.57</td>
+      <td class="num">0.00%</td>
+      <td class="num">5%</td>
+      <td class="num">646 MB</td>
+      <td class="num">9</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">13</td>
+      <td><a href="runs/school-2026-07-31T04-27-11/report.html">school</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:26</td>
+      <td class="num">3</td>
+      <td class="num">44ms</td>
+      <td class="num">94ms</td>
+      <td class="num">—</td>
+      <td class="num">0.87</td>
+      <td class="num">55.56%</td>
+      <td class="num">6%</td>
+      <td class="num">626 MB</td>
+      <td class="num">7</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">12</td>
+      <td><a href="runs/reactions-2026-07-31T04-26-53/report.html">reactions</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:26</td>
+      <td class="num">3</td>
+      <td class="num">53ms</td>
+      <td class="num">92ms</td>
+      <td class="num">—</td>
+      <td class="num">1.22</td>
+      <td class="num">0.00%</td>
+      <td class="num">5%</td>
+      <td class="num">598 MB</td>
+      <td class="num">3</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">11</td>
+      <td><a href="runs/posts-2026-07-31T04-26-36/report.html">posts</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:26</td>
+      <td class="num">3</td>
+      <td class="num">64ms</td>
+      <td class="num">258ms</td>
+      <td class="num">—</td>
+      <td class="num">0.27</td>
+      <td class="num">0.00%</td>
+      <td class="num">4%</td>
+      <td class="num">579 MB</td>
+      <td class="num">13</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">10</td>
+      <td><a href="runs/notifications-2026-07-31T04-26-14/report.html">notifications</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:25</td>
+      <td class="num">3</td>
+      <td class="num">48ms</td>
+      <td class="num">128ms</td>
+      <td class="num">—</td>
+      <td class="num">0.64</td>
+      <td class="num">17.24%</td>
+      <td class="num">4%</td>
+      <td class="num">426 MB</td>
+      <td class="num">9</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">9</td>
+      <td><a href="runs/mypage-2026-07-31T04-25-54/report.html">mypage</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:25</td>
+      <td class="num">3</td>
+      <td class="num">29ms</td>
+      <td class="num">83ms</td>
+      <td class="num">—</td>
+      <td class="num">0.44</td>
+      <td class="num">43.75%</td>
+      <td class="num">7%</td>
+      <td class="num">413 MB</td>
+      <td class="num">8</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">8</td>
+      <td><a href="runs/friends-2026-07-31T04-25-33/report.html">friends</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:25</td>
+      <td class="num">3</td>
+      <td class="num">33ms</td>
+      <td class="num">94ms</td>
+      <td class="num">—</td>
+      <td class="num">0.48</td>
+      <td class="num">0.00%</td>
+      <td class="num">7%</td>
+      <td class="num">395 MB</td>
+      <td class="num">24</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">7</td>
+      <td><a href="runs/comments-2026-07-31T04-25-12/report.html">comments</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:24</td>
+      <td class="num">3</td>
+      <td class="num">98ms</td>
+      <td class="num">436ms</td>
+      <td class="num">—</td>
+      <td class="num">0.71</td>
+      <td class="num">9.09%</td>
+      <td class="num">5%</td>
+      <td class="num">823 MB</td>
+      <td class="num">5</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">6</td>
+      <td><a href="runs/chat-ws-2026-07-31T04-24-53/report.html">chat-ws</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:24</td>
+      <td class="num">3</td>
+      <td class="num">45ms</td>
+      <td class="num">92ms</td>
+      <td class="num">—</td>
+      <td class="num">0.63</td>
+      <td class="num">0.00%</td>
+      <td class="num">2%</td>
+      <td class="num">759 MB</td>
+      <td class="num">5</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">5</td>
+      <td><a href="runs/chat-rest-2026-07-31T04-24-34/report.html">chat-rest</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:24</td>
+      <td class="num">3</td>
+      <td class="num">29ms</td>
+      <td class="num">83ms</td>
+      <td class="num">—</td>
+      <td class="num">0.36</td>
+      <td class="num">0.00%</td>
+      <td class="num">2%</td>
+      <td class="num">721 MB</td>
+      <td class="num">9</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">4</td>
+      <td><a href="runs/boards-2026-07-31T04-24-14/report.html">boards</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:23</td>
+      <td class="num">3</td>
+      <td class="num">21ms</td>
+      <td class="num">67ms</td>
+      <td class="num">—</td>
+      <td class="num">0.55</td>
+      <td class="num">0.00%</td>
+      <td class="num">1%</td>
+      <td class="num">688 MB</td>
+      <td class="num">16</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">3</td>
+      <td><a href="runs/auth-2026-07-31T04-23-57/report.html">auth</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 13:23</td>
+      <td class="num">3</td>
+      <td class="num">49ms</td>
+      <td class="num">105ms</td>
+      <td class="num">—</td>
+      <td class="num">0.35</td>
+      <td class="num">0.00%</td>
+      <td class="num">1%</td>
+      <td class="num">674 MB</td>
+      <td class="num">9</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">2</td>
+      <td><a href="runs/posts-2026-07-31T02-44-52/report.html">posts</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 11:43</td>
+      <td class="num">30</td>
+      <td class="num">59ms</td>
+      <td class="num">119ms</td>
+      <td class="num">—</td>
+      <td class="num">2.85</td>
+      <td class="num">0.10%</td>
+      <td class="num">24%</td>
+      <td class="num">616 MB</td>
+      <td class="num">99</td>
+      <td><span class="badge b-WARN">! WARN</span></td>
+    </tr><tr>
+      <td class="num">1</td>
+      <td><a href="runs/posts-2026-07-31T02-41-46/report.html">posts</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">migrated</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">unknown(migrated)</td>
+      <td style="font-size:12px;white-space:nowrap">2026-07-31 11:40</td>
+      <td class="num">5</td>
+      <td class="num">125ms</td>
+      <td class="num">994ms</td>
+      <td class="num">—</td>
+      <td class="num">0.51</td>
+      <td class="num">0.00%</td>
+      <td class="num">10%</td>
+      <td class="num">458 MB</td>
+      <td class="num">27</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr></tbody>
+    </table>
+    <div class="note">시나리오 이름을 클릭하면 해당 실행의 상세 보고서로 이동합니다.
+    비교는 항상 <b>같은 시나리오 + 같은 환경</b>끼리만 이뤄집니다 — 다른 시나리오끼리의 절대값 비교는 의미가 없습니다.</div>
+    </div>
+  </section>
+
+  <footer>생성 2026-07-31 17:48:10 KST · <code>reports/index.json</code> 기준</footer>
+</div>
+</body></html>
