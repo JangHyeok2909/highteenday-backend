@@ -44,7 +44,7 @@ public class FriendService {
 
         List<FriendInfoDto> friendsListDto = findFriendsList.stream()
                 .map(friend -> FriendInfoDto.builder()
-                        .id(friend.getId())
+                        .userId(friend.getId())
                         .nickname(friend.getNicknameValue())
                         .profileUrl(friend.getProfileUrl())
                         .build())
@@ -61,7 +61,8 @@ public class FriendService {
 
         return findSentFriendsRequestList.stream()
                 .map(req -> FriendInfoDto.builder()
-                        .id(req.getReceiver().getId())
+                        .userId(req.getReceiver().getId())
+                        .requestId(req.getId())
                         .nickname(req.getReceiver().getNicknameValue())
                         .profileUrl(req.getReceiver().getProfileUrl())
                         .build()
@@ -71,12 +72,12 @@ public class FriendService {
     // 누가 나한테 친구 요청한 목록 | 누군가 나한테 신청한 목록
     @Transactional
     public List<FriendInfoDto> getReceivedFriendsList(User user){
-        List<FriendReq> findReceivedFriendsList = friendReqRepository.findReceivedFriendRequestsByRecieverId(user.getId());
+        List<FriendReq> findReceivedFriendsList = friendReqRepository.findReceivedFriendRequestsByReceiverId(user.getId());
 
         return findReceivedFriendsList.stream()
-                // 여기서 id는 요청자가 아니라 FriendReq의 id다. /respond가 그 값을 요구한다.
                 .map(req -> FriendInfoDto.builder()
-                        .id(req.getId())
+                        .userId(req.getRequester().getId())
+                        .requestId(req.getId())
                         .nickname(req.getRequester().getNicknameValue())
                         .profileUrl(req.getRequester().getProfileUrl())
                         .build()
@@ -129,13 +130,13 @@ public class FriendService {
                 .findFirst()
                 .orElseThrow(() -> new CustomException(ErrorCode.REQUEST_NOT_FOUND));
 
-        friendReqRepository.delete(request);
+        request.delete();
     }
 
     // 친구 응답
     @Transactional
     public void respondToFriendRequest(CustomUserPrincipal receiverInfo, RespondFriendRequestDto friendReqDto) {
-        FriendReq friendReq = friendReqRepository.findById(friendReqDto.id())
+        FriendReq friendReq = friendReqRepository.findActiveById(friendReqDto.id())
                 .orElseThrow(() -> new CustomException(ErrorCode.REQUEST_NOT_FOUND));
 
         friendReq.validateReceiver(receiverInfo.getUser().getId());
@@ -159,7 +160,7 @@ public class FriendService {
             eventPublisher.publishEvent(new FriendRequestDeclinedEvent(requester.getId(), receiver.getId()));
         }
 
-        friendReqRepository.delete(friendReq);
+        friendReq.delete();
 
     }
 
@@ -293,7 +294,7 @@ public class FriendService {
     // 친구 검색
     // 검색 했는데 없으면 그냥 빈 리스트 반환
     @Transactional
-    public List<UserSearchResultDto> selectFriend(User me, SelectFriendDto selectFriendDto) {
+    public List<UserSearchResultDto> searchUsersByNickname(User me, SelectFriendDto selectFriendDto) {
         if (selectFriendDto.nickname() == null) return List.of();
 
         List<User> found = userRepository.findByNickname(selectFriendDto.nickname()).stream()
