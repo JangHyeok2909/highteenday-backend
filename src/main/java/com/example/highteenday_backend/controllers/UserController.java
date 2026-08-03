@@ -10,6 +10,7 @@ import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.security.TokenException;
 import com.example.highteenday_backend.security.TokenProvider;
+import com.example.highteenday_backend.services.domain.FriendService;
 import com.example.highteenday_backend.services.domain.TokenService;
 import com.example.highteenday_backend.services.domain.UserService;
 import com.example.highteenday_backend.services.security.JwtCookieService;
@@ -41,6 +42,7 @@ import java.util.Map;
 @Slf4j
 public class UserController {
     private final UserService userService;
+    private final FriendService friendService;
     private final TokenProvider tokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final JwtCookieService jwtCookieService;
@@ -87,6 +89,18 @@ public class UserController {
     ) {
         UserInfoDto userInfoDto = userService.getUserInfoDto(user.getUser().getEmailValue());
         return ResponseEntity.ok().body(userInfoDto);
+    }
+
+    // /api/user/** 아래에 둔 것은 SecurityConfig가 이 경로의 GET만 인증 대상으로 잡고 있어서다.
+    // /api/users 처럼 다른 prefix를 쓰면 "그 외 모든 GET 허용" 규칙에 걸려 비로그인도 열람하게 된다.
+    @Operation(summary = "친구의 프로필 조회",
+            description = "친구에게만 공개된다. 친구가 아니거나 상대가 나를 차단했으면 404.")
+    @GetMapping("/{userId}/profile")
+    public ResponseEntity<UserProfileDto> getUserProfile(
+            @AuthenticationPrincipal CustomUserPrincipal user,
+            @PathVariable Long userId
+    ) {
+        return ResponseEntity.ok(friendService.getFriendProfile(user.getUser(), userId));
     }
 
     // 회원가입
