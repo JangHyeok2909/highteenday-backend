@@ -175,9 +175,6 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div><div class="t">HTTP 요청당 쿼리 수 과다</div><div class="d">요청 1건당 평균 11.4개 쿼리가 실행됐다. N+1 패턴 가능성이 높다.</div></div>
     </div><div class="hint">
       <div class="n">2</div>
-      <div><div class="t">컨테이너 메모리 포화</div><div class="d">메모리 사용이 한계의 160%다. OOM Kill 위험 구간.</div></div>
-    </div><div class="hint">
-      <div class="n">3</div>
       <div><div class="t">Slow Query 다발</div><div class="d">요청 1000건당 228.6건의 slow query(&gt;100ms). 인덱스 또는 쿼리 계획 점검 대상.</div></div>
     </div>
     <div class="note">자동 규칙으로 뽑은 <b>가설</b>이지 확정된 원인이 아니다.
@@ -233,8 +230,8 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <td class="num" style="color:var(--ink-2)">0.20 / 2.0 core</td>
     </tr><tr>
       <td>메모리</td>
-      <td style="width:210px"><div class="meter"><div class="track"><div class="fill s-critical" style="width:100.0%"></div></div><span class="pct">100%</span></div></td>
-      <td class="num" style="color:var(--ink-2)">2.4 GB / 1.5 GB</td>
+      <td style="width:210px"><div class="meter"><div class="track"><div class="fill s-warning" style="width:83.2%"></div></div><span class="pct">83%</span></div></td>
+      <td class="num" style="color:var(--ink-2)">1.2 GB / 1.5 GB</td>
     </tr><tr>
       <td>JVM Heap</td>
       <td style="width:210px"><div class="meter"><div class="track"><div class="fill " style="width:44.7%"></div></div><span class="pct">45%</span></div></td>
@@ -255,6 +252,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="note">포화도는 한계 대비 사용량이다. 70% 넘으면 주황, 85% 넘으면 진주황, 95% 넘으면 빨강으로 표시된다.
       절대값과 달리 환경이 바뀌어도 그대로 비교되므로 병목 판단의 1차 기준으로 쓴다.</div>
     </div>
+    
     <h3>CPU</h3><div class="card scroll"><table>
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
       <tbody><tr>
@@ -297,15 +295,15 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
       <tbody><tr>
         <td title="OOM 판정 기준이 되는 실사용 메모리(page cache 제외).">컨테이너 메모리 avg</td>
-        <td class="num">2.4 GB</td>
+        <td class="num">1.2 GB</td>
         <td style="color:var(--ink-muted);font-size:12px">OOM 판정 기준이 되는 실사용 메모리(page cache 제외).</td>
       </tr><tr>
         <td title="OOM 판정 기준이 되는 실사용 메모리(page cache 제외).">컨테이너 메모리 max</td>
-        <td class="num">2.4 GB</td>
+        <td class="num">1.2 GB</td>
         <td style="color:var(--ink-muted);font-size:12px">OOM 판정 기준이 되는 실사용 메모리(page cache 제외).</td>
       </tr><tr>
         <td title="OOM 판정 기준이 되는 실사용 메모리(page cache 제외).">컨테이너 메모리 p95</td>
-        <td class="num">2.4 GB</td>
+        <td class="num">1.2 GB</td>
         <td style="color:var(--ink-muted);font-size:12px">OOM 판정 기준이 되는 실사용 메모리(page cache 제외).</td>
       </tr><tr>
         <td title="cgroup 메모리 상한.">메모리 한계</td>
@@ -313,15 +311,15 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">cgroup 메모리 상한.</td>
       </tr><tr>
         <td title="프로세스가 물리 메모리에 올린 양.">RSS avg</td>
-        <td class="num">2.4 GB</td>
+        <td class="num">1.2 GB</td>
         <td style="color:var(--ink-muted);font-size:12px">프로세스가 물리 메모리에 올린 양.</td>
       </tr><tr>
         <td title="프로세스가 물리 메모리에 올린 양.">RSS max</td>
-        <td class="num">2.4 GB</td>
+        <td class="num">1.2 GB</td>
         <td style="color:var(--ink-muted);font-size:12px">프로세스가 물리 메모리에 올린 양.</td>
       </tr><tr>
         <td title="프로세스가 물리 메모리에 올린 양.">RSS p95</td>
-        <td class="num">2.4 GB</td>
+        <td class="num">1.2 GB</td>
         <td style="color:var(--ink-muted);font-size:12px">프로세스가 물리 메모리에 올린 양.</td>
       </tr></tbody></table></div><h3>JVM Heap</h3><div class="card scroll"><table>
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
@@ -629,7 +627,99 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       </tr></tbody></table></div>
     <div class="note">P95가 가장 큰 항목이 곧 최적화 1순위 후보다. 요청 수가 적은데 P95가 크면
     "느리지만 드문" 경로이므로 사용자 체감 영향은 작을 수 있다 — 요청 수와 같이 본다.</div></section>
-  
+  <section><h2>Trend (최근 8회)</h2>
+    <div class="sparks"><div class="spark">
+    <div class="st">P95 응답시간</div>
+    <div class="sv">104ms</div>
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,3.00 L14.29,35.57 L28.57,30.40 L42.86,36.58 L57.14,37.00 L71.43,15.41 L85.71,34.12 L100.00,36.13 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L14.29,35.57 L28.57,30.40 L42.86,36.58 L57.14,37.00 L71.43,15.41 L85.71,34.12 L100.00,36.13" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="36.13" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+    <div class="range"><span>min 80ms</span><span>max 994ms</span></div>
+  </div><div class="spark">
+    <div class="st">평균 응답시간</div>
+    <div class="sv">33ms</div>
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,3.00 L14.29,26.69 L28.57,24.74 L42.86,36.74 L57.14,37.00 L71.43,10.18 L85.71,31.99 L100.00,35.79 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L14.29,26.69 L28.57,24.74 L42.86,36.74 L57.14,37.00 L71.43,10.18 L85.71,31.99 L100.00,35.79" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="35.79" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+    <div class="range"><span>min 30ms</span><span>max 125ms</span></div>
+  </div><div class="spark">
+    <div class="st">TPS</div>
+    <div class="sv">0.5/s</div>
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,33.90 L14.29,3.00 L28.57,37.00 L42.86,35.80 L57.14,36.25 L71.43,36.83 L85.71,31.99 L100.00,33.44 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,33.90 L14.29,3.00 L28.57,37.00 L42.86,35.80 L57.14,36.25 L71.43,36.83 L85.71,31.99 L100.00,33.44" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="33.44" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+    <div class="range"><span>min 0.3/s</span><span>max 2.8/s</span></div>
+  </div><div class="spark">
+    <div class="st">오류율</div>
+    <div class="sv">0.0%</div>
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,37.00 L14.29,3.00 L28.57,37.00 L42.86,37.00 L57.14,37.00 L71.43,37.00 L85.71,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L14.29,3.00 L28.57,37.00 L42.86,37.00 L57.14,37.00 L71.43,37.00 L85.71,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+    <div class="range"><span>min 0.0%</span><span>max 0.1%</span></div>
+  </div><div class="spark">
+    <div class="st">CPU 포화도</div>
+    <div class="sv">3.4%</div>
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,25.42 L14.29,3.00 L28.57,34.67 L42.86,36.22 L57.14,37.00 L71.43,31.53 L85.71,30.11 L100.00,36.15 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,25.42 L14.29,3.00 L28.57,34.67 L42.86,36.22 L57.14,37.00 L71.43,31.53 L85.71,30.11 L100.00,36.15" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="36.15" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+    <div class="range"><span>min 2.9%</span><span>max 24.0%</span></div>
+  </div><div class="spark">
+    <div class="st">Heap 최대</div>
+    <div class="sv">533 MB</div>
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+  <path d="M0.00,37.00 L14.29,23.16 L28.57,26.37 L42.86,29.73 L57.14,3.00 L71.43,24.12 L85.71,23.22 L100.00,30.44 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L14.29,23.16 L28.57,26.37 L42.86,29.73 L57.14,3.00 L71.43,24.12 L85.71,23.22 L100.00,30.44" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="30.44" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+    <div class="range"><span>min 458 MB</span><span>max 846 MB</span></div>
+  </div><div class="spark">
+    <div class="st">GC 최대 정지</div>
+    <div class="sv">0.0ms</div>
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+  <path d="M0.00,3.00 L16.67,36.31 L33.33,34.05 L50.00,37.00 L66.67,28.15 L83.33,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L16.67,36.31 L33.33,34.05 L50.00,37.00 L66.67,28.15 L83.33,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+    <div class="range"><span>min 0.0ms</span><span>max 196ms</span></div>
+  </div><div class="spark">
+    <div class="st">Slow Query</div>
+    <div class="sv">29</div>
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+  <path d="M0.00,29.31 L14.29,3.00 L28.57,34.47 L42.86,37.00 L57.14,36.24 L71.43,35.21 L85.71,32.09 L100.00,28.69 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,29.31 L14.29,3.00 L28.57,34.47 L42.86,37.00 L57.14,36.24 L71.43,35.21 L85.71,32.09 L100.00,28.69" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="28.69" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+    <div class="range"><span>min 6</span><span>max 99</span></div>
+  </div></div>
+    <div class="note">같은 시나리오·같은 환경의 최근 실행만 모았다. 오른쪽 끝이 이번 실행이다.
+    한 번의 변화보다 <b>추세의 방향</b>이 중요하다 — 매 실행 5%씩 나빠지면 개별 판정은 계속 통과하지만
+    10회 뒤에는 1.6배가 된다.</div></section>
   <section><h2>SLO Thresholds</h2><div class="card scroll">
     <table><thead><tr><th>메트릭</th><th>조건</th><th>결과</th></tr></thead><tbody><tr>
     <td><code>http_req_duration{op:write}</code></td><td><code>p(99)&lt;1200</code></td>
@@ -663,7 +753,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     여유를 두는 이유는 "부하 직전 상태"와 비교해야 이번 부하로 올라간 값인지 원래 높았던 값인지 구분되기 때문이다.</div>
   </div></section>
   <footer>
-    생성 2026-07-31 16:18:31 KST · Run ID <code>posts-2026-07-31T02-41-46</code> ·
+    생성 2026-08-04 14:53:30 KST · Run ID <code>posts-2026-07-31T02-41-46</code> ·
     원본 <code>run.json</code> / <code>k6.json</code> 은 같은 디렉터리에 있습니다.
   </footer>
 </div>
