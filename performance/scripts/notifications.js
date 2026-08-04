@@ -46,15 +46,37 @@ export function readAll() {
   });
 }
 
+/**
+ * 알림 하나를 읽음 처리. read-all 과 부하 특성이 정반대다 —
+ * read-all 이 범위 UPDATE 1회라면 이쪽은 목록을 훑으며 단건 UPDATE 가 N회 발생한다.
+ */
 export function readOne(id) {
   return withAuth(() => {
     const res = http.patch(
       `${BASE_URL}/api/notifications/${id}/read`, null,
       tags('notification', 'write', 'notif_read_one'),
     );
-    check(res, { 'read one not 5xx': (r) => r.status < 500 });
+    // 목록에서 받은 내 알림 id 로만 호출된다 — 4xx 가 나올 경로가 없다.
+    check(res, { 'read one 200': (r) => r.status === 200 });
     return res;
   });
+}
+
+/**
+ * 알림 목록 응답에서 읽지 않은 알림 id 를 하나 고른다.
+ * 응답은 PagedNotificationsDto { page, totalPages, totalElements, notifications: [...] } 다.
+ * 미읽음이 없으면 아무거나, 목록이 비면 null — 호출부가 건너뛴다.
+ */
+export function pickNotificationId(res) {
+  try {
+    const list = (JSON.parse(res.body) || {}).notifications;
+    if (!Array.isArray(list) || list.length === 0) return null;
+    const unread = list.filter((n) => n.isRead === false);
+    const pool = unread.length ? unread : list;
+    return pool[Math.floor(Math.random() * pool.length)].id ?? null;
+  } catch (_) {
+    return null;
+  }
 }
 
 export const options = {

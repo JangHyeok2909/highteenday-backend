@@ -24,13 +24,18 @@ export function reactToPost(postId, type = 'LIKE') {
   });
 }
 
+/**
+ * 댓글 반응. 게시글 반응과 마찬가지로 비정규화 카운터(likeCount)를 UPDATE 하므로,
+ * 인기 댓글에 반응이 몰릴 때 게시글 쪽과 같은 단일 row 경합이 생기는지 확인하는 경로다.
+ */
 export function reactToComment(commentId, type = 'LIKE') {
   return withAuth(() => {
     const res = http.post(
       `${BASE_URL}/api/comments/${commentId}/reaction?type=${type}`, null,
       tags('reaction', 'write', 'comment_reaction'),
     );
-    check(res, { 'comment reaction not 5xx': (r) => r.status < 500 });
+    // 목록에서 받은 실제 댓글 id 로만 호출된다 — 4xx 가 나올 경로가 없다.
+    check(res, { 'comment reaction 200': (r) => r.status === 200 });
     return res;
   });
 }
