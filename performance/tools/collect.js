@@ -85,7 +85,11 @@ async function collectInfra(prom, window, opts = {}) {
     groups.push({ id: g.id, label: g.label, metrics });
   }
 
-  Object.assign(flat, computeDerived(flat));
+  // 파생 지표(포화도)는 값과 함께 "이 값은 못 믿는다"는 사유를 돌려준다.
+  // 버려진 값은 null 로 남고, 사유는 나머지 수집 실패와 같은 자리에 모인다.
+  const derivedResult = computeDerived(flat);
+  Object.assign(flat, derivedResult.derived);
+  errors.push(...derivedResult.issues);
 
   return {
     window: {
@@ -140,6 +144,12 @@ function printConsole(record) {
   if (reg.hasBaseline) {
     line();
     line(`  ── 회귀 (기준: ${reg.baselineRunId}) ────────────────`.slice(0, 74));
+    // 스크립트가 다르면 아래 증감을 성능 변화로 읽으면 안 된다. 표보다 먼저 말해 준다.
+    if (reg.scriptChanged) {
+      line(`  ⚠  기준선과 스크립트가 다름 (${reg.baselineScriptVersion} → ${reg.scriptVersion})`);
+      line(`     아래 증감은 성능 변화가 아니라 다른 것을 잰 결과일 수 있다.` +
+           (reg.downgradedFrom ? ` 판정을 ${reg.downgradedFrom}→WARN으로 낮췄다.` : ''));
+    }
     if (changed.length === 0) {
       line('  변화 없음 — 모든 지표가 허용 범위 내');
     } else {
