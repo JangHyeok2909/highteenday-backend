@@ -102,17 +102,7 @@ public class FriendController {
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody SelectFriendDto selectFriendDto
     ){
-        List<FriendInfoDto> selectUser = friendService.selectFriend(selectFriendDto).stream()
-                .map(friend -> FriendInfoDto.builder()
-                        .id(friend.getId())
-                        .name(friend.getNameValue())
-                        .nickname(friend.getNicknameValue())
-                        .email(friend.getEmailValue())
-                        .profileUrl(friend.getProfileUrl())
-                        .build())
-                .toList();
-
-        return ResponseEntity.ok(selectUser);
+        return ResponseEntity.ok(friendService.searchUsersByNickname(user.getUser(), selectFriendDto));
     }
 
     // 친구 신청
@@ -125,6 +115,18 @@ public class FriendController {
         friendService.sendFriendsRequest(requesterPrincipal, receiverDto);
 
         return ResponseEntity.ok("친구 신청 완료");
+    }
+
+    // 보낸 친구 신청 취소
+    @DeleteMapping("/request/{targetUserId}")
+    public ResponseEntity<?> cancelFriendRequest(
+            @AuthenticationPrincipal CustomUserPrincipal requesterPrincipal,
+            @PathVariable Long targetUserId
+    ) {
+
+        friendService.cancelSentRequest(requesterPrincipal.getUser(), targetUserId);
+
+        return ResponseEntity.ok("친구 신청 취소 완료");
     }
 
     // 친구 신청 응답

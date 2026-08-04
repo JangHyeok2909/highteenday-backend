@@ -1,7 +1,7 @@
 package com.example.highteenday_backend.controllers;
 
 
-import com.example.highteenday_backend.Utils.PageUtils;
+import com.example.highteenday_backend.utils.PageUtils;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.scraps.Scrap;

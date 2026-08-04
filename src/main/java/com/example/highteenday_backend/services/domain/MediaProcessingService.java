@@ -1,6 +1,6 @@
 package com.example.highteenday_backend.services.domain;
 
-import com.example.highteenday_backend.Utils.MediaUtils;
+import com.example.highteenday_backend.utils.MediaUtils;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.medias.Media;
 import com.example.highteenday_backend.domain.posts.Post;
@@ -87,17 +87,19 @@ public class MediaProcessingService {
 
     @Transactional
     public void processUpdateCommentMedia(Comment comment, RequestCommentDto dto) {
+        // 이미지 없이 작성된 댓글은 s3Url이 null이다. null 체크 없이 isEmpty()를 부르면
+        // 텍스트만 있는 댓글의 내용 수정이 전부 NPE로 죽는다.
+        String currentUrl = comment.getS3Url();
         if (dto.getUrl() == null || dto.getUrl().isEmpty()) {
-            String deleteUrl = comment.getS3Url();
-            if (!deleteUrl.isEmpty()) {
-                fileStorage.deleteByUrl(deleteUrl);
-                mediaService.deleteMediaByUrl(deleteUrl);
+            if (currentUrl != null && !currentUrl.isEmpty()) {
+                fileStorage.deleteByUrl(currentUrl);
+                mediaService.deleteMediaByUrl(currentUrl);
                 comment.removeImage();
             }
-        } else if (!dto.getUrl().equals(comment.getS3Url())) {
-            if (!comment.getS3Url().isEmpty()) {
-                fileStorage.deleteByUrl(comment.getS3Url());
-                mediaService.deleteMediaByUrl(comment.getS3Url());
+        } else if (!dto.getUrl().equals(currentUrl)) {
+            if (currentUrl != null && !currentUrl.isEmpty()) {
+                fileStorage.deleteByUrl(currentUrl);
+                mediaService.deleteMediaByUrl(currentUrl);
             }
             Media media = processAndLink(dto.getUrl(), comment.getId(), MediaOwner.COMMENT,
                     m -> m.setComment(comment));

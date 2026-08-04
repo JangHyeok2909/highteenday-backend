@@ -297,6 +297,53 @@ class MediaProcessingServiceTest {
             verify(fileStorage, never()).deleteByUrl(any());
             verify(fileStorage, never()).copyToFinalLocation(any(), any(), any());
         }
+
+        // 아래 두 건은 BTL-010 회귀 테스트다. 이미지 없이 작성된 댓글은 s3Url이 null인데
+        // null 체크 없이 isEmpty()를 부르고 있어서, 텍스트만 있는 댓글의 내용 수정이
+        // 100% NPE로 실패했다. 커뮤니티 특성상 댓글 대부분이 이 경우다.
+
+        @Test
+        @DisplayName("이미지 없는 댓글을 URL 없이 수정해도 예외 없이 통과한다")
+        void noImageAndNoUrlDoesNothing() {
+            Comment comment = Comment.builder()
+                    .id(COMMENT_ID).content("댓글").s3Url(null).build();
+            RequestCommentDto dto = RequestCommentDto.builder()
+                    .content("수정된 내용").url(null).build();
+
+            mediaProcessingService.processUpdateCommentMedia(comment, dto);
+
+            verify(fileStorage, never()).deleteByUrl(any());
+            verify(mediaService, never()).deleteMediaByUrl(any());
+            assertThat(comment.getS3Url()).isNull();
+        }
+
+        @Test
+        @DisplayName("이미지 없는 댓글에 이미지를 새로 추가할 때 삭제를 시도하지 않는다")
+        void noImageThenAddsImage() {
+            String newFinalUrl = "https://s3.amazonaws.com/bucket/comment-file/20/uuid-added.png";
+
+            Comment comment = Comment.builder()
+                    .id(COMMENT_ID).content("댓글").s3Url(null).build();
+            RequestCommentDto dto = RequestCommentDto.builder()
+                    .content("댓글").url(TMP_URL).build();
+
+            Media newMedia = Media.builder().id(202L).url(newFinalUrl).build();
+            FileInfo newFileInfo = FileInfo.builder()
+                    .key("comment-file/20/uuid-added.png").url(newFinalUrl)
+                    .size(256L).originalFilename("uuid-added.png").contentType("image/jpeg")
+                    .build();
+
+            when(fileStorage.copyToFinalLocation(TMP_URL, COMMENT_ID, MediaOwner.COMMENT))
+                    .thenReturn(newFinalUrl);
+            when(fileStorage.getFileInfo(newFinalUrl)).thenReturn(newFileInfo);
+            when(mediaService.createMedia(newFileInfo)).thenReturn(newMedia);
+
+            mediaProcessingService.processUpdateCommentMedia(comment, dto);
+
+            verify(fileStorage, never()).deleteByUrl(any());
+            verify(mediaService, never()).deleteMediaByUrl(any());
+            assertThat(comment.getS3Url()).isEqualTo(newFinalUrl);
+        }
     }
 
     // ── User Profile ────────────────────────────────────────────────────
