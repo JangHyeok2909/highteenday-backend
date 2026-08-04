@@ -143,6 +143,25 @@ function signed(n) {
  * @param {object|null} prevRun 직전 실행 — index 엔트리가 아니라 전체 run 레코드여야 한다
  *                              (infra.flat 값이 필요하므로)
  */
+/**
+ * 기준선이 "같은 스크립트로 잰 것"인지 판정한다.
+ *
+ * 오탐을 줄이는 다섯 번째 장치다. 앞의 넷(방향성·노이즈 플로어·기준선 하한·절대 게이트)은
+ * 전부 값의 크기를 보지만, 이건 **두 수치가 애초에 비교 가능한가**를 본다.
+ * 스크립트에서 요청을 하나 추가하기만 해도 여정당 요청 수가 달라져 TPS·RPS가 바뀌는데,
+ * 그건 성능이 나빠진 게 아니라 다른 것을 잰 것이다.
+ *
+ * scriptVersion 은 스크립트 파일 내용의 SHA-256 앞 12자다(perf-run.js 가 주입).
+ * 'unknown' 은 이관된 과거 실행이라 지문이 없다는 뜻이므로, 한쪽이라도 unknown 이면
+ * 판정하지 않는다 — 전부 불일치로 잡히면 이 장치 자체가 무의미해진다.
+ */
+function baselineScriptChanged(record, prevRun) {
+  const cur = record.run && record.run.scriptVersion;
+  const base = prevRun && prevRun.run && prevRun.run.scriptVersion;
+  if (!cur || !base || cur === 'unknown' || base === 'unknown') return false;
+  return cur !== base;
+}
+
 function analyze(record, prevRun, rulesFile) {
   const rules = loadRules(rulesFile);
   const comparisons = rules.map((rule) =>
@@ -158,13 +177,27 @@ function analyze(record, prevRun, rulesFile) {
   if (gateFailures.length) verdict = 'FAIL';
   else if (failures.length || warnings.length) verdict = 'WARN';
 
+  // 스크립트가 바뀌었으면 게이트를 열어 준다. 기준선을 버리지는 않는다 — 주석 한 줄만
+  // 고쳐도 지문이 바뀌므로, 불일치마다 이력을 끊으면 추세 분석이 상시 리셋된다.
+  // 수치는 그대로 보여주되 "이 비교는 믿을 수 없다"고 표시하고 빌드는 통과시킨다.
+  const scriptChanged = baselineScriptChanged(record, prevRun);
+  let downgradedFrom = null;
+  if (scriptChanged && verdict === 'FAIL') {
+    downgradedFrom = 'FAIL';
+    verdict = 'WARN';
+  }
+
   return {
     baselineRunId: prevRun ? prevRun.run.id : null,
     baselineStartedAt: prevRun ? prevRun.run.startedAt : null,
     baselineCommit: prevRun ? prevRun.run.commitShort : null,
+    baselineScriptVersion: prevRun && prevRun.run ? prevRun.run.scriptVersion || null : null,
+    scriptVersion: (record.run && record.run.scriptVersion) || null,
+    scriptChanged,
+    downgradedFrom,
     hasBaseline: !!prevRun,
     verdict,
-    gateFailed: gateFailures.length > 0,
+    gateFailed: gateFailures.length > 0 && !scriptChanged,
     counts: {
       total: comparisons.length,
       fail: failures.length,
@@ -187,8 +220,21 @@ function analyze(record, prevRun, rulesFile) {
  */
 function bottleneckHints(record) {
   const f = (record.infra && record.infra.flat) || {};
+  const k6 = (record.k6 && record.k6.overall) || {};
   const hints = [];
   const push = (score, title, detail) => hints.push({ score, title, detail });
+
+  // 어떤 병목보다 먼저 봐야 하는 건 "이 측정을 믿어도 되는가"다.
+  // k6 의 http_req_failed 는 비 2xx 를 실패로 세는데 check 는 스크립트가 정의한다.
+  // 둘이 어긋나면 check 단정이 4xx 를 통과시키고 있다는 뜻이고, 그러면 기록된 지연은
+  // 재려던 경로가 아니라 에러 경로의 값이다. 실측 사례: school 스크립트가 오류율 55.6%,
+  // check 성공률 100% 를 동시에 보고했고, 급식 조회가 아니라 400 응답 시간을 재고 있었다.
+  if (k6.errorRate > 0.05 && k6.checkRate > 0.99) {
+    push(98, '측정 신뢰성 경고 — check가 실패를 놓치고 있다',
+      `오류율 ${(k6.errorRate * 100).toFixed(1)}%인데 check 성공률은 ${(k6.checkRate * 100).toFixed(1)}%다. ` +
+      `단정이 4xx를 통과시키고 있어, 기록된 지연은 정상 경로가 아니라 에러 경로의 값일 수 있다. ` +
+      `아래 병목 가설을 보기 전에 스크립트의 check부터 확인할 것.`);
+  }
 
   if (f['cpu.throttledPct'] > 1) {
     push(100, 'CPU throttling 발생',
