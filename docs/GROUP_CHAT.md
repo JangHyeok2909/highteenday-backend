@@ -1,3 +1,5 @@
+> 이 문서의 내용은 [domains/chat.md](domains/chat.md)로 통합·현행화되었다. 최신 기준은 그쪽을 따른다.
+
 # 단체 채팅방 (GROUP CHAT)
 
 기존 1:1 채팅(`feature/chat-websocket`)에 단체 채팅방을 추가하고, 그 과정에서 읽음 처리 방식을

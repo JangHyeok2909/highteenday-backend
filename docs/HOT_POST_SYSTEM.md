@@ -1,3 +1,5 @@
+> 이 문서의 내용은 [domains/reaction-hotpost.md](domains/reaction-hotpost.md)로 통합·현행화되었다. 최신 기준은 그쪽을 따른다.
+
 # 핫게시글 시스템 분석 및 시스템 다이어그램
 
 ---
