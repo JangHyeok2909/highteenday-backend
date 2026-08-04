@@ -42,12 +42,36 @@ export function stompSubscribe(id, destination) {
   return frame('SUBSCRIBE', { id, destination });
 }
 
+/**
+ * STOMP 의 content-length 는 본문의 **바이트 수**다.
+ *
+ * String.length 를 그대로 쓰면 UTF-16 코드 유닛 수라 한글 한 글자가 1로 세어지는데,
+ * 실제 UTF-8 인코딩은 3바이트다. 짧게 신고하면 브로커가 그만큼만 읽고 종결자(NUL)를
+ * 기대하는 자리에서 글자 중간 바이트를 만나 프레임이 깨진다. 서버는 ERROR 프레임을
+ * 보내고 소켓을 1002(protocol error)로 닫는다.
+ *
+ * 이 스크립트의 본문에는 한글이 들어 있어서 전송 첫 건마다 세션이 죽었다. 핸드셰이크와
+ * CONNECT 는 성공하고 HTTP 오류율도 0%라 정상으로 보였지만, chat_ws_rtt 는 한 건도
+ * 기록되지 않았고 DB 에 메시지가 하나도 쌓이지 않았다.
+ */
+function utf8Length(s) {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x80) n += 1;
+    else if (c < 0x800) n += 2;
+    else if (c >= 0xd800 && c <= 0xdbff) { n += 4; i += 1; } // 서로게이트 쌍 = 코드포인트 하나
+    else n += 3;
+  }
+  return n;
+}
+
 export function stompSend(destination, payload) {
   const body = JSON.stringify(payload);
   return frame('SEND', {
     destination,
     'content-type': 'application/json',
-    'content-length': String(body.length),
+    'content-length': String(utf8Length(body)),
   }, body);
 }
 
