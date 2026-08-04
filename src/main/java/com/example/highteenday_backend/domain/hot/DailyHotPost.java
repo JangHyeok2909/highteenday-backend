@@ -15,7 +15,12 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
+// name 을 빠뜨리면 Hibernate 기본 네이밍이 클래스명 DailyHotPost 를 daily_hot_post 로
+// 바꾸는데, V1__baseline.sql 이 만든 테이블은 DailyHotPost(언더스코어 없음)라 이름 자체가
+// 달랐다. 대소문자 문제가 아니므로 lower_case_table_names 로도 가려지지 않아 신선한 DB 에서는
+// /api/hotposts/daily 가 항상 500 이었다. V6 에서 daily_hot_post 로 통일했으므로 명시한다.
 @Table(
+    name = "daily_hot_post",
     uniqueConstraints = @UniqueConstraint(name = "uk_daily_hot_post_date_post", columnNames = {"DHP_leaderboard_date", "PST_id"}),
     indexes = @Index(name = "idx_daily_hot_post_date_created", columnList = "DHP_leaderboard_date, created_at DESC")
 )
