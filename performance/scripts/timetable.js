@@ -20,7 +20,7 @@ export function todayTimetable() {
       `${BASE_URL}/api/timetableTemplates/userTimetables/today`,
       tags('timetable', 'read', 'timetable_today'),
     );
-    check(res, { 'timetable today not 5xx': (r) => r.status < 500 });
+    check(res, { 'timetable today 200': (r) => r.status === 200 });
     return res;
   });
 }
@@ -42,7 +42,9 @@ export function listSubjects(templateId) {
       `${BASE_URL}/api/timetableTemplates/${templateId}/subjects`,
       tags('timetable', 'read', 'subject_list'),
     );
-    check(res, { 'subject list not 5xx': (r) => r.status < 500 });
+    // templateId는 listTemplates()가 돌려준 내 템플릿이다. 비소유자면 컨트롤러가 400을
+    // 주는데, 그 경우는 이 스크립트에 없다 — 나면 조회 경로가 아니라 에러 경로를 잰 것이다.
+    check(res, { 'subject list 200': (r) => r.status === 200 });
     return res;
   });
 }
