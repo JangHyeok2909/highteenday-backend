@@ -111,7 +111,7 @@ DB: slow log(100ms), performance_schema, p6spy, EXPLAIN · 상세: `tools/README
 
 ## 8. 테스트 환경 (요약)
 
-Docker 고정 스택 — app 2vCPU/1.5GB(힙 1G 고정, G1GC), MySQL 8.0.36 2vCPU/2GB(buffer pool 1G),
+Docker 고정 스택 — app 2vCPU/2.5GB(힙 1G 고정, G1GC), MySQL 8.0.36 2vCPU/2GB(buffer pool 1G),
 Redis 7.2 384MB(allkeys-lru). 부하기와 서버 분리 원칙. 상세와 재현 체크리스트: `environment/README.md`.
 
 > **사전 준비 1회**: 앱에 `micrometer-registry-prometheus` 의존성 추가 필요 — `environment/README.md` 참고.

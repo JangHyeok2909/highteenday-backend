@@ -117,7 +117,16 @@ services:
       MANAGEMENT_PROMETHEUS_METRICS_EXPORT_ENABLED: "true"
     deploy:
       resources:
-        limits: { cpus: "2.0", memory: 1536m }
+        # 메모리는 힙(1G)의 약 2.5배로 잡는다. 1536m 이던 시절 실측:
+        #   anon 1518MB / 한계 1536MB, memory.events 의 max 992회(= 강제 회수), oom_kill 0
+        # JVM 은 힙 외에도 비힙 ~200MB, 스레드 스택, GC 구조체를 네이티브로 쓰므로
+        # -Xmx1g 짜리 프로세스의 실제 풋프린트가 1.5GB 였다. 한계와 같아 여유가 0이었고,
+        # 커널이 계속 회수하며 버티는 상태였다(OOM 은 없었지만 정상도 아니다).
+        #
+        # 그 결과 실행 71건 중 43건이 메모리 포화 100% 로 기록돼, 포화도 지표가 항상
+        # 빨간색이라 신호로서 죽어 있었다. 힙을 줄이지 않고 한계를 올린 이유는
+        # "힙 고정으로 측정 노이즈를 없앤다"는 이 환경의 원칙을 유지하기 위해서다.
+        limits: { cpus: "2.0", memory: 2560m }
 
   prometheus:
     image: prom/prometheus:v2.51.0
