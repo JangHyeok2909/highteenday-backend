@@ -418,6 +418,21 @@ function sectionInfra(record) {
       <tbody>${rows}</tbody></table></div>`;
   }).join('');
 
+  // 수집/검증에서 버려진 지표는 사유까지 보여준다. 개수만 적어 두면 표의 "—"가
+  // "측정 안 함"인지 "믿을 수 없어 버림"인지 구분되지 않아, 결국 아무도 확인하지 않는다.
+  const errs = infra.errors || [];
+  const errBlock = errs.length
+    ? `<h3>수집되지 않은 지표 (${errs.length}건)</h3><div class="card">
+        ${errs.slice(0, 12).map((e) => `<div class="hint">
+          <div class="n">!</div>
+          <div><div class="t">${esc(e.key)}</div><div class="d">${esc(e.error)}</div></div>
+        </div>`).join('')}
+        ${errs.length > 12 ? `<div class="note">외 ${errs.length - 12}건은 <code>run.json</code>의 <code>infra.errors</code>에 있다.</div>` : ''}
+        <div class="note">여기 나온 항목은 위 표에서 <b>—</b>로 비어 있다. 값이 없는 것과
+        <b>값을 믿을 수 없어 버린 것</b>은 다르므로, 후자는 원인을 확인한 뒤 재수집해야 한다.</div>
+      </div>`
+    : '';
+
   const w = infra.window || {};
   return `<section><h2>Infrastructure Summary</h2>
     <h3>자원 포화도 (테스트 구간 최대)</h3>
@@ -425,10 +440,11 @@ function sectionInfra(record) {
       <div class="note">포화도는 한계 대비 사용량이다. 70% 넘으면 주황, 85% 넘으면 진주황, 95% 넘으면 빨강으로 표시된다.
       절대값과 달리 환경이 바뀌어도 그대로 비교되므로 병목 판단의 1차 기준으로 쓴다.</div>
     </div>
+    ${errBlock}
     ${groups}
     <div class="note">집계 구간 ${fmt.localTime(w.from)} ~ ${fmt.localTime(w.to)}
       (${fmt.duration(w.durationSec)}${w.warmupExcludedSec ? `, 워밍업 ${w.warmupExcludedSec}초 제외` : ''})
-      · 쿼리 ${infra.queryStats ? infra.queryStats.queries : '?'}건${infra.errors && infra.errors.length ? ` · 실패 ${infra.errors.length}건` : ''}</div>
+      · 쿼리 ${infra.queryStats ? infra.queryStats.queries : '?'}건${errs.length ? ` · 실패 ${errs.length}건` : ''}</div>
   </section>`;
 }
 
@@ -460,8 +476,29 @@ function sectionRegression(record) {
 
   const skipped = reg.comparisons.filter((c) => c.verdict === 'SKIP' || c.skipped);
 
+  // 기준선과 스크립트가 다르면 수치 비교 자체가 성립하지 않는다. 표는 그대로 보여주되
+  // 무엇을 믿으면 안 되는지 먼저 말해 준다 — 아래 증감률을 성능 변화로 읽으면 안 된다.
+  const scriptWarn = reg.scriptChanged
+    ? `<div class="hint">
+        <div class="n">!</div>
+        <div>
+          <div class="t">기준선과 부하 스크립트가 다르다${reg.downgradedFrom ? ' — 게이트를 열었다' : ''}</div>
+          <div class="d">현재 <code>${esc(reg.scriptVersion || '?')}</code> vs 기준
+            <code>${esc(reg.baselineScriptVersion || '?')}</code>.
+            스크립트가 바뀌면 요청 구성이 달라져 TPS·RPS·지연이 함께 움직인다 — 아래 증감은
+            성능 변화가 아니라 <b>다른 것을 잰 결과</b>일 수 있다.${
+              reg.downgradedFrom
+                ? ` 그래서 판정을 ${esc(reg.downgradedFrom)}에서 WARN으로 낮추고 빌드는 통과시켰다.`
+                : ''
+            }
+            이 실행을 새 기준선으로 삼고 다음 실행부터 다시 비교하는 것이 맞다.</div>
+        </div>
+      </div>`
+    : '';
+
   return `<section><h2>Regression</h2>
     <div class="card scroll">
+      ${scriptWarn}
       <table>
         <thead><tr><th>지표</th><th class="num">직전 (${esc(reg.baselineCommit || '—')})</th>
           <th class="num">현재</th><th class="num">변화</th><th>판정</th><th>사유</th></tr></thead>
