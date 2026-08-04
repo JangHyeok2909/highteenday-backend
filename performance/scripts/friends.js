@@ -46,17 +46,39 @@ export function searchFriend(nickname) {
   });
 }
 
-export function requestFriend(nickname) {
+/**
+ * 친구 신청. 닉네임이 아니라 대상 사용자 id 로 보낸다 — 닉네임은 유니크 제약이 없고
+ * 변경도 가능해서 API 가 id 기반으로 바뀌었다(RequestFriendDto.targetUserId).
+ */
+export function requestFriend(targetUserId) {
   return withAuth(() => {
     const res = http.post(
       `${BASE_URL}/api/friends/request`,
-      JSON.stringify({ nickname }),
+      JSON.stringify({ targetUserId }),
       Object.assign({}, JSON_HEADERS, tags('friend', 'write', 'friend_request')),
     );
-    // 이미 친구/중복 신청은 4xx — 5xx만 실패로 본다
-    check(res, { 'friend request not 5xx': (r) => r.status < 500 });
+    // 호출부가 relation=NONE 인 상대만 고르므로 200 이 정상이다. 4xx 가 나면 그건
+    // 허용할 상황이 아니라 관계 판정이 어긋났다는 신호다.
+    check(res, { 'friend request 200': (r) => r.status === 200 });
     return res;
   });
+}
+
+/**
+ * 검색 결과에서 아직 아무 사이도 아닌 사람을 고른다.
+ *
+ * 응답(UserSearchResultDto)의 relation 이 이미 FRIEND / REQUEST_SENT / REQUEST_RECEIVED 면
+ * 신청은 400 으로 조기 반환되어, 재려던 친구 관계 INSERT 와 알림 팬아웃에 도달하지 못한 채
+ * 지연만 기록된다. 실제 클라이언트도 이 값으로 버튼을 막으므로 동작이 현실과 일치한다.
+ */
+export function pickRequestable(res) {
+  try {
+    const list = JSON.parse(res.body);
+    const open = (Array.isArray(list) ? list : []).filter((u) => u.relation === 'NONE');
+    return open.length ? open[Math.floor(Math.random() * open.length)] : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 export function respondFriend(reqId, status = 'ACCEPTED') {
@@ -66,7 +88,9 @@ export function respondFriend(reqId, status = 'ACCEPTED') {
       JSON.stringify({ id: reqId, status }),
       Object.assign({}, JSON_HEADERS, tags('friend', 'write', 'friend_respond')),
     );
-    check(res, { 'friend respond not 5xx': (r) => r.status < 500 });
+    // 방금 받아온 목록의 신청에 응답하므로 200 이 정상이다. 400 이 난다면 다른 VU 가
+    // 먼저 처리한 경쟁 상태이고, 그건 숨길 게 아니라 드러나야 할 관측 결과다.
+    check(res, { 'friend respond 200': (r) => r.status === 200 });
     return res;
   });
 }
@@ -83,19 +107,29 @@ export default function () {
   sleep(thinkTime());
 
   if (Math.random() < 0.3) {
+    // 검색 → 관계 확인 → 신청. 실제 클라이언트의 순서 그대로다.
     const peer = randomPeer(me);
-    searchFriend(peer.nickname);
-    sleep(thinkTime());
-    requestFriend(peer.nickname);
-    sleep(thinkTime());
+    if (peer) {
+      const found = searchFriend(peer.nickname);
+      sleep(thinkTime());
+      const target = pickRequestable(found);
+      // 이미 친구거나 신청이 오간 상대면 보내지 않는다 — 어차피 400 이 될 요청을
+      // 섞으면 재려던 쓰기 경로 대신 에러 경로의 지연을 기록하게 된다.
+      if (target) {
+        requestFriend(target.userId);
+        sleep(thinkTime());
+      }
+    }
   }
 
-  // 받은 신청이 있으면 수락 — 알림 발행 경로 포함
+  // 받은 신청이 있으면 수락 — 알림 발행 경로 포함.
+  // 응답은 FriendInfoDto 라 신청 식별자가 requestId 다. 예전 코드의 reqs[0].id 는
+  // undefined 여서 JSON 에서 통째로 빠졌고, 서버는 id 없는 요청을 400 으로 끊었다.
   const received = receivedRequests();
   try {
     const reqs = JSON.parse(received.body);
     if (Array.isArray(reqs) && reqs.length > 0 && Math.random() < 0.5) {
-      respondFriend(reqs[0].id, 'ACCEPTED');
+      respondFriend(reqs[0].requestId, 'ACCEPTED');
     }
   } catch (_) {}
   sleep(thinkTime());

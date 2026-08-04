@@ -27,7 +27,9 @@ export function roomMessages(roomId, cursor = null, size = 50) {
       ? `${BASE_URL}/api/chat/rooms/${roomId}/messages?cursor=${cursor}&size=${size}`
       : `${BASE_URL}/api/chat/rooms/${roomId}/messages?size=${size}`;
     const res = http.get(url, tags('chat', 'read', 'chat_messages'));
-    check(res, { 'chat messages not 5xx': (r) => r.status < 500 });
+    // roomId는 pickMyRoom()이 내 방 목록에서 뽑아 주고 호출부에 널 가드가 있다 —
+    // 4xx가 난다면 그건 허용할 상황이 아니라 조회 권한 판정 버그다.
+    check(res, { 'chat messages 200': (r) => r.status === 200 });
     return res;
   });
 }
@@ -38,7 +40,7 @@ export function markRead(roomId) {
       `${BASE_URL}/api/chat/rooms/${roomId}/read`, null,
       tags('chat', 'write', 'chat_mark_read'),
     );
-    check(res, { 'chat read not 5xx': (r) => r.status < 500 });
+    check(res, { 'chat read 200': (r) => r.status === 200 });
     return res;
   });
 }
@@ -49,7 +51,7 @@ export function readStatus(roomId) {
       `${BASE_URL}/api/chat/rooms/${roomId}/read-status`,
       tags('chat', 'read', 'chat_read_status'),
     );
-    check(res, { 'read status not 5xx': (r) => r.status < 500 });
+    check(res, { 'read status 200': (r) => r.status === 200 });
     return res;
   });
 }
