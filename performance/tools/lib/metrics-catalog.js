@@ -30,6 +30,27 @@ const APP = process.env.PERF_APP_CONTAINER || 'perf-app';
 const DB = process.env.PERF_DB_CONTAINER || 'perf-mysql';
 const APP_JOB = 'spring-app';
 
+/**
+ * 컨테이너 지표를 항상 단일 시계열로 접는다.
+ *
+ * name="perf-app" 은 논리적으로 컨테이너 하나를 가리키지만, 컨테이너를 재생성하면
+ * cAdvisor 가 죽은 컨테이너의 시계열을 staleness 마킹 전까지 같은 라벨로 계속 노출한다.
+ * 그 구간에서는 시계열이 2~3개가 되는데, 분자(사용량)는 reduce:'sum' 으로 합산되고
+ * 분모(cgroup 한계)는 단일 값이라 포화도가 물리적으로 불가능한 값이 된다.
+ * 실측으로 메모리 포화도 227%(3.66GB / 1.61GB)가 리포트에 실렸고, 그 값이 그대로
+ * "OOM Kill 위험" 병목 가설로 승격됐다. cgroup 한계를 넘긴 컨테이너는 존재할 수 없으므로
+ * 이건 자원 문제가 아니라 측정 오류였다.
+ *
+ * 쿼리 단계에서 접어 두면 겹친 시계열이 몇 개든 결과가 항상 1개다.
+ */
+const one = (expr) => `max(${expr})`;
+
+/**
+ * 인터페이스/디바이스별로 쪼개지는 지표용 — 컨테이너 인스턴스(id) 안에서 먼저 합친 뒤 접는다.
+ * 그냥 sum() 하면 eth0+eth1 합산이라는 원래 의도와 죽은 컨테이너 합산이 구분되지 않는다.
+ */
+const onePerContainer = (expr) => `max(sum by (id) (${expr}))`;
+
 // 게이지의 구간 통계(avg/max/p95)를 한 번에 만들어주는 헬퍼.
 // 같은 패턴을 20번 손으로 쓰면 반드시 하나는 오타가 난다.
 function gaugeStats(base, expr, opts = {}) {
@@ -58,27 +79,27 @@ const GROUPS = [
         desc: 'JVM이 사용한 CPU 비율. 호스트 전체 코어 기준.',
       }),
       // 컨테이너 관점 (코어 수). cgroup 한계와 직접 비교 가능한 값.
-      ...gaugeStats('cpu.cores', `rate(container_cpu_usage_seconds_total{name="${APP}"}[1m])`, {
-        label: '컨테이너 CPU', unit: 'cores', reduce: 'sum',
+      ...gaugeStats('cpu.cores', one(`rate(container_cpu_usage_seconds_total{name="${APP}"}[1m])`), {
+        label: '컨테이너 CPU', unit: 'cores', reduce: 'max',
         desc: '컨테이너가 소비한 CPU 코어 수. cgroup 한계와 직접 비교한다.',
       }),
       {
         key: 'cpu.limitCores', label: 'CPU 한계(코어)',
-        query: `container_spec_cpu_quota{name="${APP}"} / container_spec_cpu_period{name="${APP}"}`,
+        query: one(`container_spec_cpu_quota{name="${APP}"} / container_spec_cpu_period{name="${APP}"}`),
         reduce: 'max', unit: 'cores',
         desc: 'cgroup에 설정된 CPU 상한. 포화도 계산의 분모.',
       },
       {
         // 컨테이너 부하 테스트의 숨은 1순위 병목. 0이 아니면 무조건 조사 대상이다.
         key: 'cpu.throttledPct', label: 'CPU throttled 비율',
-        query: `100 * rate(container_cpu_cfs_throttled_periods_total{name="${APP}"}[$RANGE]) / clamp_min(rate(container_cpu_cfs_periods_total{name="${APP}"}[$RANGE]), 1)`,
+        query: one(`100 * rate(container_cpu_cfs_throttled_periods_total{name="${APP}"}[$RANGE]) / clamp_min(rate(container_cpu_cfs_periods_total{name="${APP}"}[$RANGE]), 1)`),
         reduce: 'max', unit: 'percent',
         desc: 'cgroup이 CPU를 강제로 뺏은 주기 비율. >0 이면 CPU 한계가 지연에 직접 영향을 준다.',
       },
       {
         key: 'cpu.throttledSeconds', label: 'CPU throttled 누적(초)',
-        query: `increase(container_cpu_cfs_throttled_seconds_total{name="${APP}"}[$RANGE])`,
-        reduce: 'sum', unit: 'seconds',
+        query: one(`increase(container_cpu_cfs_throttled_seconds_total{name="${APP}"}[$RANGE])`),
+        reduce: 'max', unit: 'seconds',
         desc: '테스트 구간 동안 강제 정지된 총 시간.',
       },
     ],
@@ -90,18 +111,18 @@ const GROUPS = [
     metrics: [
       // working_set 을 쓰는 이유: usage_bytes는 회수 가능한 page cache까지 포함해 과대평가된다.
       // OOM Killer가 실제로 보는 값이 working set이다.
-      ...gaugeStats('memory.workingSet', `container_memory_working_set_bytes{name="${APP}"}`, {
-        label: '컨테이너 메모리', unit: 'bytes', reduce: 'sum',
+      ...gaugeStats('memory.workingSet', one(`container_memory_working_set_bytes{name="${APP}"}`), {
+        label: '컨테이너 메모리', unit: 'bytes', reduce: 'max',
         desc: 'OOM 판정 기준이 되는 실사용 메모리(page cache 제외).',
       }),
       {
         key: 'memory.limitBytes', label: '메모리 한계',
-        query: `container_spec_memory_limit_bytes{name="${APP}"}`,
+        query: one(`container_spec_memory_limit_bytes{name="${APP}"}`),
         reduce: 'max', unit: 'bytes',
         desc: 'cgroup 메모리 상한.',
       },
-      ...gaugeStats('memory.rss', `container_memory_rss{name="${APP}"}`, {
-        label: 'RSS', unit: 'bytes', reduce: 'sum',
+      ...gaugeStats('memory.rss', one(`container_memory_rss{name="${APP}"}`), {
+        label: 'RSS', unit: 'bytes', reduce: 'max',
         desc: '프로세스가 물리 메모리에 올린 양.',
       }),
     ],
@@ -365,26 +386,26 @@ const GROUPS = [
     metrics: [
       {
         key: 'network.rxBytesSec', label: '수신 대역폭',
-        query: `sum(rate(container_network_receive_bytes_total{name="${APP}"}[$RANGE]))`,
-        reduce: 'sum', unit: 'bytes_per_sec',
+        query: onePerContainer(`rate(container_network_receive_bytes_total{name="${APP}"}[$RANGE])`),
+        reduce: 'max', unit: 'bytes_per_sec',
         desc: '앱 컨테이너 초당 수신 바이트.',
       },
       {
         key: 'network.txBytesSec', label: '송신 대역폭',
-        query: `sum(rate(container_network_transmit_bytes_total{name="${APP}"}[$RANGE]))`,
-        reduce: 'sum', unit: 'bytes_per_sec',
+        query: onePerContainer(`rate(container_network_transmit_bytes_total{name="${APP}"}[$RANGE])`),
+        reduce: 'max', unit: 'bytes_per_sec',
         desc: '앱 컨테이너 초당 송신 바이트.',
       },
       {
         key: 'network.rxErrors', label: '수신 에러',
-        query: `sum(increase(container_network_receive_errors_total{name="${APP}"}[$RANGE]))`,
-        reduce: 'sum', unit: 'count',
+        query: onePerContainer(`increase(container_network_receive_errors_total{name="${APP}"}[$RANGE])`),
+        reduce: 'max', unit: 'count',
         desc: '네트워크 수신 오류. 0이어야 정상.',
       },
       {
         key: 'network.txDropped', label: '송신 드롭',
-        query: `sum(increase(container_network_transmit_packets_dropped_total{name="${APP}"}[$RANGE]))`,
-        reduce: 'sum', unit: 'count',
+        query: onePerContainer(`increase(container_network_transmit_packets_dropped_total{name="${APP}"}[$RANGE])`),
+        reduce: 'max', unit: 'count',
         desc: '드롭된 송신 패킷.',
       },
     ],
@@ -396,20 +417,20 @@ const GROUPS = [
     metrics: [
       {
         key: 'disk.readBytesSec', label: '디스크 읽기',
-        query: `sum(rate(container_fs_reads_bytes_total{name="${DB}"}[$RANGE]))`,
-        reduce: 'sum', unit: 'bytes_per_sec',
+        query: onePerContainer(`rate(container_fs_reads_bytes_total{name="${DB}"}[$RANGE])`),
+        reduce: 'max', unit: 'bytes_per_sec',
         desc: 'DB 컨테이너 초당 디스크 읽기. 버퍼풀 미스와 연동해서 본다.',
       },
       {
         key: 'disk.writeBytesSec', label: '디스크 쓰기',
-        query: `sum(rate(container_fs_writes_bytes_total{name="${DB}"}[$RANGE]))`,
-        reduce: 'sum', unit: 'bytes_per_sec',
+        query: onePerContainer(`rate(container_fs_writes_bytes_total{name="${DB}"}[$RANGE])`),
+        reduce: 'max', unit: 'bytes_per_sec',
         desc: 'DB 컨테이너 초당 디스크 쓰기 (redo/binlog 포함).',
       },
       {
         key: 'disk.ioTimeSec', label: 'I/O 시간',
-        query: `sum(increase(container_fs_io_time_seconds_total{name="${DB}"}[$RANGE]))`,
-        reduce: 'sum', unit: 'seconds',
+        query: onePerContainer(`increase(container_fs_io_time_seconds_total{name="${DB}"}[$RANGE])`),
+        reduce: 'max', unit: 'seconds',
         desc: '디스크가 바빴던 누적 시간. duration 대비 비율이 디스크 이용률.',
       },
     ],
@@ -424,22 +445,50 @@ const GROUPS = [
  * 절대값이 아니라 포화도로 해야 이식성이 생긴다.
  */
 function computeDerived(flat) {
-  const pct = (num, den) =>
-    num != null && den != null && den > 0 ? (num / den) * 100 : null;
+  const issues = [];
 
-  return {
-    'saturation.cpuPct': pct(flat['cpu.cores.max'], flat['cpu.limitCores']),
-    'saturation.cpuAvgPct': pct(flat['cpu.cores.avg'], flat['cpu.limitCores']),
-    'saturation.memoryPct': pct(flat['memory.workingSet.max'], flat['memory.limitBytes']),
-    'saturation.heapPct': pct(flat['heap.used.max'], flat['heap.maxBytes']),
-    'saturation.hikariPct': pct(flat['pool.hikariActive.max'], flat['pool.hikariMax']),
-    'saturation.tomcatPct': pct(flat['pool.tomcatBusy.max'], flat['pool.tomcatMax']),
-    'saturation.mysqlConnPct': pct(flat['mysql.threadsConnected.max'], flat['mysql.maxConnections']),
+  // 포화도는 한계 대비 비율이므로 100%를 넘을 수 없다. 넘긴 자원은 OOM Kill 이나
+  // throttling 으로 강제 회수되지, 초과한 채 유지되지 않는다. 따라서 100%를 넘은 값은
+  // 자원 부족이 아니라 측정 오류다 — 중복 시계열, 라벨 불일치, 분자/분모 스코프 불일치.
+  //
+  // 그냥 두면 bottleneckHints 가 이 값을 "메모리 포화 227%, OOM Kill 위험" 같은 병목
+  // 가설로 승격시킨다. 실제로 그렇게 실렸고, 존재하지 않는 문제를 가리키고 있었다.
+  // 그럴듯한 오보는 결측보다 나쁘다 — 결측은 조사를 멈추게 하지만 오보는 엉뚱한 곳으로
+  // 몇 시간을 보낸다. 그래서 값을 버리고 사유만 남긴다.
+  //
+  // 5%는 분자와 분모의 스크레이프 시점이 어긋나 생기는 오차 허용분이다.
+  const CEILING_PCT = 105;
+
+  const pct = (key, num, den) => {
+    if (num == null || den == null || den <= 0) return null;
+    const v = (num / den) * 100;
+    if (v > CEILING_PCT) {
+      issues.push({
+        key,
+        error:
+          `포화도 ${v.toFixed(0)}% — 한계를 넘을 수 없는 값이라 측정 오류로 보고 버렸다 ` +
+          `(분자 ${num}, 분모 ${den}). 컨테이너 재생성 직후의 중복 시계열을 먼저 의심할 것.`,
+      });
+      return null;
+    }
+    return v;
+  };
+
+  const derived = {
+    'saturation.cpuPct': pct('saturation.cpuPct', flat['cpu.cores.max'], flat['cpu.limitCores']),
+    'saturation.cpuAvgPct': pct('saturation.cpuAvgPct', flat['cpu.cores.avg'], flat['cpu.limitCores']),
+    'saturation.memoryPct': pct('saturation.memoryPct', flat['memory.workingSet.max'], flat['memory.limitBytes']),
+    'saturation.heapPct': pct('saturation.heapPct', flat['heap.used.max'], flat['heap.maxBytes']),
+    'saturation.hikariPct': pct('saturation.hikariPct', flat['pool.hikariActive.max'], flat['pool.hikariMax']),
+    'saturation.tomcatPct': pct('saturation.tomcatPct', flat['pool.tomcatBusy.max'], flat['pool.tomcatMax']),
+    'saturation.mysqlConnPct': pct('saturation.mysqlConnPct', flat['mysql.threadsConnected.max'], flat['mysql.maxConnections']),
     'saturation.redisMemPct':
       flat['redis.memoryMaxBytes'] > 0
-        ? pct(flat['redis.memoryUsed.max'], flat['redis.memoryMaxBytes'])
+        ? pct('saturation.redisMemPct', flat['redis.memoryUsed.max'], flat['redis.memoryMaxBytes'])
         : null,
   };
+
+  return { derived, issues };
 }
 
 module.exports = { GROUPS, computeDerived, APP, DB, APP_JOB };
