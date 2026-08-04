@@ -5,11 +5,14 @@ import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.scraps.Scrap;
 import com.example.highteenday_backend.domain.scraps.ScrapRepository;
 import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.eventEntities.events.ScrapToggledEvent;
+import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.services.domain.redisService.PostPrevCache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,8 +65,19 @@ public class ScrapService {
             if (optional.isPresent()) {
                 optional.get().activeScrap();
             } else {
-                scrapRepository.save(Scrap.builder().post(post).user(user).build());
-                newScrap = true;
+                try {
+                    scrapRepository.saveAndFlush(Scrap.builder().post(post).user(user).build());
+                    newScrap = true;
+                } catch (DataIntegrityViolationException e) {
+                    // UNIQUE(USR_id, PST_id) 충돌 = 같은 사용자의 동시 토글(더블클릭/재시도).
+                    // 제약이 없던 시절에는 여기서 중복 행이 만들어졌고, 그 뒤로 이 게시글은
+                    // isScraped()의 NonUniqueResultException 때문에 상세 조회가 영구히 막혔다.
+                    // 먼저 저장된 행을 살려서 쓴다. newScrap 은 false 로 두어 이벤트가
+                    // 중복 발행되지 않게 한다 — 먼저 성공한 요청이 이미 발행했다.
+                    scrapRepository.findByPostAndUser(post, user)
+                            .orElseThrow(() -> new CustomException(ErrorCode.DATA_INTEGRITY_ERROR))
+                            .activeScrap();
+                }
             }
             message = "스크랩 완료.";
         }
