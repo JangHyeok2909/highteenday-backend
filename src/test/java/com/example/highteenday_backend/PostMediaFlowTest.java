@@ -1,7 +1,7 @@
 package com.example.highteenday_backend;
 
 
-import com.example.highteenday_backend.Utils.MediaUtils;
+import com.example.highteenday_backend.utils.MediaUtils;
 import com.example.highteenday_backend.dtos.PostDto;
 import com.example.highteenday_backend.dtos.RequestPostDto;
 import com.fasterxml.jackson.core.type.TypeReference;

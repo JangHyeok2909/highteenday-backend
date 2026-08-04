@@ -1,6 +1,5 @@
 package com.example.highteenday_backend.utils;
 
-import com.example.highteenday_backend.Utils.HotScoreCalculator;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 

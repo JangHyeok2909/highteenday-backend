@@ -146,7 +146,8 @@ public class UserService {
 
     @Transactional
     public User registerOAuthUser(String email, String name, Provider provider, String profileUrl) {
-        String truncatedName = name != null && name.length() > 10 ? name.substring(0, 10) : name;
+        // UserName 은 8자까지만 받는다. 10자로 자르면 9~10자 이름이 검증에서 걸려 가입이 실패했다.
+        String truncatedName = name != null && name.length() > 8 ? name.substring(0, 8) : name;
 
         // 이메일 prefix를 기반으로 중복 없는 닉네임 생성
         String emailPrefix = email.contains("@") ? email.split("@")[0] : email;
@@ -229,6 +230,9 @@ public class UserService {
         try {
             user.changePassword(Password.fromRawPassword(passwordDto.newPassword(), passwordEncoder));
             userRepository.save(user);
+        } catch (CustomException e) {
+            // 형식 위반 같은 도메인 오류는 그대로 올린다. 삼키면 400이어야 할 응답이 500이 된다.
+            throw e;
         } catch (Exception e) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR);
         }
@@ -250,6 +254,9 @@ public class UserService {
         try {
             user.changeNickname(new Nickname(nicknameDto.newNickname()));
             userRepository.save(user);
+        } catch (CustomException e){
+            // 형식 위반 같은 도메인 오류는 그대로 올린다. 삼키면 400이어야 할 응답이 500이 된다.
+            throw e;
         } catch (Exception e){
             throw new CustomException(ErrorCode.INTERNAL_ERROR);
         }

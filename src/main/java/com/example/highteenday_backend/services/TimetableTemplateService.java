@@ -105,7 +105,7 @@ public class TimetableTemplateService {
         Grade changedGrade = dto.getGrade();
         Semester changedSemester = dto.getSemester();
         boolean changedDefault = dto.isDefault();
-        if(changedName !=null||!changedName.isEmpty()) template.updateTemplateName(changedName);
+        if(changedName !=null&&!changedName.isEmpty()) template.updateTemplateName(changedName);
         if(changedGrade !=null) template.updateGrade(changedGrade);
         if(changedSemester !=null) template.updateSemester(changedSemester);
         if(changedDefault==true) selectDefaultTemplate(template.getUser(),template);

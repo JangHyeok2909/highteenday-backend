@@ -1,6 +1,6 @@
 package com.example.highteenday_backend.services.domain;
 
-import com.example.highteenday_backend.Utils.MediaUtils;
+import com.example.highteenday_backend.utils.MediaUtils;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.medias.Media;
 import com.example.highteenday_backend.domain.posts.Post;
