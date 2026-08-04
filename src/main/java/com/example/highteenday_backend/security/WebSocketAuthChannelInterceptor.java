@@ -68,10 +68,14 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
         CustomUserPrincipal principal = (CustomUserPrincipal) auth.getPrincipal();
         User user = principal.getUser();
 
+        // isValid 를 함께 본다. 빼면 방을 나간 사람과 닫힌 방의 구독이 계속 허용된다.
+        // 판정 기준은 ChatService.findRoom / requireParticipant 와 같아야 한다.
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
+                .filter(r -> Boolean.TRUE.equals(r.getIsValid()))
                 .orElseThrow(() -> new IllegalStateException("채팅방을 찾을 수 없습니다."));
 
         chatPTRepository.findByChatRoomAndUser(chatRoom, user)
+                .filter(p -> Boolean.TRUE.equals(p.getIsValid()))
                 .orElseThrow(() -> new IllegalStateException("채팅방 참가자가 아닙니다."));
     }
 }

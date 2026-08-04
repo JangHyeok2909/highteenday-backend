@@ -1,6 +1,6 @@
 package com.example.highteenday_backend.controllers;
 
-import com.example.highteenday_backend.Utils.PageUtils;
+import com.example.highteenday_backend.utils.PageUtils;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.PostDto;
