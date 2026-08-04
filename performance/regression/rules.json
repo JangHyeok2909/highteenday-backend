@@ -1,0 +1,349 @@
+{
+  "schemaVersion": 1,
+  "comment": [
+    "회귀 판정 규칙 — tools/lib/regression.js 가 읽는다. 코드 수정 없이 이 파일만 고쳐서 기준을 바꾼다.",
+    "",
+    "필드 설명",
+    "  key        : run 레코드에서 값을 꺼낼 경로 (k6.overall.* 또는 infra.flat.*)",
+    "  direction  : lower_is_better | higher_is_better  — 어느 쪽 변화가 나쁜 것인지",
+    "  warn/fail  : 직전 실행 대비 상대 변화 임계. changePct 는 '나쁜 방향으로의 변화율(%)'",
+    "  absolute   : 직전 실행과 무관하게 무조건 걸리는 절대 상한/하한 (SLO 게이트)",
+    "  noiseFloor : 이 값보다 작은 절대 변화는 회귀로 보지 않는다 (아래 설명)",
+    "  minBaseline: 기준값이 이보다 작으면 상대 비교를 건너뛴다",
+    "  gate       : true 면 CI 실패 대상, false 면 참고용(경고만)",
+    "",
+    "noiseFloor 가 왜 필요한가",
+    "  2ms → 3ms 는 +50% 지만 사람에게 아무 의미가 없다. 상대 변화율만 쓰면 이런 항목이",
+    "  매 실행마다 회귀로 잡히고, 팀은 곧 알림을 무시하게 된다(경보 피로).",
+    "  실측 노이즈보다 큰 변화만 회귀로 인정하도록 절대 하한을 같이 둔다.",
+    "  값은 이 환경에서 같은 시나리오를 반복 실행했을 때의 편차를 근거로 정한다."
+  ],
+  "rules": [
+    {
+      "key": "k6.overall.p95",
+      "label": "P95 응답시간",
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 10 },
+      "fail": { "changePct": 20 },
+      "absolute": { "fail": { "gt": 500 } },
+      "noiseFloor": 5,
+      "minBaseline": 10,
+      "gate": true
+    },
+    {
+      "key": "k6.overall.p99",
+      "label": "P99 응답시간",
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 15 },
+      "fail": { "changePct": 30 },
+      "absolute": { "fail": { "gt": 1200 } },
+      "noiseFloor": 15,
+      "minBaseline": 20,
+      "gate": true
+    },
+    {
+      "key": "k6.overall.avg",
+      "label": "평균 응답시간",
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 10 },
+      "fail": { "changePct": 25 },
+      "noiseFloor": 3,
+      "minBaseline": 5,
+      "gate": true
+    },
+    {
+      "key": "k6.overall.errorRate",
+      "label": "오류율",
+      "unit": "ratio",
+      "direction": "lower_is_better",
+      "absolute": { "fail": { "gt": 0.01 }, "warn": { "gt": 0.001 } },
+      "warn": { "changePct": 50 },
+      "noiseFloor": 0.001,
+      "gate": true
+    },
+    {
+      "key": "k6.overall.tps",
+      "label": "TPS (초당 트랜잭션)",
+      "unit": "per_sec",
+      "direction": "higher_is_better",
+      "warn": { "changePct": 10 },
+      "fail": { "changePct": 20 },
+      "noiseFloor": 0.5,
+      "minBaseline": 1,
+      "gate": true
+    },
+    {
+      "key": "k6.overall.rps",
+      "label": "RPS (초당 요청)",
+      "unit": "per_sec",
+      "direction": "higher_is_better",
+      "warn": { "changePct": 10 },
+      "fail": { "changePct": 20 },
+      "noiseFloor": 1,
+      "minBaseline": 2,
+      "gate": true
+    },
+    {
+      "key": "k6.overall.checkRate",
+      "label": "Check 성공률",
+      "unit": "ratio",
+      "direction": "higher_is_better",
+      "absolute": { "fail": { "lt": 0.99 } },
+      "noiseFloor": 0.005,
+      "gate": true
+    },
+
+    {
+      "key": "infra.flat.saturation.cpuPct",
+      "label": "CPU 포화도 (한계 대비 최대)",
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 30 },
+      "absolute": { "warn": { "gt": 80 }, "fail": { "gt": 95 } },
+      "noiseFloor": 5,
+      "minBaseline": 5,
+      "gate": false
+    },
+    {
+      "key": "infra.flat.cpu.throttledPct",
+      "label": "CPU throttling 비율",
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "absolute": { "warn": { "gt": 1 }, "fail": { "gt": 10 } },
+      "noiseFloor": 0.5,
+      "gate": true,
+      "comment": "throttling 은 컨테이너 환경에서 p99 급등의 최대 원인이라 gate 대상으로 둔다."
+    },
+    {
+      "key": "infra.flat.memory.workingSet.max",
+      "label": "메모리 최대 사용량",
+      "unit": "bytes",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 20 },
+      "fail": { "changePct": 40 },
+      "noiseFloor": 52428800,
+      "gate": false
+    },
+    {
+      "key": "infra.flat.saturation.memoryPct",
+      "label": "메모리 포화도",
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "absolute": { "warn": { "gt": 85 }, "fail": { "gt": 95 } },
+      "noiseFloor": 3,
+      "gate": false
+    },
+    {
+      "key": "infra.flat.heap.used.max",
+      "label": "Heap 최대 사용량",
+      "unit": "bytes",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 20 },
+      "fail": { "changePct": 40 },
+      "noiseFloor": 52428800,
+      "gate": false
+    },
+    {
+      "key": "infra.flat.heap.liveDataMax",
+      "label": "Live data (누수 지표)",
+      "unit": "bytes",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 25 },
+      "noiseFloor": 52428800,
+      "gate": false,
+      "comment": "GC 후에도 안 줄어드는 힙. 연속 상승은 누수 신호."
+    },
+    {
+      "key": "infra.flat.gc.pauseMaxMs",
+      "label": "GC 최대 정지시간",
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 30 },
+      "absolute": { "warn": { "gt": 200 }, "fail": { "gt": 500 } },
+      "noiseFloor": 20,
+      "gate": false
+    },
+    {
+      "key": "infra.flat.gc.overheadPct.avg",
+      "label": "GC 오버헤드",
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "absolute": { "warn": { "gt": 5 }, "fail": { "gt": 10 } },
+      "noiseFloor": 1,
+      "gate": false
+    },
+    {
+      "key": "infra.flat.gc.count",
+      "label": "GC 횟수",
+      "unit": "count",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 40 },
+      "noiseFloor": 20,
+      "minBaseline": 10,
+      "gate": false
+    },
+
+    {
+      "key": "infra.flat.mysql.slowQueries",
+      "label": "MySQL Slow Query 수",
+      "unit": "count",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 20 },
+      "fail": { "changePct": 100 },
+      "noiseFloor": 10,
+      "minBaseline": 5,
+      "gate": true,
+      "comment": "인덱스 누락/쿼리 회귀의 가장 빠른 신호라 gate 대상."
+    },
+    {
+      "key": "infra.flat.mysql.threadsRunning.max",
+      "label": "MySQL 동시 실행 스레드 최대",
+      "unit": "count",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 40 },
+      "noiseFloor": 3,
+      "minBaseline": 2,
+      "gate": false
+    },
+    {
+      "key": "infra.flat.mysql.qps",
+      "label": "MySQL QPS",
+      "unit": "per_sec",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 25 },
+      "noiseFloor": 5,
+      "minBaseline": 5,
+      "gate": false,
+      "comment": "RPS는 그대로인데 QPS만 오르면 N+1 회귀다. 그래서 lower_is_better."
+    },
+    {
+      "key": "infra.flat.mysql.bufferPoolHitPct",
+      "label": "InnoDB Buffer Pool 적중률",
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "absolute": { "warn": { "lt": 99 }, "fail": { "lt": 95 } },
+      "noiseFloor": 0.5,
+      "gate": false
+    },
+    {
+      "key": "infra.flat.mysql.abortedConnects",
+      "label": "MySQL 연결 실패",
+      "unit": "count",
+      "direction": "lower_is_better",
+      "absolute": { "warn": { "gt": 0 }, "fail": { "gt": 10 } },
+      "noiseFloor": 1,
+      "gate": false
+    },
+
+    {
+      "key": "infra.flat.redis.hitRatioPct",
+      "label": "Redis 캐시 적중률",
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "warn": { "changePct": 5 },
+      "absolute": { "warn": { "lt": 90 } },
+      "noiseFloor": 1,
+      "gate": false
+    },
+    {
+      "key": "infra.flat.redis.evictedKeys",
+      "label": "Redis Eviction",
+      "unit": "count",
+      "direction": "lower_is_better",
+      "absolute": { "warn": { "gt": 0 }, "fail": { "gt": 1000 } },
+      "noiseFloor": 1,
+      "gate": false,
+      "comment": "eviction 이 시작되면 캐시가 조용히 무력화된다 — 적중률보다 먼저 뜨는 신호."
+    },
+    {
+      "key": "infra.flat.redis.opsPerSec",
+      "label": "Redis Ops/sec",
+      "unit": "per_sec",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 30 },
+      "noiseFloor": 10,
+      "minBaseline": 10,
+      "gate": false
+    },
+    {
+      "key": "infra.flat.redis.memoryUsed.max",
+      "label": "Redis 메모리 최대",
+      "unit": "bytes",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 30 },
+      "noiseFloor": 10485760,
+      "gate": false
+    },
+
+    {
+      "key": "infra.flat.saturation.hikariPct",
+      "label": "HikariCP 포화도",
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "absolute": { "warn": { "gt": 80 }, "fail": { "gt": 95 } },
+      "noiseFloor": 5,
+      "gate": false
+    },
+    {
+      "key": "infra.flat.pool.hikariPending.max",
+      "label": "HikariCP 대기 스레드 최대",
+      "unit": "count",
+      "direction": "lower_is_better",
+      "absolute": { "warn": { "gt": 0 }, "fail": { "gt": 5 } },
+      "noiseFloor": 1,
+      "gate": false,
+      "comment": "pending > 0 은 커넥션 풀이 병목이라는 직접 증거다."
+    },
+    {
+      "key": "infra.flat.pool.hikariAcquireP95Ms",
+      "label": "커넥션 획득 p95",
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 50 },
+      "absolute": { "warn": { "gt": 10 }, "fail": { "gt": 100 } },
+      "noiseFloor": 2,
+      "gate": false
+    },
+    {
+      "key": "infra.flat.pool.hikariTimeouts",
+      "label": "커넥션 타임아웃",
+      "unit": "count",
+      "direction": "lower_is_better",
+      "absolute": { "fail": { "gt": 0 } },
+      "noiseFloor": 1,
+      "gate": true
+    },
+    {
+      "key": "infra.flat.saturation.tomcatPct",
+      "label": "Tomcat 스레드 포화도",
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "absolute": { "warn": { "gt": 70 }, "fail": { "gt": 90 } },
+      "noiseFloor": 5,
+      "gate": false
+    },
+
+    {
+      "key": "infra.flat.network.txBytesSec",
+      "label": "송신 대역폭",
+      "unit": "bytes_per_sec",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 40 },
+      "noiseFloor": 1048576,
+      "gate": false,
+      "comment": "응답 페이로드가 갑자기 커진 경우를 잡는다(불필요 필드 노출 등)."
+    },
+    {
+      "key": "infra.flat.disk.writeBytesSec",
+      "label": "DB 디스크 쓰기",
+      "unit": "bytes_per_sec",
+      "direction": "lower_is_better",
+      "warn": { "changePct": 50 },
+      "noiseFloor": 1048576,
+      "gate": false
+    }
+  ]
+}

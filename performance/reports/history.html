@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Performance History</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --surface: #fcfcfb;
+  --plane: #f9f9f7;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --seq-100: #cde2fb;
+  --seq-450: #2a78d6;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --good-text: #006300;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #1a1a19;
+    --plane: #0d0d0d;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --seq-100: #184f95;
+    --seq-450: #3987e5;
+    --good-text: #0ca30c;
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #1a1a19; --plane: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  --seq-100: #184f95; --seq-450: #3987e5; --good-text: #0ca30c;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0 0 4rem;
+  background: var(--plane); color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 15px; margin: 0 0 14px; letter-spacing: 0.02em; text-transform: uppercase;
+     color: var(--ink-2); font-weight: 600; }
+h3 { font-size: 13px; margin: 20px 0 8px; color: var(--ink-2); font-weight: 600; }
+a { color: var(--series-1); }
+
+/* ── 헤더 ── */
+.head { background: var(--surface); border-bottom: 1px solid var(--border); padding: 26px 0 22px; margin-bottom: 26px; }
+.head-top { display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap; }
+.head-title { flex: 1 1 320px; min-width: 0; }
+.sub { color: var(--ink-muted); font-size: 13px; }
+
+.verdict {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border-radius: 8px; font-weight: 700; font-size: 14px;
+  border: 2px solid; white-space: nowrap;
+}
+.verdict .ico { font-size: 15px; line-height: 1; }
+.v-PASS { color: var(--good-text); border-color: var(--good); background: color-mix(in srgb, var(--good) 10%, transparent); }
+.v-WARN { color: var(--ink); border-color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, transparent); }
+.v-FAIL { color: var(--critical); border-color: var(--critical); background: color-mix(in srgb, var(--critical) 10%, transparent); }
+
+/* ── 메타 그리드 ── */
+.meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 1px;
+        background: var(--border); border: 1px solid var(--border); border-radius: 8px;
+        overflow: hidden; margin-top: 20px; }
+.meta div { background: var(--surface); padding: 9px 12px; }
+.meta dt { color: var(--ink-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin: 0; }
+.meta dd { margin: 2px 0 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+
+/* ── 섹션/카드 ── */
+section { margin-bottom: 34px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+
+/* ── KPI 타일 ── */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.kpi .label { color: var(--ink-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.kpi .value { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; margin-top: 3px; }
+.kpi .foot { font-size: 12px; color: var(--ink-2); margin-top: 3px; display: flex; align-items: center; gap: 5px; }
+
+/* ── 델타 표기: 아이콘 + 텍스트 + 색 (색 단독 금지) ── */
+.d-good { color: var(--good-text); font-weight: 600; }
+.d-bad  { color: var(--critical); font-weight: 600; }
+.d-flat { color: var(--ink-muted); }
+
+/* ── 표 ── */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--grid); }
+th { color: var(--ink-muted); font-weight: 600; font-size: 11px; text-transform: uppercase;
+     letter-spacing: 0.04em; border-bottom: 1px solid var(--axis); white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: none; }
+.scroll { overflow-x: auto; }
+
+/* ── 포화도 막대 ── */
+.meter { display: flex; align-items: center; gap: 9px; min-width: 148px; }
+.meter .track { flex: 1; height: 7px; background: var(--grid); border-radius: 4px; overflow: hidden; min-width: 60px; }
+.meter .fill { height: 100%; border-radius: 4px; background: var(--seq-450); }
+.meter .pct { font-variant-numeric: tabular-nums; font-size: 12px; min-width: 42px; text-align: right; color: var(--ink-2); }
+.fill.s-warning { background: var(--warning); }
+.fill.s-serious { background: var(--serious); }
+.fill.s-critical { background: var(--critical); }
+
+/* ── 병목 가설 ── */
+.hint { display: flex; gap: 11px; padding: 12px 0; border-bottom: 1px solid var(--grid); }
+.hint:last-child { border-bottom: none; }
+.hint .n { width: 21px; height: 21px; flex: none; border-radius: 50%; background: var(--critical);
+           color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.hint .t { font-weight: 650; margin-bottom: 2px; }
+.hint .d { color: var(--ink-2); font-size: 13px; }
+
+/* ── 스파크라인 ── */
+.sparks { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 14px; }
+.spark { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; }
+.spark .st { font-size: 12px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.spark .sv { font-size: 19px; font-weight: 650; margin: 2px 0 6px; letter-spacing: -0.01em; }
+.spark svg { display: block; width: 100%; height: 40px; overflow: visible; }
+.spark .range { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-muted);
+                font-variant-numeric: tabular-nums; margin-top: 3px; }
+
+/* ── 링크 버튼 ── */
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.links a { display: inline-block; padding: 7px 13px; border: 1px solid var(--border); border-radius: 7px;
+           background: var(--surface); text-decoration: none; font-size: 13px; font-weight: 550; }
+.links a:hover { border-color: var(--series-1); }
+.links a.primary { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 5px;
+         font-size: 11px; font-weight: 650; border: 1px solid; white-space: nowrap; }
+.b-PASS { color: var(--good-text); border-color: var(--good); }
+.b-WARN { color: var(--ink); border-color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, transparent); }
+.b-FAIL { color: var(--critical); border-color: var(--critical); }
+.b-SKIP { color: var(--ink-muted); border-color: var(--axis); }
+
+.empty { color: var(--ink-muted); font-style: italic; padding: 10px 0; }
+.note { color: var(--ink-2); font-size: 12.5px; margin-top: 10px; padding-left: 11px; border-left: 2px solid var(--grid); }
+footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 34px; }
+
+.hist-table { font-size: 12.5px; }
+.hist-table td, .hist-table th { padding: 6px 8px; white-space: nowrap; }
+</style>
+</head><body>
+<div class="head"><div class="wrap">
+  <div class="head-top">
+    <div class="head-title">
+      <h1>Performance History</h1>
+      <div class="sub">8회 실행 · 8개 시나리오 · 최종 2026-08-04 15:29:38 KST</div>
+    </div>
+  </div>
+  <dl class="meta">
+    <div><dt>총 실행</dt><dd>8</dd></div>
+    <div><dt>시나리오</dt><dd>8</dd></div>
+    <div><dt>실패</dt><dd>1</dd></div>
+    <div><dt>경고</dt><dd>2</dd></div>
+    <div><dt>기간</dt><dd style="font-size:12px">2026-08-04 ~ 2026-08-04</dd></div>
+  </dl>
+</div></div>
+
+<div class="wrap">
+  <section>
+    <h2>시나리오 현황</h2>
+    <div class="card scroll"><table>
+      <thead><tr><th>시나리오</th><th class="num">실행 수</th><th>최종 실행</th>
+        <th class="num">최종 P95</th><th class="num">최종 TPS</th><th>판정</th></tr></thead>
+      <tbody><tr>
+      <td><b>chat-rest</b></td>
+      <td class="num">1</td>
+      <td style="font-size:12px">2026-08-04 15:26</td>
+      <td class="num">94ms</td>
+      <td class="num">0.59</td>
+      <td><span class="badge b-PASS">PASS</span></td>
+    </tr><tr>
+      <td><b>comments</b></td>
+      <td class="num">1</td>
+      <td style="font-size:12px">2026-08-04 15:23</td>
+      <td class="num">413ms</td>
+      <td class="num">1.21</td>
+      <td><span class="badge b-FAIL">FAIL</span></td>
+    </tr><tr>
+      <td><b>friends</b></td>
+      <td class="num">1</td>
+      <td style="font-size:12px">2026-08-04 15:20</td>
+      <td class="num">100ms</td>
+      <td class="num">0.75</td>
+      <td><span class="badge b-PASS">PASS</span></td>
+    </tr><tr>
+      <td><b>normal-day</b></td>
+      <td class="num">1</td>
+      <td style="font-size:12px">2026-08-04 15:29</td>
+      <td class="num">101ms</td>
+      <td class="num">1.03</td>
+      <td><span class="badge b-PASS">PASS</span></td>
+    </tr><tr>
+      <td><b>notifications</b></td>
+      <td class="num">1</td>
+      <td style="font-size:12px">2026-08-04 15:24</td>
+      <td class="num">97ms</td>
+      <td class="num">1.32</td>
+      <td><span class="badge b-PASS">PASS</span></td>
+    </tr><tr>
+      <td><b>posts</b></td>
+      <td class="num">1</td>
+      <td style="font-size:12px">2026-08-04 15:22</td>
+      <td class="num">128ms</td>
+      <td class="num">0.47</td>
+      <td><span class="badge b-WARN">WARN</span></td>
+    </tr><tr>
+      <td><b>reactions</b></td>
+      <td class="num">1</td>
+      <td style="font-size:12px">2026-08-04 15:25</td>
+      <td class="num">95ms</td>
+      <td class="num">1.91</td>
+      <td><span class="badge b-PASS">PASS</span></td>
+    </tr><tr>
+      <td><b>timetable</b></td>
+      <td class="num">1</td>
+      <td style="font-size:12px">2026-08-04 15:28</td>
+      <td class="num">100ms</td>
+      <td class="num">1.37</td>
+      <td><span class="badge b-WARN">WARN</span></td>
+    </tr></tbody>
+    </table></div>
+  </section>
+
+  
+
+  <section>
+    <h2>실행 이력 (최신순)</h2>
+    <div class="card scroll"><table class="hist-table">
+      <thead><tr>
+        <th class="num">#</th><th>시나리오</th><th>환경</th><th>커밋</th><th>브랜치</th><th>시작</th>
+        <th class="num">VU</th><th class="num">평균</th><th class="num">P95</th><th class="num">P99</th>
+        <th class="num">TPS</th><th class="num">오류율</th><th class="num">CPU</th>
+        <th class="num">Heap</th><th class="num">Slow</th><th>판정</th>
+      </tr></thead>
+      <tbody><tr>
+      <td class="num">8</td>
+      <td><a href="runs/normal-day-2026-08-04T06-38-42/report.html">normal-day</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">1bff44b3</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">perf/performance-management-system</td>
+      <td style="font-size:12px;white-space:nowrap">2026-08-04 15:29</td>
+      <td class="num">15</td>
+      <td class="num">34ms</td>
+      <td class="num">101ms</td>
+      <td class="num">228ms</td>
+      <td class="num">1.03</td>
+      <td class="num">0.00%</td>
+      <td class="num">12%</td>
+      <td class="num">767 MB</td>
+      <td class="num">520</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">7</td>
+      <td><a href="runs/timetable-2026-08-04T06-28-50/report.html">timetable</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">1bff44b3</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">perf/performance-management-system</td>
+      <td style="font-size:12px;white-space:nowrap">2026-08-04 15:28</td>
+      <td class="num">5</td>
+      <td class="num">44ms</td>
+      <td class="num">100ms</td>
+      <td class="num">317ms</td>
+      <td class="num">1.37</td>
+      <td class="num">0.00%</td>
+      <td class="num">6%</td>
+      <td class="num">741 MB</td>
+      <td class="num">19</td>
+      <td><span class="badge b-WARN">! WARN</span></td>
+    </tr><tr>
+      <td class="num">6</td>
+      <td><a href="runs/chat-rest-2026-08-04T06-27-41/report.html">chat-rest</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">1bff44b3</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">perf/performance-management-system</td>
+      <td style="font-size:12px;white-space:nowrap">2026-08-04 15:26</td>
+      <td class="num">5</td>
+      <td class="num">33ms</td>
+      <td class="num">94ms</td>
+      <td class="num">248ms</td>
+      <td class="num">0.59</td>
+      <td class="num">0.00%</td>
+      <td class="num">5%</td>
+      <td class="num">644 MB</td>
+      <td class="num">21</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">5</td>
+      <td><a href="runs/reactions-2026-08-04T06-26-27/report.html">reactions</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">1bff44b3</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">perf/performance-management-system</td>
+      <td style="font-size:12px;white-space:nowrap">2026-08-04 15:25</td>
+      <td class="num">5</td>
+      <td class="num">55ms</td>
+      <td class="num">95ms</td>
+      <td class="num">123ms</td>
+      <td class="num">1.91</td>
+      <td class="num">0.00%</td>
+      <td class="num">6%</td>
+      <td class="num">532 MB</td>
+      <td class="num">19</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">4</td>
+      <td><a href="runs/notifications-2026-08-04T06-25-18/report.html">notifications</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">1bff44b3</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">perf/performance-management-system</td>
+      <td style="font-size:12px;white-space:nowrap">2026-08-04 15:24</td>
+      <td class="num">5</td>
+      <td class="num">43ms</td>
+      <td class="num">97ms</td>
+      <td class="num">208ms</td>
+      <td class="num">1.32</td>
+      <td class="num">0.00%</td>
+      <td class="num">7%</td>
+      <td class="num">446 MB</td>
+      <td class="num">20</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr><tr>
+      <td class="num">3</td>
+      <td><a href="runs/comments-2026-08-04T06-24-07/report.html">comments</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">1bff44b3</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">perf/performance-management-system</td>
+      <td style="font-size:12px;white-space:nowrap">2026-08-04 15:23</td>
+      <td class="num">5</td>
+      <td class="num">164ms</td>
+      <td class="num">413ms</td>
+      <td class="num">2.10s</td>
+      <td class="num">1.21</td>
+      <td class="num">0.00%</td>
+      <td class="num">23%</td>
+      <td class="num">636 MB</td>
+      <td class="num">23</td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+    </tr><tr>
+      <td class="num">2</td>
+      <td><a href="runs/posts-2026-08-04T06-22-56/report.html">posts</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">1bff44b3</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">perf/performance-management-system</td>
+      <td style="font-size:12px;white-space:nowrap">2026-08-04 15:22</td>
+      <td class="num">5</td>
+      <td class="num">60ms</td>
+      <td class="num">128ms</td>
+      <td class="num">631ms</td>
+      <td class="num">0.47</td>
+      <td class="num">0.00%</td>
+      <td class="num">6%</td>
+      <td class="num">693 MB</td>
+      <td class="num">25</td>
+      <td><span class="badge b-WARN">! WARN</span></td>
+    </tr><tr>
+      <td class="num">1</td>
+      <td><a href="runs/friends-2026-08-04T06-21-32/report.html">friends</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">1bff44b3</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">perf/performance-management-system</td>
+      <td style="font-size:12px;white-space:nowrap">2026-08-04 15:20</td>
+      <td class="num">5</td>
+      <td class="num">38ms</td>
+      <td class="num">100ms</td>
+      <td class="num">163ms</td>
+      <td class="num">0.75</td>
+      <td class="num">0.00%</td>
+      <td class="num">6%</td>
+      <td class="num">534 MB</td>
+      <td class="num">92</td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+    </tr></tbody>
+    </table>
+    <div class="note">시나리오 이름을 클릭하면 해당 실행의 상세 보고서로 이동합니다.
+    비교는 항상 <b>같은 시나리오 + 같은 환경</b>끼리만 이뤄집니다 — 다른 시나리오끼리의 절대값 비교는 의미가 없습니다.</div>
+    </div>
+  </section>
+
+  <footer>생성 2026-08-04 16:09:06 KST · <code>reports/index.json</code> 기준</footer>
+</div>
+</body></html>

@@ -1,0 +1,27 @@
+# Prometheus 스크레이프 설정 — 앱/DB/Redis/컨테이너 + k6 remote write 수신
+global:
+  scrape_interval: 5s        # 부하 테스트는 15s 기본값으론 스파이크를 놓친다
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: spring-app
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["app:8080"]
+        labels: { service: highteenday-backend }
+
+  - job_name: mysql
+    static_configs:
+      - targets: ["mysqld-exporter:9104"]
+
+  - job_name: redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+
+  - job_name: containers
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+# k6는 스크레이프가 아니라 remote write로 밀어넣는다:
+#   k6 run -o experimental-prometheus-rw \
+#     -e K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write ...

@@ -72,6 +72,21 @@ dependencies {
 	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2'
 	//health check actuator
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	//actuator 지표를 Prometheus 포맷으로 노출 (performance/ 부하 테스트 관측용)
+	implementation 'io.micrometer:micrometer-registry-prometheus'
+}
+
+// p6spy(datasource-decorator-spring-boot-autoconfigure)가 자체적으로 더 새 버전의
+// spring-boot-dependencies BOM을 함께 끌고 들어와, io.prometheus:* 계열 라이브러리가
+// 서로 다른 버전(1.3.6 / 1.3.10)으로 섞여 classpath에 올라간다. 그 상태로 Prometheus
+// 메트릭 노출을 켜면 NoSuchMethodError로 기동 자체가 실패한다 — 버전을 강제로 통일한다.
+configurations.all {
+	resolutionStrategy {
+		force 'io.prometheus:prometheus-metrics-config:1.3.6'
+		force 'io.prometheus:prometheus-metrics-core:1.3.6'
+		force 'io.prometheus:prometheus-metrics-exposition-formats:1.3.6'
+		force 'io.prometheus:prometheus-metrics-exposition-textformats:1.3.6'
+	}
 }
 
 tasks.named('test') {
