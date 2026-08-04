@@ -56,11 +56,16 @@ export function randomBoard() {
   return boards[Math.floor(Math.random() * boards.length)];
 }
 
-/** 나 이외의 임의 사용자 (친구신청/채팅 상대) */
+/**
+ * 나 이외의 임의 사용자 (친구 검색어/채팅 상대).
+ *
+ * 못 찾으면 null 을 준다. 예전처럼 users[0] 으로 떨어뜨리면 실패할수록 특정 한 명에게
+ * 요청이 몰려, 데이터에 없던 편중을 스크립트가 만들어 낸다.
+ */
 export function randomPeer(me) {
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 20; i++) {
     const u = users[Math.floor(Math.random() * users.length)];
     if (u.email !== me.email) return u;
   }
-  return users[0];
+  return null;
 }

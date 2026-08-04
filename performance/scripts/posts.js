@@ -70,8 +70,10 @@ export function updatePost(postId) {
       JSON.stringify({ title: `수정 ${Date.now() % 100000}`, content: '수정된 본문' }),
       Object.assign({}, JSON_HEADERS, tags('post', 'write', 'post_update')),
     );
-    // 소유자가 아니면 4xx — 부하 관점에선 왕복 자체가 목적이므로 5xx만 실패 처리
-    check(res, { 'post update not 5xx': (r) => r.status < 500 });
+    // writeCycle()이 방금 만든 자기 글로만 호출하므로 비소유자 4xx는 이 스크립트에
+    // 존재하지 않는다. 느슨하게 두면 재려던 UPDATE 경로 대신 소유권 검사에서 끊긴
+    // 에러 경로의 지연을 재면서도 통과해 버린다.
+    check(res, { 'post update 200': (r) => r.status === 200 });
     return res;
   });
 }
@@ -82,7 +84,7 @@ export function deletePost(postId) {
       `${BASE_URL}/api/posts/${postId}`, null,
       tags('post', 'write', 'post_delete'),
     );
-    check(res, { 'post delete not 5xx': (r) => r.status < 500 });
+    check(res, { 'post delete 200': (r) => r.status === 200 });
     return res;
   });
 }
