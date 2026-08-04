@@ -38,6 +38,11 @@ public class Notification extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "NT_entity_type")
     private EntityType entityType;
+
+    // @Column을 빠뜨리면 Hibernate 기본 네이밍이 entityId -> entity_id 로 바꿔 쿼리하는데,
+    // 실제 컬럼은 그런 이름이 아니라 알림 기능 전체(조회·저장)가 죽는다. V3에서 컬럼명을
+    // NT_entity_id 로 통일했으므로 여기서도 명시한다.
+    @Column(name = "NT_entity_id")
     private Long entityId;
 
     @Column(name = "NT_msg", length = 255)
