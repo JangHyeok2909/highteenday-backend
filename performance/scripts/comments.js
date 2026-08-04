@@ -24,6 +24,24 @@ export function listComments(postId) {
   return res;
 }
 
+/**
+ * 목록 응답에서 실제 댓글 id 하나를 뽑는다 (chat-rest.js 의 pickMyRoom 과 같은 관용구).
+ *
+ * 댓글 반응처럼 id 가 필요한 액션에 임의 값을 넣으면 4xx 로 조기 반환되어 재려던
+ * 카운터 UPDATE 경로에 도달하지 못한다. 반드시 존재하는 id 로만 호출한다.
+ * 댓글이 없는 글이면 null — 호출부가 건너뛴다.
+ */
+export function pickCommentId(postId) {
+  const res = listComments(postId);
+  try {
+    const list = JSON.parse(res.body);
+    if (Array.isArray(list) && list.length > 0) {
+      return list[Math.floor(Math.random() * list.length)].id ?? null;
+    }
+  } catch (_) {}
+  return null;
+}
+
 export function createComment(postId, parentId = null) {
   return withAuth(() => {
     const res = http.post(
@@ -49,7 +67,8 @@ export function updateComment(postId, commentId) {
       JSON.stringify({ content: '수정된 댓글' }),
       Object.assign({}, JSON_HEADERS, tags('comment', 'write', 'comment_update')),
     );
-    check(res, { 'comment update not 5xx': (r) => r.status < 500 });
+    // 방금 만든 자기 댓글로만 호출된다 — 4xx가 나올 경로가 없다.
+    check(res, { 'comment update 200': (r) => r.status === 200 });
     return res;
   });
 }
@@ -60,7 +79,7 @@ export function deleteComment(postId, commentId) {
       `${BASE_URL}/api/posts/${postId}/comments/${commentId}`, null,
       tags('comment', 'write', 'comment_delete'),
     );
-    check(res, { 'comment delete not 5xx': (r) => r.status < 500 });
+    check(res, { 'comment delete 200': (r) => r.status === 200 });
     return res;
   });
 }
