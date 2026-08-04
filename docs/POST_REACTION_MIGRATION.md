@@ -1,3 +1,5 @@
+> 이 문서의 내용은 [domains/reaction-hotpost.md](domains/reaction-hotpost.md)로 통합·현행화되었다. 최신 기준은 그쪽을 따른다.
+
 # posts_likes / posts_dislikes → posts_reactions 마이그레이션
 
 기존 두 테이블을 제거하고 `posts_reactions` 단일 테이블로 통합했습니다.  

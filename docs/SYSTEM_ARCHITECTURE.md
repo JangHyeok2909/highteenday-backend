@@ -1,3 +1,5 @@
+> 이 문서는 구버전 상태로 방치되어 코드와 다수 불일치한다 ([KNOWN-ISSUES.md#ki-10](KNOWN-ISSUES.md#ki-10-system_architecturemd가-구버전-상태로-방치됨)). 현행 기준은 [02-architecture.md](02-architecture.md)를 따른다.
+
 # HighTeenDay 시스템 아키텍처
 
 ---
