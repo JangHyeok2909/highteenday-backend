@@ -16,7 +16,8 @@ import java.io.File;
 import java.time.LocalDate;
 
 @Slf4j
-@Profile("!prod")
+// test 프로파일에서는 돌지 않는다. 데모 데이터 시딩과 NEIS API 호출은 테스트 컨텍스트가 감당할 일이 아니다.
+@Profile("!prod & !test")
 @Component
 @RequiredArgsConstructor
 public class AppStartupRunner {

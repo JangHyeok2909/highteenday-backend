@@ -75,6 +75,7 @@ public class FriendService {
         List<FriendReq> findReceivedFriendsList = friendReqRepository.findReceivedFriendRequestsByReceiverId(user.getId());
 
         return findReceivedFriendsList.stream()
+                // 여기서 id는 요청자가 아니라 FriendReq의 id다. /respond가 그 값을 요구한다.
                 .map(req -> FriendInfoDto.builder()
                         .userId(req.getRequester().getId())
                         .requestId(req.getId())
