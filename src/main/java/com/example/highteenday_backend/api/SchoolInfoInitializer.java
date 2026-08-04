@@ -10,7 +10,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-@Profile("!prod")
+// test 프로파일에서는 돌지 않는다. 학교 데이터 적재는 테스트 컨텍스트가 감당할 일이 아니다.
+@Profile("!prod & !test")
 @Component
 @RequiredArgsConstructor
 public class SchoolInfoInitializer {
