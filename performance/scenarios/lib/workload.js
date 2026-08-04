@@ -15,11 +15,11 @@ import { ensureSession } from '../../scripts/lib/session.js';
 import { myUser, hotPost, randomBoard, zipfIndex } from '../../scripts/lib/data.js';
 
 import { listPosts, readPost, searchPosts, writeCycle, createPost } from '../../scripts/posts.js';
-import { listComments, createComment } from '../../scripts/comments.js';
-import { reactToPost } from '../../scripts/reactions.js';
+import { listComments, createComment, pickCommentId } from '../../scripts/comments.js';
+import { reactToPost, reactToComment } from '../../scripts/reactions.js';
 import { scrapPost } from '../../scripts/scraps.js';
 import { listBoards, dailyHotPosts } from '../../scripts/boards.js';
-import { unreadCount, listNotifications, readAll } from '../../scripts/notifications.js';
+import { unreadCount, listNotifications, readAll, readOne, pickNotificationId } from '../../scripts/notifications.js';
 import { friendList, receivedRequests } from '../../scripts/friends.js';
 import { myRooms, roomMessages, markRead, pickMyRoom } from '../../scripts/chat-rest.js';
 import { chatSession } from '../../scripts/chat-ws.js';
@@ -47,15 +47,30 @@ export function journeyBrowse() {
   }
 }
 
-/** 참여: 상세 열람 후 좋아요/댓글/스크랩 */
+/**
+ * 참여: 상세 열람 후 좋아요/댓글반응/댓글/스크랩.
+ *
+ * 분기 확률을 재분배해 여정당 쓰기 1회를 유지한다. 댓글 반응을 그냥 덧붙이면 여정당
+ * 요청 수가 늘어 TPS·RPS 기준선이 통째로 어긋나므로, 기존 분기에서 몫을 떼어 온다.
+ * 댓글 반응 분기에서만 목록을 한 번 더 읽는데, 그건 실제 사용자도 댓글을 봐야
+ * 좋아요를 누를 수 있기 때문이다.
+ */
 export function journeyEngage() {
   const p = hotPost();
   readPost(p.id);
   sleep(thinkTime());
   const dice = Math.random();
-  if (dice < 0.5) reactToPost(p.id, Math.random() < 0.85 ? 'LIKE' : 'DISLIKE');
-  else if (dice < 0.85) createComment(p.id);
-  else scrapPost(p.id);
+  if (dice < 0.4) {
+    reactToPost(p.id, Math.random() < 0.85 ? 'LIKE' : 'DISLIKE');
+  } else if (dice < 0.55) {
+    // 댓글 카운터도 게시글과 같은 비정규화 구조라 인기 댓글에서 같은 경합이 생기는지 본다.
+    const commentId = pickCommentId(p.id);
+    if (commentId) reactToComment(commentId, Math.random() < 0.85 ? 'LIKE' : 'DISLIKE');
+  } else if (dice < 0.85) {
+    createComment(p.id);
+  } else {
+    scrapPost(p.id);
+  }
   sleep(thinkTime());
 }
 
@@ -93,14 +108,28 @@ export function journeyChatWs() {
   else sleep(thinkTime());
 }
 
-/** 알림 확인 */
+/**
+ * 알림 확인.
+ *
+ * 목록을 연 뒤의 행동을 둘로 나눈다 — 알림 하나를 눌러 읽는 쪽(단건 UPDATE)이
+ * "전체 읽음"(범위 UPDATE 1회)보다 흔하다. 부하 특성이 정반대라 read-all 만 재면
+ * 알림 20개를 하나씩 읽는 실제 패턴의 UPDATE 비용이 통째로 빠진다.
+ * 확률 합(0.6)은 기존 read-all 0.3 에서 늘었지만, 둘은 배타 분기라
+ * 여정당 쓰기는 여전히 최대 1회다.
+ */
 export function journeyNotification() {
   unreadCount();
   sleep(thinkTime());
   if (Math.random() < 0.5) {
-    listNotifications();
+    const listed = listNotifications();
     sleep(thinkTime());
-    if (Math.random() < 0.3) readAll();
+    const dice = Math.random();
+    if (dice < 0.4) {
+      const id = pickNotificationId(listed);
+      if (id) readOne(id);
+    } else if (dice < 0.6) {
+      readAll();
+    }
   }
 }
 
