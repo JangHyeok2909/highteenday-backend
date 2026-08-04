@@ -9,11 +9,25 @@ reports/
 │   ├── run.json           #   운영 지표·회귀 판정까지 보강된 최종 레코드
 │   ├── report.html        #   운영 보고서
 │   └── summary.txt        #   터미널 요약 사본
+├── archive/<runId>/       # 기준선으로 쓰면 안 되는 실행 (README.md 참고)
 ├── index.json             # 이력 인덱스 (파생 — tools/history.js --rebuild 로 재생성)
 ├── history.html           # 이력 / 추세 대시보드
 ├── raw/                   # (구버전) k6 handleSummary 산출물 — 하위 호환용
 └── summary/               # 실험별 수동 요약 (EXP 문서에서 링크)
 ```
+
+## archive/ — 격리된 실행
+
+`listRunIds()`가 `runs/`만 훑으므로, 여기로 옮긴 실행은 인덱스·기준선 자동 선택·추세에서
+전부 빠진다. 보고서 HTML은 그대로 열리고 Pages에도 함께 게시된다.
+
+지우지 않는 이유는 증거이기 때문이다 — 이관 도구(`migrate-raw.js`)가 실제로 동작했다는 것,
+수집기 수정이 과거 실행까지 소급됐다는 것, 그리고 "이런 데이터를 기준선으로 쓰면 안 된다"는
+사례(오류율 55.6%인데 check 100%, 표본 10회짜리 p95 비교) 자체가 자산이다.
+사유는 [`archive/README.md`](archive/README.md)에 적어 둔다.
+
+격리 기준은 **비교 가능성**이다. 앱·스키마·스크립트가 함께 바뀌어 이후 실행과
+분해 비교가 불가능해진 시점 이전은 후보에서 뺀다.
 
 전체 설계는 [`../PERFORMANCE-MANAGEMENT.md`](../PERFORMANCE-MANAGEMENT.md) 참고.
 
