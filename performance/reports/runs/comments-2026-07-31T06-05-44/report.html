@@ -178,9 +178,6 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div><div class="t">HTTP 요청당 쿼리 수 과다</div><div class="d">요청 1건당 평균 196.9개 쿼리가 실행됐다. N+1 패턴 가능성이 높다.</div></div>
     </div><div class="hint">
       <div class="n">3</div>
-      <div><div class="t">컨테이너 메모리 포화</div><div class="d">메모리 사용이 한계의 130%다. OOM Kill 위험 구간.</div></div>
-    </div><div class="hint">
-      <div class="n">4</div>
       <div><div class="t">Slow Query 다발</div><div class="d">요청 1000건당 126.7건의 slow query(&gt;100ms). 인덱스 또는 쿼리 계획 점검 대상.</div></div>
     </div>
     <div class="note">자동 규칙으로 뽑은 <b>가설</b>이지 확정된 원인이 아니다.
@@ -225,6 +222,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
   </section>
   <section><h2>Regression</h2>
     <div class="card scroll">
+      
       <table>
         <thead><tr><th>지표</th><th class="num">직전 (migrated)</th>
           <th class="num">현재</th><th class="num">변화</th><th>판정</th><th>사유</th></tr></thead>
@@ -286,8 +284,8 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <td class="num" style="color:var(--ink-2)">0.13 / 2.0 core</td>
     </tr><tr>
       <td>메모리</td>
-      <td style="width:210px"><div class="meter"><div class="track"><div class="fill s-critical" style="width:100.0%"></div></div><span class="pct">100%</span></div></td>
-      <td class="num" style="color:var(--ink-2)">2.0 GB / 1.5 GB</td>
+      <td style="width:210px"><div class="meter"><div class="track"><div class="fill s-warning" style="width:81.0%"></div></div><span class="pct">81%</span></div></td>
+      <td class="num" style="color:var(--ink-2)">1.2 GB / 1.5 GB</td>
     </tr><tr>
       <td>JVM Heap</td>
       <td style="width:210px"><div class="meter"><div class="track"><div class="fill " style="width:38.4%"></div></div><span class="pct">38%</span></div></td>
@@ -308,6 +306,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="note">포화도는 한계 대비 사용량이다. 70% 넘으면 주황, 85% 넘으면 진주황, 95% 넘으면 빨강으로 표시된다.
       절대값과 달리 환경이 바뀌어도 그대로 비교되므로 병목 판단의 1차 기준으로 쓴다.</div>
     </div>
+    
     <h3>CPU</h3><div class="card scroll"><table>
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
       <tbody><tr>
@@ -350,15 +349,15 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
       <tbody><tr>
         <td title="OOM 판정 기준이 되는 실사용 메모리(page cache 제외).">컨테이너 메모리 avg</td>
-        <td class="num">2.0 GB</td>
+        <td class="num">1.2 GB</td>
         <td style="color:var(--ink-muted);font-size:12px">OOM 판정 기준이 되는 실사용 메모리(page cache 제외).</td>
       </tr><tr>
         <td title="OOM 판정 기준이 되는 실사용 메모리(page cache 제외).">컨테이너 메모리 max</td>
-        <td class="num">2.0 GB</td>
+        <td class="num">1.2 GB</td>
         <td style="color:var(--ink-muted);font-size:12px">OOM 판정 기준이 되는 실사용 메모리(page cache 제외).</td>
       </tr><tr>
         <td title="OOM 판정 기준이 되는 실사용 메모리(page cache 제외).">컨테이너 메모리 p95</td>
-        <td class="num">2.0 GB</td>
+        <td class="num">1.2 GB</td>
         <td style="color:var(--ink-muted);font-size:12px">OOM 판정 기준이 되는 실사용 메모리(page cache 제외).</td>
       </tr><tr>
         <td title="cgroup 메모리 상한.">메모리 한계</td>
@@ -366,15 +365,15 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">cgroup 메모리 상한.</td>
       </tr><tr>
         <td title="프로세스가 물리 메모리에 올린 양.">RSS avg</td>
-        <td class="num">1.9 GB</td>
+        <td class="num">1.2 GB</td>
         <td style="color:var(--ink-muted);font-size:12px">프로세스가 물리 메모리에 올린 양.</td>
       </tr><tr>
         <td title="프로세스가 물리 메모리에 올린 양.">RSS max</td>
-        <td class="num">1.9 GB</td>
+        <td class="num">1.2 GB</td>
         <td style="color:var(--ink-muted);font-size:12px">프로세스가 물리 메모리에 올린 양.</td>
       </tr><tr>
         <td title="프로세스가 물리 메모리에 올린 양.">RSS p95</td>
-        <td class="num">1.9 GB</td>
+        <td class="num">1.2 GB</td>
         <td style="color:var(--ink-muted);font-size:12px">프로세스가 물리 메모리에 올린 양.</td>
       </tr></tbody></table></div><h3>JVM Heap</h3><div class="card scroll"><table>
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
@@ -824,7 +823,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     여유를 두는 이유는 "부하 직전 상태"와 비교해야 이번 부하로 올라간 값인지 원래 높았던 값인지 구분되기 때문이다.</div>
   </div></section>
   <footer>
-    생성 2026-07-31 16:18:28 KST · Run ID <code>comments-2026-07-31T06-05-44</code> ·
+    생성 2026-08-04 14:53:27 KST · Run ID <code>comments-2026-07-31T06-05-44</code> ·
     원본 <code>run.json</code> / <code>k6.json</code> 은 같은 디렉터리에 있습니다.
   </footer>
 </div>
