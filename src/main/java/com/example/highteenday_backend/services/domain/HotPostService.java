@@ -1,6 +1,6 @@
 package com.example.highteenday_backend.services.domain;
 
-import com.example.highteenday_backend.Utils.HotScoreCalculator;
+import com.example.highteenday_backend.utils.HotScoreCalculator;
 import com.example.highteenday_backend.domain.hot.DailyHotPost;
 import com.example.highteenday_backend.domain.hot.DailyHotPostRepository;
 import com.example.highteenday_backend.domain.port.HotPostRankingPort;
