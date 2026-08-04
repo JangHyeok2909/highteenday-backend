@@ -1,0 +1,27 @@
+# Optimizations — 최적화 기록 대장
+
+**수치 없는 최적화는 기록하지 않는다.** 모든 항목은 대응 실험의 Before/After를
+원자료 링크와 함께 포함해야 한다.
+
+## 규칙
+
+1. 항목당 파일 하나: `OPT-###-슬러그.md`, `TEMPLATE.md` 양식.
+2. 병목(BTL) → 실험(EXP) → 최적화(OPT) 체인이 끊기면 안 된다.
+   실험 없이 "좋아 보여서" 적용한 변경은 여기 올 수 없다.
+3. **한 번에 변수 하나** — 두 가지를 같이 바꿨으면 어느 쪽 효과인지 알 수 없다.
+4. 개선이 확인되면 `regression/baseline.json`을 갱신하고 커밋한다.
+5. 효과가 없거나 악화된 시도도 기록한다 (`상태: 기각`) — 같은 삽질 방지.
+
+## 목록
+
+| ID | 최적화 | 대상 병목 | 상태 | 핵심 수치 (Before → After) |
+|----|--------|-----------|------|---------------------------|
+| — | (첫 실험 후 추가) | | | |
+
+## 자주 쓰는 최적화 카탈로그 (적용 시 개별 OPT 문서로)
+
+Redis Cache · Index 추가 · Batch Insert/Update · Connection Pool 튜닝 ·
+Async Event(@Async/@TransactionalEventListener) · 메시지 브로커 전환(Redis Pub/Sub, Kafka) ·
+응답 Compression · Cursor Pagination · Query Rewrite · Local Cache(Caffeine) ·
+Virtual Thread(Java 21 업그레이드 시) · DTO Projection · @BatchSize · TTL Jitter ·
+Cache Warming · Fail-fast Timeout
