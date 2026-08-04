@@ -1,0 +1,68 @@
+# 시드 전용 오버라이드 — 측정용이 아니다.
+#
+# 왜 별도 파일인가
+# ----------------
+# 시드는 측정이 아니라 준비 작업이다. 그래서 내구성을 낮추고 자원을 넉넉히 줘도 되지만,
+# 그 상태로 측정하면 모든 쓰기 수치가 무효가 된다. 설정을 본 파일에 직접 넣고 "나중에
+# 되돌리기"로 두면 반드시 잊는다 — 실제로 이 저장소는 그런 종류의 실수(끄지 않은 디버그
+# 설정, 되돌리지 않은 완화)를 여러 번 겪었다.
+#
+# 오버라이드로 두면 되돌림이 기본값이 된다. 이 파일을 -f 로 붙였을 때만 적용되고,
+# 평소 명령으로 재기동하면 자동으로 측정 스펙으로 돌아온다.
+#
+# 시드:
+#   docker compose -f environment/docker-compose.perf.yml \
+#                  -f environment/docker-compose.seed.yml \
+#                  --env-file environment/.env.perf up -d --build
+# 측정 복귀:
+#   docker compose -f environment/docker-compose.perf.yml \
+#                  --env-file environment/.env.perf up -d
+#
+# 복귀 확인 (섞여 들어가면 측정이 통째로 무효다):
+#   docker exec perf-mysql mysql -uroot -pperfroot -N -e \
+#     "SELECT @@innodb_flush_log_at_trx_commit, @@sync_binlog;"     # 1, 1
+#   curl -s localhost:18080/actuator/prometheus | grep hikaricp_connections_max   # 10
+
+services:
+  app:
+    environment:
+      # 측정 환경은 HikariCP 10을 유지한다 — Tomcat 400 대 10의 불균형은 결함이 아니라
+      # BTL-002 가설이고 EXP-002가 증명할 대상이다. 여기서 올리는 건 시드 처리량 때문이며,
+      # 실측 knee(동시성 20)를 풀이 막지 않게 하려는 목적이다. MySQL max_connections=200
+      # 이므로 50은 여유가 있다.
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "50"
+      # JFR과 GC 로그를 뺀다. 시드 구간은 분석 대상이 아니라 순수 오버헤드이고,
+      # 힙도 시드 동안만 넉넉히 잡아 GC 빈도를 낮춘다.
+      JAVA_TOOL_OPTIONS: >-
+        -Xms2g -Xmx2g
+        -XX:+UseG1GC -XX:MaxGCPauseMillis=200
+    deploy:
+      resources:
+        # 가입 1만 + 로그인 1만 = BCrypt 2만 회가 시드 초반의 실질 병목이다.
+        # BCrypt는 설계상 CPU를 태우므로 코어를 늘린 만큼 그대로 짧아진다.
+        limits: { cpus: "6.0", memory: 4g }
+
+  mysql:
+    # ⚠ command 는 병합이 아니라 치환이다. perf.yml 의 목록 전체를 다시 적고
+    #   필요한 항목만 바꾼다. 빠뜨리면 문자셋·타임존·lower-case-table-names 가 사라져
+    #   시드 데이터가 조용히 깨진다(한글 mojibake, 테이블명 불일치).
+    command:
+      - --innodb-buffer-pool-size=1G
+      - --innodb-log-buffer-size=32M
+      - --max-connections=200
+      # 내구성 완화 — 시드 한정. 커밋마다 fsync 2회가 사라지며, WSL2에서 가장 큰 비용이다.
+      # 시드 도중 호스트가 죽으면 마지막 1초가 날아갈 수 있지만, 시드는 언제든 다시 만든다.
+      - --innodb-flush-log-at-trx-commit=2
+      - --sync-binlog=0
+      # slow log 는 끈다. long-query-time=0.1 + log-queries-not-using-indexes 조합은
+      # 167만 요청 동안 로그를 대량으로 쓰며, 그 디스크 IO가 시드 자체를 느리게 만든다.
+      - --slow-query-log=0
+      - --performance-schema=OFF
+      # 아래는 perf.yml 과 동일하게 유지해야 하는 항목들 — 데이터 정합에 직결된다.
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+09:00
+      - --lower-case-table-names=1
+    deploy:
+      resources:
+        limits: { cpus: "4.0", memory: 4g }
