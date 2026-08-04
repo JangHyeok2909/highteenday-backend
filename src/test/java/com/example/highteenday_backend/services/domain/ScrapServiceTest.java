@@ -6,6 +6,7 @@ import com.example.highteenday_backend.domain.scraps.Scrap;
 import com.example.highteenday_backend.domain.scraps.ScrapRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.eventEntities.events.ScrapToggledEvent;
+import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.services.domain.redisService.PostPrevCache;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -59,12 +62,12 @@ class ScrapServiceTest {
         @DisplayName("첫 스크랩 → 저장 + ScrapToggledEvent(newScrap=true) 발행")
         void firstScrapSavesAndPublishesNewScrapEvent() {
             when(scrapRepository.findByPostAndUser(post, user)).thenReturn(Optional.empty());
-            when(scrapRepository.save(any(Scrap.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(scrapRepository.saveAndFlush(any(Scrap.class))).thenAnswer(inv -> inv.getArgument(0));
 
             String message = scrapService.toggleScrap(10L, user);
 
             assertThat(message).isEqualTo("스크랩 완료.");
-            verify(scrapRepository).save(any(Scrap.class));
+            verify(scrapRepository).saveAndFlush(any(Scrap.class));
 
             ArgumentCaptor<ScrapToggledEvent> eventCaptor = ArgumentCaptor.forClass(ScrapToggledEvent.class);
             verify(eventPublisher).publishEvent(eventCaptor.capture());
@@ -85,11 +88,53 @@ class ScrapServiceTest {
 
             assertThat(message).isEqualTo("스크랩 완료.");
             assertThat(existing.getIsValid()).isTrue();
-            verify(scrapRepository, never()).save(any());
+            verify(scrapRepository, never()).saveAndFlush(any());
 
             ArgumentCaptor<ScrapToggledEvent> eventCaptor = ArgumentCaptor.forClass(ScrapToggledEvent.class);
             verify(eventPublisher).publishEvent(eventCaptor.capture());
             assertThat(eventCaptor.getValue().isNewScrap()).isFalse();
+        }
+
+        // BTL-012 회귀 테스트. 유니크 제약이 없던 시절에는 동시 토글이 중복 행을 만들었고,
+        // 그 뒤로 해당 게시글은 isScraped()의 NonUniqueResultException 때문에 상세 조회가
+        // 영구히 막혔다. 이제 DB가 INSERT를 거부하므로 먼저 저장된 행을 살려 쓴다.
+        @Test
+        @DisplayName("동시 토글로 UNIQUE 제약에 걸리면 먼저 저장된 행을 활성화한다")
+        void recoversFromConcurrentInsert() {
+            Scrap winner = Scrap.builder().post(post).user(user).build();
+            winner.cancelScrap();
+
+            when(scrapRepository.findByPostAndUser(post, user))
+                    .thenReturn(Optional.empty())   // 최초 조회 — 아직 없다
+                    .thenReturn(Optional.of(winner)); // 충돌 후 재조회 — 경쟁 요청이 만들어 둔 행
+            when(scrapRepository.saveAndFlush(any(Scrap.class)))
+                    .thenThrow(new DataIntegrityViolationException("uk_scraps_usr_pst"));
+
+            String message = scrapService.toggleScrap(10L, user);
+
+            assertThat(message).isEqualTo("스크랩 완료.");
+            assertThat(winner.getIsValid()).isTrue();
+
+            // 카운트 동기화와 캐시 무효화는 충돌 여부와 무관하게 수행돼야 한다.
+            verify(postPrevCache).evictPostPrev(10L);
+
+            // 먼저 성공한 요청이 이미 발행했으므로 newScrap=false 로 나가야 한다.
+            ArgumentCaptor<ScrapToggledEvent> eventCaptor = ArgumentCaptor.forClass(ScrapToggledEvent.class);
+            verify(eventPublisher).publishEvent(eventCaptor.capture());
+            assertThat(eventCaptor.getValue().isNewScrap()).isFalse();
+        }
+
+        @Test
+        @DisplayName("UNIQUE 충돌 후 재조회도 비면 데이터 무결성 오류를 던진다")
+        void throwsWhenConflictRowVanishes() {
+            when(scrapRepository.findByPostAndUser(post, user)).thenReturn(Optional.empty());
+            when(scrapRepository.saveAndFlush(any(Scrap.class)))
+                    .thenThrow(new DataIntegrityViolationException("uk_scraps_usr_pst"));
+
+            assertThatThrownBy(() -> scrapService.toggleScrap(10L, user))
+                    .isInstanceOf(CustomException.class);
+
+            verify(eventPublisher, never()).publishEvent(any(ScrapToggledEvent.class));
         }
 
         @Test

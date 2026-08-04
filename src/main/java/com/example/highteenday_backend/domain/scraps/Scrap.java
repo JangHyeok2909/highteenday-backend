@@ -14,7 +14,13 @@ import lombok.NoArgsConstructor;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name= "scraps")
+// (USR_id, PST_id) 유니크 제약이 없으면 동시에 들어온 두 토글 요청이 둘 다 "없음"을 보고
+// 둘 다 INSERT 해 중복 행이 생긴다. 그러면 isScraped()가 쓰는 findByPostAndUser 가
+// NonUniqueResultException 을 던져 게시글 상세 조회까지 영구 장애가 된다.
+// 이 엔티티는 하드 삭제하지 않고 is_valid 만 토글하므로 조합당 행이 하나면 충분하다.
+@Table(name = "scraps",
+        uniqueConstraints = @UniqueConstraint(name = "uk_scraps_usr_pst",
+                columnNames = {"USR_id", "PST_id"}))
 @Entity
 public class Scrap extends BaseEntity {
 
