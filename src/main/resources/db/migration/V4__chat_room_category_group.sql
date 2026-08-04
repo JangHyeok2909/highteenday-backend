@@ -1,4 +1,4 @@
--- V3: ChatRoomCategory 에 GROUP 값 추가.
+-- V4: ChatRoomCategory 에 GROUP 값 추가.
 --
 -- 단체 채팅(ChatService.createGroupRoom)이 category = 'GROUP' 으로 방을 INSERT 하는데,
 -- CHT_RM_CAT 은 Hibernate 가 만든 MySQL 네이티브 ENUM 이라 정의에 없는 값은 들어가지 않는다.
