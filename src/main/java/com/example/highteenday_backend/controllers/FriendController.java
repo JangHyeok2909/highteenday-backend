@@ -102,7 +102,7 @@ public class FriendController {
             @AuthenticationPrincipal CustomUserPrincipal user,
             @RequestBody SelectFriendDto selectFriendDto
     ){
-        return ResponseEntity.ok(friendService.selectFriend(user.getUser(), selectFriendDto));
+        return ResponseEntity.ok(friendService.searchUsersByNickname(user.getUser(), selectFriendDto));
     }
 
     // 친구 신청
