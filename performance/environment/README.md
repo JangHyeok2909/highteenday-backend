@@ -11,7 +11,7 @@ flowchart LR
         K6[k6\n별도 머신 권장]
     end
     subgraph Docker Host
-        APP[Spring Boot :8080\n2 vCPU / 1.5GB]
+        APP[Spring Boot :8080\n2 vCPU / 2.5GB]
         MY[MySQL 8.0.36 :3306\n2 vCPU / 2GB]
         RD[Redis 7.2 :6379\n1 vCPU / 512MB]
         PR[Prometheus :9090]
@@ -64,6 +64,26 @@ flowchart LR
 | GC | G1GC, MaxGCPauseMillis=200 | Java 17 기본. pause 목표를 명시해 실험 간 동일 조건 |
 | GC 로그 | /tmp/gc.log (rotate 5×20MB) | GC 병목 분석 원자료 |
 | JFR | 상시 기록, maxsize 200MB | 프로파일링 원자료 (도구: JDK Mission Control) |
+
+### 컨테이너 메모리는 힙의 2.5배로 잡는다 (실측 근거)
+
+한때 컨테이너 한계가 1536m이었는데, 힙 1G짜리 프로세스의 실제 풋프린트가 딱 그만큼이었다:
+
+```
+anon 1518MB / file 4MB          (한계 1536MB)
+memory.events: max 992, oom 0, oom_kill 0
+```
+
+`file 4MB`가 요점이다 — 페이지 캐시가 아니라 **익명 메모리**, 즉 JVM이 실제로 쓰는 양이다.
+`-Xms1g`가 강제로 커밋한 힙에 비힙 ~200MB, 스레드 스택, GC 구조체가 더해진 결과다.
+OOM Kill은 없었지만 커널이 992번 강제 회수하며 버티는 상태였고, **여유가 0**이었다.
+
+부작용은 지표 쪽이 더 컸다. 실행 71건 중 43건이 메모리 포화 100%로 기록돼 포화도가
+상시 빨간색이었고, 그러면 그 지표는 신호로서 죽는다.
+
+힙을 줄이는 대신 한계를 올린 이유는 "힙 고정으로 측정 노이즈를 없앤다"는 위 원칙을 지키기
+위해서다. GC 오버헤드가 최대 0.18%로 힙 자체는 여유로웠으므로, 문제는 힙 크기가 아니라
+컨테이너 예산이었다.
 
 ## 스레드 풀 / 커넥션 풀 (application.properties 기준)
 
