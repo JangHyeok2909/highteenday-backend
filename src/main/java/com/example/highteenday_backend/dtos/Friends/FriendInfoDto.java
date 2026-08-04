@@ -10,7 +10,8 @@ import lombok.Builder;
  */
 @Builder
 public record FriendInfoDto(
-        Long id,
+        Long userId,
+        Long requestId,
         String nickname,
         String profileUrl
 ){
