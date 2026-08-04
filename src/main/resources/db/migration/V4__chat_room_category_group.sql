@@ -1,0 +1,42 @@
+-- V4: ChatRoomCategory 에 GROUP 값 추가.
+--
+-- 단체 채팅(ChatService.createGroupRoom)이 category = 'GROUP' 으로 방을 INSERT 하는데,
+-- CHT_RM_CAT 은 Hibernate 가 만든 MySQL 네이티브 ENUM 이라 정의에 없는 값은 들어가지 않는다.
+--   ERROR 1265 (01000): Data truncated for column 'CHT_RM_CAT' at row 1
+-- 이 마이그레이션 없이는 단체방 생성이 100% 실패한다.
+--
+-- 왜 지금까지 어떤 경로로도 커버되지 않았는지:
+--
+--   1) V1__baseline.sql 에는 GROUP 이 들어 있지만, baseline-on-migrate=true 라서
+--      Flyway 도입 전부터 있던 DB(dev/prod)에서는 V1이 실행되지 않고 "적용됨" 표시만 된다.
+--      즉 기존 DB의 CHT_RM_CAT 은 여전히 enum('GRADE','PRIVATE','SCHOOL') 이다.
+--   2) ddl/V_group_chat.sql 은 컬럼을 추가/변경하지만 CHT_RM_CAT 자체는 건드리지 않는다.
+--   3) Hibernate 도 못 한다. dev/prod 모두 ddl-auto=none 이고, 예전 dev 의 update 였을
+--      때조차 update 는 없는 컬럼만 만들 뿐 기존 컬럼의 타입은 바꾸지 않는다.
+--
+-- 빈 DB 경로에서는 V1이 이미 GROUP 을 포함해 만들어 두므로 이 마이그레이션은 값 목록의
+-- 순서만 맞추는 no-op 에 가깝다. 어느 경로로 오든 최종 정의가 같아진다.
+
+-- ------------------------------------------------------------------
+-- chat_rooms.CHT_RM_CAT
+-- ------------------------------------------------------------------
+-- GROUP 을 알파벳순 자리가 아니라 목록 "맨 뒤"에 붙인다. 이유가 있다.
+--
+-- MySQL 은 ENUM 을 문자열이 아니라 내부 인덱스(1,2,3...)로 저장한다. 중간에 값을 끼워
+-- 넣으면 기존 행의 인덱스 의미가 밀려서 MySQL 이 테이블 전체를 복사해 다시 쓴다
+-- (ALGORITHM=COPY, 쓰기 잠금). 맨 뒤에 추가하면 기존 인덱스가 그대로라 MySQL 8.0 이
+-- ALGORITHM=INSTANT 로 메타데이터만 바꾸고 끝낸다. 운영에서 무중단이다.
+--
+-- 그래서 V1(= Hibernate 가 생성한 알파벳순 'GRADE','GROUP','PRIVATE','SCHOOL')과
+-- 순서가 달라진다. ENUM 순서는 애플리케이션 동작에 영향이 없고(이 컬럼을 정렬 기준으로
+-- 쓰는 쿼리가 없다), ddl-auto=none 이라 Hibernate 검증에도 걸리지 않는다.
+--
+-- MODIFY COLUMN 은 멱등하다. 이미 GROUP 이 포함돼 있으면 다시 실행해도 안전하고,
+-- 어떤 환경에서 이 컬럼이 VARCHAR 로 만들어져 있더라도 기존 값이 모두 목록 안에 있으므로
+-- 변환에 실패하지 않는다.
+ALTER TABLE chat_rooms
+    MODIFY COLUMN CHT_RM_CAT ENUM('GRADE', 'PRIVATE', 'SCHOOL', 'GROUP') NOT NULL;
+
+-- 적용 확인:
+--   SHOW COLUMNS FROM chat_rooms LIKE 'CHT_RM_CAT';
+--   -- 기대값: enum('GRADE','PRIVATE','SCHOOL','GROUP')
