@@ -122,6 +122,10 @@ function toIndexEntry(record) {
     endedAt: r.endedAt,
     durationSec: r.durationSec,
     dataset: r.dataset,
+    // 스크립트 지문 — "같은 것을 잰 결과인가"를 이력 화면에서도 판별할 수 있어야 한다.
+    // 회귀 판정은 run.json 을 직접 읽으므로 인덱스에 없어도 동작하지만, 그러면 추세
+    // 그래프에서 꺾인 지점이 성능 변화인지 스크립트 변경인지 구분할 방법이 없다.
+    scriptVersion: r.scriptVersion || null,
     note: r.note,
     vusMax: k.vusMax,
     avg: k.avg,
