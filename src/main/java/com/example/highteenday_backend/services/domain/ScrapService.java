@@ -5,14 +5,11 @@ import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.scraps.Scrap;
 import com.example.highteenday_backend.domain.scraps.ScrapRepository;
 import com.example.highteenday_backend.domain.users.User;
-import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.eventEntities.events.ScrapToggledEvent;
-import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.services.domain.redisService.PostPrevCache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,23 +59,10 @@ public class ScrapService {
             optional.get().cancelScrap();
             message = "스크랩 취소.";
         } else {
-            if (optional.isPresent()) {
-                optional.get().activeScrap();
-            } else {
-                try {
-                    scrapRepository.saveAndFlush(Scrap.builder().post(post).user(user).build());
-                    newScrap = true;
-                } catch (DataIntegrityViolationException e) {
-                    // UNIQUE(USR_id, PST_id) 충돌 = 같은 사용자의 동시 토글(더블클릭/재시도).
-                    // 제약이 없던 시절에는 여기서 중복 행이 만들어졌고, 그 뒤로 이 게시글은
-                    // isScraped()의 NonUniqueResultException 때문에 상세 조회가 영구히 막혔다.
-                    // 먼저 저장된 행을 살려서 쓴다. newScrap 은 false 로 두어 이벤트가
-                    // 중복 발행되지 않게 한다 — 먼저 성공한 요청이 이미 발행했다.
-                    scrapRepository.findByPostAndUser(post, user)
-                            .orElseThrow(() -> new CustomException(ErrorCode.DATA_INTEGRITY_ERROR))
-                            .activeScrap();
-                }
-            }
+            // 켜는 쪽은 upsert 한 문장으로 끝낸다. 동시 요청 둘이 모두 "없음"을 보고 들어와도
+            // 하나는 INSERT, 하나는 UPDATE 가 되어 최종 상태가 같다 — 예외 경로가 없다.
+            // affected rows 1 = 새로 만든 것, 2 = 기존 행을 되살린 것.
+            newScrap = scrapRepository.upsertActive(user.getId(), postId) == 1;
             message = "스크랩 완료.";
         }
 
