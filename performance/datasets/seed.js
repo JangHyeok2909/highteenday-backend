@@ -56,11 +56,25 @@ const OUT_DIR = path.join(__dirname, 'generated', PROFILE_NAME);
 
 // ---------- 유틸 ----------
 
-/** 결정론적 PRNG — 같은 프로파일이면 항상 같은 데이터 (재현성) */
+/**
+ * 결정론적 PRNG — 같은 프로파일이면 항상 같은 데이터 (재현성).
+ *
+ * 이전 구현은 `seed * 1103515245` 를 그대로 계산했는데, 이 곱이 2^53 을 넘어
+ * JavaScript 의 안전 정수 범위를 벗어난다. 하위 비트가 뭉개지면서 **주기가 10,466** 밖에
+ * 되지 않았고, 그 이상 뽑으면 같은 수열이 반복됐다.
+ *
+ * 지금까지는 중복이 그냥 중복 요청이 되어 조용히 넘어갔지만, (사용자, 게시글) 조합의
+ * 유일성을 요구하자 드러났다 — large 시드에서 반응 100만 건 목표에 5,185 개,
+ * 친구 3만 쌍 목표에 2,702 쌍만 확보됐다.
+ *
+ * Math.imul 은 32비트 곱셈을 정밀도 손실 없이 수행한다. 주기는 2^32 이고, 같은 시드는
+ * 여전히 같은 수열을 준다. 다만 수열 자체가 바뀌므로 이 커밋 이후의 시드 데이터는
+ * 이전과 다르다 — 프로파일별로 재생성해야 한다.
+ */
 let seed = 20260730;
 function rand() {
-  seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-  return seed / 0x7fffffff;
+  seed = (Math.imul(seed, 1664525) + 1013904223) | 0;
+  return (seed >>> 0) / 4294967296;
 }
 function randInt(n) { return Math.floor(rand() * n); }
 function pick(arr) { return arr[randInt(arr.length)]; }
@@ -98,12 +112,28 @@ class Session {
     }
     return res;
   }
+  /**
+   * 액세스 토큰이 만료됐으면 재발급하고 한 번 다시 보낸다.
+   *
+   * 액세스 토큰 수명은 30분인데(TokenProvider.ACCESS_TOKEN_EXPIRE_TIME) large 시드는
+   * 그보다 오래 걸린다. 실측에서 반응 단계가 길어지자 그 뒤의 스크랩 8만 건이 전부 401 로
+   * 죽었다 — 세션은 살아 있는데 토큰만 만료된 상태였다. 리프레시 토큰은 7일이라 갱신으로
+   * 충분히 덮인다. 갱신 요청 자체가 실패하면 원래 401 응답을 그대로 돌려 상위에서
+   * 실패로 집계되게 둔다.
+   */
   async json(method, url, body) {
-    const res = await this.fetch(url, {
+    const send = () => this.fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+
+    let res = await send();
+    if (res.status === 401 && url !== '/api/token/refresh') {
+      const refreshed = await this.fetch('/api/token/refresh', { method: 'POST' });
+      if (refreshed.status >= 200 && refreshed.status < 300) res = await send();
+    }
+
     let data = null;
     const text = await res.text();
     try { data = JSON.parse(text); } catch (_) { data = text; }
@@ -131,27 +161,63 @@ const SKIP = Symbol('skip');
  * 데드락은 애플리케이션이 재시도하는 것을 전제로 설계됐다고 명시한다 — 여기서 1회
  * 재시도한다. reactions/scraps는 멱등(같은 반응 반복은 토글/무시)이라 재시도가 안전하다.
  */
+/**
+ * 재시도해도 되는 실패인가.
+ *
+ * 기준은 "그 요청이 일을 하지 않은 것이 확실한가"다. 아래 셋은 전부 트랜잭션이 시작되기
+ * 전이거나 롤백된 뒤라, 글·댓글처럼 멱등하지 않은 생성도 중복 없이 다시 보낼 수 있다.
+ *
+ *  - 데드락      : MySQL이 롤백시킨다. 공식 문서도 애플리케이션 재시도를 전제로 한다.
+ *  - 커넥션 고갈 : HikariCP가 커넥션을 못 줘서 트랜잭션 자체가 열리지 않는다.
+ *                 이게 과거 시드가 명세에 미달한 실제 원인인데, 데드락만 재시도하던
+ *                 이전 구현에서는 그대로 영구 손실이 됐다.
+ *  - 전송 오류   : 연결이 끊겨 요청이 서버에 닿지 않았다.
+ *
+ * 반대로 일반 5xx는 재시도하지 않는다. 앱 결함으로 일부가 이미 적용됐을 수 있어 다시 보내면
+ * 중복이 생긴다. 4xx도 재시도 대상이 아니다 — 같은 요청을 다시 보내도 결과가 같다.
+ */
+function isRetryable(err) {
+  const m = String(err && err.message);
+  return /[Dd]eadlock/.test(m)
+    || /Could not open JPA EntityManager|Connection is not available|HikariPool|connection timeout/i.test(m)
+    || /ECONNRESET|ECONNREFUSED|EPIPE|socket hang up|fetch failed|other side closed/i.test(m);
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function pooled(items, worker, concurrency = CONCURRENCY, label = '') {
-  let processed = 0, ok = 0, failed = 0, skipped = 0;
+  let processed = 0, ok = 0, failed = 0, skipped = 0, retried = 0;
   const queue = [...items.entries()];
 
   const tally = (r) => { if (r === SKIP) skipped++; else ok++; };
 
+  // 인기글 카운터(BTL-003)의 데드락은 시드 내내 꾸준히 발생한다. 이건 앱에서 없앨 대상이
+  // 아니라 EXP-003 이 측정할 병목이므로, 시더 쪽에서 재시도로 흡수해 데이터셋만 온전히 만든다.
+  // 3회로는 부족했다(smoke 실측: 댓글 2.7%, 스크랩 5% 손실).
+  const MAX_ATTEMPTS = 6;
+
   async function lane() {
     while (queue.length) {
       const [i, item] = queue.shift();
-      try {
-        tally(await worker(item, i));
-      } catch (e) {
-        let recovered = false;
-        if (/[Dd]eadlock/.test(e.message)) {
-          // 재시도 성공도 반드시 집계한다. (이전에는 continue로 빠져나가 카운터에서 누락됐다.)
-          try { tally(await worker(item, i)); recovered = true; } catch (e2) { e = e2; }
+      let lastErr = null;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          tally(await worker(item, i));
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          if (attempt === MAX_ATTEMPTS || !isRetryable(e)) break;
+          retried++;
+          // 지수 백오프 + 지터. 지터가 없으면 모든 레인이 같은 박자로 재시도해
+          // 고갈 상태를 스스로 연장한다. 상한을 두는 이유는 재시도 대기가 길어지면
+          // 레인이 놀아 전체 처리량이 떨어지기 때문이다.
+          await sleep(Math.min(100 * 2 ** (attempt - 1), 800) + Math.floor(rand() * 50));
         }
-        if (!recovered) {
-          failed++;
-          if (failed <= 5) console.error(`  ! ${label}[${i}]: ${e.message}`);
-        }
+      }
+      if (lastErr) {
+        failed++;
+        if (failed <= 5) console.error(`  ! ${label}[${i}]: ${lastErr.message}`);
       }
       if (++processed % 200 === 0) process.stdout.write(`  ${label}: ${processed}/${items.length}\r`);
     }
@@ -165,6 +231,9 @@ async function pooled(items, worker, concurrency = CONCURRENCY, label = '') {
   const parts = [`성공 ${ok}`];
   if (failed) parts.push(`실패 ${failed}`);
   if (skipped) parts.push(`건너뜀 ${skipped}`);
+  // 재시도 횟수는 경합의 크기를 보여준다. 성공했더라도 이 수가 크면 동시성이나 풀 크기가
+  // 맞지 않는다는 신호이므로 다음 실행에서 조정할 근거가 된다.
+  if (retried) parts.push(`재시도 ${retried}`);
   console.log(`  ${label}: ${processed}/${items.length} 처리 (${parts.join(', ')})`);
   if (ok < items.length) {
     console.log(`    ⚠ 목표 ${items.length}건 중 ${items.length - ok}건 미생성 — 데이터셋이 명세에 미달한다.`);
@@ -180,7 +249,12 @@ function buildUsers() {
       email: `perf${String(i).padStart(6, '0')}@loadtest.local`,
       password: PASSWORD,
       name: `부하${i}`,
-      nickname: `perf_user_${i}`,
+      // 닉네임은 2~12자 제한이 있다(Nickname 값 객체). `perf_user_${i}` 는 i>=100 부터
+      // 13자가 되어 가입이 400 으로 거절된다 — large 실측에서 10,000명 중 정확히 100명만
+      // 가입에 성공했고, 그 뒤 단계가 전부 그 100명 위에서 돌아 데이터셋이 무너졌다.
+      // small(100명)이 지금까지 멀쩡했던 건 우연히 경계 안이었기 때문이다.
+      // `u${i}` 는 xlarge(10만명)의 `u99999` 도 6자라 여유가 있다.
+      nickname: `u${i}`,
       // PhoneNumber 값 객체가 "010-XXXX-XXXX" 형식만 허용한다 (하이픈 필수).
       phone: `010-${String(9000 + (i % 1000)).padStart(4, '0')}-${String(1000 + (i % 9000)).padStart(4, '0')}`,
       grade: pick(['SOPHOMORE', 'JUNIOR', 'SENIOR']), // enums.Grade 실제 값 (1/2/3학년)
@@ -215,6 +289,15 @@ async function loginAll(users) {
     const s = new Session();
     const r = await s.json('POST', '/api/user/login', { email: u.email, password: u.password });
     if (r.status !== 200) throw new Error(`login ${r.status}`);
+    // 자기 userId를 여기서 한 번만 받아 세션에 붙인다.
+    // 친구 신청 API가 닉네임이 아니라 대상 사용자 id를 받으므로(RequestFriendDto.targetUserId)
+    // 어딘가에서는 id를 알아야 한다. 쌍마다 /friends/search 로 조회하면 요청이 쌍 수만큼
+    // 늘어나지만(large 기준 3만 건), 로그인 직후 1회면 사용자 수만큼(1만 건)으로 끝난다.
+    const info = await s.json('GET', '/api/user/userInfo');
+    if (info.status !== 200 || !info.data || info.data.id == null) {
+      throw new Error(`userInfo ${info.status}: id를 못 받음`);
+    }
+    s.userId = info.data.id;
     sessions[i] = s;
   }, CONCURRENCY, 'login');
   return sessions;
@@ -303,12 +386,16 @@ async function createPosts(users, sessions, boards) {
       // Jackson이 기대하는 JSON 키는 "isAnonymous"가 아니라 "anonymous"다 (실측 확인됨).
       anonymous: rand() < 0.5,
     });
-    if (r.status >= 200 && r.status < 300) {
-      // 201 Created는 바디가 비어 있고 Location: /api/posts/{id} 헤더로만 ID를 준다.
-      const id = Session.idFromLocation(r.location);
-      if (id) posts.push({ id, boardId: board.id, rank: i });
-      else throw new Error(`post 2xx이지만 Location 헤더에서 id를 못 뽑음: ${r.location}`);
-    } else if (r.status >= 500) throw new Error(`post ${r.status}`);
+    // 4xx도 실패다. 예전에는 `else if (r.status >= 500)`이라 4xx가 어느 분기도 타지 않아
+    // posts 배열에는 안 담기는데 성공으로 집계됐다 — 배열이 비어가는데 "성공 100,000"으로
+    // 보고되는 상태였다. 미달을 드러내려면 여기서 던져야 한다.
+    if (r.status < 200 || r.status >= 300) {
+      throw new Error(`post ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
+    }
+    // 201 Created는 바디가 비어 있고 Location: /api/posts/{id} 헤더로만 ID를 준다.
+    const id = Session.idFromLocation(r.location);
+    if (!id) throw new Error(`post 2xx이지만 Location 헤더에서 id를 못 뽑음: ${r.location}`);
+    posts.push({ id, boardId: board.id, rank: i });
   }, CONCURRENCY, 'posts');
   // rank 낮은 글 = 먼저 생성된 글 = 인기글로 사용 (posts.json은 인기순 정렬 상태)
   posts.sort((a, b) => a.rank - b.rank);
@@ -329,28 +416,56 @@ async function createEngagement(users, sessions, posts) {
     const r = await s.json('POST', `/api/posts/${j.post.id}/comments`, {
       parentId: null, content: pick(COMMENTS_POOL), anonymous: rand() < 0.6, url: null,
     });
-    if (r.status >= 500) throw new Error(`comment ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
+    // 4xx도 실패로 본다 — 아래 반응/스크랩도 같다. 5xx만 보면 조용히 미달한다.
+    if (r.status < 200 || r.status >= 300) {
+      throw new Error(`comment ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
+    }
   }, CONCURRENCY, 'comments');
 
-  const reactionJobs = Array.from({ length: P.reactions }, () => ({
-    post: posts[zipf(posts.length)],
-    user: live[randInt(live.length)],
-  }));
+  // 반응과 스크랩은 (사용자, 게시글) 조합이 유일해야 한다 — DB에도 유니크 제약이 있다
+  // (uk_posts_reactions_pst_usr / uk_scraps_usr_pst). 예전처럼 무작위로 뽑으면 같은 조합이
+  // 반복되는데, 서버가 upsert 로 바뀐 뒤로는 그게 오류가 아니라 "기존 행 갱신"이 되어
+  // 조용히 목표 개수에 미달한다. 실패로 드러나지 않으므로 생성 단계에서 걸러야 한다.
+  //
+  // 한 게시글이 받을 수 있는 반응의 상한은 사용자 수다. Zipf 로 인기글에 몰리므로 상위
+  // 게시글은 금방 포화되고, 그때부터는 뽑기가 계속 중복에 걸린다. guard 로 시도 횟수를
+  // 제한하고, 목표에 못 미치면 그대로 보고한다(조용히 줄이지 않는다).
+  const uniquePairs = (count, label) => {
+    const jobs = [];
+    const seen = new Set();
+    let guard = count * 20;
+    while (jobs.length < count && guard-- > 0) {
+      const post = posts[zipf(posts.length)];
+      const user = live[randInt(live.length)];
+      const key = `${user}:${post.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      jobs.push({ post, user });
+    }
+    if (jobs.length < count) {
+      console.log(`  ⚠ ${label}: 유일한 (사용자, 게시글) 조합을 ${jobs.length}/${count}개만 확보했다 ` +
+        `— 사용자 ${live.length}명 / 게시글 ${posts.length}건으로는 이 목표를 채울 수 없다.`);
+    }
+    return jobs;
+  };
+
+  const reactionJobs = uniquePairs(P.reactions, '반응');
   await pooled(reactionJobs, async (j) => {
     const s = sessions[j.user];
     const type = rand() < 0.85 ? 'LIKE' : 'DISLIKE';
     const r = await s.json('POST', `/api/posts/${j.post.id}/reaction?type=${type}`);
-    if (r.status >= 500) throw new Error(`reaction ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
+    if (r.status < 200 || r.status >= 300) {
+      throw new Error(`reaction ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
+    }
   }, CONCURRENCY, 'reactions');
 
-  const scrapJobs = Array.from({ length: P.scraps }, () => ({
-    post: posts[zipf(posts.length)],
-    user: live[randInt(live.length)],
-  }));
+  const scrapJobs = uniquePairs(P.scraps, '스크랩');
   await pooled(scrapJobs, async (j) => {
     const s = sessions[j.user];
     const r = await s.json('POST', `/api/posts/${j.post.id}/scraps`);
-    if (r.status >= 500) throw new Error(`scrap ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
+    if (r.status < 200 || r.status >= 300) {
+      throw new Error(`scrap ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
+    }
   }, CONCURRENCY, 'scraps');
 }
 
@@ -383,15 +498,25 @@ async function createFriendships(users, sessions) {
 
   await pooled(pairs, async ([a, b]) => {
     const sa = sessions[a], sb = sessions[b];
-    if (!sa || !sb) return;
-    const r1 = await sa.json('POST', '/api/friends/request', { nickname: users[b].nickname });
-    if (r1.status >= 500) throw new Error(`friend request ${r1.status}`);
-    // 받은 신청 목록에서 이 신청을 찾아 수락
+    if (!sa || !sb) return SKIP;   // 세션 없는 계정 — 성공으로 세지 않는다
+    // 닉네임이 아니라 대상 사용자 id로 보낸다. 닉네임에는 유니크 제약이 없고 변경도
+    // 가능해서 API가 id 기반으로 바뀌었다(RequestFriendDto.targetUserId).
+    const r1 = await sa.json('POST', '/api/friends/request', { targetUserId: sb.userId });
+    if (r1.status < 200 || r1.status >= 300) {
+      throw new Error(`friend request ${r1.status}: ${JSON.stringify(r1.data).slice(0, 150)}`);
+    }
+    // 받은 신청 목록에서 이 신청을 찾아 수락.
+    // 응답은 FriendInfoDto 라 신청 식별자가 requestId 다 — id 로 읽으면 undefined 가 되어
+    // JSON 에서 통째로 빠지고 서버가 400 으로 끊는다.
     const r2 = await sb.json('GET', '/api/friends/requests/received');
-    if (Array.isArray(r2.data)) {
-      const req = r2.data.find((q) =>
-        (q.requesterNickname ?? q.nickname) === users[a].nickname) || r2.data[r2.data.length - 1];
-      if (req) await sb.json('POST', '/api/friends/respond', { id: req.id, status: 'ACCEPTED' });
+    if (r2.status !== 200 || !Array.isArray(r2.data)) {
+      throw new Error(`received ${r2.status}`);
+    }
+    const req = r2.data.find((q) => q.userId === sa.userId) || r2.data[r2.data.length - 1];
+    if (!req || req.requestId == null) throw new Error('받은 신청 목록에서 방금 보낸 신청을 못 찾음');
+    const r3 = await sb.json('POST', '/api/friends/respond', { id: req.requestId, status: 'ACCEPTED' });
+    if (r3.status < 200 || r3.status >= 300) {
+      throw new Error(`friend respond ${r3.status}: ${JSON.stringify(r3.data).slice(0, 150)}`);
     }
   }, Math.min(CONCURRENCY, 5), 'friendships');
   return pairs;
@@ -402,15 +527,18 @@ async function createChat(users, sessions, pairs) {
   const roomPairs = pairs.slice(0, Math.floor(pairs.length * P.chatRoomRatio));
   const rooms = [];
   await pooled(roomPairs, async ([a, b]) => {
-    const sa = sessions[a];
-    if (!sa) return;
-    // friendId = 상대 userId — 친구 목록에서 조회
-    const fl = await sa.json('GET', '/api/friends/list');
-    if (!Array.isArray(fl.data)) return;
-    const friend = fl.data.find((f) => (f.nickname ?? '') === users[b].nickname);
-    if (!friend) return;
-    const r = await sa.json('POST', '/api/chat/rooms', { friendId: friend.id ?? friend.userId });
-    if (r.status === 200 && r.data) rooms.push({ roomId: r.data.roomId ?? r.data.id, a, b });
+    const sa = sessions[a], sb = sessions[b];
+    if (!sa || !sb) return SKIP;
+    // 상대 userId 는 세션이 이미 들고 있다. 예전에는 쌍마다 /friends/list 를 조회해
+    // 닉네임으로 찾았는데, large 기준 9천 건의 목록 조회가 더해지고 닉네임이 바뀌면
+    // 조용히 못 찾는 구조였다.
+    const r = await sa.json('POST', '/api/chat/rooms', { friendId: sb.userId });
+    if (r.status < 200 || r.status >= 300) {
+      throw new Error(`chat room ${r.status}: ${JSON.stringify(r.data).slice(0, 150)}`);
+    }
+    const roomId = r.data && (r.data.roomId ?? r.data.id);
+    if (roomId == null) throw new Error(`chat room 2xx 이지만 roomId 를 못 받음`);
+    rooms.push({ roomId, a, b });
   }, Math.min(CONCURRENCY, 5), 'chat-rooms');
 
   // 방마다 히스토리 메시지 (REST가 아닌 WS 전용이므로 여기서는 read 상태만 갱신)
