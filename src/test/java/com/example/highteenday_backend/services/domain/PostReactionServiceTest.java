@@ -101,8 +101,8 @@ class PostReactionServiceTest {
 
             postReactionService.likeReact(post, user);
 
-            assertThat(row.getKind()).isEqualTo(PostReactionKind.LIKE);
-            assertThat(row.getIsValid()).isTrue();
+            // 상태 전환은 이제 엔티티를 고쳐서가 아니라 upsert 한 문장으로 처리된다.
+            verify(postReactionRepository).upsertKind(1L, POST_ID, "LIKE");
             assertThat(post.getLikeCount()).isEqualTo(5);
 
             ArgumentCaptor<PostReactedEvent> captor = ArgumentCaptor.forClass(PostReactedEvent.class);
@@ -123,9 +123,7 @@ class PostReactionServiceTest {
 
             postReactionService.likeReact(post, user);
 
-            ArgumentCaptor<PostReaction> saveCaptor = ArgumentCaptor.forClass(PostReaction.class);
-            verify(postReactionRepository).save(saveCaptor.capture());
-            assertThat(saveCaptor.getValue().getKind()).isEqualTo(PostReactionKind.LIKE);
+            verify(postReactionRepository).upsertKind(1L, POST_ID, "LIKE");
             assertThat(post.getLikeCount()).isEqualTo(1);
 
             ArgumentCaptor<PostReactedEvent> eventCaptor = ArgumentCaptor.forClass(PostReactedEvent.class);
@@ -147,8 +145,7 @@ class PostReactionServiceTest {
 
             postReactionService.likeReact(post, user);
 
-            assertThat(softCanceled.getKind()).isEqualTo(PostReactionKind.LIKE);
-            assertThat(softCanceled.getIsValid()).isTrue();
+            verify(postReactionRepository).upsertKind(1L, POST_ID, "LIKE");
             verify(eventPublisher).publishEvent(any(PostReactedEvent.class));
         }
     }
@@ -191,8 +188,7 @@ class PostReactionServiceTest {
 
             postReactionService.dislikeReact(post, user);
 
-            assertThat(row.getKind()).isEqualTo(PostReactionKind.DISLIKE);
-            assertThat(row.getIsValid()).isTrue();
+            verify(postReactionRepository).upsertKind(1L, POST_ID, "DISLIKE");
             verify(eventPublisher).publishEvent(any(PostReactedEvent.class));
         }
 
@@ -209,9 +205,7 @@ class PostReactionServiceTest {
 
             postReactionService.dislikeReact(post, user);
 
-            ArgumentCaptor<PostReaction> captor = ArgumentCaptor.forClass(PostReaction.class);
-            verify(postReactionRepository).save(captor.capture());
-            assertThat(captor.getValue().getKind()).isEqualTo(PostReactionKind.DISLIKE);
+            verify(postReactionRepository).upsertKind(1L, POST_ID, "DISLIKE");
             verify(eventPublisher).publishEvent(any(PostReactedEvent.class));
         }
     }

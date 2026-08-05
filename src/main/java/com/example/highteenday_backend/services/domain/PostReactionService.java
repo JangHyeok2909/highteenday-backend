@@ -1,7 +1,6 @@
 package com.example.highteenday_backend.services.domain;
 
 import com.example.highteenday_backend.domain.posts.Post;
-import com.example.highteenday_backend.domain.posts.PostReaction;
 import com.example.highteenday_backend.domain.posts.PostReactionKind;
 import com.example.highteenday_backend.domain.posts.PostReactionRepository;
 import com.example.highteenday_backend.domain.users.User;
@@ -12,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
 
 @RequiredArgsConstructor
 @Service
@@ -73,23 +71,12 @@ public class PostReactionService {
     }
 
     private void createReaction(Post post, User user, PostReactionKind kind) {
-        Optional<PostReaction> opt = postReactionRepository.findByPostAndUser(post, user);
-        if (opt.isEmpty()) { //존재하지 않으면 insert
-            postReactionRepository.save(PostReaction.builder()
-                    .post(post)
-                    .user(user)
-                    .kind(kind)
-                    .build());
-
-            syncCounts(post);
-            eventPublisher.publishEvent(new PostReactedEvent(post.getId()));
-            return;
-        }
-        PostReaction r = opt.get();
-        r.applyState(kind);
+        // 조회 후 없으면 insert 하던 구조를 upsert 한 문장으로 바꿨다. 그 사이에 다른 요청이
+        // 같은 (게시글, 사용자) 행을 만들면 UNIQUE 제약에 걸려 409 로 나갔는데, 반응은 토글이라
+        // 사용자 입장에서는 실패할 이유가 없는 요청이었다.
+        postReactionRepository.upsertKind(user.getId(), post.getId(), kind.name());
         syncCounts(post);
         eventPublisher.publishEvent(new PostReactedEvent(post.getId()));
-
     }
 
     private void syncCounts(Post post) {

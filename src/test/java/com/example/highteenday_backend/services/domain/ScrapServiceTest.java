@@ -59,15 +59,15 @@ class ScrapServiceTest {
     class ToggleScrap {
 
         @Test
-        @DisplayName("첫 스크랩 → 저장 + ScrapToggledEvent(newScrap=true) 발행")
-        void firstScrapSavesAndPublishesNewScrapEvent() {
+        @DisplayName("첫 스크랩 → upsert가 INSERT(1행) + ScrapToggledEvent(newScrap=true) 발행")
+        void firstScrapInsertsAndPublishesNewScrapEvent() {
             when(scrapRepository.findByPostAndUser(post, user)).thenReturn(Optional.empty());
-            when(scrapRepository.saveAndFlush(any(Scrap.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(scrapRepository.upsertActive(2L, 10L)).thenReturn(1); // MySQL: 1 = INSERT
 
             String message = scrapService.toggleScrap(10L, user);
 
             assertThat(message).isEqualTo("스크랩 완료.");
-            verify(scrapRepository).saveAndFlush(any(Scrap.class));
+            verify(scrapRepository).upsertActive(2L, 10L);
 
             ArgumentCaptor<ScrapToggledEvent> eventCaptor = ArgumentCaptor.forClass(ScrapToggledEvent.class);
             verify(eventPublisher).publishEvent(eventCaptor.capture());
@@ -78,63 +78,44 @@ class ScrapServiceTest {
         }
 
         @Test
-        @DisplayName("취소된 스크랩 재활성화 → activeScrap + ScrapToggledEvent(newScrap=false)")
+        @DisplayName("취소된 스크랩 재활성화 → upsert가 UPDATE(2행) + ScrapToggledEvent(newScrap=false)")
         void reactivatesExistingScrap() {
             Scrap existing = Scrap.builder().post(post).user(user).build();
             existing.cancelScrap();
             when(scrapRepository.findByPostAndUser(post, user)).thenReturn(Optional.of(existing));
+            when(scrapRepository.upsertActive(2L, 10L)).thenReturn(2); // MySQL: 2 = 기존 행 갱신
 
             String message = scrapService.toggleScrap(10L, user);
 
             assertThat(message).isEqualTo("스크랩 완료.");
-            assertThat(existing.getIsValid()).isTrue();
-            verify(scrapRepository, never()).saveAndFlush(any());
 
             ArgumentCaptor<ScrapToggledEvent> eventCaptor = ArgumentCaptor.forClass(ScrapToggledEvent.class);
             verify(eventPublisher).publishEvent(eventCaptor.capture());
             assertThat(eventCaptor.getValue().isNewScrap()).isFalse();
         }
 
-        // BTL-012 회귀 테스트. 유니크 제약이 없던 시절에는 동시 토글이 중복 행을 만들었고,
-        // 그 뒤로 해당 게시글은 isScraped()의 NonUniqueResultException 때문에 상세 조회가
-        // 영구히 막혔다. 이제 DB가 INSERT를 거부하므로 먼저 저장된 행을 살려 쓴다.
+        // BTL-012 회귀 테스트.
+        //
+        // 조회 시점에는 행이 없었는데 upsert 가 갱신(2행)을 보고하는 상황 = 그 사이에 다른
+        // 요청이 같은 행을 만들었다는 뜻이다. 예전에는 이 경로에서 INSERT 가 UNIQUE 제약에
+        // 걸렸고, 그 예외를 잡아 같은 트랜잭션에서 복구하려 했지만 JPA 에서는 성립하지 않는다
+        // (flush 실패 후 영속성 컨텍스트는 못 쓴다). upsert 는 충돌 자체를 만들지 않는다.
+        //
+        // 이벤트는 먼저 성공한 요청이 이미 발행했으므로 여기서는 newScrap=false 여야 한다.
         @Test
-        @DisplayName("동시 토글로 UNIQUE 제약에 걸리면 먼저 저장된 행을 활성화한다")
-        void recoversFromConcurrentInsert() {
-            Scrap winner = Scrap.builder().post(post).user(user).build();
-            winner.cancelScrap();
-
-            when(scrapRepository.findByPostAndUser(post, user))
-                    .thenReturn(Optional.empty())   // 최초 조회 — 아직 없다
-                    .thenReturn(Optional.of(winner)); // 충돌 후 재조회 — 경쟁 요청이 만들어 둔 행
-            when(scrapRepository.saveAndFlush(any(Scrap.class)))
-                    .thenThrow(new DataIntegrityViolationException("uk_scraps_usr_pst"));
+        @DisplayName("경쟁 요청이 먼저 만들었으면 upsert가 갱신으로 끝나고 newScrap=false")
+        void concurrentInsertResolvesAsUpdate() {
+            when(scrapRepository.findByPostAndUser(post, user)).thenReturn(Optional.empty());
+            when(scrapRepository.upsertActive(2L, 10L)).thenReturn(2);
 
             String message = scrapService.toggleScrap(10L, user);
 
             assertThat(message).isEqualTo("스크랩 완료.");
-            assertThat(winner.getIsValid()).isTrue();
-
-            // 카운트 동기화와 캐시 무효화는 충돌 여부와 무관하게 수행돼야 한다.
             verify(postPrevCache).evictPostPrev(10L);
 
-            // 먼저 성공한 요청이 이미 발행했으므로 newScrap=false 로 나가야 한다.
             ArgumentCaptor<ScrapToggledEvent> eventCaptor = ArgumentCaptor.forClass(ScrapToggledEvent.class);
             verify(eventPublisher).publishEvent(eventCaptor.capture());
             assertThat(eventCaptor.getValue().isNewScrap()).isFalse();
-        }
-
-        @Test
-        @DisplayName("UNIQUE 충돌 후 재조회도 비면 데이터 무결성 오류를 던진다")
-        void throwsWhenConflictRowVanishes() {
-            when(scrapRepository.findByPostAndUser(post, user)).thenReturn(Optional.empty());
-            when(scrapRepository.saveAndFlush(any(Scrap.class)))
-                    .thenThrow(new DataIntegrityViolationException("uk_scraps_usr_pst"));
-
-            assertThatThrownBy(() -> scrapService.toggleScrap(10L, user))
-                    .isInstanceOf(CustomException.class);
-
-            verify(eventPublisher, never()).publishEvent(any(ScrapToggledEvent.class));
         }
 
         @Test
