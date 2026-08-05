@@ -43,6 +43,19 @@ const PERF_ROOT = path.resolve(__dirname, '..');
  */
 const TREND_STATS = 'avg,min,med,max,p(90),p(95),p(99)';
 
+/**
+ * k6 실행 파일. 기본은 PATH 의 `k6` 이고, `K6_BIN` 으로 특정 경로를 지정할 수 있다.
+ *
+ * 필요한 이유: Windows 에서 Chocolatey 로 설치하면 PATH 에 잡히는 건 실제 바이너리가 아니라
+ * shim(.NET 어셈블리)이다. Application Control 정책이 이 shim 을 차단하면 k6 자체는 멀쩡한데
+ * `spawnSync('k6')` 만 UNKNOWN 으로 실패한다 — 실제로 겪었고, 원인이 코드에 없어서 찾는 데
+ * 시간이 걸렸다. 그때 실제 바이너리를 직접 가리킬 수단이 있어야 한다.
+ *
+ *   K6_BIN="C:/ProgramData/chocolatey/lib/k6/tools/k6-v2.1.0-windows-amd64/k6.exe" \
+ *     node tools/perf-run.js scenarios/normal-day.js
+ */
+const K6_BIN = process.env.K6_BIN || 'k6';
+
 function sh(cmd, args) {
   const r = spawnSync(cmd, args, { encoding: 'utf8', cwd: PERF_ROOT });
   return r.status === 0 ? (r.stdout || '').trim() : null;
@@ -141,11 +154,12 @@ function main() {
   console.log(`  브랜치 ${git.branch} · 커밋 ${git.commit.slice(0, 12)} · 실행자 ${git.executor}`);
   console.log(`  환경 ${o.env}${o.note ? ` · "${o.note}"` : ''}\n`);
 
-  const k6 = spawnSync('k6', args, { stdio: 'inherit', env, cwd: PERF_ROOT });
+  const k6 = spawnSync(K6_BIN, args, { stdio: 'inherit', env, cwd: PERF_ROOT });
 
   if (k6.error) {
-    console.error(`k6 실행 실패: ${k6.error.message}`);
-    console.error('k6가 PATH에 있는지 확인하세요.');
+    console.error(`k6 실행 실패: ${k6.error.message} (실행 파일: ${K6_BIN})`);
+    console.error('k6가 PATH에 있는지 확인하세요. PATH의 k6가 실행 차단된 경우(Windows의');
+    console.error('Chocolatey shim 등) K6_BIN 으로 실제 바이너리 경로를 지정할 수 있습니다.');
     process.exit(2);
   }
 
