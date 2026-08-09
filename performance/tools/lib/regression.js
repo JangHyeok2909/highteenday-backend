@@ -26,14 +26,72 @@ const fs = require('fs');
 
 const RULES_FILE = path.join(__dirname, '..', '..', 'regression', 'rules.json');
 
-/** 'k6.overall.p95' 같은 점 경로로 중첩 객체에서 값을 꺼낸다. */
+/**
+ * 'k6.overall.p95' 같은 점 경로로 값을 꺼낸다.
+ *
+ * 주의: infra.flat 은 **키 자체에 점이 들어간 평면 맵**이다('saturation.cpuPct').
+ * 순수 중첩 탐색만 하면 infra.flat.* 규칙 전체가 undefined → SKIP 으로 빠진다
+ * (실제로 그렇게 25개 규칙이 한 번도 평가되지 않은 채 지나갔다).
+ * 그래서 각 단계에서 "남은 경로 전체"가 키로 존재하면 그쪽을 우선한다.
+ */
 function pick(obj, dotted) {
-  return dotted.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+  const parts = dotted.split('.');
+  let cur = obj;
+  for (let i = 0; i < parts.length; i++) {
+    if (cur == null || typeof cur !== 'object') return undefined;
+    const rest = parts.slice(i).join('.');
+    if (Object.prototype.hasOwnProperty.call(cur, rest)) return cur[rest];
+    cur = cur[parts[i]];
+  }
+  return cur == null ? undefined : cur;
+}
+
+const DIRECTIONS = new Set(['lower_is_better', 'higher_is_better']);
+
+/**
+ * 규칙 파일 검증 — 잘못된 규칙을 조용히 건너뛰면 그 규칙은 영원히 평가되지 않는데,
+ * 그걸 알아챌 방법이 없다. 오타·역전된 임계값은 즉시 실행을 멈추는 게 맞다.
+ */
+function validateRules(rules) {
+  const problems = [];
+  const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+  rules.forEach((r, i) => {
+    const name = (r && r.key) || `rules[${i}]`;
+    if (!r || typeof r.key !== 'string' || !r.key) {
+      problems.push(`${name}: key 가 없다`);
+      return;
+    }
+    if (r.direction != null && !DIRECTIONS.has(r.direction)) {
+      problems.push(`${name}: 알 수 없는 direction '${r.direction}'`);
+    }
+    const warnPct = r.warn && r.warn.changePct;
+    const failPct = r.fail && r.fail.changePct;
+    if (warnPct != null && !isNum(warnPct)) problems.push(`${name}: warn.changePct 가 숫자가 아니다`);
+    if (failPct != null && !isNum(failPct)) problems.push(`${name}: fail.changePct 가 숫자가 아니다`);
+    if (isNum(warnPct) && isNum(failPct) && failPct < warnPct) {
+      problems.push(`${name}: fail.changePct(${failPct}) < warn.changePct(${warnPct}) — 실패가 경고보다 먼저 걸린다`);
+    }
+    for (const k of ['noiseFloor', 'minBaseline']) {
+      if (r[k] != null && !isNum(r[k])) problems.push(`${name}: ${k} 가 숫자가 아니다`);
+    }
+    for (const level of ['warn', 'fail']) {
+      const cond = r.absolute && r.absolute[level];
+      if (!cond) continue;
+      for (const op of ['gt', 'lt']) {
+        if (cond[op] != null && !isNum(cond[op])) problems.push(`${name}: absolute.${level}.${op} 가 숫자가 아니다`);
+      }
+    }
+  });
+  if (problems.length) {
+    throw new Error(`rules.json 검증 실패:\n  ${problems.join('\n  ')}`);
+  }
 }
 
 function loadRules(file = RULES_FILE) {
   const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
-  return raw.rules.filter((r) => r && r.key);
+  const rules = raw.rules || [];
+  validateRules(rules);
+  return rules;
 }
 
 /**
@@ -203,7 +261,11 @@ function analyze(record, prevRun, rulesFile) {
       fail: failures.length,
       warn: warnings.length,
       gateFail: gateFailures.length,
+      // skipped(평가 불가: 값 미수집)와 suppressed(판정 생략: 노이즈 하한/기준값 과소)는
+      // 전혀 다른 상태다 — 전자는 관측 공백이고 후자는 정상적인 억제다. 합쳐 세면
+      // "지표가 안 들어오고 있다"는 신호가 노이즈 억제 뒤에 숨는다.
       skipped: comparisons.filter((c) => c.verdict === 'SKIP').length,
+      suppressed: comparisons.filter((c) => c.verdict !== 'SKIP' && c.skipped != null).length,
     },
     comparisons,
     failures: failures.map((c) => c.key),
@@ -296,4 +358,4 @@ function bottleneckHints(record) {
   return hints.sort((a, b) => b.score - a.score);
 }
 
-module.exports = { analyze, evaluateRule, loadRules, bottleneckHints, pick, RULES_FILE };
+module.exports = { analyze, evaluateRule, loadRules, validateRules, bottleneckHints, pick, RULES_FILE };
