@@ -35,13 +35,8 @@ node tools/collect.js <runId> --force --no-wait
 
 | 도구 | 용도 | 사용법 |
 |------|------|--------|
-| `compare.js` | *(구버전)* baseline 파일 대비 회귀 판정 | `node tools/compare.js <summary.json>` |
 | `chaos-redis-flap.sh` | Redis 순단 반복 주입 | `tools/chaos-redis-flap.sh 3 10 60` (3회, 10초 정지, 60초 간격) |
 | `chaos-cpu-squeeze.sh` | 앱 CPU 제한 주입 | `tools/chaos-cpu-squeeze.sh 1 300 2` |
-
-> `compare.js`는 k6 지표만 보고 `regression/baseline.json` 하나를 기준으로 삼는 구버전이다.
-> 과거 `reports/raw/` 파일과 함께 계속 동작하지만, 신규 작업은 `perf-run.js`를 쓴다 —
-> 운영 지표 연동, 이력 기반 자동 기준선, 추세 분석이 그쪽에만 있다.
 
 네트워크 지연 주입(tc netem)은 Linux 호스트 전용:
 ```bash
