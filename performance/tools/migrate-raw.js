@@ -53,9 +53,15 @@ function trendStats(v) {
 function breakdown(metrics) {
   const out = {};
   for (const [key, m] of Object.entries(metrics)) {
-    const mm = /^([a-z_]+)\{([^:]+):(.+)\}$/.exec(key);
+    const mm = /^([a-z_]+)\{(.+)\}$/.exec(key);
     if (!mm || mm[1] !== 'http_req_duration') continue;
-    const [, , tagKey, tagVal] = mm;
+    // 다중 태그 서브메트릭은 단일 축 분해 대상이 아니다 (scripts/lib/summary.js 와 동일 규칙).
+    const tags = mm[2].split(',');
+    if (tags.length !== 1) continue;
+    const sep = tags[0].indexOf(':');
+    if (sep < 0) continue;
+    const tagKey = tags[0].slice(0, sep);
+    const tagVal = tags[0].slice(sep + 1);
     out[tagKey] = out[tagKey] || {};
     out[tagKey][tagVal] = { ...trendStats(m.values), count: m.values && m.values.count != null ? m.values.count : null };
   }
@@ -125,7 +131,8 @@ function convert(data, info) {
         rps: val('http_reqs', 'rate') || 0,
         tps: val('iterations', 'rate') || (durationSec ? iterations / durationSec : 0),
         errorRate: val('http_req_failed', 'rate') || 0,
-        failedRequests: val('http_req_failed', 'fails') || 0,
+        // Rate 메트릭의 passes = 조건(실패)이 참인 표본 = 실패 요청 수 (summary.js 참고)
+        failedRequests: val('http_req_failed', 'passes') || 0,
         httpReqs: val('http_reqs', 'count') || 0,
         iterations,
         checkRate: val('checks', 'rate') || 0,
@@ -203,3 +210,5 @@ function main() {
 }
 
 if (require.main === module) main();
+
+module.exports = { parseName, convert, breakdown, trendStats };
