@@ -36,6 +36,17 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 const PERF_ROOT = path.resolve(__dirname, '..');
+const RUNS_DIR = path.join(PERF_ROOT, 'reports', 'runs');
+
+/** 스테이징(아직 수집 안 된) 결과 파일들의 runId 집합 */
+function stagedRunIds() {
+  if (!fs.existsSync(RUNS_DIR)) return new Set();
+  return new Set(
+    fs.readdirSync(RUNS_DIR)
+      .filter((f) => f.endsWith('.k6.json'))
+      .map((f) => f.slice(0, -'.k6.json'.length)),
+  );
+}
 
 /**
  * k6 기본 요약은 p(99)를 계산하지 않는다. 이 플래그가 없으면 P99 칸이 영원히 비고,
@@ -116,6 +127,10 @@ function parseArgs(argv) {
     else if (!o.script && !a.startsWith('-')) o.script = a;
     else o.k6Extra.push(a);
   }
+  if (!Number.isFinite(o.warmup) || !Number.isFinite(o.wait)) {
+    console.error('--warmup / --wait 값이 숫자가 아닙니다.');
+    process.exit(2);
+  }
   return o;
 }
 
@@ -154,6 +169,11 @@ function main() {
   console.log(`  브랜치 ${git.branch} · 커밋 ${git.commit.slice(0, 12)} · 실행자 ${git.executor}`);
   console.log(`  환경 ${o.env}${o.note ? ` · "${o.note}"` : ''}\n`);
 
+  // 이번 실행이 남긴 결과 파일을 식별하기 위해 실행 전 스테이징 상태를 찍어 둔다.
+  // 수집기에 runId 를 넘기지 않으면 "가장 최근 pending"을 고르는데, 다른 시나리오의
+  // 수집 실패 잔여물이 남아 있으면 엉뚱한 실행을 수집하게 된다.
+  const stagedBefore = stagedRunIds();
+
   const k6 = spawnSync(K6_BIN, args, { stdio: 'inherit', env, cwd: PERF_ROOT });
 
   if (k6.error) {
@@ -168,16 +188,37 @@ function main() {
   const k6Failed = k6.status !== 0;
   if (k6Failed) console.warn(`\n⚠ k6 종료 코드 ${k6.status} (threshold 미달 가능) — 수집은 계속합니다.\n`);
 
-  if (!o.collect) process.exit(k6.status || 0);
+  // k6 가 handleSummary 전에 죽으면(패닉/OOM/시그널) 결과 파일이 없다.
+  // 그 상태로 수집기를 돌리면 무관한 과거 실행을 이번 결과처럼 보고하게 된다.
+  const newIds = [...stagedRunIds()].filter((id) => !stagedBefore.has(id));
+  if (newIds.length === 0) {
+    console.error('k6가 결과 파일(reports/runs/<runId>.k6.json)을 남기지 않았습니다 — 수집을 건너뜁니다.');
+    process.exit(k6.status == null ? 1 : k6.status || 1);
+  }
+  const runId = newIds.length === 1
+    ? newIds[0]
+    : newIds
+        .sort((a, b) =>
+          fs.statSync(path.join(RUNS_DIR, `${a}.k6.json`)).mtimeMs -
+          fs.statSync(path.join(RUNS_DIR, `${b}.k6.json`)).mtimeMs)
+        .pop();
 
-  const collectArgs = [path.join(__dirname, 'collect.js'), '--wait', String(o.wait)];
+  if (!o.collect) process.exit(k6.status == null ? 1 : k6.status);
+
+  const collectArgs = [path.join(__dirname, 'collect.js'), runId, '--wait', String(o.wait)];
   if (o.warmup) collectArgs.push('--warmup', String(o.warmup));
   if (!o.gate) collectArgs.push('--no-gate');
 
   const col = spawnSync(process.execPath, collectArgs, { stdio: 'inherit', cwd: PERF_ROOT });
 
+  if (col.error) {
+    console.error(`수집기 실행 실패: ${col.error.message}`);
+    process.exit(2);
+  }
   // 최종 종료 코드: k6 threshold 실패와 회귀 게이트 실패 둘 다 실패로 본다.
-  process.exit(col.status !== 0 ? col.status : k6Failed ? 1 : 0);
+  // col.status 가 null(시그널 종료)인 경우도 성공(0)으로 새면 안 된다.
+  const colStatus = col.status == null ? 2 : col.status;
+  process.exit(colStatus !== 0 ? colStatus : k6Failed ? 1 : 0);
 }
 
 if (require.main === module) main();

@@ -50,6 +50,11 @@ function parseArgs(argv) {
     else if (a.startsWith('--')) { /* 알 수 없는 플래그는 무시 */ }
     else out.positional.push(a);
   }
+  // NaN 은 "값이 이상하다"가 아니라 조용히 대기 0초/워밍업 0초가 되어 버린다. 즉시 멈춘다.
+  if (!Number.isFinite(out.wait) || !Number.isFinite(out.warmup)) {
+    console.error('--wait / --warmup 값이 숫자가 아닙니다.');
+    process.exit(2);
+  }
   return out;
 }
 
@@ -226,15 +231,33 @@ async function processRun(runId, opts) {
   });
 
   // ---- 저장 -------------------------------------------------------------
-  // 스테이징 승격을 먼저 한다: 디렉터리를 만들고 원본을 옮겨야 리포트를 그 안에 쓸 수 있다.
-  repo.promoteStaged(runId);
   repo.saveRun(record);
 
   const trend = repo.recentRuns(record.run.scenario, 20, record.run.environment);
   const html = renderReport(record, { previous: prevRun, trend });
   fs.writeFileSync(repo.reportFile(runId), html);
 
+  // 스테이징 승격은 산출물이 전부 안착한 뒤 마지막에 — 위 어느 단계가 실패해도
+  // 스테이징 원본이 남아 있어야 재시도할 수 있다.
+  repo.promoteStaged(runId);
+
   return record;
+}
+
+/** 여러 실행 중 "가장 최근 것" — 파일 mtime 기준. id 문자열 정렬은 시나리오명이 지배해 틀린다. */
+function newestByMtime(ids) {
+  let best = null;
+  let bestT = -1;
+  for (const id of ids) {
+    for (const f of [repo.stagedK6File(id), repo.k6File(id)]) {
+      if (fs.existsSync(f)) {
+        const t = fs.statSync(f).mtimeMs;
+        if (t > bestT) { bestT = t; best = id; }
+        break;
+      }
+    }
+  }
+  return best;
 }
 
 async function main() {
@@ -247,7 +270,7 @@ async function main() {
     // 인자가 없으면 "가장 최근에 k6가 남긴, 아직 수집 안 된 실행"을 고른다.
     const ids = repo.listRunIds();
     const pending = repo.listPendingRunIds();
-    const pick = opts.force ? ids[ids.length - 1] : pending[pending.length - 1];
+    const pick = opts.force ? newestByMtime(ids) : newestByMtime(pending);
     if (!pick) {
       console.error('수집할 실행이 없습니다. (reports/runs/ 가 비었거나 이미 전부 처리됨 — --force 로 재처리)');
       process.exit(2);
@@ -267,6 +290,7 @@ async function main() {
   }
 
   let gateFailed = false;
+  let errored = 0;
   for (const runId of targets) {
     try {
       const rec = await processRun(runId, opts);
@@ -275,10 +299,15 @@ async function main() {
       if (rec.regression.gateFailed) gateFailed = true;
     } catch (e) {
       console.error(`✗ ${runId} 실패: ${e.message}`);
-      if (targets.length === 1) process.exit(2);
+      errored++;
     }
   }
 
+  // 수집 실패는 대상이 1건이든 --all 이든 실패다 — 전부 실패하고 exit 0 이면 CI가 속는다.
+  if (errored > 0) {
+    console.error(`수집 실패 ${errored}건 / ${targets.length}건`);
+    process.exit(2);
+  }
   if (gateFailed && opts.gate) {
     console.error('게이트 회귀 감지 — 실패로 종료합니다.');
     process.exit(1);
