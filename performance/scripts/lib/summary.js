@@ -20,9 +20,6 @@
  *   k6는 존재하지 않는 디렉터리를 만들지 못한다. handleSummary 안에서 runId가 정해지므로
  *   <runId>/ 디렉터리를 미리 만들어 둘 수도 없다. 그래서 1단계는 평면 파일로 떨어뜨리고,
  *   디렉터리 구조는 전적으로 수집기(2단계)가 소유한다.
- *
- * 하위 호환: reports/raw/<name>-<ts>.summary.json 도 계속 남긴다.
- *            기존 tools/compare.js 와 과거 165개 리포트가 이 경로를 쓴다.
  */
 import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
 
@@ -90,10 +87,17 @@ function trendStats(v) {
 function breakdown(metrics) {
   const out = {};
   for (const [key, m] of Object.entries(metrics)) {
-    const match = /^([a-z_]+)\{([^:]+):(.+)\}$/.exec(key);
-    if (!match) continue;
-    const [, base, tagKey, tagVal] = match;
-    if (base !== 'http_req_duration') continue;
+    const match = /^([a-z_]+)\{(.+)\}$/.exec(key);
+    if (!match || match[1] !== 'http_req_duration') continue;
+
+    // 태그가 2개 이상인 서브메트릭({phase:...,op:...})은 단일 축 분해가 아니므로 제외한다.
+    // 통짜 정규식으로 자르면 첫 콜론까지를 태그 키로 오인해 엉뚱한 축이 생긴다.
+    const tags = match[2].split(',');
+    if (tags.length !== 1) continue;
+    const sep = tags[0].indexOf(':');
+    if (sep < 0) continue;
+    const tagKey = tags[0].slice(0, sep);
+    const tagVal = tags[0].slice(sep + 1);
 
     out[tagKey] = out[tagKey] || {};
     out[tagKey][tagVal] = {
@@ -151,7 +155,9 @@ export function makeHandleSummary(name) {
       rps: val('http_reqs', 'rate') || 0,
       tps: val('iterations', 'rate') || iterationsCount / durationSec,
       errorRate: val('http_req_failed', 'rate') || 0,
-      failedRequests: val('http_req_failed', 'fails') || 0,
+      // http_req_failed 는 Rate 메트릭이다: passes = 조건("요청이 실패했다")이 참인 표본
+      // = 실패한 요청 수다. fails 를 읽으면 성공 요청 수가 나온다 — 이름에 속기 쉽다.
+      failedRequests: val('http_req_failed', 'passes') || 0,
       httpReqs: val('http_reqs', 'count') || 0,
       iterations: iterationsCount,
       checkRate: val('checks', 'rate') || 0,
@@ -198,16 +204,14 @@ export function makeHandleSummary(name) {
     record.run.id = runId;
 
     const runsDir = __ENV.RUNS_DIR || 'reports/runs';
-    const rawDir = __ENV.REPORT_DIR || 'reports/raw';
     const text = textSummary(data, { indent: ' ', enableColors: true });
 
     return {
       stdout: text,
       // 2단계(collect.js) 입력 — 평면 파일. 수집기가 <runId>/ 로 정리한다.
+      // k6 원본 전체는 record.k6.rawMetrics 에 이미 들어 있으므로 별도 raw 사본은 남기지 않는다.
       [`${runsDir}/${runId}.k6.json`]: JSON.stringify(record, null, 2),
       [`${runsDir}/${runId}.summary.txt`]: textSummary(data, { indent: ' ', enableColors: false }),
-      // 하위 호환 — 기존 compare.js / 과거 리포트 경로
-      [`${rawDir}/${runId}.summary.json`]: JSON.stringify(data, null, 2),
     };
   };
 }

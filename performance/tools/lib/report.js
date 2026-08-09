@@ -474,7 +474,10 @@ function sectionRegression(record) {
       <td style="color:var(--ink-2);font-size:12px">${c.reasons.map((r) => esc(r.desc)).join('<br>') || (c.skipped ? esc(c.skipped) : '')}</td>
     </tr>`).join('');
 
-  const skipped = reg.comparisons.filter((c) => c.verdict === 'SKIP' || c.skipped);
+  const unmeasured = reg.counts.skipped || 0;
+  const suppressed = reg.counts.suppressed != null
+    ? reg.counts.suppressed
+    : reg.comparisons.filter((c) => c.verdict !== 'SKIP' && c.skipped).length;
 
   // 기준선과 스크립트가 다르면 수치 비교 자체가 성립하지 않는다. 표는 그대로 보여주되
   // 무엇을 믿으면 안 되는지 먼저 말해 준다 — 아래 증감률을 성능 변화로 읽으면 안 된다.
@@ -506,7 +509,7 @@ function sectionRegression(record) {
       </table>
       <div class="note">
         기준 실행: <b>${esc(reg.baselineRunId)}</b> (${fmt.localTime(reg.baselineStartedAt)})<br>
-        판정 ${reg.counts.fail}건 실패 / ${reg.counts.warn}건 경고 / ${reg.counts.skipped}건 생략${skipped.length ? ` — 생략은 변화폭이 노이즈 하한 미만이거나 기준값이 너무 작은 경우입니다.` : ''}<br>
+        판정 ${reg.counts.fail}건 실패 / ${reg.counts.warn}건 경고 / ${unmeasured}건 평가 불가 / ${suppressed}건 판정 생략${unmeasured ? ` — <b>평가 불가는 지표가 수집되지 않아 판정할 수 없었던 규칙</b>입니다(노이즈 억제와 다릅니다). 익스포터/Prometheus 상태를 확인하세요.` : ''}${suppressed ? ` 판정 생략은 변화폭이 노이즈 하한 미만이거나 기준값이 너무 작은 경우입니다.` : ''}<br>
         <b>GATE</b> 표시가 붙은 실패만 CI를 중단시킵니다. 규칙은 <code>regression/rules.json</code>에서 조정합니다.
       </div>
     </div></section>`;
