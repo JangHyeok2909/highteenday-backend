@@ -44,7 +44,10 @@ function readJson(file, fallback = null) {
 
 function writeJson(file, obj) {
   ensureDir(path.dirname(file));
-  fs.writeFileSync(file, JSON.stringify(obj, null, 2));
+  // temp + rename — 쓰다 죽어도 반쪽짜리 JSON 이 원본을 대체하지 않는다.
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2));
+  fs.renameSync(tmp, file);
 }
 
 const runDir = (runId) => path.join(RUNS_DIR, runId);
@@ -158,10 +161,21 @@ function toIndexEntry(record) {
   };
 }
 
-function loadIndex() {
-  const idx = readJson(INDEX_FILE, null);
+function loadIndex(file = INDEX_FILE) {
+  // 파일이 없는 것(첫 실행)과 파일이 깨진 것은 다르다. 깨진 인덱스를 빈 이력으로
+  // 대체하면 다음 saveRun 이 런 1개짜리 새 인덱스를 써서 이력이 조용히 사라지고,
+  // findPrevious 가 null 을 돌려줘 게이트까지 통과해 버린다. 손상은 소리 내고 멈춘다.
+  if (!fs.existsSync(file)) return { schemaVersion: 1, updatedAt: null, runs: [] };
+  let idx;
+  try {
+    idx = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) {
+    throw new Error(
+      `index.json 파싱 실패 (${e.message}) — 복구: node tools/history.js --rebuild`,
+    );
+  }
   if (idx && Array.isArray(idx.runs)) return idx;
-  return { schemaVersion: 1, updatedAt: null, runs: [] };
+  throw new Error('index.json 형식 오류 (runs 배열 없음) — 복구: node tools/history.js --rebuild');
 }
 
 function saveIndex(idx) {
