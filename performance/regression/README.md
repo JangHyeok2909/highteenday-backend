@@ -9,8 +9,6 @@
 regression/
 ├── rules.json           # 회귀 판정 규칙 ← 기준 변경은 여기만 고친다
 ├── perf-regression.yml  # GitHub Actions 워크플로 (→ .github/workflows/로 복사)
-├── thresholds.json      # (구버전) tools/compare.js 전용
-├── baseline.json        # (구버전) tools/compare.js 전용 — 없어도 무방
 └── README.md
 ```
 
