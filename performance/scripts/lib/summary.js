@@ -21,7 +21,51 @@
  *   <runId>/ 디렉터리를 미리 만들어 둘 수도 없다. 그래서 1단계는 평면 파일로 떨어뜨리고,
  *   디렉터리 구조는 전적으로 수집기(2단계)가 소유한다.
  */
+import exec from 'k6/execution';
 import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
+
+/**
+ * 부하 프로파일 지문 — "이 실행이 어떤 부하를 걸기로 했는가"의 선언 값.
+ *
+ * 왜 VUS 환경변수가 아니라 여기서 꺼내는가
+ *   VUS/HOLD 는 perf-run 이 넘긴 것만 담기므로, 시나리오 파일이 자체적으로 들고 있는
+ *   stages(대부분이 그렇다)는 통째로 보이지 않는다. exec.test.options.scenarios 는 k6 가
+ *   해석을 끝낸 최종 설정이라 executor·startVUs·stages·rate 를 전부 담고, ramping-vus 든
+ *   arrival-rate 든 같은 방식으로 읽힌다.
+ *
+ * 왜 요약의 vusMax 를 쓰면 안 되는가
+ *   그건 관측값이다. arrival-rate 는 서버가 느려지면 VU 를 더 할당하므로 vusMax 가
+ *   성능에 따라 움직인다. 비교 가능성의 키에 결과값이 섞이면 판정이 순환한다
+ *   (tools/lib/comparability.js 주석 참고).
+ *
+ * handleSummary 는 data.options 를 주지만 거기엔 summaryTrendStats/summaryTimeUnit/noColor
+ * 3개뿐이라 부하 설정이 없다 — exec.test.options 여야 한다.
+ */
+function loadProfile() {
+  const scenarios = (exec.test.options && exec.test.options.scenarios) || null;
+  if (!scenarios) return null;
+  const out = {};
+  for (const [name, cfg] of Object.entries(scenarios)) {
+    out[name] = dropNulls(cfg);
+  }
+  return out;
+}
+
+/**
+ * null 필드를 걷어낸다. k6 는 설정하지 않은 옵션을 null 로 채워 넣는데, 그대로 두면
+ * k6 버전이 올라가며 새 옵션이 하나 추가될 때마다 지문이 바뀌어 과거 계열이 통째로
+ * 끊긴다. 값이 실제로 지정된 것만 남긴다.
+ */
+function dropNulls(value) {
+  if (Array.isArray(value)) return value.map(dropNulls);
+  if (value === null || typeof value !== 'object') return value;
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (v === null || v === undefined) continue;
+    out[k] = dropNulls(v);
+  }
+  return out;
+}
 
 /** 실행 메타데이터는 전부 환경변수로 주입된다 (CI/로컬 공통 인터페이스). */
 function metadata(scenario, state) {
@@ -49,6 +93,8 @@ function metadata(scenario, state) {
     vusConfigured: Number(__ENV.VUS || 0) || null,
     rampUp: __ENV.RAMP_UP || null,
     hold: __ENV.HOLD || null,
+    // 비교 가능성의 키 — 기준선 선택이 이 값을 본다(tools/lib/comparability.js).
+    loadProfile: loadProfile(),
   };
 }
 
