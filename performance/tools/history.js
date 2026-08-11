@@ -22,6 +22,7 @@ const fs = require('fs');
 const path = require('path');
 const repo = require('./lib/repository');
 const fmt = require('./lib/format');
+const cmp = require('./lib/comparability');
 const { sparkline, CSS } = require('./lib/report');
 
 const esc = fmt.escapeHtml;
@@ -95,10 +96,25 @@ function renderHistory(runs, opts) {
   const scenarios = [...new Set(runs.map((r) => r.scenario))].sort();
   const latest = runs[runs.length - 1];
 
-  // ── 시나리오별 추세 카드 ──────────────────────────────────────
-  const trendSections = scenarios.map((sc) => {
-    const rows = runs.filter((r) => r.scenario === sc);
+  // ── 조건 계열별 추세 카드 ─────────────────────────────────────
+  // 시나리오 이름만으로 묶으면 small/15VU 실행과 large/200VU 실행이 한 선에 섞여,
+  // 데이터셋을 바꾼 지점이 성능 급락으로 보인다. 기준선 선택과 같은 결함이 여기에도
+  // 있었다 — 추세는 "같은 조건으로 잰 것"끼리만 이어야 의미가 있다.
+  const series = [];
+  for (const r of runs) {
+    const key = `${r.scenario}::${r.seriesHash || 'unknown'}`;
+    let s = series.find((x) => x.key === key);
+    if (!s) series.push((s = { key, scenario: r.scenario, hash: r.seriesHash, rows: [] }));
+    s.rows.push(r);
+  }
+  series.sort((a, b) => a.scenario.localeCompare(b.scenario) || b.rows.length - a.rows.length);
+
+  const trendSections = series.map(({ scenario: sc, hash, rows }) => {
     if (rows.length < 2) return '';
+    const cond = rows[rows.length - 1].conditions;
+    const seriesLabel = cond
+      ? `데이터셋 ${esc(String(cond.dataset || '—'))} · ${esc(cmp.formatLoadProfile(cond.loadProfile))}`
+      : '조건 미기록';
 
     const cards = TREND_METRICS.map((m) => {
       const raw = rows.map((r) => (r[m.key] == null ? null : r[m.key] * (m.scale || 1)));
@@ -127,6 +143,7 @@ function renderHistory(runs, opts) {
 
     return `<section>
       <h2>${esc(sc)} — 추세 (${rows.length}회)</h2>
+      <div class="sub" style="margin:-6px 0 12px">${seriesLabel}${hash ? ` · 계열 <code>${esc(hash)}</code>` : ''}</div>
       ${worsening.length ? `<div class="card" style="margin-bottom:14px">
         <b>누적 저하 감지</b>
         <div class="note" style="border-color:var(--serious)">
