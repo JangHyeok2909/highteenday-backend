@@ -41,7 +41,7 @@ flowchart TD
         CAT["Metric Catalog<br/>tools/lib/metrics-catalog.js"] -.->|쿼리 정의| COL
         COL --> REG["Regression Analyzer<br/>tools/lib/regression.js"]
         RULES["regression/rules.json"] -.->|판정 규칙| REG
-        HIST[("Performance Repository<br/>reports/runs/ + index.json")] -->|직전 실행| REG
+        HIST[("Performance Repository<br/>reports/runs/ + index.json")] -->|비교 가능한 기준선| REG
         REG --> RPT["Report Generator<br/>tools/lib/report.js"]
         RPT --> OUT["run.json + report.html"]
         OUT --> HIST
@@ -208,7 +208,7 @@ saturation.cpuPct · memoryPct · heapPct · hikariPct · tomcatPct · mysqlConn
 }
 ```
 
-### 오탐을 줄이는 네 가지 장치
+### 오탐을 줄이는 다섯 가지 장치
 
 부하 테스트 수치는 본질적으로 노이즈가 있다. JIT 워밍업, 페이지 캐시, 호스트의 다른
 프로세스, 컨테이너 스케줄링이 전부 영향을 준다. "직전보다 나빠졌다"를 그대로 회귀로 부르면
@@ -220,14 +220,52 @@ saturation.cpuPct · memoryPct · heapPct · hikariPct · tomcatPct · mysqlConn
 | **노이즈 플로어** | 절대 변화가 작으면 무시 | 2ms→3ms(+50%)가 매번 회귀로 잡힌다 |
 | **기준선 하한** | 기준값이 너무 작으면 비율 비교 생략 | 0에 가까운 분모로 무한대 변화율이 나온다 |
 | **절대 게이트** | 직전 대비 개선돼도 SLO 초과면 실패 | 매번 9%씩 나빠지며 영원히 통과하는 "삶은 개구리" |
+| **비교 가능성** | 두 수치가 애초에 같은 실험인지 확인 | large/200VU 실행이 small/15VU 실행과 비교된다 |
 
-### 기준선 선택
+앞의 넷은 전부 값의 **크기**를 보지만, 다섯 번째는 두 수치가 **애초에 비교 가능한가**를 본다.
 
-**같은 시나리오 + 같은 환경**의 직전 실행만 기준으로 삼는다.
-- 시나리오가 다르면 비교가 무의미하다 (normal-day vs spike는 항상 회귀로 보인다)
-- 환경이 다르면 절대값이 안 맞는다 (로컬 vs CI 러너)
-- threshold 미달 실행은 기준에서 제외한다 — 망가진 실행을 기준으로 삼으면 그 다음이
-  "개선"으로 보이는 착시가 생긴다
+### 기준선 선택 — "직전 실행"이 아니라 "비교 가능한 가장 최근 실행"
+
+시간축에서 바로 앞이라는 것과 대조군으로 유효하다는 것은 다른 조건이다. 후자를 판정하는
+책임은 `tools/lib/comparability.js`가 단독으로 갖는다.
+
+**실행 조건(conditions)** — 이게 같아야 비교가 성립한다:
+
+| 조건 | 등급 | 불일치 시 |
+|---|---|---|
+| 시나리오 | blocking | 기준선 자격 박탈 |
+| 환경 | blocking | 기준선 자격 박탈 |
+| 데이터셋 | blocking | 기준선 자격 박탈 |
+| 부하 프로파일 | blocking | 기준선 자격 박탈 |
+| 부하 스크립트 지문 | degrading | 비교하되 경고 + FAIL→WARN 강등 |
+
+- **blocking** — 수치가 *무의미*해진다. 데이터셋이 다른 두 실행의 P95를 나란히 놓는 건
+  "믿을 수 없는 비교"가 아니라 애초에 비교가 아니다. 상대 비교를 생략하고 절대 게이트만 남긴다.
+- **degrading** — 수치가 *의심스럽다*. 스크립트 지문 변화는 대개 주석 한 줄이므로 이력을
+  끊지 않는다. 비교는 하되 게이트를 열고 리포트에 사유를 띄운다.
+
+조건 값은 전부 **선언된 의도**여야 하고 측정 결과가 섞이면 안 된다. k6 요약의 `vusMax`는
+관측값이라 arrival-rate 시나리오에서 서버가 느려질수록 올라간다 — 조건으로 쓰면 회귀가
+심할수록 기준선이 탈락해 게이트가 열리는 역전이 생긴다. 그래서 부하는
+`exec.test.options.scenarios`(k6가 해석을 끝낸 선언 값)로 식별한다.
+
+threshold 미달 실행도 기준에서 제외한다 — 망가진 실행을 기준으로 삼으면 그 다음이
+"개선"으로 보이는 착시가 생긴다.
+
+**비교하지 않았다면 그 사실을 말한다.** 조건이 엄격해질수록 기준선 없는 실행이 흔해지는데,
+그게 조용한 PASS로 새면 고치기 전보다 나쁘다. `baselineStatus`가 항상 함께 기록된다:
+
+| 값 | 뜻 |
+|---|---|
+| `compared` | 유효한 대조군과 비교했다 |
+| `incomparable` | 이전 실행은 있으나 조건이 달라 상대 비교를 생략했다 (탈락 사유를 리포트에 표시) |
+| `first-run` | 이 조건의 첫 실행이다 |
+
+`incomparable`/`first-run` 에서도 **절대 게이트(SLO)는 계속 돈다.** 상대 비교가 꺼져도
+SLO 강제라는 바닥이 남는 것이 이 설계가 안전한 이유다.
+
+추세 그래프도 같은 계열 해시로 분리한다 — 시나리오 이름만으로 묶으면 데이터셋을 바꾼
+지점이 성능 급락으로 보인다.
 
 ### PASS / WARN / FAIL
 

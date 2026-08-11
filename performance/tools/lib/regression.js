@@ -23,6 +23,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const cmp = require('./comparability');
 
 const RULES_FILE = path.join(__dirname, '..', '..', 'regression', 'rules.json');
 
@@ -202,28 +203,33 @@ function signed(n) {
  *                              (infra.flat 값이 필요하므로)
  */
 /**
- * 기준선이 "같은 스크립트로 잰 것"인지 판정한다.
+ * 오탐을 줄이는 다섯 번째 장치 — 비교 가능성.
  *
- * 오탐을 줄이는 다섯 번째 장치다. 앞의 넷(방향성·노이즈 플로어·기준선 하한·절대 게이트)은
- * 전부 값의 크기를 보지만, 이건 **두 수치가 애초에 비교 가능한가**를 본다.
- * 스크립트에서 요청을 하나 추가하기만 해도 여정당 요청 수가 달라져 TPS·RPS가 바뀌는데,
- * 그건 성능이 나빠진 게 아니라 다른 것을 잰 것이다.
+ * 앞의 넷(방향성·노이즈 플로어·기준선 하한·절대 게이트)은 전부 값의 **크기**를 보지만,
+ * 이건 두 수치가 **애초에 비교 가능한가**를 본다. 데이터셋이나 부하가 다르면 그건 성능이
+ * 나빠진 게 아니라 다른 것을 잰 것이다. 판정 기준은 comparability.js 가 선언적으로 갖는다.
  *
- * scriptVersion 은 스크립트 파일 내용의 SHA-256 앞 12자다(perf-run.js 가 주입).
- * 'unknown' 은 이관된 과거 실행이라 지문이 없다는 뜻이므로, 한쪽이라도 unknown 이면
- * 판정하지 않는다 — 전부 불일치로 잡히면 이 장치 자체가 무의미해진다.
+ * 기준선은 repository.findBaseline 이 이미 걸러 주지만 여기서 한 번 더 확인한다.
+ * analyze 는 재분석·테스트에서 직접 호출되기도 하므로, 무엇을 넘겨받든 스스로 방어해야
+ * 비교 불가능한 수치가 판정에 새어 들어가지 않는다.
+ *
+ * @param {object} record   현재 run 레코드 (infra 보강 완료 상태)
+ * @param {object|null} prevRun 기준선 후보 — 인덱스 엔트리가 아니라 전체 run 레코드여야 한다
+ *                              (infra.flat 값이 필요하므로)
+ * @param {object} opts     { rulesFile, rejected } — rejected 는 기준선 탐색에서 탈락한 후보들
  */
-function baselineScriptChanged(record, prevRun) {
-  const cur = record.run && record.run.scriptVersion;
-  const base = prevRun && prevRun.run && prevRun.run.scriptVersion;
-  if (!cur || !base || cur === 'unknown' || base === 'unknown') return false;
-  return cur !== base;
-}
+function analyze(record, prevRun, opts = {}) {
+  const { rulesFile, rejected = [] } = opts;
+  const conditions = cmp.conditionsOf(record);
+  const comparability = prevRun ? cmp.compare(conditions, cmp.conditionsOf(prevRun)) : null;
 
-function analyze(record, prevRun, rulesFile) {
+  // 차단 등급 불일치가 있으면 기준선을 아예 쓰지 않는다. 이 경우 아래 evaluateRule 은
+  // baseline=null 로 돌아 절대 게이트만 평가한다 — 상대 비교가 꺼져도 SLO 강제는 남는다.
+  const baseline = comparability && comparability.comparable ? prevRun : null;
+
   const rules = loadRules(rulesFile);
   const comparisons = rules.map((rule) =>
-    evaluateRule(rule, pick(record, rule.key), prevRun ? pick(prevRun, rule.key) : null),
+    evaluateRule(rule, pick(record, rule.key), baseline ? pick(baseline, rule.key) : null),
   );
 
   const failures = comparisons.filter((c) => c.verdict === 'FAIL');
@@ -235,35 +241,44 @@ function analyze(record, prevRun, rulesFile) {
   if (gateFailures.length) verdict = 'FAIL';
   else if (failures.length || warnings.length) verdict = 'WARN';
 
-  // 스크립트가 바뀌었으면 게이트를 열어 준다. 기준선을 버리지는 않는다 — 주석 한 줄만
-  // 고쳐도 지문이 바뀌므로, 불일치마다 이력을 끊으면 추세 분석이 상시 리셋된다.
+  // degraded — 스크립트 지문만 다른 경우다. 기준선을 버리지는 않는다.
+  // 주석 한 줄만 고쳐도 지문이 바뀌므로, 스크립트 변경마다 이력을 끊으면 추세 분석이 상시 리셋된다.
   // 수치는 그대로 보여주되 "이 비교는 믿을 수 없다"고 표시하고 빌드는 통과시킨다.
-  const scriptChanged = baselineScriptChanged(record, prevRun);
+  const degraded = !!(comparability && comparability.level === 'degraded');
   let downgradedFrom = null;
-  if (scriptChanged && verdict === 'FAIL') {
+  if (degraded && verdict === 'FAIL') {
     downgradedFrom = 'FAIL';
     verdict = 'WARN';
   }
 
+  // 판정과 별개로 "무엇에 대고 비교했는가"를 항상 노출한다. 조건이 엄격해지면
+  // 기준선 없는 실행이 흔해지는데, 그게 조용한 PASS 로 새면 고치기 전보다 나쁘다.
+  //   compared     — 유효한 대조군과 비교했다
+  //   incomparable — 이전 실행은 있으나 조건이 달라 상대 비교를 생략했다
+  //   first-run    — 이 계열의 첫 실행이다
+  const baselineStatus = baseline ? 'compared' : prevRun || rejected.length ? 'incomparable' : 'first-run';
+
   return {
-    baselineRunId: prevRun ? prevRun.run.id : null,
-    baselineStartedAt: prevRun ? prevRun.run.startedAt : null,
-    baselineCommit: prevRun ? prevRun.run.commitShort : null,
-    baselineScriptVersion: prevRun && prevRun.run ? prevRun.run.scriptVersion || null : null,
-    scriptVersion: (record.run && record.run.scriptVersion) || null,
-    scriptChanged,
+    baselineRunId: baseline ? baseline.run.id : null,
+    baselineStartedAt: baseline ? baseline.run.startedAt : null,
+    baselineCommit: baseline ? baseline.run.commitShort : null,
+    baselineStatus,
+    conditions,
+    seriesHash: cmp.seriesHash(conditions),
+    comparability,
+    rejectedBaselines: rejected,
     downgradedFrom,
-    hasBaseline: !!prevRun,
+    hasBaseline: !!baseline,
     verdict,
-    gateFailed: gateFailures.length > 0 && !scriptChanged,
+    gateFailed: gateFailures.length > 0 && !degraded,
     counts: {
       total: comparisons.length,
       fail: failures.length,
       warn: warnings.length,
       gateFail: gateFailures.length,
       // skipped(평가 불가: 값 미수집)와 suppressed(판정 생략: 노이즈 하한/기준값 과소)는
-      // 전혀 다른 상태다 — 전자는 관측 공백이고 후자는 정상적인 억제다. 합쳐 세면
-      // "지표가 안 들어오고 있다"는 신호가 노이즈 억제 뒤에 숨는다.
+      // 전혀 다른 상태다 — 전자는 측정하지 못한 것이고 후자는 의도적이로 노이즈를 배제한 것이다.
+      // 이를 분리하여 "지표가 안 들어오고 있다"는 신호가 노이즈 억제 뒤에 숨는걸 막는다.
       skipped: comparisons.filter((c) => c.verdict === 'SKIP').length,
       suppressed: comparisons.filter((c) => c.verdict !== 'SKIP' && c.skipped != null).length,
     },
