@@ -46,10 +46,13 @@ test('breakdown: 단일 태그 서브메트릭은 축별로 분해된다', () =>
   const out = breakdown({
     'http_req_duration{feature:posts}': { values: { avg: 10, 'p(95)': 20 } },
     'http_req_duration{op:read}': { values: { avg: 5, 'p(95)': 9 } },
+    'http_req_duration{op:auth}': { values: { avg: 50, 'p(95)': 80 } },
   });
   assert.ok(out.feature && out.feature.posts);
   assert.ok(out.op && out.op.read);
+  assert.ok(out.op && out.op.auth);
   assert.equal(out.feature.posts.p95, 20);
+  assert.equal(out.op.auth.p95, 80);
 });
 
 test('breakdown: 다중 태그 서브메트릭({phase:...,op:...})은 축 분해에서 제외된다', () => {

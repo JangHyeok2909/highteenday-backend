@@ -21,7 +21,7 @@ export function login(user) {
     JSON.stringify({ email: user.email, password: user.password || SEED_PASSWORD }),
     Object.assign(
       { headers: { 'Content-Type': 'application/json' } },
-      tags('auth', 'write', 'login'),
+      tags('auth', 'auth', 'login'),
     ),
   );
   const ok = check(res, { 'login 200': (r) => r.status === 200 });
@@ -33,14 +33,14 @@ export function login(user) {
 }
 
 export function refreshToken() {
-  const res = http.post(`${BASE_URL}/api/token/refresh`, null, tags('auth', 'write', 'token_refresh'));
+  const res = http.post(`${BASE_URL}/api/token/refresh`, null, tags('auth', 'auth', 'token_refresh'));
   tokenRefreshes.add(1);
   check(res, { 'refresh 200': (r) => r.status === 200 });
   return res;
 }
 
 export function logout() {
-  const res = http.post(`${BASE_URL}/api/user/logout`, null, tags('auth', 'write', 'logout'));
+  const res = http.post(`${BASE_URL}/api/user/logout`, null, tags('auth', 'auth', 'logout'));
   check(res, { 'logout 200': (r) => r.status === 200 });
   return res;
 }
