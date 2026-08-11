@@ -428,7 +428,8 @@ node tools/perf-run.js scripts/boards.js --vus 5 --duration 30s --no-collect --n
 
 - [ ] **S-01** 매 iteration 로그인은 해결됨. 시작 시 VU 전원이 동시에 로그인해 짧은 실행의
       p95를 오염하는 후속 문제를 확인
-- [ ] **S-02** 쓰기 SLO의 75%가 auth
+- [x] **S-02** 인증을 `op:auth`로 분리. 동일 smoke 실행에서 write p95 571.4ms→23.0ms,
+      인증 때문에 발생하던 거짓 FAIL 제거 (2026-08-11, `cad1cbc`)
 - [ ] **S-03** zipfIndex가 index 0을 못 뽑고 index 1에 20~28% 집중
 - [ ] **S-04** 게시판 0페이지가 전 시나리오에서 미조회
 - [ ] **S-06** stress/spike/soak이 closed 모델 → coordinated omission
