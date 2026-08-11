@@ -29,6 +29,7 @@ const repo = require('./lib/repository');
 const { PromClient } = require('./lib/promql');
 const { GROUPS, computeDerived } = require('./lib/metrics-catalog');
 const { analyze, bottleneckHints } = require('./lib/regression');
+const cmp = require('./lib/comparability');
 const grafana = require('./lib/grafana');
 const { renderReport } = require('./lib/report');
 const fmt = require('./lib/format');
@@ -128,6 +129,8 @@ function printConsole(record) {
   line('═'.repeat(74));
   line(`  환경 ${r.environment}  |  브랜치 ${r.branch}  |  커밋 ${r.commitShort}  |  빌드 ${r.buildNumber}`);
   line(`  시작 ${fmt.localTime(r.startedAt)}  |  수행 ${fmt.duration(r.durationSec)}  |  VU max ${k.vusMax}`);
+  // 비교 가능성을 가르는 조건 — 기준선이 왜 선택/탈락됐는지 읽으려면 이게 보여야 한다.
+  line(`  데이터셋 ${r.dataset}  |  부하 ${cmp.formatLoadProfile(r.loadProfile)}`);
   line();
   line('  ── 성능 ──────────────────────────────────────────────────────────');
   line(`  평균 ${fmt.ms(k.avg).padEnd(9)} P95 ${fmt.ms(k.p95).padEnd(9)} P99 ${fmt.ms(k.p99).padEnd(9)}`);
@@ -149,9 +152,9 @@ function printConsole(record) {
   if (reg.hasBaseline) {
     line();
     line(`  ── 회귀 (기준: ${reg.baselineRunId}) ────────────────`.slice(0, 74));
-    // 스크립트가 다르면 아래 증감을 성능 변화로 읽으면 안 된다. 표보다 먼저 말해 준다.
-    if (reg.scriptChanged) {
-      line(`  ⚠  기준선과 스크립트가 다름 (${reg.baselineScriptVersion} → ${reg.scriptVersion})`);
+    // 조건이 다르면 아래 증감을 성능 변화로 읽으면 안 된다. 표보다 먼저 말해 준다.
+    if (reg.comparability && reg.comparability.level === 'degraded') {
+      for (const m of reg.comparability.mismatches) line(`  ⚠  ${m.desc}`);
       line(`     아래 증감은 성능 변화가 아니라 다른 것을 잰 결과일 수 있다.` +
            (reg.downgradedFrom ? ` 판정을 ${reg.downgradedFrom}→WARN으로 낮췄다.` : ''));
     }
@@ -167,7 +170,17 @@ function printConsole(record) {
   } else {
     line();
     line('  ── 회귀 ──────────────────────────────────────────────────────────');
-    line('  비교 기준이 없습니다 (이 시나리오의 첫 실행). 다음 실행부터 비교됩니다.');
+    // "비교 안 함"과 "비교했는데 문제 없음"이 같은 문장으로 보이면 안 된다.
+    // 상대 비교가 꺼진 상태라는 걸 먼저 말하고, 절대 게이트는 계속 돈다는 것도 밝힌다.
+    if (reg.baselineStatus === 'first-run') {
+      line('  비교 기준이 없습니다 (이 조건의 첫 실행). 다음 실행부터 비교됩니다.');
+    } else {
+      line('  ⚠  비교 가능한 기준선이 없어 상대 비교를 생략했습니다 (절대 게이트만 적용).');
+      for (const rej of (reg.rejectedBaselines || []).slice(0, 3)) {
+        const why = rej.mismatches.filter((m) => m.materiality === 'blocking').map((m) => m.desc).join('; ');
+        line(`     · ${rej.id} — ${why}`);
+      }
+    }
   }
 
   if (record.bottleneckHints && record.bottleneckHints.length) {
@@ -219,9 +232,11 @@ async function processRun(runId, opts) {
     : { window: { from: from.toISOString(), to: endedAt.toISOString(), durationSec }, groups: [], flat: {}, errors: [{ key: '*', error: 'Prometheus 미응답' }], available: false };
 
   // ---- 회귀 분석 --------------------------------------------------------
-  const prevEntry = repo.findPrevious(record);
-  const prevRun = prevEntry ? repo.loadRun(prevEntry.id) : null;
-  record.regression = analyze(record, prevRun);
+  // 기준선은 "직전 실행"이 아니라 "비교 가능한 가장 최근 실행"이다. 탈락 사유도 함께
+  // 받아 리포트에 싣는다 — 비교하지 않았다면 왜 안 했는지 말할 수 있어야 한다.
+  const search = repo.findBaseline(record);
+  const prevRun = search.baseline ? repo.loadRun(search.baseline.id) : null;
+  record.regression = analyze(record, prevRun, { rejected: search.rejected });
   record.bottleneckHints = bottleneckHints(record);
 
   // ---- 링크 -------------------------------------------------------------
@@ -233,7 +248,12 @@ async function processRun(runId, opts) {
   // ---- 저장 -------------------------------------------------------------
   repo.saveRun(record);
 
-  const trend = repo.recentRuns(record.run.scenario, 20, record.run.environment);
+  const trend = repo.recentRuns({
+    scenario: record.run.scenario,
+    environment: record.run.environment,
+    seriesHash: record.regression.seriesHash,
+    limit: 20,
+  });
   const html = renderReport(record, { previous: prevRun, trend });
   fs.writeFileSync(repo.reportFile(runId), html);
 

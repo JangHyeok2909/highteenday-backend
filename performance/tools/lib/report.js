@@ -23,6 +23,7 @@
 'use strict';
 
 const fmt = require('./format');
+const cmp = require('./comparability');
 const { escapeHtml: esc } = fmt;
 
 /* ─────────────────────────── 스타일 ─────────────────────────── */
@@ -275,7 +276,11 @@ function sectionHeader(record) {
     ['VU 최대', fmt.num(record.k6.overall.vusMax, 0)],
     ['Ramp-up', r.rampUp || '—'],
     ['데이터셋', r.dataset],
+    // 선언된 부하 프로파일 — 위의 'VU 최대'는 관측값이라 서버가 느려지면 같이 움직인다.
+    // 비교 가능성을 판정하는 건 이쪽이다.
+    ['부하 프로파일', cmp.formatLoadProfile(r.loadProfile)],
     ['스크립트 버전', r.scriptVersion],
+    ['조건 계열', reg.seriesHash || '—'],
     ['Run ID', r.id],
   ];
 
@@ -451,10 +456,37 @@ function sectionInfra(record) {
 function sectionRegression(record) {
   const reg = record.regression;
   if (!reg.hasBaseline) {
+    // "비교 안 함"이 "비교했는데 문제 없음"처럼 보이면 이 도구는 조용히 거짓말을 한다.
+    // 기준선이 없었다는 사실, 그리고 왜 없었는지를 판정과 같은 무게로 보여준다.
+    const rejected = reg.rejectedBaselines || [];
+    if (reg.baselineStatus === 'incomparable') {
+      const rows = rejected.map((rej) => `<tr>
+        <td><code>${esc(rej.id)}</code></td>
+        <td>${rej.mismatches.filter((m) => m.materiality === 'blocking').map((m) => esc(m.desc)).join('<br>')}</td>
+      </tr>`).join('');
+      return `<section><h2>Regression</h2><div class="card scroll">
+        <div class="hint">
+          <div class="n">!</div>
+          <div>
+            <div class="t">비교 가능한 기준선이 없어 상대 비교를 생략했다</div>
+            <div class="d">이전 실행은 있지만 <b>실행 조건이 달라</b> 대조군으로 쓸 수 없다.
+              데이터셋이나 부하가 다른 두 실행의 P95를 나란히 놓으면 그건 성능 변화가 아니라
+              다른 실험의 수치다. 이 실행에는 <b>절대 게이트(SLO)만</b> 적용됐다.</div>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>탈락한 후보</th><th>사유</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="2" class="empty">—</td></tr>'}</tbody>
+        </table>
+        <div class="note">같은 조건으로 한 번 더 실행하면 그때부터 비교가 시작됩니다.
+          조건 정의는 <code>tools/lib/comparability.js</code>에 있습니다.</div>
+      </div></section>`;
+    }
     return `<section><h2>Regression</h2><div class="card">
-      <p class="empty">비교 기준이 없습니다 — 이 시나리오/환경의 첫 실행입니다.</p>
+      <p class="empty">비교 기준이 없습니다 — 이 실행 조건의 첫 실행입니다.</p>
       <div class="note">다음 실행부터 이 결과가 기준선이 되어 자동으로 비교됩니다.
-      기준은 <b>같은 시나리오 + 같은 환경</b>의 직전 성공 실행을 씁니다.</div>
+      기준은 <b>같은 실행 조건</b>(시나리오·환경·데이터셋·부하 프로파일)의 직전 성공 실행을 씁니다.
+      이 실행에는 절대 게이트(SLO)만 적용됐습니다.</div>
     </div></section>`;
   }
 
@@ -479,16 +511,19 @@ function sectionRegression(record) {
     ? reg.counts.suppressed
     : reg.comparisons.filter((c) => c.verdict !== 'SKIP' && c.skipped).length;
 
-  // 기준선과 스크립트가 다르면 수치 비교 자체가 성립하지 않는다. 표는 그대로 보여주되
-  // 무엇을 믿으면 안 되는지 먼저 말해 준다 — 아래 증감률을 성능 변화로 읽으면 안 된다.
-  const scriptWarn = reg.scriptChanged
+  // 조건이 다르면 수치 비교 자체가 성립하지 않는다. 표는 그대로 보여주되 무엇을 믿으면
+  // 안 되는지 먼저 말해 준다 — 아래 증감률을 성능 변화로 읽으면 안 된다.
+  const degradedList = reg.comparability && reg.comparability.level === 'degraded'
+    ? reg.comparability.mismatches
+    : [];
+  const scriptWarn = degradedList.length
     ? `<div class="hint">
         <div class="n">!</div>
         <div>
-          <div class="t">기준선과 부하 스크립트가 다르다${reg.downgradedFrom ? ' — 게이트를 열었다' : ''}</div>
-          <div class="d">현재 <code>${esc(reg.scriptVersion || '?')}</code> vs 기준
-            <code>${esc(reg.baselineScriptVersion || '?')}</code>.
-            스크립트가 바뀌면 요청 구성이 달라져 TPS·RPS·지연이 함께 움직인다 — 아래 증감은
+          <div class="t">기준선과 실행 조건이 다르다${reg.downgradedFrom ? ' — 게이트를 열었다' : ''}</div>
+          <div class="d">
+            ${degradedList.map((m) => `<div><code>${esc(m.label)}</code> ${esc(String(m.baseline))} → ${esc(String(m.current))}</div>`).join('')}
+            조건이 바뀌면 요청 구성이 달라져 TPS·RPS·지연이 함께 움직인다 — 아래 증감은
             성능 변화가 아니라 <b>다른 것을 잰 결과</b>일 수 있다.${
               reg.downgradedFrom
                 ? ` 그래서 판정을 ${esc(reg.downgradedFrom)}에서 WARN으로 낮추고 빌드는 통과시켰다.`

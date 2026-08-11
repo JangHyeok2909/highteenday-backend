@@ -5,6 +5,7 @@
  */
 'use strict';
 
+require('./comparability.test.js');
 require('./regression.test.js');
 require('./repository.test.js');
 require('./summary-parsing.test.js');
