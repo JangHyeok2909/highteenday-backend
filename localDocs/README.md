@@ -1,49 +1,148 @@
-# localDocs — 로컬 작업 문서 (커밋 안 함)
+# localDocs — 개인 브랜치 전용 성능 작업 문서
 
-성능 테스트 시스템 전면 리뷰(2026-08-05) 결과와 그 후속 작업 상태를 추적하는 디렉토리.
-`.gitignore`에 등록되어 있어 커밋되지 않는다. Claude와 사용자가 세션을 넘어
-같은 문제 목록을 보고 작업하기 위한 공유 장부다.
+이 디렉터리는 HighTeenDay 성능 테스트 시스템을 이해하고 개선하기 위한 **로컬 전용 장부**다.
+공식 제품 문서라기보다 다음 질문에 답하기 위한 작업 공간에 가깝다.
 
-## 문서 목록
+- 지금 성능 테스트 결과를 어디까지 믿을 수 있는가?
+- 측정 과정에서 발견한 문제는 무엇인가?
+- 무엇을 먼저 고쳐야 하는가?
+- 시스템을 다른 사람에게 설명할 만큼 이해했는가?
 
-| 문서 | 내용 |
-|---|---|
-| [perf-mastery-checklist.md](perf-mastery-checklist.md) | **학습 진도 장부** — 시스템을 단계별로 파악하기 위한 체크리스트. 자가진단 답을 직접 채우면 Claude가 이해도를 판단한다 |
-| [perf-review-summary.md](perf-review-summary.md) | 리뷰 총평 + 우선순위(P0/P1/P2) 실행 계획 — **여기부터 읽기** |
-| [perf-findings-tools.md](perf-findings-tools.md) | 분석 도구 파이프라인 (perf-run/collect/regression/repository/report) 발견 사항 |
-| [perf-findings-scripts.md](perf-findings-scripts.md) | k6 스크립트/시나리오 (scripts/, scenarios/) 발견 사항 |
-| [perf-findings-environment.md](perf-findings-environment.md) | 환경/데이터셋/CI (environment/, datasets/, regression/*.yml) 발견 사항 |
+> **브랜치 정책**
+>
+> `localDocs/` 변경은 개인 문서 브랜치에만 보관한다. 커밋 제목은
+> `docs(local): ...` 형식을 사용하고, `develop`에는 체리픽하지 않는다.
+> `performance/experiments/`처럼 저장소의 공식 실험 기록은 이 규칙의 대상이 아니다.
 
-## 두 장부의 관계
+Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음의 범위와 수정 정책에서는 제외한다.
 
-- **학습 장부**(`perf-mastery-checklist.md`) — "내가 이 시스템을 얼마나 아는가". 진도와 자가진단 답
-- **발견 장부**(`perf-findings-*.md` + `perf-review-summary.md`) — "이 시스템에 무엇이 잘못됐는가". 결함과 수정 상태
+## 처음 읽는다면
 
-학습 장부의 각 단계 끝에는 **결정 안건**이 있고, 거기서 내린 결정이 발견 장부의
-상태를 바꾼다. 즉 학습 → 결정 → 수정 순으로 두 장부가 연결된다.
+목적에 따라 읽는 순서가 다르다.
+
+### 현재 상황만 빠르게 알고 싶을 때
+
+1. [perf-review-summary.md](perf-review-summary.md)
+2. 관심 영역의 `perf-findings-*.md`
+3. 원자료가 필요하면 `performance/reports/`와 `performance/experiments/` 확인
+
+### 성능 테스트 환경을 직접 다루고 싶을 때
+
+1. [perf-environment-essentials.md](perf-environment-essentials.md)
+2. [perf-findings-environment.md](perf-findings-environment.md)
+3. `performance/environment/README.md`
+
+### 시스템 전체를 처음부터 공부하고 싶을 때
+
+1. [perf-mastery-checklist.md](perf-mastery-checklist.md)
+2. 각 단계가 안내하는 실제 코드와 실행 결과 확인
+3. 단계 끝의 자가진단과 결정 안건 작성
+
+## 문서 지도
+
+| 문서 | 답하는 질문 | 언제 읽나 |
+|---|---|---|
+| [perf-review-summary.md](perf-review-summary.md) | 현재 무엇을 믿을 수 있고 무엇부터 고쳐야 하는가? | 항상 가장 먼저 |
+| [perf-findings-tools.md](perf-findings-tools.md) | 수집·기준선·회귀 판정·리포트 도구에 어떤 문제가 있는가? | PASS/FAIL이나 비교 결과를 점검할 때 |
+| [perf-findings-scripts.md](perf-findings-scripts.md) | k6가 실제 사용자를 제대로 흉내 내고 있는가? | 부하 모델과 SLO를 점검할 때 |
+| [perf-findings-environment.md](perf-findings-environment.md) | 환경·데이터셋·Prometheus·CI가 결과를 왜곡하지 않는가? | 재현성과 운영 절차를 점검할 때 |
+| [perf-environment-essentials.md](perf-environment-essentials.md) | 스택을 어떻게 띄우고 왜 그렇게 구성했는가? | 환경을 직접 실행하거나 설명할 때 |
+| [perf-mastery-checklist.md](perf-mastery-checklist.md) | 내가 시스템 전체를 실제로 이해했는가? | 단계별 학습과 인수인계 때 |
+
+## 문서들의 관계
+
+문서는 세 종류로 나뉜다.
+
+```text
+실제 코드와 실행 결과
+        │
+        ├─ 발견 장부: 무엇이 잘못됐는가
+        │    ├─ tools
+        │    ├─ scripts
+        │    └─ environment
+        │
+        ├─ 총평: 무엇을 먼저 고칠 것인가
+        │
+        └─ 학습 장부: 내가 이것을 설명하고 판단할 수 있는가
+```
+
+- **발견 장부**는 증거와 결함 상태를 보관한다.
+- **총평**은 여러 결함을 우선순위와 실행 계획으로 묶는다.
+- **학습 장부**는 코드를 읽고 실행한 사람이 직접 답을 써서 이해도를 확인한다.
+
+상세 발견을 수정하면 총평의 상태도 함께 갱신한다. 중요한 설계 결정을 내렸다면 학습 장부의
+결정 안건과 관련 발견 항목에 같은 결론을 남긴다.
+
+## 발견 항목을 읽는 방법
+
+각 발견은 가능한 한 다음 순서로 작성한다.
+
+1. **쉽게 말하면** — 기술 용어 없이 핵심을 한두 문장으로 설명
+2. **현재 동작** — 코드가 실제로 무엇을 하는지 설명
+3. **왜 문제인가** — 숫자와 판정이 어떻게 왜곡되는지 설명
+4. **근거** — 코드 위치, 실행 ID, 실측값 제시
+5. **필요한 조치** — 해결 방향과 아직 필요한 결정 제시
+
+문장만 읽고 이해되지 않으면 문서의 실패다. 약어와 지표는 처음 나올 때 뜻을 풀어 쓴다.
 
 ## 상태 규칙
 
-각 발견 사항의 `상태` 필드:
+| 상태 | 의미 |
+|---|---|
+| **미해결** | 문제와 근거만 확인됐고 코드 수정은 시작하지 않음 |
+| **수정 중** | 코드나 문서를 변경하고 있으나 검증이 끝나지 않음 |
+| **부분 해결** | 일부 원인은 제거했지만 남은 위험이나 후속 작업이 있음 |
+| **해결** | 수정과 필요한 검증이 완료됨. 가능하면 커밋 SHA와 검증 결과를 기록 |
+| **보류** | 고치지 않기로 결정했으며 이유와 재검토 조건을 기록 |
+| **참고** | 결함이 아니라 개념 구분이나 조사 결과를 보존하는 항목 |
 
-- **미해결** — 발견만 된 상태 (초기값)
-- **수정중** — 브랜치에서 작업 중
-- **해결** — 수정 + (P0는) 테스트 커밋 완료. 해결한 커밋 SHA를 병기한다
-- **보류** — 의도적으로 안 고치기로 결정. 사유를 병기한다
-
-수정할 때마다 해당 문서의 상태를 갱신할 것. 이 문서들이 곧 작업 백로그다.
+작업 트리에만 존재하는 수정은 `해결`이라고 단정하지 않고 날짜와 `미커밋` 표시를 붙인다.
 
 ## 발견 ID 규칙
 
-- `T-##` — tools (분석 파이프라인)
-- `S-##` — scripts/scenarios (부하 발생 계층)
-- `E-##` — environment/datasets/CI
+- `T-##`: 분석 도구 계층 — 수집, 저장, 기준선, 판정, 리포트
+- `S-##`: 부하 생성 계층 — k6 스크립트, 저니, 사용자·트래픽 모델
+- `E-##`: 실행 환경 계층 — Docker, 데이터셋, Prometheus, CI
 
-## 리뷰 시점 컨텍스트
+## 조사 타임라인
 
-- 리뷰 일자: 2026-08-05, 브랜치 `perf/performance-management-system`
-- 당시 기록된 런: 23개 (전부 로컬 데스크톱, small 8개 + large 15개)
-- 핵심 사실: large 데이터셋에서 comments p95 60s / reactions p95 30s / normal-day 오류율 55.8%로 붕괴.
-  원자료의 `hikariPending.max=205`, `hikariTimeouts=5316`, `cpu.throttledPct=99.98`은
-  BTL-002(풀 불균형)·BTL-003(핫로우)·BTL-005(N+1) 가설과 정합 — **데이터는 이미 병목을 가리키고
-  있는데 판정 계층이 그걸 못 읽는 상태**였다.
+### 2026-08-05 — 최초 전면 리뷰
+
+- 브랜치: `perf/performance-management-system`
+- 저장된 실행: 23개
+- 실행 환경: 모두 같은 Windows 데스크톱
+- 주요 관측: large에서 comments p95 60초, reactions p95 30초,
+  normal-day 오류율 55.8%
+- 동시에 Hikari 대기 205개, Hikari timeout 5,316회, CPU throttling 99.98%가 기록됨
+
+원자료는 병목을 보여주고 있었지만, 당시 판정 도구는 일부 인프라 키를 읽지 못해 해당 규칙을
+SKIP으로 처리했다. 그래서 **원자료와 자동 PASS/FAIL을 구분해서 봐야 한다**는 결론이 나왔다.
+
+### 2026-08-11 — EXP-000 반복 측정
+
+- `posts.js` smoke 2회와 Before 10회 수행
+- 같은 조건의 p95 변동계수(CV)가 108.77%로 확인됨
+- 전체 p95가 BCrypt 로그인 지연 분포의 급경사 구간을 자르면서 값이 크게 흔들린다는 원인을 확인
+- 12회 모두 threshold 실패로 기준선 후보에서 제외돼 상대 비교가 한 번도 실행되지 않은 문제 확인
+
+상세한 실험 설계와 해석은
+`performance/experiments/EXP-000-measurement-integrity/README.md`에 기록한다.
+
+## 현재 결과를 해석하는 최소 원칙
+
+- `run.json`의 원시 k6 지표와 수집된 인프라 값은 원인 분석 자료로 사용할 수 있다.
+- 저장된 PASS/FAIL은 당시 코드와 기준선 선택 문제를 확인한 뒤 해석해야 한다.
+- 조건이 다른 두 실행의 상대 증감률은 비교하지 않는다.
+- 기준선이 `null`이면 상대 회귀 판정이 실행된 것이 아니다.
+- 짧은 테스트의 전체 p95는 로그인처럼 적은 수의 느린 요청에 지배될 수 있으므로 기능별 분해를 함께 본다.
+- 필수 인프라 지표가 비어 있으면 “문제가 없음”이 아니라 “측정하지 못함”으로 해석한다.
+
+## 문서 갱신 규칙
+
+문제를 고치거나 새 실험을 수행하면 다음 순서로 갱신한다.
+
+1. 관련 `perf-findings-*.md`에 근거와 상태를 기록한다.
+2. 우선순위가 바뀌면 `perf-review-summary.md`를 갱신한다.
+3. 학습 흐름이나 결정 안건이 달라지면 `perf-mastery-checklist.md`를 갱신한다.
+4. 로컬 문서 커밋에는 `docs(local):` scope를 사용한다.
+5. Toss 관련 문서는 이 흐름에 포함하지 않는다.

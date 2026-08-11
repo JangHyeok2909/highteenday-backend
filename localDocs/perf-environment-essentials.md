@@ -1,147 +1,375 @@
-# performance/environment/ — 내가 구축한 측정 환경, 내가 알아야 할 전부
+# 성능 테스트 환경 필수 안내서
 
-> 목적: 이 환경을 "AI가 짜준 compose"가 아니라 **내 손바닥 위의 시스템**으로 만들기.
-> 구성 → 설계 결정(왜) → 조작법 → 함정 → 한계 순서. 전 항목이 실제 파일 기준이며 경로를 병기한다.
-> 원본 문서: `performance/environment/README.md` (이 문서는 그 요약+보강판)
+이 문서는 `performance/environment/`를 처음 보는 사람이 다음 세 가지를 할 수 있도록 만든다.
 
----
+1. 어떤 프로세스가 어디에서 실행되는지 설명한다.
+2. 스택을 안전하게 시작하고 데이터셋을 전환한다.
+3. 결과가 이상할 때 환경 문제인지 애플리케이션 문제인지 구분한다.
 
-## 1. 전체 그림 — 무엇이 떠 있나
+원본 설정의 세부 항목은 `performance/environment/README.md`에 있다. 이 문서는 구성값을
+나열하기보다 **왜 필요한지와 잘못됐을 때 어떤 증상이 생기는지**를 중심으로 설명한다.
 
-`environment/docker-compose.perf.yml` 하나로 8개 컨테이너가 뜬다:
+## 먼저 알아야 할 결론
 
-| 컨테이너 | 이미지(버전 고정) | 리소스 한계 | 호스트 포트 | 역할 |
-|---|---|---|---|---|
-| perf-app | 루트 Dockerfile 빌드 | **2.0 vCPU / 2560m** | **18080** | 측정 대상(SUT) |
-| perf-mysql | mysql:8.0.36 | 2.0 vCPU / 2g | 13316 | DB |
-| perf-redis | redis:7.2-alpine | 1.0 vCPU / 512m | 16389 | 캐시 |
-| perf-prometheus | prom/prometheus:v2.51.0 | 무제한 | 9090 | 지표 저장(30일 보존) |
-| perf-grafana | grafana:10.4.0 | 무제한 | 3001 | 대시보드 (admin/perf, 익명 Viewer 허용) |
-| perf-mysqld-exporter | v0.15.1 | 무제한 | — | MySQL 상태 → 메트릭 |
-| perf-redis-exporter | v1.58.0 | 무제한 | — | Redis 상태 → 메트릭 |
-| perf-cadvisor | v0.49.1 (privileged) | 무제한 | — | 컨테이너 cgroup 지표 |
+- 이 환경은 운영 환경을 그대로 복제한 것이 아니라, 같은 조건을 반복하기 위한 로컬 실험실이다.
+- 애플리케이션·MySQL·Redis·관측 도구·k6가 같은 컴퓨터를 사용하므로 절대 성능보다는 같은
+  환경에서의 상대 비교에 적합하다.
+- Docker Compose 파일에 적힌 설정과 실제 컨테이너에 적용된 설정이 다를 수 있다. 실행 후
+  반드시 실제 값을 확인해야 한다.
+- 데이터셋 전환, Redis 초기화, 시딩은 서로 연결돼 있다. 일부 단계만 실행하면 결과가 섞인다.
+- cAdvisor가 실행 중이라고 해서 컨테이너 CPU 지표가 실제로 수집된다는 뜻은 아니다.
 
-- 호스트 포트가 전부 표준에서 옮겨져 있는 이유: 로컬 MySQL(3306)/Redis(6379)/다른 서버(8080)와 충돌 방지. `.env.perf`의 `APP_HOST_PORT` 등으로 override 가능.
-- Prometheus는 **5초 간격 스크레이프**(`environment/prometheus/prometheus.yml` — "15s 기본값으론 스파이크를 놓친다") + k6가 **remote write로 밀어넣는 수신구** 겸용(`--web.enable-remote-write-receiver`).
-- 운영 스택(docker-compose.prod.yml)과의 차이 3줄: ① 리소스 상한 명시(재현성) ② 관측 스택 동봉 ③ MySQL/Redis 설정 고정(암묵 기본값 배제).
+## 1. 전체 구조
 
-## 2. 핵심 설계 결정 7개 — "왜 이렇게 생겼나"
-
-### 결정 1. 모든 서비스에 리소스 상한 명시
-어떤 호스트에서 돌려도 같은 조건 재현 + **한계를 알아야 포화도(%)를 계산할 수 있다**(포화도 = 사용량/한계). 관측 계층(Prometheus/Grafana/exporter)은 무제한 — 측정 대상이 아니므로.
-
-### 결정 2. MySQL 튜닝을 설정 파일이 아니라 CLI 플래그로 (compose `command:` 블록)
-**Windows Docker Desktop의 바인드 마운트 파일은 world-writable 권한이 되는데, mysqld는 그런 설정 파일을 경고 한 줄만 남기고 통째로 무시한다** — buffer pool 128MB, slow log OFF로 조용히 기동해 알아채기 어렵다(실측). CLI 플래그는 이 검사를 안 받는다. 그래서 `environment/mysql/perf.cnf`는 **마운트되지 않는 참고 문서일 뿐**이다.
-플래그 내용: buffer pool 1G, max_connections 200, **내구성은 운영과 동일**(flush-log-at-trx-commit=1, sync-binlog=1 — 완화 금지 원칙), slow log 0.1초 + 미인덱스 쿼리 로깅, performance-schema ON, utf8mb4, KST, `lower-case-table-names=1`(BTL-008 우회).
-
-### 결정 3. MySQL 볼륨을 데이터셋 프로파일별로 분리 (`perf-mysql-data-${DATASET_PROFILE}`)
-시드가 API 기반이라 large는 적재에 수 시간. 볼륨이 하나면 프로파일 전환 = 전체 재시드라 왕복이 비현실적. 분리하면 시드 비용은 프로파일당 1회, 전환은 컨테이너 재생성 수준. **규모별 비교(병목이 large에서만 재현되는가)는 전환이 싸야 성립한다.**
-⚠ **Redis는 볼륨이 없어 분리 안 됨** — 전환해도 이전 프로파일의 캐시/카운터가 남는다. 그래서 전환 시 FLUSHALL 필수(bootstrap.js가 자동 처리).
-
-### 결정 4. 앱 프로파일은 `prod,perf` 조합 (entrypoint 덮어쓰기)
-Dockerfile ENTRYPOINT가 `--spring.profiles.active=prod`로 고정돼 있어 환경변수로는 못 바꾸므로 compose가 entrypoint 자체를 덮어쓴다. 조합의 이유:
-- **prod가 필요한 이유**: dev/local에서는 `AppStartupRunner(@Profile("!prod"))`가 기동 시 테스트 데이터를 심으려다 **빈 DB에서 예외 → JVM 종료 → restart 정책 때문에 무한 크래시 루프**(실측 재현). prod는 이 러너가 비활성.
-- **perf가 필요한 이유**: prod는 쿠키를 `Domain=.highteenday.org; Secure` 로 하드코딩 — localhost+평문 HTTP 부하에서는 RFC 6265를 지키는 모든 쿠키 저장소(k6 포함)가 그 쿠키를 재전송하지 않아 **로그인은 200인데 이후 전부 401**. `application-perf.properties`가 쿠키 속성만 되돌린다. 뒤에 오는 프로파일이 겹치는 키를 덮어쓴다.
-- (재미: seed.js의 자체 쿠키 저장소는 Domain/Secure를 검사 안 해서 **스펙을 안 지킨 덕에 우연히 동작** — k6와 결과가 달랐던 이유)
-
-### 결정 5. JVM — 힙 고정 + 관측 원자료 상시 기록 (`JAVA_TOOL_OPTIONS`)
-`-Xms1g -Xmx1g`(동적 확장 노이즈 제거 — 힙은 통제 변수), G1 + MaxGCPauseMillis=200(실험 간 동일 조건 명시), GC 로그 rotate 5×20MB, **JFR 상시 기록**(200MB, dumponexit — 느려진 뒤에 소급 분석할 원자료).
-
-### 결정 6. 컨테이너 메모리 = 힙의 2.5배 (2560m)
-1536m 시절 실측: anon 1518MB/file 4MB(= 전부 JVM 자신), 커널 강제 회수 992회, OOM 0. 힙 1G + 비힙 ~200MB + 스레드 스택 + GC 구조체 = 실 풋프린트 1.5GB라 여유 0. 부작용은 지표 쪽이 더 컸다 — 실행 71건 중 43건이 메모리 포화 100%로 기록돼 **지표가 신호로서 죽었다**. 힙을 줄이지 않은 이유: GC 오버헤드 최대 0.18%로 힙은 문제가 아니었고, 힙 고정 원칙 유지. (이 변경 이후 실행은 이전과 비교 불가 — 커밋에 명시)
-
-### 결정 7. Redis — eviction 포함 측정, 디스크 저장 제거 (`environment/redis/redis-perf.conf`)
-maxmemory 384MB + allkeys-lru(eviction 거동까지 실험 대상), `save ""` + appendonly no(부하 중 RDB fork가 지연 스파이크를 만들지 않게 — 단 failover 실험 때는 운영과 동일하게 켜고 비교할 것), slowlog 1ms, keyspace 만료 이벤트 노출.
-
-### (+) 시드 전용 오버라이드 `environment/docker-compose.seed.yml` — "되돌림이 기본값"
-시드는 측정이 아니므로 빠르게: app CPU 2→6(BCrypt 2만 회가 병목), 힙 1→2g, JFR/GC로그 OFF, **Hikari 10→50**(10은 결함이 아니라 BTL-002 가설 — 영구히 올리면 발견이 지워진다), MySQL fsync 완화(trx-commit=2, sync-binlog=0), slow log OFF. `-f`로 붙였을 때만 적용되고 평소 명령으로 재기동하면 자동으로 측정 스펙 복귀.
-⚠ compose는 `command:`를 **병합이 아니라 치환** — 오버라이드가 전체 플래그를 다시 적는다. 빠뜨리면 charset/timezone/lower-case가 사라져 한글 깨짐·테이블명 불일치.
-복귀 검증: `SELECT @@innodb_flush_log_at_trx_commit, @@sync_binlog;` → 1, 1 / `hikaricp_connections_max` → 10.
-
-## 3. 조작법 — 명령어 전부
-
-```bash
-# 최초 1회
-cp environment/.env.perf.example environment/.env.perf
-
-# 기동 (프로파일은 .env.perf의 DATASET_PROFILE이 결정 — 현재 large)
-docker compose -f environment/docker-compose.perf.yml --env-file environment/.env.perf up -d --build
-
-# 확인
-curl -s localhost:18080/actuator/health              # {"status":"UP"}
-curl -s localhost:18080/actuator/prometheus | head   # 지표 노출 확인
-# Grafana: http://localhost:3001 (admin/perf)
-
-# 프로파일 전환 (예: large → small): .env.perf에서 DATASET_PROFILE=small 수정 후
-docker compose -f environment/docker-compose.perf.yml --env-file environment/.env.perf up -d
-node environment/bootstrap.js --profile small        # 전환 후 필수 절차 일괄 실행
-
-# 시드 (신규 프로파일 최초 1회 — 시드 오버라이드 붙여서 빠르게)
-docker compose -f environment/docker-compose.perf.yml -f environment/docker-compose.seed.yml \
-  --env-file environment/.env.perf up -d
-node environment/bootstrap.js --profile <p>          # 내부에서 datasets/seed.js 호출
-# 끝나면 오버라이드 없이 up -d 로 재기동 → 측정 스펙 자동 복귀
-
-# 실험 간 상태 리셋 (데이터 유지, 캐시/JIT만 초기화 — cold 조건)
-docker restart perf-app && docker exec perf-redis redis-cli FLUSHALL
-
-# 완전 초기화 (현재 프로파일 볼륨까지 삭제 — 재시드 필요)
-docker compose -f environment/docker-compose.perf.yml down -v
-
-# 부하 실행 (perf-run이 k6 실행→수집→판정→리포트까지)
-node performance/tools/perf-run.js performance/scenarios/normal-day.js
-# k6 바이너리를 못 찾으면(Windows shim 차단): K6_BIN=<k6.exe 절대경로> 지정
+```text
+호스트 Windows PC
+│
+├─ k6 부하 발생기
+│       │ HTTP / WebSocket
+│       ▼
+├─ perf-app ─────► perf-mysql
+│       │
+│       └────────► perf-redis
+│
+├─ perf-mysqld-exporter ─┐
+├─ perf-redis-exporter ───┼─► perf-prometheus ─► perf-grafana
+├─ perf-cadvisor ─────────┤
+└─ perf-app Actuator ─────┘
 ```
 
-### bootstrap.js가 대신 막아주는 5가지 (손으로 하면 반드시 빠뜨린다 — 실측)
-`environment/bootstrap.js`:
-1. **마운트된 볼륨 ↔ --profile 일치 검증** — 환경변수가 아니라 실제 컨테이너 마운트를 조회(.env.perf 값은 셸에 없어서 환경변수는 못 믿음). 없으면 medium 데이터를 small 볼륨에 부어 양쪽 오염.
-2. **게시판 5행 선삽입** — `sql.init.mode=never`라 data.sql이 안 돌므로. 없으면 seed.js가 `/api/boards` 빈 배열을 받고 **조용히** 실패. (utf8mb4 명시 필수 — 없으면 한글 mojibake, 실측)
-3. **daily_hot_post 테이블 생성** — Flyway baseline이 안 만드는 테이블(BTL-009). 없으면 `GET /api/hotposts/daily` 항상 500. (레거시 ddl 스크립트는 FK 오타·제약명 충돌이 있어 수정판 사용)
-4. **Redis FLUSHALL** — 결정 3의 주의사항.
-5. **시드 중복 실행 차단** — seed.js를 두 번 돌리면 계정만 건너뛰고 글/댓글은 또 만들어져 명세의 2배가 된다(실측: small 500 → 1065). `--force`로만 재시드 허용.
+중요한 점은 **k6도 같은 호스트의 CPU를 사용한다**는 것이다. k6가 많은 요청을 만들수록
+애플리케이션에 줄 CPU가 줄어들 수 있다. 이 문제는 E-01에서 별도로 추적한다.
 
-## 4. 함정 목록 — 실측으로 확인된 것들 (겪은 순서 무관, 전부 재현 근거 있음)
+## 2. 실행되는 컨테이너
 
-| # | 함정 | 증상 | 원인/해법 |
+`performance/environment/docker-compose.perf.yml`은 다음 8개 컨테이너를 실행한다.
+
+| 컨테이너 | 역할 | 제한 | 호스트 접근 |
 |---|---|---|---|
-| 1 | dev/local 프로파일로 기동 | 무한 크래시 루프. health가 찰나에 200이라 착시 — `docker ps`의 "Up N seconds" 리셋 반복까지 봐야 함 | 결정 4. 반드시 prod,perf |
-| 2 | prod 단독 기동 | 로그인 200, 이후 전부 401 | 쿠키 Domain/Secure — 결정 4 |
-| 3 | **cAdvisor 컨테이너별 지표 없음** | "컨테이너 CPU" 패널만 No data. 타겟은 up, 시리즈는 cgroup 루트뿐 | Docker Desktop containerd 이미지 스토어(`overlayfs` 드라이버) — cAdvisor가 도커 레이어 경로를 못 찾아 **컨테이너 핸들러 생성 자체가 실패**. 1순위 해법: Docker Desktop 설정에서 "Use containerd..." 해제 → overlay2 복귀. 임시 대안: 앱은 `process_cpu_usage`(Micrometer), Redis는 exporter CPU 카운터로 부분 관측. **MySQL CPU는 이 경로로 관측 불가**(사각지대) |
-| 4 | `lower-case-table-names=1`이 안 먹음 | Token 테이블 대소문자 불일치 재발(BTL-008) | 이 플래그는 **데이터 디렉터리 최초 초기화 시점에만** 적용 — 기존 볼륨에 나중에 붙이면 무효. 볼륨 재생성 필요 |
-| 5 | JWT_KEY를 짧게 넣음 | 로그인/회원가입 500 | HS512는 최소 64바이트 키 필요 |
-| 6 | OAuth2/NEIS/S3 env 누락 | 부팅 자체 실패(PlaceholderResolutionException) | 기본값 없는 `${VAR}` 프로퍼티 — 부하 경로에서 실제로 안 쓰니 더미로 충분(compose에 기본 더미 내장) |
-| 7 | data.sql 통째로 실행 | 내장된 10만 건 더미 게시글까지 들어감 | 게시판 5행만 옮겨 심는다(성능 데이터는 seed.js가 원칙) |
-| 8 | k6 실행이 UNKNOWN으로 실패 | 같은 날 아침엔 되던 명령이 갑자기 안 됨 | Chocolatey shim(.NET)을 Application Control이 차단 — k6 자체는 멀쩡. `K6_BIN`으로 실제 바이너리 지정 |
-| 9 | 지표가 조용히 비어 있음 | 대시보드 패널 "No data" | 지표 **생성** 설정은 base properties에 있어야 함: `tomcat.mbeanregistry.enabled=true` 없으면 `tomcat_threads_*` 자체가 안 생기고(BTL-002 관측 불가), percentiles-histogram 없으면 `_bucket`이 없어 서버 관점 p95 계산 불가. 버킷 범위를 5ms~10s로 좁힌 이유는 카디널리티(시리즈당 51버킷, uri×method×status마다 곱해짐) |
-| 10 | WSL2 메모리 | Docker Desktop이 호스트 RAM의 50%만 사용 | `.wslconfig`에 memory 명시 + 실험 문서에 기록 |
+| `perf-app` | 실제 측정 대상 Spring 애플리케이션 | 2 CPU, 2560MB | `localhost:18080` |
+| `perf-mysql` | 애플리케이션 데이터베이스 | 2 CPU, 2GB | `localhost:13316` |
+| `perf-redis` | 캐시·카운터 저장소 | 1 CPU, 512MB | `localhost:16389` |
+| `perf-prometheus` | 시계열 지표 저장 | 제한 없음 | `localhost:9090` |
+| `perf-grafana` | 지표 대시보드 | 제한 없음 | `localhost:3001` |
+| `perf-mysqld-exporter` | MySQL 상태를 Prometheus 형식으로 변환 | 제한 없음 | 내부 네트워크 |
+| `perf-redis-exporter` | Redis 상태를 Prometheus 형식으로 변환 | 제한 없음 | 내부 네트워크 |
+| `perf-cadvisor` | 컨테이너 CPU·메모리 지표 제공 | 제한 없음 | 내부 네트워크 |
 
-## 5. 알려진 구조적 한계 (고치기 전까지 실험 문서에 명시할 것)
+포트를 8080·3306·6379 대신 다른 값으로 연 이유는 로컬 개발 서버와 충돌하지 않게 하기
+위해서다. 실제 값은 `performance/environment/.env.perf`에서 바꿀 수 있다.
 
-- **부하 발생기와 SUT가 같은 호스트** — 기록된 실행 전부. k6의 CPU 소비가 결과를 오염(원칙은 분리, E-01).
-- **CPU 초과 배분** — app 2 + mysql 2 + redis 1 = 5 vCPU 한계 합이 호스트 코어 대비 과할 수 있고, 관측 계층은 무제한이라 경합 가능(E-02).
-- **운영 토폴로지와 다름** — 운영은 EC2+RDS, 여긴 단일 호스트 컨테이너(E-03). 절대값이 아니라 상대 비교용 환경.
-- **README의 하드웨어 명세가 플레이스홀더** — "(실측 기입)" 상태. 실험 전에 채워야 재현성 문서로 완성(E-35).
-- **.env.perf에 유효한 512bit JWT 키가 커밋됨**(E-34) — 보안 위생 이슈, 로테이션 대상.
-- host CPU/디스크를 보는 node_exporter 없음(E-09).
+관측 도구에 자원 제한이 없다는 점도 기억해야 한다. Prometheus나 Grafana가 CPU를 많이 쓰면
+측정 대상과 경합하지만, 현재 리포트는 그 비용을 충분히 보여주지 않는다.
 
-## 6. 이 환경을 설명할 때 쓰는 포인트 (면접 연결)
+## 3. 핵심 설계 결정
 
-한 문단 버전:
-"측정 환경을 compose로 고정했습니다 — 앱 2코어/2.5GB, MySQL 2코어에 buffer pool 1G, Redis 512MB에 eviction까지 실험 범위로. 힙은 1G 고정이고 GC 로그와 JFR을 상시 기록해 소급 분석이 가능합니다. 데이터셋은 5단계 프로파일로 MySQL 볼륨을 분리해 규모별 비교 왕복을 싸게 만들었고, 리셋·전환·시드 절차는 스크립트로 묶어 손실수를 차단했습니다. 내구성 설정은 운영과 동일하게 유지하고, 시드처럼 측정이 아닌 구간만 오버라이드로 완화한 뒤 자동 복귀시킵니다."
+### 3-1. 애플리케이션 CPU와 메모리를 고정함
 
-파고들면 꺼낼 카드 3장:
-1. **"설정 파일이 조용히 무시되던 것"** — Windows 바인드 마운트 world-writable → mysqld가 무시 → CLI 플래그로 전환. "환경이 의도대로 떠 있는지 검증한다"는 태도의 증거.
-2. **"프로파일 조합으로 푼 쿠키 401"** — prod 하드코딩 쿠키가 RFC 6265 때문에 로컬 부하에서 재전송 안 됨 → perf 프로파일이 덮어씀. 스펙을 안 지키는 자체 쿠키 저장소는 우연히 동작했다는 대조까지.
-3. **"시드와 측정의 조건 분리"** — Hikari 10을 시드 때만 50으로 올리고 되돌리는 이유("10은 가설이지 결함이 아니다 — 영구히 올리면 발견이 지워진다"). 통제 변수 개념의 실물.
+성능 수치는 사용할 수 있는 자원에 따라 달라진다. 그래서 애플리케이션을 2 CPU와 2560MB로
+제한한다. 한계가 있어야 CPU 포화도도 다음처럼 계산할 수 있다.
 
-## 7. 스스로 점검 (이 문서를 덮고 답해보기)
+```text
+CPU 포화도 = 실제 사용 CPU / 허용 CPU
+```
 
-1. 스택 기동 명령과, 기동 직후 확인 3가지는? (§3)
-2. 프로파일을 large→small로 바꾸는 정확한 절차는? bootstrap 없이 하면 뭐가 깨지나? (§3)
-3. 왜 MySQL 설정이 cnf 마운트가 아니라 CLI 플래그인가? (§2 결정 2)
-4. 왜 prod,perf 두 프로파일인가? 하나만 쓰면 각각 무슨 일이 나나? (§2 결정 4)
-5. 컨테이너 메모리 2560m의 근거 수치 3개는? (anon 1518MB / 강제 회수 992회 / 43·71건 포화 100%)
-6. 시드 오버라이드가 바꾸는 것 5개와 "되돌림이 기본값"인 이유는? (§2 결정 7+)
-7. 컨테이너 CPU 패널이 No data면 원인과 1순위 해법은? (§4-3)
-8. 실험 간 리셋(cold)과 완전 초기화의 명령 차이는? (§3)
+예를 들어 2 CPU 한계에서 1.6 CPU를 사용하면 약 80%다.
+
+컨테이너 메모리는 JVM 힙 1GB보다 크게 잡혀 있다. JVM은 힙 외에도 메타스페이스, 스레드
+스택, 코드 캐시, 네이티브 버퍼, GC 자료구조를 사용한다. 과거 1536MB 설정에서는 실제
+풋프린트가 한계에 붙어 71회 중 43회가 메모리 포화 100%로 기록됐다. 메모리 지표가 항상
+100%면 병목을 구분하는 신호로 쓸 수 없어 2560MB로 늘렸다.
+
+### 3-2. JVM 힙과 진단 자료를 고정함
+
+`JAVA_TOOL_OPTIONS`의 핵심은 다음과 같다.
+
+- `-Xms1g -Xmx1g`: 실행 중 힙 크기 변화가 결과에 섞이지 않게 함
+- G1 GC와 동일한 pause 목표: 실행별 JVM 조건을 같게 유지
+- GC 로그 회전 저장: GC가 지연에 관여했는지 사후 확인
+- JFR 상시 기록: 느린 실행이 끝난 뒤 CPU·락·스레드 상태를 분석
+
+JFR과 GC 로그는 “문제가 생기면 다음 실행에서 켠다”가 아니라, 문제가 발생한 실행의 원자료를
+남기기 위해 처음부터 켠다.
+
+### 3-3. MySQL 설정을 파일 마운트가 아니라 CLI 인자로 전달함
+
+Windows Docker Desktop에서 바인드 마운트한 `perf.cnf`가 world-writable 권한으로 보이는
+경우가 있다. MySQL은 이런 설정 파일을 경고만 남기고 무시할 수 있다. 컨테이너는 정상적으로
+뜨지만 buffer pool은 기본 128MB, slow query log는 꺼진 채 실행될 수 있어 더 위험하다.
+
+그래서 실제 적용값은 Compose의 `command:`에 CLI 옵션으로 넣는다.
+
+- buffer pool 1GB
+- 최대 연결 200개
+- slow query 기준 100ms
+- performance schema 활성화
+- utf8mb4와 KST
+- `lower-case-table-names=1`
+- 내구성 설정 `innodb_flush_log_at_trx_commit=1`, `sync_binlog=1`
+
+`performance/environment/mysql/perf.cnf`는 현재 동작을 결정하는 파일이 아니라 참고용이다.
+
+### 3-4. 데이터셋마다 MySQL 볼륨을 분리함
+
+large 데이터셋은 API를 통해 시딩하므로 오래 걸린다. 하나의 볼륨만 쓰면 small과 large를
+오갈 때마다 전체 데이터를 다시 만들어야 한다.
+
+```text
+perf-mysql-data-smoke
+perf-mysql-data-small
+perf-mysql-data-medium
+perf-mysql-data-large
+perf-mysql-data-xlarge
+```
+
+이렇게 분리하면 프로파일당 한 번만 시딩하고 컨테이너를 재생성해 전환할 수 있다.
+
+단, Redis는 데이터셋별 볼륨으로 분리되지 않는다. 이전 프로파일의 캐시와 카운터가 남을 수
+있으므로 프로파일을 바꿀 때 `FLUSHALL`이 필요하다. `bootstrap.js`가 이를 수행한다.
+
+### 3-5. Spring 프로파일은 `prod,perf`를 함께 사용함
+
+두 프로파일은 서로 다른 문제를 해결한다.
+
+| 프로파일 | 필요한 이유 | 없으면 생기는 일 |
+|---|---|---|
+| `prod` | 개발용 `AppStartupRunner`를 비활성화 | 빈 DB에서 초기 데이터 생성 중 실패하고 컨테이너가 반복 재시작 |
+| `perf` | 로컬 HTTP에서 사용할 수 있도록 쿠키 속성을 덮어씀 | 로그인은 200이지만 Secure·Domain 쿠키가 재전송되지 않아 이후 요청이 401 |
+
+`prod` 하나만 사용하면 운영용 `Domain=.highteenday.org; Secure` 쿠키가 만들어진다. k6는
+localhost 평문 HTTP에서 이 쿠키를 다시 보내지 않는다. `perf`가 이 속성을 로컬 테스트용으로
+바꾼다.
+
+### 3-6. 시딩과 측정의 자원 조건을 분리함
+
+`performance/environment/docker-compose.seed.yml`은 시딩할 때만 붙이는 오버라이드다.
+
+| 항목 | 측정 조건 | 시딩 조건 | 이유 |
+|---|---:|---:|---|
+| 애플리케이션 CPU | 2 | 6 | BCrypt 계정 생성 시간을 단축 |
+| JVM 힙 | 1GB | 2GB | 대량 데이터 생성 안정화 |
+| Hikari 최대 연결 | 10 | 50 | 시딩 속도 향상 |
+| JFR·GC 로그 | 사용 | 사용 안 함 | 시딩은 측정 대상이 아님 |
+| MySQL fsync | 운영과 같은 강한 설정 | 완화 | 대량 적재 시간 단축 |
+
+측정할 때 Hikari를 10으로 유지하는 이유는 10이 옳아서가 아니다. 연결 풀 부족이 실제 병목
+가설이기 때문에 임의로 50으로 올리면 관찰하려던 현상이 사라진다.
+
+Compose의 `command:`는 합쳐지지 않고 통째로 교체된다. 시드 오버라이드에서 MySQL 옵션을
+하나라도 빠뜨리면 문자셋·시간대·테이블명 규칙까지 사라질 수 있다.
+
+### 3-7. Redis 디스크 저장을 끄고 eviction을 실험 범위에 포함함
+
+Redis 설정은 다음 목적을 가진다.
+
+- maxmemory 384MB
+- allkeys-lru
+- RDB와 AOF 비활성화
+- slowlog 1ms
+- 만료 이벤트 노출
+
+디스크 저장을 끄는 이유는 RDB fork가 지연 스파이크를 만들지 않게 하기 위해서다. 단,
+Redis 장애 복구나 failover 자체를 실험할 때는 운영과 같은 영속성 설정으로 별도 검증해야 한다.
+
+## 4. 안전한 실행 절차
+
+첫 명령은 저장소 루트에서 실행한다. `Set-Location performance` 이후의 모든 명령은
+`performance/` 디렉터리를 현재 위치로 사용하는 PowerShell 기준이다.
+
+### 4-1. 최초 설정과 기동
+
+```powershell
+Set-Location performance
+Copy-Item environment/.env.perf.example environment/.env.perf
+
+docker compose `
+  -f environment/docker-compose.perf.yml `
+  --env-file environment/.env.perf `
+  up -d --build
+```
+
+### 4-2. 기동 직후 확인
+
+컨테이너가 단순히 `Up` 상태인지만 보지 말고 다음을 확인한다.
+
+```powershell
+# 애플리케이션 생존 여부
+Invoke-RestMethod http://localhost:18080/actuator/health
+
+# 애플리케이션 지표 생성 여부
+(Invoke-WebRequest http://localhost:18080/actuator/prometheus).Content.Substring(0, 500)
+
+# 반복 재시작 여부와 전체 컨테이너 상태
+docker ps
+
+# 실제 자원 한계
+docker inspect perf-app --format '{{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}'
+docker stats --no-stream
+```
+
+브라우저에서 Prometheus의 `http://localhost:9090/targets`를 열고 모든 타깃이 UP인지 확인한다.
+Grafana는 `http://localhost:3001`에서 확인한다.
+
+### 4-3. 데이터셋 프로파일 전환
+
+예를 들어 large에서 small로 바꿀 때:
+
+1. `performance/environment/.env.perf`의 `DATASET_PROFILE=small`로 수정한다.
+2. 기본 Compose로 컨테이너를 재생성한다.
+3. bootstrap에 같은 프로파일을 전달한다.
+4. 실제 마운트된 MySQL 볼륨과 Redis 초기화 결과를 확인한다.
+
+```powershell
+docker compose `
+  -f environment/docker-compose.perf.yml `
+  --env-file environment/.env.perf `
+  up -d
+
+node environment/bootstrap.js --profile small
+```
+
+`bootstrap.js` 없이 전환하면 이전 Redis 캐시가 남고, 다른 데이터셋 볼륨에 데이터를 넣는
+실수도 감지하지 못한다.
+
+### 4-4. 새 프로파일 시딩
+
+```powershell
+docker compose `
+  -f environment/docker-compose.perf.yml `
+  -f environment/docker-compose.seed.yml `
+  --env-file environment/.env.perf `
+  up -d
+
+node environment/bootstrap.js --profile small
+```
+
+시딩이 끝나면 반드시 시드 오버라이드를 빼고 기본 Compose로 다시 기동한다.
+
+```powershell
+docker compose `
+  -f environment/docker-compose.perf.yml `
+  --env-file environment/.env.perf `
+  up -d
+```
+
+복귀 확인:
+
+```sql
+SELECT @@innodb_flush_log_at_trx_commit, @@sync_binlog;
+```
+
+기대값은 `1, 1`이다. Hikari 최대 연결 수의 기대값은 10이다.
+
+### 4-5. 실행 사이 cold 상태 만들기
+
+데이터는 유지하고 애플리케이션 프로세스와 Redis 상태만 초기화한다.
+
+```powershell
+docker restart perf-app
+docker exec perf-redis redis-cli FLUSHALL
+```
+
+이 절차는 “완전한 cold start”를 보장하지 않는다. MySQL buffer pool, 호스트 파일 캐시,
+Docker Desktop 상태는 남을 수 있다. 실험 문서에 어떤 상태를 초기화했는지 정확히 기록한다.
+
+### 4-6. 성능 시나리오 실행
+
+```powershell
+node tools/perf-run.js scenarios/normal-day.js
+```
+
+Windows에서 Chocolatey shim이 차단되면 실제 k6 실행 파일을 지정한다.
+
+```powershell
+$env:K6_BIN = 'C:\path\to\k6.exe'
+node tools/perf-run.js scenarios/normal-day.js
+```
+
+### 4-7. 완전 초기화
+
+> **주의:** 다음 명령은 현재 Compose 프로젝트의 볼륨을 삭제한다. 해당 데이터셋을 다시
+> 사용하려면 전체 시딩이 필요하다. 대상 Compose 파일과 현재 프로파일을 먼저 확인한다.
+
+```powershell
+docker compose `
+  -f environment/docker-compose.perf.yml `
+  --env-file environment/.env.perf `
+  down -v
+```
+
+## 5. bootstrap.js가 하는 일
+
+`bootstrap.js`는 단순한 시더 실행기가 아니다. 잘못된 환경에서 측정하는 것을 막는 보호 장치다.
+
+1. **프로파일과 실제 MySQL 볼륨 확인**
+   `--profile small`인데 large 볼륨이 연결돼 있으면 중단한다.
+
+2. **필수 게시판 5개 생성**
+   게시판이 없으면 시더가 빈 목록을 받고도 대량 데이터 생성을 제대로 진행하지 못할 수 있다.
+
+3. **`daily_hot_post` 테이블 생성**
+   현재 Flyway baseline에 없는 테이블을 보완한다. 없으면 일간 인기글 API가 500을 반환한다.
+
+4. **Redis 초기화**
+   이전 데이터셋의 캐시·카운터가 현재 실행에 섞이지 않게 한다.
+
+5. **중복 시딩 차단**
+   시더를 다시 실행하면 기존 계정은 건너뛰지만 게시글과 댓글은 추가로 생성될 수 있다.
+   실측에서 small 게시글 500개가 1,065개로 늘어난 적이 있다. 명시적인 `--force` 없이 재실행을
+   막는 이유다.
+
+## 6. 증상별 문제 해결
+
+| 증상 | 먼저 의심할 원인 | 확인 또는 해결 |
+|---|---|---|
+| 컨테이너가 계속 재시작 | `prod` 프로파일 누락, 필수 환경변수 누락 | `docker ps`, 앱 로그, active profile 확인 |
+| 로그인은 200인데 다음 요청이 401 | `perf` 프로파일 누락으로 운영 쿠키 발급 | `prod,perf` 조합 확인 |
+| 로그인·회원가입이 500 | HS512 키가 64바이트보다 짧음 | `JWT_KEY` 길이 확인 |
+| Grafana CPU 패널이 No data | cAdvisor가 컨테이너 시리즈 생성 실패 | Prometheus에서 컨테이너 쿼리 직접 확인 |
+| cAdvisor 타깃은 UP인데 데이터 없음 | Docker Desktop containerd 이미지 저장 방식과 비호환 | 가능하면 containerd 이미지 저장 옵션을 끄고 overlay2로 재검증 |
+| MySQL 설정이 기본값 | cnf가 무시됐거나 기존 볼륨에 초기화 전용 옵션을 뒤늦게 적용 | `SHOW VARIABLES`, Compose `command:` 확인 |
+| `Token` 테이블 대소문자 오류 | `lower-case-table-names=1`이 기존 볼륨에 적용되지 않음 | 새 볼륨으로 재생성 후 검증 |
+| 프로파일을 바꿨는데 결과가 이상함 | Redis 잔존 데이터 또는 잘못된 MySQL 볼륨 | bootstrap 실행과 실제 mount 확인 |
+| 시딩 수량이 명세보다 많음 | 중복 시딩 | 현재 수량 확인 후 새 볼륨 또는 명시적 재시딩 |
+| k6가 UNKNOWN 오류로 시작 실패 | Chocolatey shim 차단 | `K6_BIN`에 실제 실행 파일 지정 |
+
+## 7. 현재 구조적 한계
+
+이 항목들은 명령을 올바르게 실행해도 남는다.
+
+- **같은 호스트 경합:** k6와 SUT가 같은 CPU를 사용한다. (E-01)
+- **CPU 초과 배분 가능성:** 앱·MySQL·Redis 한계 합계가 5 CPU이고 관측 도구는 무제한이다. (E-02)
+- **운영과 다른 토폴로지:** 운영은 EC2와 RDS, 테스트는 단일 호스트 Docker다. (E-03)
+- **호스트 지표 부재:** node_exporter가 없어 호스트 CPU·디스크 오염을 볼 수 없다. (E-09)
+- **cAdvisor 환경 의존성:** Windows Docker Desktop에서는 컨테이너 지표가 모두 빠질 수 있다. (E-10)
+- **하드웨어 명세 미완성:** CPU·메모리·디스크·Docker Desktop 설정이 실행 기록에 충분히 남지 않는다. (E-35)
+- **공유 Prometheus:** 데이터셋별 라벨이 부족하면 다른 실행의 시계열이 섞일 수 있다. (E-12)
+
+따라서 이 환경의 결과를 보고할 때는 “운영에서 몇 TPS를 버틴다”보다 “이 고정된 로컬 조건에서
+변경 전후가 어떻게 달라졌다”라고 표현하는 편이 정확하다.
+
+## 8. 실행 전 체크리스트
+
+- [ ] 작업 트리가 깨끗하고 실행 기록에 사용할 커밋이 확정돼 있다.
+- [ ] `.env.perf`의 데이터셋과 실제 MySQL 볼륨이 일치한다.
+- [ ] 애플리케이션 프로파일이 `prod,perf`다.
+- [ ] 애플리케이션 health와 Prometheus Actuator가 응답한다.
+- [ ] Prometheus 타깃별 UP 상태를 확인했다.
+- [ ] cAdvisor가 실제 컨테이너별 시계열을 만드는지 확인했다.
+- [ ] 시드 오버라이드가 제거되고 Hikari·MySQL 내구성 설정이 측정값으로 복귀했다.
+- [ ] Redis 초기화 여부와 cold/warm 조건을 실험 문서에 기록했다.
+- [ ] 호스트에서 다른 CPU·디스크 집약 작업을 중단했다.
+- [ ] 실행 후 기능별 지표와 결측 지표를 함께 확인한다.
+
+## 9. 스스로 설명해 보기
+
+다음 질문에 코드를 보지 않고 답할 수 있으면 환경의 핵심을 이해한 것이다.
+
+1. 왜 애플리케이션은 2 CPU이고 JVM 힙은 1GB인데 컨테이너 메모리는 2560MB인가?
+2. 왜 MySQL 설정 파일을 마운트하지 않고 CLI 옵션을 사용하는가?
+3. 왜 `prod`와 `perf` 프로파일이 모두 필요한가?
+4. 왜 MySQL 볼륨은 데이터셋마다 분리하지만 Redis는 전환할 때 비워야 하는가?
+5. 시딩할 때 Hikari를 50으로 올리고 측정할 때 10으로 되돌리는 이유는 무엇인가?
+6. Prometheus 타깃이 UP이어도 CPU 지표가 없을 수 있는 이유는 무엇인가?
+7. cold reset과 `down -v`는 무엇을 각각 삭제하는가?
+8. 이 환경의 결과를 운영 용량으로 바로 해석할 수 없는 이유는 무엇인가?

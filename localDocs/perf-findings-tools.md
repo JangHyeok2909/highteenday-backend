@@ -1,219 +1,792 @@
-# 발견 사항 — 분석 도구 파이프라인 (performance/tools/)
+# performance/tools 분석 도구 발견 사항
 
-리뷰 일자: 2026-08-05. 라인 번호는 당시 HEAD 기준 — 코드가 바뀌면 어긋날 수 있다.
+검토일: 2026-08-05
+추가 조사일: 2026-08-06
+쉬운 설명 기준 재정리: 2026-08-11
+
+라인 번호는 검토 당시 HEAD 기준이다. 이후 코드가 변경되면 실제 위치와 다를 수 있다.
+항목 번호는 기존 조사에서 사용한 식별자를 그대로 유지했다.
+
+해결 또는 부분 해결로 표시한 변경 사항은 별도 표기가 없으면 2026-08-05 작업 내용을 기준으로 하며, 검토 당시 아직 커밋되지 않은 상태였다. T-02는 2026-08-09 작업분으로 커밋까지 완료됐다(`8c42e16`, `ce85e04`, `56cb73e`).
+
+## 이 문서가 답하는 질문
+
+이 문서는 k6가 만든 숫자가 `run.json`과 HTML 리포트로 바뀌는 과정이 정확한지 검토한다.
+구체적으로 다음 단계를 다룬다.
+
+```text
+k6 원자료
+   → summary 저장
+   → Prometheus 조회
+   → 이전 실행 선택
+   → 절대·상대 규칙 평가
+   → PASS/WARN/FAIL
+   → HTML 리포트와 이력
+```
+
+어느 한 단계에서 값을 잘못 읽거나 비교 대상을 잘못 고르면, 원자료가 정확해도 최종 판정은
+틀릴 수 있다. 그래서 각 항목은 “코드 버그가 있는가?”뿐 아니라 “사람이 리포트를 보고 어떤
+잘못된 결론을 내리는가?”까지 설명한다.
+
+## 먼저 알아야 할 결론
+
+- 과거에는 점이 포함된 인프라 키를 읽지 못해 규칙 32개 중 25개가 SKIP됐다. T-01에서 수정했다.
+- **비교 가능한 기준선의 정의가 없다**는 문제는 T-02에서 해결했다. 실행 조건을 일급 개념으로
+  분리해, 데이터셋이나 부하 프로파일이 다른 실행은 기준선에서 제외하고 그 사유를 리포트에
+  표시한다. 다만 **느린 실행이 기준선 후보에서 사라지는 문제는 그대로 남아 있다**(S-10).
+- 필수 지표가 없을 때 SKIP은 최종 FAIL을 만들지 않는다. “문제 없음”과 “측정하지 못함”이
+  분리되지 않는다(T-08).
+- 일부 PromQL은 짧은 피크, 컨테이너 재시작, 트래픽 0인 Redis를 실제와 다르게 표현한다(T-18).
+- MySQL 락·트랜잭션·풀스캔 원자료가 이미 Prometheus에 있지만 수집 카탈로그가 읽지 않는다(T-29).
+- 자동 테스트는 추가됐고 기준선 선택은 T-02 작업에서 회귀 테스트로 덮였다. 그러나 Prometheus
+  결측과 시나리오별 규칙은 아직 보호되지 않는다(T-19).
+
+## 항목을 읽는 순서
+
+각 발견은 가능한 한 다음 내용을 포함한다.
+
+- **문제:** 코드가 현재 무엇을 잘못하고 있는가
+- **영향:** 리포트와 의사결정이 어떻게 틀어지는가
+- **근거:** 코드 위치와 실제 실행값은 무엇인가
+- **해결 내용:** 이미 수정했다면 무엇을 바꾸고 어떻게 검증했는가
+- **필요한 조치:** 아직 해결되지 않았다면 다음 결정과 구현은 무엇인가
+
+처음 읽는 사람은 T-01 → T-02 → T-08 → T-18 → T-29 순서로 보면 전체 위험을 가장 빨리
+이해할 수 있다.
+
+## 용어
+
+- **게이트**: 성능 결과가 허용 기준을 넘었는지 판정해 빌드의 통과 또는 실패를 결정하는 규칙
+- **기준선**: 현재 성능 결과와 비교할 이전 실행 결과
+- **결측 지표**: 수집 실패 등으로 현재 값을 확인할 수 없는 지표
+- **SKIP**: 값을 평가하지 않고 판정을 생략한 상태
+- **노이즈 억제**: 변화가 너무 작거나 기준값이 너무 낮아 의미 있는 비교가 아니라고 판단해 판정을 생략하는 처리
+
+## 현재 현황
+
+| 심각도 | 해결 | 부분 해결 | 미해결 |
+|---|---:|---:|---:|
+| CRITICAL | 2 | 0 | 0 |
+| HIGH | 3 | 0 | 5 |
+| MEDIUM | 3 | 1 | 5 |
+| LOW | 1 | 0 | 2 |
+| **합계** | **9** | **1** | **12** |
 
 ## CRITICAL
 
-### T-01. infra 규칙 25/32개가 한 번도 작동한 적 없음 — 상태: **해결** (2026-08-05, 미커밋)
-> `pick()`을 "남은 경로 전체가 키로 존재하면 우선" 방식으로 수정. 회귀 테스트 추가
-> (tools/test/regression.test.js). 실측 검증: 문제의 normal-day 런 재분석 시 skipped 25→0,
-> throttling·hikari 게이트 6건 FAIL 정상 발동. **저장된 과거 런의 판정은 여전히 옛 결과** —
-> 필요 시 `node tools/collect.js --all --force --no-wait`로 재판정.
-`tools/lib/regression.js:30-32`의 `pick()`은 `'infra.flat.saturation.cpuPct'`를 점 단위로
-중첩 탐색하지만, `infra.flat`은 **키 자체에 점이 든 평면 맵**(`'saturation.cpuPct'`)이다
-(metrics-catalog.js:477-489, collect.js:90-91). 결과: 모든 infra 규칙이 `undefined` → SKIP.
-실증: `normal-day-2026-08-05T09-39-43/run.json`은 `counts={total:32, fail:5, skipped:25}`,
-infra 비교 전부 "현재 값 없음" — 같은 파일의 `infra.flat`에는 `cpu.throttledPct=99.98`,
-`pool.hikariTimeouts=5316`, `pool.hikariPending.max=205`가 실존. 게이트인
-throttledPct/slowQueries/hikariTimeouts는 **탄생 이래 발동 불가능**이었다.
-`bottleneckHints`(regression.js:239-245)는 브래킷 접근이라 정상 동작 — 리포트가
-"CPU throttling 발생"이라 말하면서 회귀 표는 "값 없음"인 자기모순 상태.
+### T-01. 인프라 규칙 32개 중 25개가 실제로 평가되지 않음 — 상태: 해결
 
-### T-02. 기준선 선택이 dataset/VU/duration을 무시 — 상태: **해결** (2026-08-09, 미커밋)
-> `tools/lib/comparability.js` 신설 — 실행 조건(conditions)을 일급 개념으로 분리하고
-> 등급(blocking/degrading)을 선언적으로 정의. `findPrevious` → `findBaseline`으로 교체:
-> "직전 실행"이 아니라 "비교 가능한 가장 최근 실행"을 고르고, 탈락 후보와 사유를 함께 반환.
-> `analyze`의 scriptVersion 사후 강등 특수 분기를 이 메커니즘으로 흡수. 실측 검증:
-> 같은 조건 → 비교, 부하/데이터셋 변경 → 상대 비교 생략 + 사유 표시, 스크립트만 변경 → 경고 후 비교.
->
-> 함께 처리한 것:
-> - **부하 프로파일을 실제로 기록** — `exec.test.options.scenarios`(k6가 해석 완료한 선언 값).
->   `handleSummary(data)`의 `data.options`에는 summaryTrendStats/summaryTimeUnit/noColor 3개뿐이라
->   부하 설정이 없다(실측 확인).
-> - **`vusMax`를 조건으로 쓰지 않음** — 관측값이라 arrival-rate(`scenarios/breakpoint.js`)에서
->   서버가 느려질수록 올라간다. 조건으로 쓰면 회귀가 심할수록 기준선이 탈락해 게이트가 열리는
->   역전이 생긴다. 회귀 테스트로 고정(`tools/test/comparability.test.js`).
-> - **`baselineStatus` 신설** (compared/incomparable/first-run) — 조건이 엄격해지면 기준선 없는
->   실행이 흔해지는데, 그게 조용한 PASS로 새면 고치기 전보다 나쁘다. 절대 게이트는 계속 돈다.
-> - **`recentRuns` 계열 분리** — 리뷰에 없던 같은 결함. 추세 그래프가 small/15VU와 large/200VU를
->   한 선에 섞고 있었다.
->
-> 남은 것: 데이터셋 시드 매니페스트 해시(프로파일 이름만으로는 다른 `seed.js`가 만든 `large`를
-> 구분 못 함), 인프라 스펙 해시(`docker-compose.seed.yml`의 HikariCP 50 / sync_binlog=0을
-> 되돌리지 않은 채 측정하는 실패 모드). 둘 다 conditions 표에 한 줄씩 추가하면 된다.
-> **저장된 과거 런은 조건이 없어 기준선 후보에서 제외된다** — 의도된 동작(사용자 결정).
+**문제**
 
-`tools/lib/repository.js:203-214` `findPrevious`는 scenario+environment+`thresholdsPassed!==false`만
-필터. `toIndexEntry`가 `dataset`·`vusMax`를 저장하는데(124, 130행) 사용하지 않는다.
-실증: normal-day large/200VU/1650s 런이 small/15VU/545s 런(`normal-day-2026-08-04T06-38-42`)을
-기준선으로 판정됨. p95 101ms→60001ms가 "회귀"로 보고됐지만 실제로는 13× 부하 + 100× 데이터.
+`performance/tools/lib/regression.js:30-32`의 `pick()`은 점으로 구분된 키를 중첩 객체 경로로 해석한다. 예를 들어 `infra.flat.saturation.cpuPct`를 다음과 같은 중첩 구조에서 찾으려고 한다.
+
+```text
+infra
+└─ flat
+   └─ saturation
+      └─ cpuPct
+```
+
+하지만 실제 `infra.flat`은 중첩 객체가 아니라, 키 자체에 점이 들어 있는 평면 맵이다.
+
+```text
+infra.flat["saturation.cpuPct"]
+```
+
+실제 데이터 구조는 `performance/tools/lib/metrics-catalog.js:477-489`와 `performance/tools/collect.js:90-91`에서 확인할 수 있다.
+
+**영향**
+
+`pick()`이 인프라 지표를 찾지 못해 현재 값을 모두 `undefined`로 반환했다. 그 결과 인프라 규칙은 실패 여부를 평가하지 않고 전부 SKIP 처리됐다.
+
+특히 `throttledPct`, `slowQueries`, `hikariTimeouts`는 게이트 지표인데도 이 문제가 생긴 이후 한 번도 정상적으로 작동할 수 없었다.
+
+**근거**
+
+`normal-day-2026-08-05T09-39-43/run.json`에는 다음 결과가 저장돼 있다.
+
+```text
+counts = { total: 32, fail: 5, skipped: 25 }
+```
+
+같은 파일의 `infra.flat`에는 다음과 같은 실제 값이 존재했다.
+
+- `cpu.throttledPct = 99.98`
+- `pool.hikariTimeouts = 5316`
+- `pool.hikariPending.max = 205`
+
+그런데 회귀 비교 표에서는 해당 지표가 모두 “현재 값 없음”으로 표시됐다.
+
+반면 `regression.js:239-245`의 `bottleneckHints`는 브래킷 방식으로 키를 조회하기 때문에 정상 작동했다. 이 때문에 같은 리포트 안에서 병목 설명은 “CPU throttling 발생”이라고 표시하면서, 회귀 비교 표는 “현재 값 없음”이라고 표시하는 모순도 발생했다.
+
+**해결 내용**
+
+`pick()`이 남은 경로 전체와 일치하는 키가 있으면 그 키를 먼저 사용하도록 수정했다.
+`performance/tools/test/regression.test.js`에 회귀 테스트도 추가했다.
+
+문제가 발생했던 normal-day 실행을 다시 분석한 결과는 다음과 같다.
+
+- skipped: 25개 → 0개
+- throttling 및 Hikari 관련 게이트: 총 6건이 정상적으로 FAIL 처리
+
+**남은 작업**
+
+이미 저장된 과거 실행 결과에는 잘못된 판정이 그대로 남아 있다. 필요한 경우 다음 명령으로 다시 판정해야 한다.
+
+```bash
+node tools/collect.js --all --force --no-wait
+```
+
+### T-02. 부하 조건이 다른 실행을 기준선으로 선택함 — 상태: 해결 (2026-08-09, 커밋 `8c42e16`·`ce85e04`·`56cb73e`)
+
+**문제**
+
+`performance/tools/lib/repository.js:203-214`의 `findPrevious()`는 다음 세 조건만 사용해 기준선을 선택한다.
+
+- 시나리오가 같은가
+- 실행 환경이 같은가
+- 이전 실행의 임계값 검사가 실패하지 않았는가
+
+하지만 데이터 크기, 최대 VU, 실행 시간은 비교하지 않는다. `toIndexEntry()`가 `dataset`과 `vusMax`를 저장하고 있지만(124행, 130행), 기준선을 찾을 때는 사용하지 않는다.
+
+**영향**
+
+부하 규모가 전혀 다른 두 실행을 비교해 정상적인 차이를 성능 회귀로 오판할 수 있다. 반대로 더 약한 조건의 실행을 기준선으로 사용하면 실제 회귀를 과장하거나 잘못 해석할 수 있다.
+
+**근거**
+
+large 데이터셋, 200 VU, 1650초로 실행한 normal-day 결과가 다음 실행을 기준선으로 선택했다.
+
+- 실행 ID: `normal-day-2026-08-04T06-38-42`
+- 데이터셋: small
+- 최대 VU: 15
+- 실행 시간: 545초
+
+리포트는 p95가 101ms에서 60001ms로 증가했다고 보고했다. 하지만 현재 실행은 기준선보다 부하가 약 13배 크고 데이터도 약 100배 많아 직접 비교할 수 있는 조건이 아니었다.
+
+**해결 내용**
+
+원인을 “필터에 조건 두 개가 빠졌다”가 아니라 **서로 다른 두 질문이 하나로 뭉뚱그려져 있었다**고 정리했다.
+
+- 시간축 질문: 이력상 직전 실행은 무엇인가
+- 실험 설계 질문: 이 실행의 대조군으로 유효한 실행은 무엇인가
+
+기존 `findPrevious()`는 앞의 질문만 답하면서 뒤의 질문은 “시나리오가 같으면 조건도 같겠지”라고 가정하고 있었다.
+
+그래서 **실행 조건(conditions)을 일급 개념으로 분리**해 `performance/tools/lib/comparability.js`를 새로 만들었다. 이 파일의 `CONDITIONS` 표 한 곳에 조건을 선언하면 기준선 선택, 리포트 표시, 추세 계열 분리가 모두 따라온다. 조건이 하나 늘 때마다 판정 엔진에 분기를 덧대지 않아도 된다.
+
+조건마다 불일치의 성격이 다르므로 **등급(materiality)** 을 두 가지로 나눴다.
+
+| 등급 | 의미 | 처리 |
+|---|---|---|
+| `blocking` | 수치가 무의미해짐 | 기준선 자격 박탈, 상대 비교 생략 |
+| `degrading` | 수치가 의심스러움 | 비교는 하되 경고 표시, FAIL을 WARN으로 완화 |
+
+데이터셋이 다른 두 실행의 p95를 나란히 놓는 것은 “믿을 수 없는 비교”가 아니라 애초에 비교가 아니다. 반면 부하 스크립트 지문이 바뀐 경우는 대개 주석 한 줄 수정이고 수치는 대체로 유효하다. 그래서 앞의 넷은 `blocking`, 스크립트 지문은 `degrading`으로 뒀다(`comparability.js:54-89`).
+
+기준선 탐색 함수는 `findPrevious()`에서 `findBaseline()`으로 교체했다(`repository.js:231`). 이 함수는 “직전 실행”이 아니라 **비교 가능한 가장 최근 실행**을 고르고, 탈락한 후보와 그 사유를 함께 돌려준다. 조건이 엄격해지면 기준선 없는 실행이 흔해지는데, 그때 필요한 것은 침묵이 아니라 “8월 4일 실행이 있었지만 데이터셋이 small에서 large로 바뀌어 비교하지 않았다”는 문장이기 때문이다.
+
+함께 처리한 것은 다음과 같다.
+
+- **부하 프로파일을 실제로 기록하기 시작했다.** k6의 `handleSummary(data)`가 받는 `data.options`에는 `summaryTrendStats`, `summaryTimeUnit`, `noColor` 세 개뿐이고 부하 설정이 들어 있지 않다(실측 확인). 대신 k6가 해석을 끝낸 선언 값인 `exec.test.options.scenarios`를 저장한다.
+- **`baselineStatus`를 신설했다**(`regression.js:259`). 값은 `compared`, `incomparable`, `first-run` 셋이다. 기준선이 없다는 사실이 조용한 PASS로 새면 고치기 전보다 나쁘기 때문에 상태를 명시한다. 이때도 절대 게이트는 계속 동작한다.
+- **추세 계열을 분리했다.** `recentRuns()`가 시나리오 이름만으로 묶고 있어서 small/15VU 실행과 large/200VU 실행이 한 선에 섞이고 있었다. 기준선 선택과 똑같은 결함이 추세 그래프에도 있었던 것이다. 이제 `seriesHash`로 계열을 가른다(`repository.js:274-281`).
+- `analyze()`에 있던 `scriptVersion` 사후 강등 특수 분기를 위 등급 메커니즘으로 흡수했다.
+
+**선택하지 않은 대안**
+
+가장 먼저 떠오르는 방법은 k6 요약의 `vusMax`를 조건에 넣는 것이었지만 **버렸다.** `vusMax`는 설정값이 아니라 `vus_max` 지표의 최대치, 즉 **관측값**이기 때문이다.
+
+`ramping-vus` 시나리오에서는 설정한 피크와 값이 같아 문제가 드러나지 않는다. 그러나 `scenarios/breakpoint.js`가 쓰는 `ramping-arrival-rate`는 목표 도착률을 유지하려고 VU를 동적으로 할당한다. 즉 **서버가 느려질수록 `vusMax`가 올라간다.** 이것을 조건으로 쓰면 다음 순서가 만들어진다.
+
+```text
+진짜 회귀 발생 → vusMax 상승 → 기준선 부적격 → 상대 비교 생략 → 게이트 통과
+```
+
+회귀가 심할수록 검사에서 면제되는, 스스로를 무력화하는 필터가 된다. 그것도 한계 탐색이 목적인 유일한 시나리오에서 그렇게 된다. 같은 이유로 `durationSec`(실제 수행 시간)도 조건에서 뺐다. 조건은 선언된 `stages`이고, 실제로 얼마나 걸렸는지는 결과다.
+
+**검증**
+
+- 회귀 테스트로 고정했다: `performance/tools/test/comparability.test.js`, `repository.test.js`, `regression.test.js`
+- 실측 확인 결과는 다음 세 가지다.
+  - 같은 조건 → 정상 비교
+  - 부하 또는 데이터셋 변경 → 상대 비교 생략 + 사유 표시
+  - 스크립트만 변경 → 경고 후 비교
+
+**남은 작업**
+
+- **데이터셋 시드 매니페스트 해시**가 없다. 프로파일 이름만으로는 다른 `seed.js`가 만든 `large`를 구분하지 못한다.
+- **인프라 스펙 해시**가 없다. `docker-compose.seed.yml`의 HikariCP 50, `sync_binlog=0` 설정을 되돌리지 않은 채 측정하는 실패 모드를 잡지 못한다.
+
+둘 다 `comparability.js`의 `CONDITIONS` 표에 한 줄씩 추가하면 된다.
+
+저장된 과거 실행은 조건 정보가 없어 기준선 후보에서 제외된다. 이는 의도된 동작이다(사용자 결정).
 
 ## HIGH
 
-### T-03. `--warmup`이 infra 윈도우만 자름 — 상태: 미해결
-`collect.js:200-204`는 Prometheus 조회 구간만 트림. k6 p95/errorRate는 전체 구간.
-같은 리포트의 두 숫자가 다른 시간대를 설명한다. warmup 값은 `infra.window`에만 남고
-인덱스·기준선 비교에는 반영 안 됨 — warmup이 다른 런끼리 비교하면 increase() 계열
-카운터(gc.count, slowQueries)가 윈도우 길이 차이만큼 가짜 개선/악화를 보인다.
+### T-03. `--warmup`이 인프라 지표에만 적용됨 — 상태: 미해결
 
-### T-04. N=1 비교 + 타임아웃 검열 미감지 — 상태: 미해결
-단일 런 vs 단일 런 비교이고 분산 측정이 없다(rules.json:19의 "반복 실행 편차 근거" 주장은
-구현 안 됨). 노이즈 플로어가 절대값이라 저RPS 시나리오에선 상대 게이트가 사실상 꺼진다
-(실증: RPS -17.3%가 "변화 0.92 < 하한 1.00"으로 PASS). p95=60000.96은 k6 60s 타임아웃에
-잘린 검열값 — 이후 10배 더 나빠져도 변화 0%로 PASS. errorRate 0.558 + checkRate 0.443이라는
-페어 신호가 있는데도 게이트 로직은 검열을 인지하지 못한다.
+**문제**
 
-### T-07. scriptVersion이 진입 파일만 해시 + 스크립트 변경 시 게이트 전면 해제 — 상태: 미해결
-`perf-run.js:88-95`는 시나리오 파일만 SHA-256. `scripts/lib/session.js`, `data.js`,
-`config.js`, `scenarios/lib/workload.js` — 실제 요청 믹스가 사는 곳 — 은 미포함.
-반대로 `regression.js:183-188,200`은 `scriptChanged`면 FAIL→WARN으로 강등: 시나리오에
-주석 한 줄만 추가해도 진짜 실패하는 빌드가 게이트를 통과한다. `--strict` 같은 오버라이드 없음.
+`performance/tools/collect.js:200-204`는 warmup 시간을 Prometheus 조회 구간에서만 제외한다. k6의 p95와 오류율은 warmup을 포함한 전체 실행 구간으로 계산한다.
 
-### T-08. 결측 지표 ⇒ SKIP ⇒ 사실상 PASS — 상태: 미해결
-`regression.js:67-71` 현재값 null이면 SKIP, `analyze()`(171-178행)는 FAIL/WARN 수만 본다.
-`collect.js:212-214` Prometheus 접속 불가 ⇒ `infra.flat={}` ⇒ verdict PASS, exit 0.
-익스포터 하나가 죽어도 동일. "게이트 지표를 평가할 수 없었다"는 상태가 없다.
+따라서 같은 리포트 안에서도 다음 두 종류의 지표가 서로 다른 시간대를 설명한다.
 
-### T-14. perf-run이 수집 대상을 알파벳순으로 선택 — 상태: **해결** (2026-08-05, 미커밋)
-> perf-run이 실행 전후 스테이징 diff로 runId를 식별해 collect에 직접 전달.
-> 결과 파일 부재(k6 급사) 시 수집을 건너뛰고 실패 종료. collect의 무인자 선택도
-> 사전순 → 파일 mtime 기준으로 변경(newestByMtime).
-`perf-run.js:173-177`은 runId 없이 collect를 실행하고, `collect.js:248-250`은
-`pending[pending.length-1]`, `repository.js:59-67`은 `[...ids].sort()` — **사전순이라
-시나리오 이름이 지배**한다. 수집 실패한 `timetable-*` pending 런 하나가 이후 모든
-auth/boards/comments/posts 런의 결과를 영구 하이재킹한다. 동시 실행 2개도 같은 충돌.
+- k6 지표: warmup을 포함한 전체 구간
+- 인프라 지표: warmup을 제외한 구간
 
-### T-15. index.json 비원자적 쓰기 + 파싱 실패 시 이력 소멸 — 상태: **해결** (2026-08-05, 미커밋)
-> writeJson temp+rename 원자화. loadIndex는 "파일 없음(빈 이력)"과 "손상(예외 + rebuild 안내)"을
-> 구분 — 손상을 빈 이력으로 대체하던 조용한 소멸 제거. history.js --rebuild 복구 경로는 유효 확인.
-`repository.js:45-48` 단순 writeFileSync(temp+rename 없음), `saveRun`은 전체 read-modify-write.
-`loadIndex`(161-165행)는 파싱 실패 시 `{runs:[]}` 반환 → 다음 saveRun이 런 1개짜리 새 인덱스로
-덮어씀 → 이력 조용히 소멸 → findPrevious null → "첫 실행" 처리 → 게이트 통과.
-`rebuildIndex`(226-238행)는 수동 전용이며 실행 시 전 런을 시간순 재번호 — `run.json`의
-번호와 어긋난다(collect.js:193-195는 번호 보존).
+**영향**
 
-### T-16. 실패 삼킴 + exit 코드 오류 — 상태: **해결** (2026-08-05, 미커밋)
-> collect: --all 포함 수집 실패 1건 이상이면 exit 2. perf-run: col.error 검사 추가,
-> status null(시그널 종료)을 0으로 새지 않게 처리, --no-collect 경로도 동일.
-> --wait/--warmup NaN 즉시 거부.
-`collect.js:276-279`: `--all`에서 전 런 실패해도 exit 0 (`targets.length===1`일 때만 exit 2).
-`perf-run.js:180`: collector가 시그널로 죽으면 `col.status===null` → `process.exit(null)` → **0**.
-`col.error` 미검사. k6가 handleSummary 전에 죽으면 staged 파일이 없는데 이를 단언하는
-코드가 없어 무관한 pending 런을 수집한다.
+서로 다른 시간 범위에서 측정한 값을 같은 실행 결과처럼 비교하게 된다.
+
+또한 warmup 값은 `infra.window`에만 저장되고 인덱스와 기준선 조건에는 포함되지 않는다. warmup 길이가 다른 실행끼리 비교하면 `gc.count`나 `slowQueries`처럼 구간 누적값을 사용하는 지표가 시간 차이만큼 증가하거나 감소한 것처럼 보일 수 있다.
+
+**필요한 조치**
+
+k6 지표와 인프라 지표가 같은 분석 구간을 사용하도록 맞춰야 한다. 기준선을 선택할 때도 warmup 조건이 같은지 확인해야 한다.
+
+### T-04. 한 번씩만 실행한 결과를 비교하며 타임아웃 상한도 인식하지 못함 — 상태: 미해결
+
+이 항목에는 서로 연결된 두 가지 문제가 있다.
+
+#### 문제 1: 반복 실행 없이 한 번의 결과만 비교함
+
+현재 판정은 현재 실행 한 번과 기준선 실행 한 번을 비교한다. 실행 편차나 분산을 측정하지 않는다.
+
+`performance/regression/rules.json:19`에는 “반복 실행 편차 근거”라는 설명이 있지만 실제 구현은 없다.
+
+노이즈 하한도 상대 비율이 아니라 절대값으로 적용한다. 요청량이 적은 시나리오에서는 큰 비율의 변화도 작은 절대 변화로 판단해 무시할 수 있다.
+
+**근거**
+
+실제 실행에서 RPS가 17.3% 감소했지만 다음과 같은 이유로 PASS 처리됐다.
+
+```text
+변화 0.92 < 하한 1.00
+```
+
+#### 문제 2: 타임아웃 때문에 잘린 값을 실제 지연 시간처럼 비교함
+
+p95가 `60000.96ms`로 표시된 사례가 있다. 이는 실제 응답 시간이 아니라 k6의 60초 타임아웃 상한에 걸려 잘린 값이다.
+
+현재 게이트는 이 값이 측정 상한이라는 사실을 모른다. 이후 시스템이 더 느려져도 결과가 계속 약 60초로 표시되므로 변화율은 0%에 가까워지고 PASS할 수 있다.
+
+같은 실행에서 다음 신호도 함께 나타났다.
+
+- `errorRate = 0.558`
+- `checkRate = 0.443`
+
+두 지표를 함께 보면 요청 절반 이상이 정상 처리되지 않았음을 알 수 있지만, 현재 판정 로직은 이를 타임아웃 검열 신호로 사용하지 않는다.
+
+**필요한 조치**
+
+반복 실행 결과로 정상 편차 범위를 계산해야 한다. 타임아웃 상한에 걸린 지연 시간은 일반적인 p95 변화율로 비교하지 말고 오류율, checkRate와 함께 별도의 실패 상태로 판정해야 한다.
+
+### T-07. 스크립트 버전 판정이 실제 변경 범위를 제대로 반영하지 못함 — 상태: 미해결
+
+이 항목에도 반대 방향의 두 가지 문제가 있다.
+
+#### 문제 1: 실제 요청 동작이 바뀌어도 버전이 같다고 판단할 수 있음
+
+`performance/tools/perf-run.js:88-95`는 시나리오 진입 파일 하나만 SHA-256으로 해시한다.
+
+하지만 실제 요청 구성과 실행 동작은 다음 공통 파일에도 들어 있다.
+
+- `performance/scripts/lib/session.js`
+- `performance/scripts/lib/data.js`
+- `performance/scripts/lib/config.js`
+- `performance/scenarios/lib/workload.js`
+
+이 파일들이 바뀌어도 `scriptVersion`은 바뀌지 않는다. 따라서 서로 다른 동작의 실행 결과를 같은 버전으로 비교할 수 있다.
+
+#### 문제 2: 진입 파일이 조금만 바뀌어도 실패 판정이 약해짐
+
+`performance/tools/lib/regression.js:183-188,200`은 `scriptChanged`가 참이면 FAIL을 WARN으로 낮춘다.
+
+진입 파일에 주석 한 줄만 추가해도 스크립트 변경으로 판단한다. 이 상태에서는 실제 성능 회귀가 발생해도 빌드가 게이트를 통과할 수 있다. 이를 강제로 실패 처리할 `--strict` 같은 옵션도 없다.
+
+**필요한 조치**
+
+실제 실행에 영향을 주는 모든 파일을 버전 계산에 포함해야 한다. 단순히 스크립트가 바뀌었다는 이유만으로 모든 실패를 WARN으로 낮추지 말고, 필요하면 엄격하게 판정할 수 있는 정책을 제공해야 한다.
+
+### T-08. 필수 지표를 수집하지 못해도 테스트가 통과함 — 상태: 미해결
+
+**문제**
+
+`performance/tools/lib/regression.js:67-71`은 현재 지표값이 `null`이면 해당 규칙을 SKIP한다. 이후 `analyze()`는 FAIL과 WARN 개수만 보고 전체 판정을 결정한다.
+
+따라서 “지표가 정상 범위에 있다”와 “지표를 아예 측정하지 못했다”를 구분하지 못한다.
+
+**실패 시나리오**
+
+`performance/tools/collect.js:212-214`에서 Prometheus에 연결하지 못하면 `infra.flat = {}`가 된다. 모든 인프라 지표가 결측되지만 결과는 다음처럼 처리된다.
+
+- 인프라 규칙: SKIP
+- 전체 판정: PASS
+- 프로세스 종료 코드: 0
+
+Prometheus 자체가 죽거나 개별 익스포터 하나가 멈춘 경우에도 같은 문제가 생길 수 있다.
+
+**영향**
+
+성능 게이트가 필요한 데이터를 전혀 수집하지 못한 상태에서도 정상 결과처럼 통과한다.
+
+**필요한 조치**
+
+게이트에 필요한 지표가 없으면 단순 SKIP이 아니라 “평가 불가” 상태로 처리해야 한다. 필수 지표와 선택 지표를 구분하고, 필수 지표 결측 시 어떤 종료 코드를 반환할지 정책을 정해야 한다.
+
+### T-14. `perf-run`이 잘못된 실행 결과를 수집할 수 있음 — 상태: 해결
+
+**기존 문제**
+
+`performance/tools/perf-run.js:173-177`은 실행 ID를 전달하지 않고 `collect`를 호출했다. `collect.js:248-250`은 pending 목록의 마지막 항목을 선택했고, `repository.js:59-67`은 목록을 알파벳순으로 정렬했다.
+
+결국 가장 최근 실행이 아니라 이름이 알파벳순으로 마지막인 실행을 선택했다.
+
+예를 들어 수집에 실패한 `timetable-*` pending 실행이 하나 남아 있으면, 이후 auth, boards, comments, posts 실행을 수집할 때도 계속 그 timetable 실행을 선택할 수 있었다. 두 실행을 동시에 수행해도 같은 충돌이 발생할 수 있었다.
+
+**해결 내용**
+
+- `perf-run` 실행 전후의 스테이징 목록 차이로 현재 실행 ID를 식별
+- 식별한 실행 ID를 `collect`에 직접 전달
+- k6가 급사해 결과 파일이 없으면 수집을 건너뛰고 실패 종료
+- 인자 없이 `collect`를 실행할 때는 알파벳순이 아니라 파일 수정 시간 기준으로 최신 항목 선택
+
+### T-15. `index.json` 손상 시 실행 이력이 조용히 사라질 수 있음 — 상태: 해결
+
+**기존 문제**
+
+`performance/tools/lib/repository.js:45-48`은 `index.json`을 바로 덮어썼다. 임시 파일을 완전히 쓴 뒤 교체하는 원자적 저장 방식을 사용하지 않았다.
+
+또한 `saveRun()`은 인덱스 전체를 읽고 수정한 다음 다시 쓰는 방식이었다. 저장 도중 프로세스가 종료되거나 여러 프로세스가 동시에 접근하면 파일이 일부만 기록될 수 있었다.
+
+`loadIndex()`는 JSON 파싱에 실패하면 오류를 알리지 않고 다음 값을 반환했다.
+
+```json
+{ "runs": [] }
+```
+
+그 뒤 `saveRun()`이 실행되면 손상된 인덱스를 실행 한 개만 들어 있는 새 인덱스로 덮어썼다. 그 결과는 다음과 같다.
+
+1. 이전 실행 이력이 사라짐
+2. `findPrevious()`가 기준선을 찾지 못함
+3. 현재 실행을 “첫 실행”으로 처리
+4. 회귀 게이트가 비교 없이 통과
+
+**해결 내용**
+
+- JSON을 임시 파일에 먼저 기록한 뒤 rename하는 원자적 저장 방식 적용
+- 파일이 없는 정상적인 빈 이력과 JSON이 손상된 상태를 구분
+- 파일이 손상되면 예외와 rebuild 안내를 표시
+- `history.js --rebuild` 복구 경로가 작동하는지 확인
+
+실행 번호의 동시성 및 재번호 문제는 T-28에서 별도로 다룬다.
+
+### T-16. 수집 실패가 성공 종료 코드로 바뀔 수 있음 — 상태: 해결
+
+**기존 문제**
+
+세 가지 경로에서 실패가 성공으로 처리될 수 있었다.
+
+1. `collect.js:276-279`는 `--all`로 여러 실행을 수집할 때 전부 실패해도 종료 코드 0을 반환했다. 대상이 한 개일 때만 종료 코드 2를 사용했다.
+2. `perf-run.js:180`에서 collector가 시그널로 종료되면 `col.status`가 `null`이 된다. 이를 `process.exit(null)`로 전달하면서 종료 코드 0이 됐다.
+3. `col.error`를 검사하지 않았다.
+
+또한 k6가 `handleSummary` 실행 전에 죽으면 staged 결과 파일이 생성되지 않는다. 기존 코드는 이 상황을 확인하지 않아 현재 실행 대신 다른 pending 실행을 수집할 수 있었다.
+
+**해결 내용**
+
+- `--all` 실행 중 하나라도 수집에 실패하면 종료 코드 2 반환
+- `perf-run`에서 `col.error` 검사
+- 시그널 종료로 `status = null`인 경우 성공으로 처리하지 않음
+- `--no-collect` 경로에도 같은 종료 규칙 적용
+- `--wait`와 `--warmup` 값이 숫자가 아니면 즉시 거부
+
+### T-29. MySQL 락·트랜잭션·풀스캔 지표가 수집 카탈로그에서 빠져 있음 — 상태: 미해결
+
+추가 조사일: 2026-08-06
+
+**문제**
+
+`performance/tools/lib/metrics-catalog.js:221`의 MySQL 그룹에는 다음 9개 지표만 등록돼 있다.
+
+- `maxConnections`
+- `slowQueries`
+- `qps`
+- `qpsMax`
+- `bufferPoolHitPct`
+- `rowsReadPerSec`
+- `abortedConnects`
+- `threadsRunning`
+- `threadsConnected`
+- `innodbRowLockWaits`
+
+원문에는 9개라고 기록돼 있지만 위 목록은 실제로 10개다. 구현을 수정할 때 카탈로그의 실제 항목 수도 함께 확인해야 한다.
+
+Prometheus에는 이보다 많은 MySQL 지표가 이미 들어오고 있다. 익스포터 설정을 바꾸거나 새로운 수집 경로를 만들 필요는 없다. 현재는 지표 카탈로그에 등록하지 않아 보고서에서 사용하지 못하는 상태다.
+
+**왜 중요한가**
+
+`localDocs/`의 병목 카탈로그는 BTL-003, 즉 인기글 카운터의 락 경합을 “확정” 상태로 기록하고 있으며 실측 데드락도 재현됐다고 설명한다.
+
+하지만 현재 등록된 `innodbRowLockWaits`는 `Innodb_row_lock_current_waits`를 사용한다. 이 값은 조회하는 순간에 락을 기다리는 트랜잭션 수만 보여주는 스냅샷이다. 테스트 구간 전체에서 락 대기가 얼마나 발생했는지, 총 대기 시간이 얼마였는지는 알 수 없다.
+
+따라서 현재 도구만으로는 이미 확인한 락 병목을 제대로 측정할 수 없다. EXP-003을 수행할 때 필요한 판단 근거가 부족하다.
+
+**실측 확인 결과**
+
+다음 PromQL이 실제 Prometheus에서 값을 반환하는 것을 2026-08-06에 확인했다.
+
+| 추가할 키 | PromQL | 의미 |
+|---|---|---|
+| `mysql.rowLockTimeMs` | `increase(mysql_global_status_innodb_row_lock_time[$RANGE])` | 테스트 구간의 누적 락 대기 시간. 검증값: 295 |
+| `mysql.rowLockTimeMaxMs` | `max_over_time((mysql_global_status_innodb_row_lock_time_max)[$RANGE:])` | 가장 길었던 단일 락 대기 시간. 검증값: 84 |
+| `mysql.commits` | `increase(mysql_global_status_commands_total{command="commit"}[$RANGE])` | 실제 커밋된 트랜잭션 수 |
+| `mysql.rollbacks` | `increase(mysql_global_status_commands_total{command="rollback"}[$RANGE])` | 데드락이나 충돌을 간접적으로 확인할 수 있는 롤백 수. 검증값: 0 |
+| `mysql.fullScanRows` | `increase(mysql_global_status_handlers_total{handler="read_rnd_next"}[$RANGE])` | 풀스캔으로 읽은 행 수. 검증값: 47,215,458 |
+| `mysql.tmpDiskTables` | `increase(mysql_global_status_created_tmp_disk_tables[$RANGE])` | 정렬 또는 그룹핑 데이터가 메모리를 넘어 디스크 임시 테이블을 사용한 횟수. 검증값: 0 |
+
+`mysql.fullScanRows`의 검증값 47,215,458은 상당히 큰 값이므로 원인 확인이 필요하다.
+
+**데드락 지표의 제한**
+
+`mysql_global_status_innodb_deadlocks`는 현재 Prometheus에 존재하지 않는다. 조회 결과 시계열이 0개다.
+
+데드락 횟수를 직접 수집하려면 익스포터에 `--collect.engine_innodb_status` 옵션이 필요하다. 이는 E-39에서 다룬다. 해당 설정을 추가하기 전에는 `mysql.rollbacks`를 간접 신호로 사용해야 한다.
+
+**추가 확인 사항**
+
+`mysql.tmpDiskTables`는 `performance/PERFORMANCE-MANAGEMENT.md` §10에서 “지표를 하나 추가하는 방법”의 예시로 이미 사용하고 있다. 문서에는 예시로 존재하지만 실제 카탈로그에는 추가하지 않은 상태다.
+
+**예상 작업량**
+
+- 변경 범위: 지표 카탈로그 파일 한 개에 약 6개 항목 추가
+- 수집 오버헤드: 없음. Prometheus가 이미 수집 중인 지표를 사용함
+- 예상 시간: 약 30분
+
+**선행 조건**
+
+먼저 T-08의 결측 지표 처리 방침을 정하는 편이 안전하다. 방침 없이 지표만 추가하면 특정 환경에서 새 지표를 수집하지 못했을 때 또다시 SKIP 후 PASS할 수 있다.
+
+`rules.json`에 락 대기 관련 게이트 규칙을 추가할지도 T-08의 정책을 결정한 뒤 판단해야 한다.
 
 ## MEDIUM
 
-### T-17. promoteStaged가 기록 저장 전에 실행 — 상태: **해결** (2026-08-05, 미커밋)
-> 승격을 saveRun·리포트 기록 이후 마지막으로 이동 — repository.js 주석("수집 성공 후에만
-> 승격")과 코드가 이제 일치.
-`collect.js:230-235`: staged k6.json을 saveRun/renderReport **전에** 이동.
-repository.js:85-86 주석("수집 성공 후에만 승격")과 코드가 다르다. renderReport가
-던지면(비래핑) staged는 이미 사라짐 — 복구가 우연히만 동작.
+### T-17. 결과 파일을 너무 일찍 승격함 — 상태: 해결
 
-### T-18. PromQL 품질 문제 묶음 — 상태: 미해결
-- `increase(...[$RANGE])`는 외삽 추정치인데 count로 취급 (실증: slowQueries=839.155…)
-- `rate(...[$RANGE])`는 전구간 평균 — 램프 구간이 지배, 피크 은폐. `*Max` 변형은 규칙에서 미사용
-- 서브쿼리 해상도 기본 15s(evaluation_interval) vs 스크레이프 5s — max/p95가 피크를 계통 과소평가.
-  `cpu.cores.*`는 `rate[1m]` 하드코딩이라 10초 CPU 고정이 안 보임 — saturation.cpuPct의 분자
-- 컨테이너 매칭 `name="perf-app"` + `max()` 폴드 — 재시작 시 카운터 합산 누락, Compose v2
-  프리픽스 환경에선 전부 null → SKIP → PASS
-- MySQL/Redis 쿼리에 job/instance 셀렉터 없음 — 다른 익스포터가 있으면 합산 오염
-- `redis.hitRatioPct`: 트래픽 0일 때 0%로 계산되어 "캐시 붕괴" 오경보 (clamp_min(x,1) 편향)
+**기존 문제**
 
-### T-19. 도구 테스트 0개, package.json 없음, lint 없음 — 상태: **부분 해결** (2026-08-05, 미커밋)
-> performance/package.json + tools/test/ 도입 (`npm test`, node:test, 28개).
-> pick/evaluateRule/analyze/validateRules/writeJson/loadIndex/breakdown/convert 커버.
-> lint 및 나머지 모듈(report/history/promql) 테스트는 미도입.
-`evaluateRule`, `findPrevious`, `trendStat`, `computeDerived`, `pick` 전부 순수 함수인데
-테스트가 하나도 없다. `analyze()` 결과의 infra 비교가 SKIP이 아님을 단언하는 테스트
-하나면 T-01이 잡혔다. CI를 게이트하는 도구가 스스로는 게이트되지 않는다.
+`performance/tools/collect.js:230-235`는 staged `k6.json`을 `saveRun()`과 `renderReport()` 실행 전에 최종 위치로 이동했다.
 
-### T-20. 구버전 판정 시스템 공존 — 상태: **해결** (2026-08-05, 미커밋)
-> compare.js·thresholds.json 삭제, summary.js의 reports/raw 이중 기록 제거,
-> tools/README·regression/README 갱신. reports/raw 기존 파일은 이관 이력용으로 유지.
-`compare.js`+`thresholds.json`(p95 +10%)과 `regression.js`+`rules.json`(warn 10/fail 20)이
-서로 다른 기준으로 공존. compare.js는 존재하지 않는 `regression/baseline.json`을 요구해
-사실상 사문(死文)인데 `summary.js:210`이 여전히 raw summary를 계속 쓴다.
+하지만 `repository.js:85-86`의 주석에는 “수집 성공 후에만 승격”한다고 적혀 있어 코드와 설명이 일치하지 않았다.
 
-### T-21. 중복 구현 — 상태: 미해결
-migrate-raw.js가 summary.js 파싱 로직의 포크(동일 정규식 포함). 증감률 계산이 4곳에
-서로 다른 컷오프로 구현(regression.js/report.js×2/history.js). fmtNum vs format.num 불일치.
-TREND_METRICS 목록 2벌 수동 유지.
+`renderReport()`가 예외를 던지면 실행 기록과 리포트 저장은 실패하지만 staged 파일은 이미 사라진다. 복구가 안정적인 절차가 아니라 우연한 상태에 의존하게 된다.
 
-### T-22. 시나리오 무관 단일 rules.json — 상태: 미해결
-`regression.js:165-168`이 모든 런에 동일 32규칙 적용. stress/spike/breakpoint/chaos는
-p95>500ms·오류>1%를 넘는 게 **목적**인데 둘 다 게이트라 구조적 FAIL 확정.
-습관성 `--no-gate` 사용을 유발해 진짜 게이트까지 무력화될 위험.
+**해결 내용**
 
-### T-23. 게이트 선택이 진단 가치와 반대 — 상태: 미해결
-게이트인 infra 3개(throttling/slowQueries/hikariTimeouts)는 T-01로 작동 불능이었고,
-자원 문제를 정확히 가리키는 `saturation.hikariPct`, `pool.hikariPending.max`,
-`saturation.tomcatPct`, `saturation.heapPct`는 전부 비게이트. 실증 런: hikariPending 205,
-타임아웃 5316인데 k6 지연으로만 게이트됨. `k6.breakdown.*`을 다루는 규칙은 0개.
+`saveRun()`과 리포트 기록이 모두 성공한 뒤 마지막 단계에서 staged 파일을 승격하도록 순서를 변경했다. 이제 코드 동작과 주석이 일치한다.
 
-### T-24. 강상관 지표 5개 동시 게이트 — 상태: 미해결
-avg/p95/p99/tps/rps는 같은 현상의 상관 측정치 — 검출력은 거의 안 늘고 오탐률만 곱해진다
-(규칙당 FP 5%면 런 레벨 ~25%). errorRate 절대 warn이 0.001(1000건 중 1건)로 과민,
-반면 slowQueries는 2배가 되어야 FAIL이고 4→400 점프는 minBaseline=5에 걸려 SKIP.
+### T-18. 일부 Prometheus 지표가 실제 상태와 다르게 표시될 수 있음 — 상태: 미해결
 
-### T-25. counts.skipped 의미 오류 — 상태: **해결** (2026-08-05, 미커밋)
-> counts를 skipped(평가 불가: 값 미수집)와 suppressed(판정 생략: 노이즈 억제)로 분리,
-> 리포트 문구도 둘을 구분해 표기. 평가 불가 > 0이면 익스포터 점검 안내 표시.
-`regression.js:206`은 verdict==='SKIP'만 세는데, 노이즈 억제는 PASS+skipped 문자열로 남는다.
-report.js:509는 skipped를 "노이즈 하한 미만"이라 설명 — 실제 25개는 전부 "값 없음"이었다.
+현재 PromQL에는 서로 다른 여섯 가지 문제가 있다. 이 때문에 보고서가 이벤트 수를 부정확하게 표시하거나, 짧은 부하 급증을 놓치거나, 정상 상태를 장애로 판단할 수 있다.
+
+#### 문제 1: 누적 이벤트 수를 정확한 정수처럼 표시함
+
+`increase(...[$RANGE])`는 조회 구간의 시작과 끝에 데이터가 부족하면 값을 외삽해 추정한다. 실제 카운터가 정수 단위로 증가하더라도 결과는 소수가 될 수 있다.
+
+실제로 `slowQueries`가 `839.155…`로 계산된 사례가 있다. 이는 느린 쿼리가 정확히 839.155번 발생했다는 뜻이 아니다.
+
+현재 보고서는 이 값을 실제 발생 횟수처럼 취급한다. 정확한 횟수가 아니라 구간 추정치라는 사실을 표시하거나, 표시 및 판정 방식을 조정해야 한다.
+
+#### 문제 2: 테스트 중 짧게 발생한 피크가 전체 평균에 묻힘
+
+`rate(...[$RANGE])`는 테스트 전체 구간의 초당 평균 증가율을 계산한다.
+
+부하 테스트에는 보통 사용자를 서서히 늘리는 램프 구간이 포함된다. 짧은 시간 동안 CPU 사용량이나 요청량이 크게 증가해도, 나머지 시간이 낮은 부하였다면 전체 평균은 낮게 나온다.
+
+피크를 계산하는 `*Max` 지표도 존재하지만 현재 게이트 규칙에서는 사용하지 않는다. 따라서 순간적인 병목을 놓칠 수 있다.
+
+#### 문제 3: Prometheus 계산 간격 때문에 짧은 피크를 놓칠 수 있음
+
+Prometheus는 원본 지표를 5초마다 수집하지만, 일부 서브쿼리는 기본 `evaluation_interval`인 15초 간격으로 계산된다.
+
+5초 동안만 발생한 피크가 15초 계산 지점 사이에 있으면 최대값이나 p95가 실제보다 낮게 계산될 수 있다.
+
+`cpu.cores.*` 지표에는 `rate[1m]`가 하드코딩돼 있다. 이 값은 `saturation.cpuPct`를 계산할 때 사용된다. CPU가 10초 동안 최대치에 도달해도 1분 평균에 희석되므로 짧은 CPU 포화를 놓칠 수 있다.
+
+#### 문제 4: 컨테이너 이름이 환경에 따라 달라지면 지표가 모두 누락될 수 있음
+
+컨테이너 쿼리는 이름이 정확히 `perf-app`인 컨테이너를 찾는다.
+
+Docker Compose v2는 프로젝트 이름을 컨테이너 이름 앞에 붙일 수 있다. 실제 이름이 달라지면 쿼리가 대상을 찾지 못하고 관련 지표가 모두 `null`이 된다.
+
+현재 판정 로직은 결측 지표를 SKIP한 뒤 전체 테스트를 PASS할 수 있다. 따라서 단순한 이름 차이 때문에 인프라 검사가 전부 비활성화될 수 있다.
+
+또한 현재 `max()` 집계 방식은 컨테이너가 테스트 도중 재시작될 경우 재시작 전후의 카운터를 올바르게 합산하지 못할 수 있다.
+
+#### 문제 5: 다른 MySQL 또는 Redis 서버의 지표가 섞일 수 있음
+
+MySQL과 Redis PromQL에는 대상 `job`이나 `instance`를 제한하는 조건이 없다.
+
+같은 Prometheus에 여러 MySQL 또는 Redis 익스포터가 연결돼 있으면 테스트 대상이 아닌 서버의 지표까지 결과에 섞일 수 있다. 보고서가 어느 서버의 상태를 나타내는지 보장할 수 없다.
+
+쿼리에서 테스트 대상 익스포터를 명확하게 선택해야 한다.
+
+#### 문제 6: Redis 요청이 없을 때 적중률을 0%로 표시함
+
+`redis.hitRatioPct`는 분모가 0이 되는 것을 막기 위해 `clamp_min(x, 1)`을 사용한다.
+
+캐시 요청이 한 번도 없으면 적중률을 계산할 수 없다. 하지만 현재 수식은 이 경우를 0%로 계산한다. 보고서만 보면 캐시 요청이 없었던 정상 상태를 “캐시 적중률 0%” 또는 “캐시 붕괴”로 오해할 수 있다.
+
+트래픽이 없을 때는 0%가 아니라 “평가할 데이터 없음”으로 처리해야 한다.
+
+### T-19. 분석 도구의 자동 테스트가 아직 충분하지 않음 — 상태: 부분 해결
+
+**기존 문제**
+
+다음 핵심 함수들은 외부 상태에 크게 의존하지 않는 순수 함수인데도 자동 테스트가 없었다.
+
+- `evaluateRule`
+- `findPrevious`
+- `trendStat`
+- `computeDerived`
+- `pick`
+
+인프라 비교 결과가 SKIP이 아니라고 확인하는 테스트 하나만 있었어도 T-01을 발견할 수 있었다. CI 통과 여부를 결정하는 분석 도구 자체는 CI에서 충분히 검증되지 않았다.
+
+**해결된 부분**
+
+- `performance/package.json` 추가
+- `performance/tools/test/` 테스트 도입
+- `npm test`로 실행
+- Node.js `node:test` 사용
+- 총 28개 테스트 추가
+
+현재 테스트는 다음 기능을 다룬다.
+
+- `pick`
+- `evaluateRule`
+- `analyze`
+- `validateRules`
+- `writeJson`
+- `loadIndex`
+- breakdown 처리
+- 데이터 변환
+
+**남은 작업**
+
+- lint 도입
+- `report` 모듈 테스트
+- `history` 모듈 테스트
+- PromQL 생성 로직 테스트
+- 그 밖의 미검증 모듈 테스트
+
+### T-20. 서로 다른 두 개의 회귀 판정 시스템이 함께 존재함 — 상태: 해결
+
+**기존 문제**
+
+다음 두 판정 시스템이 서로 다른 기준으로 함께 존재했다.
+
+1. `compare.js` + `thresholds.json`
+   - p95가 10% 증가하면 실패
+2. `regression.js` + `rules.json`
+   - 경고 기준 10%, 실패 기준 20%
+
+`compare.js`는 존재하지 않는 `regression/baseline.json`을 요구해 실제로는 사용할 수 없는 코드였다. 그런데도 `summary.js:210`은 이전 시스템용 raw summary를 계속 기록했다.
+
+그 결과 어떤 판정 기준이 공식 기준인지 불분명했고, 사용되지 않는 결과 파일도 계속 생성됐다.
+
+**해결 내용**
+
+- `compare.js` 삭제
+- `thresholds.json` 삭제
+- `summary.js`의 `reports/raw` 이중 기록 제거
+- `tools/README`와 `regression/README` 갱신
+
+`reports/raw`에 이미 저장된 파일은 과거 이력을 보존하기 위해 유지했다.
+
+### T-21. 같은 로직이 여러 파일에 중복 구현돼 있음 — 상태: 미해결
+
+**문제**
+
+같은 목적의 로직이 여러 위치에 각각 구현돼 있다.
+
+- `migrate-raw.js`는 `summary.js`의 파싱 로직을 복사한 형태이며 동일한 정규식도 포함한다.
+- 증감률 계산은 `regression.js`, `report.js` 두 곳, `history.js`까지 총 네 곳에 구현돼 있다.
+- 각 증감률 계산이 서로 다른 예외 처리 기준과 컷오프를 사용한다.
+- `fmtNum`과 `format.num`의 표시 결과가 일치하지 않는다.
+- `TREND_METRICS` 목록을 두 곳에서 따로 관리한다.
+
+**영향**
+
+한 곳의 계산 방식을 수정해도 다른 곳에는 반영되지 않을 수 있다. 같은 실행 결과가 회귀 판정, 리포트, 이력 화면에서 다르게 표시될 위험이 있다.
+
+**필요한 조치**
+
+공통 계산과 포맷팅 로직을 하나의 모듈로 모으고, 지표 목록도 한 곳에서 관리해야 한다.
+
+### T-22. 모든 시나리오에 같은 게이트 규칙을 적용함 — 상태: 미해결
+
+**문제**
+
+`performance/tools/lib/regression.js:165-168`은 모든 실행에 동일한 32개 규칙을 적용한다.
+
+하지만 시나리오마다 목적이 다르다. stress, spike, breakpoint, chaos 테스트는 시스템이 한계에 도달하거나 실패하는 지점을 찾는 것이 목적이다. 이 과정에서는 p95 500ms 초과나 오류율 1% 초과가 예상될 수 있다.
+
+현재는 이런 결과도 일반적인 회귀 실패와 똑같이 FAIL 처리한다.
+
+**영향**
+
+한계 테스트는 구조적으로 실패하기 쉬우므로 사용자가 습관적으로 `--no-gate`를 사용할 수 있다. 이 습관이 일반 회귀 테스트까지 이어지면 실제 성능 회귀도 검사하지 않게 된다.
+
+**필요한 조치**
+
+시나리오 목적에 맞는 규칙 집합을 사용해야 한다. 일반 회귀 테스트와 한계 탐색 테스트의 성공 조건도 분리해야 한다.
+
+### T-23. 게이트로 선택한 지표가 실제 병목 원인을 충분히 보여주지 못함 — 상태: 미해결
+
+**문제**
+
+현재 게이트로 사용하는 주요 인프라 지표는 다음 세 가지다.
+
+- CPU throttling
+- slowQueries
+- Hikari timeouts
+
+이 세 지표는 T-01 때문에 오랫동안 실제로 평가되지 않았다.
+
+반면 자원 병목을 더 직접적으로 보여주는 다음 지표들은 수집만 하고 게이트 판정에는 사용하지 않는다.
+
+- `saturation.hikariPct`
+- `pool.hikariPending.max`
+- `saturation.tomcatPct`
+- `saturation.heapPct`
+
+**근거**
+
+실제 실행에서 다음 값이 발생했다.
+
+- Hikari pending 요청: 205
+- Hikari timeout: 5316
+
+하지만 시스템은 Hikari 풀 고갈 자체보다 k6 지연 시간을 통해서만 실패를 감지했다.
+
+또한 `k6.breakdown.*` 지표를 사용하는 규칙은 하나도 없다.
+
+**영향**
+
+게이트가 실패 사실은 알려줄 수 있어도 원인이 CPU, 커넥션 풀, Tomcat 스레드, 힙 중 무엇인지 빠르게 구분하기 어렵다.
+
+**필요한 조치**
+
+게이트의 목적을 “배포 차단”과 “병목 진단”으로 나누고, 직접적인 포화 지표와 k6 요청 단계별 지표를 어떤 방식으로 판정에 사용할지 다시 정해야 한다.
+
+### T-24. 서로 강하게 연관된 지표를 각각 독립적인 게이트로 사용함 — 상태: 미해결
+
+**문제**
+
+다음 다섯 지표는 대부분 같은 성능 현상을 서로 다른 방식으로 측정한다.
+
+- 평균 응답 시간
+- p95
+- p99
+- TPS
+- RPS
+
+이 지표들을 각각 독립적인 게이트로 사용해도 새로운 정보를 많이 얻지는 못한다. 반면 노이즈 때문에 하나라도 잘못 실패할 가능성은 늘어난다.
+
+각 규칙의 오탐 확률을 5%라고 가정하면, 다섯 규칙 중 하나 이상이 오탐할 확률은 대략 25%에 가까워진다.
+
+**임계값 불균형**
+
+오류율의 절대 경고 기준은 `0.001`이다. 요청 1000건 중 오류 1건만 발생해도 경고가 될 수 있어 매우 민감하다.
+
+반면 `slowQueries`는 두 배가 돼야 FAIL한다. 기준선이 4이고 현재 값이 400인 경우처럼 매우 크게 증가해도 `minBaseline = 5` 조건 때문에 비교 자체가 생략된다.
+
+**영향**
+
+일부 지표에는 지나치게 민감하고, 다른 중요한 변화에는 지나치게 둔감한 판정이 된다.
+
+**필요한 조치**
+
+강하게 연관된 지표 중 대표 게이트를 정하고 나머지는 진단 정보로 사용하는 방안을 검토해야 한다. 지표마다 절대 기준, 상대 기준, 최소 기준선이 실제 위험도에 맞는지도 다시 확인해야 한다.
+
+### T-25. `counts.skipped`가 서로 다른 상태를 하나로 표시함 — 상태: 해결
+
+**기존 문제**
+
+기존 `counts.skipped`는 다음 두 상태를 구분하지 못했다.
+
+1. 값을 수집하지 못해 평가할 수 없음
+2. 변화가 너무 작아 의도적으로 판정을 생략함
+
+`regression.js:206`은 `verdict === "SKIP"`만 skipped로 계산했다. 반면 노이즈 억제는 PASS이면서 문자열에 skipped가 포함되는 방식이었다.
+
+`report.js:509`는 skipped를 전부 “노이즈 하한 미만”이라고 설명했다. 하지만 T-01에서 발생한 skipped 25개는 노이즈 때문이 아니라 모두 현재 값이 없어서 발생했다.
+
+**해결 내용**
+
+카운트를 다음 두 종류로 분리했다.
+
+- `skipped`: 값을 수집하지 못해 평가 불가
+- `suppressed`: 노이즈 억제를 위해 판정 생략
+
+리포트 문구도 두 상태를 구분하도록 변경했다. 평가 불가 지표가 하나라도 있으면 익스포터 상태를 확인하라는 안내를 표시한다.
 
 ## LOW
 
-### T-26. rules.json 무검증 — **해결** (2026-08-05, 미커밋)
-> validateRules 도입 — key 부재, 미지 direction, fail<warn 역전, 비숫자 임계값을 즉시 예외 처리.
-> 현행 rules.json 통과 확인.
-오타 key, 미지 direction, warn>fail 역전 모두 무경고 통과. T-01을 숨긴 바로 그 실패 모드.
+### T-26. `rules.json`의 잘못된 설정을 검사하지 않음 — 상태: 해결
 
-### T-27. history.js 엣지 케이스 — 미해결
-이전 중앙값 0이면 추세 자체를 드롭(0→80 슬로우쿼리 같은 최중요 전이 은폐).
-시나리오만으로 그룹핑 — dataset/VU/환경이 한 추세로 합산되어 자기 각주와 모순.
+**기존 문제**
 
-### T-28. 런 번호 전역·경쟁·불안정 — 미해결
-동시 수집 시 중복 번호, rebuild 시 재번호로 run.json과 불일치.
+다음과 같은 잘못된 설정도 경고 없이 통과했다.
 
----
+- 존재하지 않는 지표 키
+- 지원하지 않는 `direction` 값
+- 경고와 실패 임계값의 순서가 뒤바뀐 설정
+- 숫자가 아닌 임계값
 
-## 2026-08-06 추가 조사 — MySQL 내부 지표
+T-01처럼 규칙 키가 실제 데이터와 맞지 않아도 도구가 알려주지 않는 실패 모드였다.
 
-### T-29. [HIGH] Prometheus에 이미 오는 락·트랜잭션·풀스캔 지표가 카탈로그에 미등록 — 상태: 미해결
+**해결 내용**
 
-**증상.** `performance/tools/lib/metrics-catalog.js:221`의 mysql 그룹에 등록된 지표는 9개뿐이다
-(maxConnections, slowQueries, qps, qpsMax, bufferPoolHitPct, rowsReadPerSec, abortedConnects,
-threadsRunning, threadsConnected, innodbRowLockWaits). 그런데 **Prometheus는 이미 더 많은 것을
-수집하고 있다** — 익스포터 설정을 바꿀 필요도, 새 수집 경로를 만들 필요도 없다.
-카탈로그에 등록만 안 돼 있어서 안 쓰이는 것뿐이다.
+`validateRules()`를 추가해 다음 오류를 즉시 예외로 처리한다.
 
-**왜 심각한가.** `localDocs/`의 병목 카탈로그에서 **BTL-003(인기글 카운터 락 경합)이 "확정"**
-상태다 — 실측 데드락까지 재현됐다고 기록돼 있다. 그런데 시스템에 **락 대기 시간 지표가 없다.**
-현재 있는 `innodbRowLockWaits`는 `Innodb_row_lock_current_waits`, 즉 "지금 이 순간 대기 중인 수"
-라 순간 스냅샷일 뿐이고, 구간 누적 대기 시간을 알 수 없다. 자기가 확정했다고 선언한 병목을
-측정할 수단이 없는 상태다. EXP-003을 시작하면 바로 막힌다.
+- 키 누락
+- 알 수 없는 direction
+- fail과 warn 임계값의 잘못된 순서
+- 숫자가 아닌 임계값
 
-**2026-08-06 실측 검증 완료.** 아래 PromQL은 전부 실제 값을 반환하는 것을 확인했다.
+현재 `rules.json`이 검증을 통과하는 것도 확인했다.
 
-| 추가할 key | PromQL | 왜 |
-|---|---|---|
-| `mysql.rowLockTimeMs` | `increase(mysql_global_status_innodb_row_lock_time[$RANGE])` | 구간 누적 락 대기 (검증: 295) |
-| `mysql.rowLockTimeMaxMs` | `max_over_time((mysql_global_status_innodb_row_lock_time_max)[$RANGE:])` | 최악 단일 대기 (검증: 84) |
-| `mysql.commits` | `increase(mysql_global_status_commands_total{command="commit"}[$RANGE])` | 실제 트랜잭션 수 |
-| `mysql.rollbacks` | `increase(mysql_global_status_commands_total{command="rollback"}[$RANGE])` | 데드락·충돌의 간접 신호 (검증: 0) |
-| `mysql.fullScanRows` | `increase(mysql_global_status_handlers_total{handler="read_rnd_next"}[$RANGE])` | **풀스캔 지표** (검증: 47,215,458 — 상당히 크다) |
-| `mysql.tmpDiskTables` | `increase(mysql_global_status_created_tmp_disk_tables[$RANGE])` | 정렬/그룹핑이 메모리를 넘침 (검증: 0) |
+### T-27. 이력 추세 계산이 중요한 변화를 숨길 수 있음 — 상태: 미해결
 
-**주의.** `mysql_global_status_innodb_deadlocks`는 **존재하지 않는다**(0개 시리즈). MySQL 8 기본
-상태변수에 없다. 데드락 횟수를 직접 세려면 익스포터의 `--collect.engine_innodb_status`가 필요하고
-(→ E-39), 그 전까지는 롤백 수로 간접 추정해야 한다.
+**문제 1: 이전 중앙값이 0이면 추세를 표시하지 않음**
 
-**부수 사실.** `created_tmp_disk_tables`는 `performance/PERFORMANCE-MANAGEMENT.md` §10에서
-"지표를 하나 추가하려면"의 **예시로 쓰인 바로 그 지표**다. 예시로만 적혀 있고 실제 추가는 안 됐다.
+이전 실행들의 중앙값이 0일 때 추세 계산을 중단한다. 따라서 slow query가 0건에서 80건으로 증가하는 것처럼 중요한 변화가 추세에서 사라질 수 있다.
 
-**비용.** 카탈로그 파일 한 개에 6줄. 수집 오버헤드 0(이미 오고 있다). 30분 작업.
+0을 분모로 비율을 계산할 수 없다는 이유는 있지만, 변화 자체를 숨기는 것은 적절하지 않다. 비율 대신 절대 변화 또는 별도 상태로 표시해야 한다.
 
-**선행 조건.** T-08(게이트 지표 결측 처리)을 먼저 정하는 게 안전하다 — 방침 없이 지표를 늘리면
-그 지표가 어떤 환경에서 결측일 때 또 조용히 SKIP→PASS 된다. T-01과 같은 함정을 늘리는 셈이다.
-rules.json에 락 대기 규칙을 넣을지도 T-08 결정 후에.
+**문제 2: 실행 조건이 다른 결과를 같은 추세로 묶음**
+
+현재는 시나리오 이름만으로 실행을 그룹화한다. 데이터셋, VU, 환경이 다른 실행도 하나의 추세로 합쳐진다.
+
+문서의 각주에서는 실행 조건 차이에 주의하라고 설명하지만 실제 계산은 이 조건을 구분하지 않아 설명과 동작이 일치하지 않는다.
+
+### T-28. 실행 번호가 동시에 수집하거나 이력을 복구할 때 달라질 수 있음 — 상태: 미해결
+
+**문제**
+
+실행 번호는 전역 번호지만 안전하게 할당되지 않는다.
+
+- 두 실행을 동시에 수집하면 같은 번호를 받을 수 있다.
+- 인덱스를 rebuild하면 실행을 다시 정렬해 번호를 새로 부여한다.
+- rebuild 후 인덱스 번호와 각 `run.json`에 저장된 번호가 달라질 수 있다.
+
+**영향**
+
+실행 번호만으로 특정 결과를 안정적으로 식별하기 어렵다. 동시 실행과 이력 복구 후에는 리포트, 인덱스, 원본 실행 파일이 서로 다른 번호를 가리킬 수 있다.
+
+**필요한 조치**
+
+실행 식별자와 화면용 순번을 분리해야 한다. 고유 실행 ID는 변경하지 않고, 화면에 표시할 순서는 인덱스에서 별도로 계산하는 방식이 안전하다.
