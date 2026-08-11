@@ -25,6 +25,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const cmp = require('./comparability');
 
 const PERF_ROOT = path.resolve(__dirname, '..', '..');
 const RUNS_DIR = path.join(PERF_ROOT, 'reports', 'runs');
@@ -110,6 +111,7 @@ function toIndexEntry(record) {
   const i = record.infra || {};
   const flat = i.flat || {};
   const reg = record.regression || {};
+  const conditions = cmp.conditionsOf(record);
 
   return {
     id: r.id,
@@ -129,6 +131,11 @@ function toIndexEntry(record) {
     // 회귀 판정은 run.json 을 직접 읽으므로 인덱스에 없어도 동작하지만, 그러면 추세
     // 그래프에서 꺾인 지점이 성능 변화인지 스크립트 변경인지 구분할 방법이 없다.
     scriptVersion: r.scriptVersion || null,
+    // 실행 조건 전체 + 계열 해시. 기준선 탐색이 run.json 을 열지 않고 인덱스만으로
+    // 후보를 거를 수 있어야 하고, 탈락 사유를 사람에게 설명하려면 원본 값도 필요하다
+    // (해시만 남기면 "해시가 다릅니다"밖에 말할 수 없다).
+    conditions,
+    seriesHash: cmp.seriesHash(conditions),
     note: r.note,
     vusMax: k.vusMax,
     avg: k.avg,
@@ -164,7 +171,7 @@ function toIndexEntry(record) {
 function loadIndex(file = INDEX_FILE) {
   // 파일이 없는 것(첫 실행)과 파일이 깨진 것은 다르다. 깨진 인덱스를 빈 이력으로
   // 대체하면 다음 saveRun 이 런 1개짜리 새 인덱스를 써서 이력이 조용히 사라지고,
-  // findPrevious 가 null 을 돌려줘 게이트까지 통과해 버린다. 손상은 소리 내고 멈춘다.
+  // findBaseline 이 null 을 돌려줘 게이트까지 통과해 버린다. 손상은 소리 내고 멈춘다.
   if (!fs.existsSync(file)) return { schemaVersion: 1, updatedAt: null, runs: [] };
   let idx;
   try {
@@ -206,33 +213,70 @@ function saveRun(record) {
 }
 
 /**
- * 비교 기준이 될 직전 실행을 찾는다.
+ * 비교 기준이 될 실행을 찾는다.
  *
- * 왜 단순히 "바로 앞 실행"이 아닌가: 시나리오가 다르면 비교가 무의미하고(normal-day와
- * spike를 비교하면 항상 회귀로 보인다), 환경이 다르면 절대값이 안 맞는다.
- * 그래서 **같은 시나리오 + 같은 환경**의 직전 실행만 기준으로 삼는다.
- * 추가로 실패한 실행(threshold 미달)은 기준에서 제외한다 — 망가진 실행을 기준으로 삼으면
+ * "직전 실행"이 아니라 "비교 가능한 가장 최근 실행"이다. 시간축에서 바로 앞이라는 것과
+ * 대조군으로 유효하다는 것은 다른 조건이고, 후자를 판정하는 책임은 comparability.js 에 있다.
+ * 여기서는 시간순으로 거슬러 올라가며 첫 번째 유효 대조군을 고른다.
+ *
+ * 실패한 실행(threshold 미달)은 기준에서 제외한다 — 망가진 실행을 기준으로 삼으면
  * 그 다음 실행이 "개선"으로 보이는 착시가 생긴다.
+ *
+ * 탈락한 후보를 함께 돌려주는 이유: 조건이 엄격해질수록 "기준선 없음"이 흔해지는데,
+ * 그때 사람에게 필요한 건 침묵이 아니라 "8월 4일 실행이 있었지만 데이터셋이 small→large 로
+ * 바뀌어 비교하지 않았다"는 문장이다. 이유를 못 대면 조용한 통과와 구분되지 않는다.
+ *
+ * @returns {{baseline:object|null, comparability:object|null, seriesHash:string|null, rejected:Array}}
  */
-function findPrevious(record, opts = {}) {
-  const { scenario, environment, id, startedAt } = record.run;
-  const idx = loadIndex();
-  const candidates = idx.runs
+function findBaseline(record, opts = {}) {
+  const { scenario, id, startedAt } = record.run;
+  const current = cmp.conditionsOf(record);
+  const series = cmp.seriesHash(current);
+  const idx = loadIndex(opts.indexFile);
+
+  // 시나리오는 계열의 정체성이자 항상 기록되는 값이라 먼저 자른다. 이걸 안 하면
+  // rejected 목록이 다른 시나리오 실행으로 가득 차 사람에게 아무 도움이 안 된다.
+  const earlier = idx.runs
     .filter((r) => r.id !== id)
     .filter((r) => r.scenario === scenario)
-    .filter((r) => !environment || r.environment === environment)
     .filter((r) => String(r.startedAt) < String(startedAt))
     .filter((r) => (opts.includeFailed ? true : r.thresholdsPassed !== false));
 
-  return candidates.length ? candidates[candidates.length - 1] : null;
+  const rejected = [];
+  for (let i = earlier.length - 1; i >= 0; i--) {
+    const cand = earlier[i];
+    const result = cmp.compare(current, cmp.conditionsOf(cand));
+    if (result.comparable) {
+      return { baseline: cand, comparability: result, seriesHash: series, rejected };
+    }
+    // 전부 쌓으면 리포트가 이력 전체를 뱉는다. 최근 것 몇 개면 사유는 충분히 전달된다.
+    if (rejected.length < REJECTED_LIMIT) {
+      rejected.push({
+        id: cand.id,
+        startedAt: cand.startedAt,
+        mismatches: result.mismatches,
+      });
+    }
+  }
+
+  return { baseline: null, comparability: null, seriesHash: series, rejected };
 }
 
-/** 같은 시나리오의 최근 N개 (트렌드 분석용, 오래된 것 → 최신 순) */
-function recentRuns(scenario, limit = 20, environment) {
-  const idx = loadIndex();
+const REJECTED_LIMIT = 5;
+
+/**
+ * 추세 분석용 최근 N개.
+ *
+ * seriesHash 로 계열을 가른다. 시나리오 이름만으로 묶으면 small/15VU 실행과
+ * large/200VU 실행이 한 선에 섞여, 데이터셋을 바꾼 지점이 성능 급락으로 보인다
+ * (기준선 선택과 똑같은 결함이 추세 그래프에도 있었다).
+ */
+function recentRuns({ scenario, environment, seriesHash, limit = 20, indexFile } = {}) {
+  const idx = loadIndex(indexFile);
   return idx.runs
     .filter((r) => !scenario || r.scenario === scenario)
     .filter((r) => !environment || r.environment === environment)
+    .filter((r) => !seriesHash || r.seriesHash === seriesHash)
     .slice(-limit);
 }
 
@@ -257,5 +301,5 @@ module.exports = {
   ensureDir, readJson, writeJson, promoteStaged,
   listRunIds, listPendingRunIds, loadRun, loadK6, saveRun,
   loadIndex, saveIndex, rebuildIndex,
-  nextRunNumber, findPrevious, recentRuns, toIndexEntry,
+  nextRunNumber, findBaseline, recentRuns, toIndexEntry,
 };
