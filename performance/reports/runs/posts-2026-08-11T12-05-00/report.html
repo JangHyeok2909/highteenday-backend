@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>posts #37 — Performance Report</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --surface: #fcfcfb;
+  --plane: #f9f9f7;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --seq-100: #cde2fb;
+  --seq-450: #2a78d6;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --good-text: #006300;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #1a1a19;
+    --plane: #0d0d0d;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --seq-100: #184f95;
+    --seq-450: #3987e5;
+    --good-text: #0ca30c;
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #1a1a19; --plane: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  --seq-100: #184f95; --seq-450: #3987e5; --good-text: #0ca30c;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0 0 4rem;
+  background: var(--plane); color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 15px; margin: 0 0 14px; letter-spacing: 0.02em; text-transform: uppercase;
+     color: var(--ink-2); font-weight: 600; }
+h3 { font-size: 13px; margin: 20px 0 8px; color: var(--ink-2); font-weight: 600; }
+a { color: var(--series-1); }
+
+/* ── 헤더 ── */
+.head { background: var(--surface); border-bottom: 1px solid var(--border); padding: 26px 0 22px; margin-bottom: 26px; }
+.head-top { display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap; }
+.head-title { flex: 1 1 320px; min-width: 0; }
+.sub { color: var(--ink-muted); font-size: 13px; }
+
+.verdict {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border-radius: 8px; font-weight: 700; font-size: 14px;
+  border: 2px solid; white-space: nowrap;
+}
+.verdict .ico { font-size: 15px; line-height: 1; }
+.v-PASS { color: var(--good-text); border-color: var(--good); background: color-mix(in srgb, var(--good) 10%, transparent); }
+.v-WARN { color: var(--ink); border-color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, transparent); }
+.v-FAIL { color: var(--critical); border-color: var(--critical); background: color-mix(in srgb, var(--critical) 10%, transparent); }
+
+/* ── 메타 그리드 ── */
+.meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 1px;
+        background: var(--border); border: 1px solid var(--border); border-radius: 8px;
+        overflow: hidden; margin-top: 20px; }
+.meta div { background: var(--surface); padding: 9px 12px; }
+.meta dt { color: var(--ink-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin: 0; }
+.meta dd { margin: 2px 0 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+
+/* ── 섹션/카드 ── */
+section { margin-bottom: 34px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+
+/* ── KPI 타일 ── */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.kpi .label { color: var(--ink-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.kpi .value { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; margin-top: 3px; }
+.kpi .foot { font-size: 12px; color: var(--ink-2); margin-top: 3px; display: flex; align-items: center; gap: 5px; }
+
+/* ── 델타 표기: 아이콘 + 텍스트 + 색 (색 단독 금지) ── */
+.d-good { color: var(--good-text); font-weight: 600; }
+.d-bad  { color: var(--critical); font-weight: 600; }
+.d-flat { color: var(--ink-muted); }
+
+/* ── 표 ── */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--grid); }
+th { color: var(--ink-muted); font-weight: 600; font-size: 11px; text-transform: uppercase;
+     letter-spacing: 0.04em; border-bottom: 1px solid var(--axis); white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: none; }
+.scroll { overflow-x: auto; }
+
+/* ── 포화도 막대 ── */
+.meter { display: flex; align-items: center; gap: 9px; min-width: 148px; }
+.meter .track { flex: 1; height: 7px; background: var(--grid); border-radius: 4px; overflow: hidden; min-width: 60px; }
+.meter .fill { height: 100%; border-radius: 4px; background: var(--seq-450); }
+.meter .pct { font-variant-numeric: tabular-nums; font-size: 12px; min-width: 42px; text-align: right; color: var(--ink-2); }
+.fill.s-warning { background: var(--warning); }
+.fill.s-serious { background: var(--serious); }
+.fill.s-critical { background: var(--critical); }
+
+/* ── 병목 가설 ── */
+.hint { display: flex; gap: 11px; padding: 12px 0; border-bottom: 1px solid var(--grid); }
+.hint:last-child { border-bottom: none; }
+.hint .n { width: 21px; height: 21px; flex: none; border-radius: 50%; background: var(--critical);
+           color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.hint .t { font-weight: 650; margin-bottom: 2px; }
+.hint .d { color: var(--ink-2); font-size: 13px; }
+
+/* ── 스파크라인 ── */
+.sparks { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 14px; }
+.spark { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; }
+.spark .st { font-size: 12px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.spark .sv { font-size: 19px; font-weight: 650; margin: 2px 0 6px; letter-spacing: -0.01em; }
+.spark svg { display: block; width: 100%; height: 40px; overflow: visible; }
+.spark .range { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-muted);
+                font-variant-numeric: tabular-nums; margin-top: 3px; }
+
+/* ── 링크 버튼 ── */
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.links a { display: inline-block; padding: 7px 13px; border: 1px solid var(--border); border-radius: 7px;
+           background: var(--surface); text-decoration: none; font-size: 13px; font-weight: 550; }
+.links a:hover { border-color: var(--series-1); }
+.links a.primary { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 5px;
+         font-size: 11px; font-weight: 650; border: 1px solid; white-space: nowrap; }
+.b-PASS { color: var(--good-text); border-color: var(--good); }
+.b-WARN { color: var(--ink); border-color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, transparent); }
+.b-FAIL { color: var(--critical); border-color: var(--critical); }
+.b-SKIP { color: var(--ink-muted); border-color: var(--axis); }
+
+.empty { color: var(--ink-muted); font-style: italic; padding: 10px 0; }
+.note { color: var(--ink-2); font-size: 12.5px; margin-top: 10px; padding-left: 11px; border-left: 2px solid var(--grid); }
+footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 34px; }
+</style>
+</head><body>
+<div class="head"><div class="wrap">
+    <div class="head-top">
+      <div class="head-title">
+        <h1>Performance Test Report — posts</h1>
+        <div class="sub">Run #37 · perf-s02-ab · 2026-08-11 21:03:52 KST</div>
+      </div>
+      <div class="verdict v-PASS"><span class="ico">✓</span><span>통과</span></div>
+    </div>
+    <div class="note">S-02 after auth tagged as auth</div>
+    <dl class="meta"><div><dt>시나리오</dt><dd>posts</dd></div><div><dt>환경</dt><dd>perf-s02-ab</dd></div><div><dt>브랜치</dt><dd>personal/localdocs</dd></div><div><dt>커밋</dt><dd>ecc4c9ce</dd></div><div><dt>빌드</dt><dd>local</dd></div><div><dt>실행자</dt><dd>janghyeog@local</dd></div><div><dt>시작</dt><dd>2026-08-11 21:03:52 KST</dd></div><div><dt>종료</dt><dd>2026-08-11 21:05:00 KST</dd></div><div><dt>수행 시간</dt><dd>1m 8s</dd></div><div><dt>VU 최대</dt><dd>20</dd></div><div><dt>Ramp-up</dt><dd>—</dd></div><div><dt>데이터셋</dt><dd>smoke</dd></div><div><dt>부하 프로파일</dt><dd>constant-vus 20VU 1m0s</dd></div><div><dt>스크립트 버전</dt><dd>sha256:bd0b2031fc14</dd></div><div><dt>조건 계열</dt><dd>dee97c31ab78</dd></div><div><dt>Run ID</dt><dd>posts-2026-08-11T12-05-00</dd></div></dl>
+  </div></div>
+<div class="wrap">
+  
+  <section><h2>Performance Summary</h2><div class="kpis">
+    <div class="kpi"><div class="label">평균 응답시간</div><div class="value">32ms</div></div>
+    <div class="kpi"><div class="label">P95</div><div class="value">130ms</div></div>
+    <div class="kpi"><div class="label">P99</div><div class="value">456ms</div></div>
+    <div class="kpi"><div class="label">TPS</div><div class="value">2.07</div></div>
+    <div class="kpi"><div class="label">RPS</div><div class="value">8.1</div></div>
+    <div class="kpi"><div class="label">오류율</div><div class="value">0.00%</div></div>
+  </div>
+
+  <h3>지연 분포</h3>
+  <div class="card scroll"><table>
+    <thead><tr><th>지표</th><th class="num">최소</th><th class="num">평균</th><th class="num">중앙값</th>
+      <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
+    <tbody><tr>
+      <td>전체 HTTP 요청</td>
+      <td class="num">2.3ms</td><td class="num">32ms</td><td class="num">10ms</td>
+      <td class="num">45ms</td><td class="num">130ms</td><td class="num">456ms</td>
+      <td class="num">473ms</td>
+    </tr></tbody>
+  </table></div>
+
+  <h3>처리량 · 검증</h3>
+  <div class="card scroll"><table>
+    <tbody>
+      <tr><td>총 HTTP 요청</td><td class="num">549</td>
+          <td>완료 Iteration</td><td class="num">140</td></tr>
+      <tr><td>실패 요청</td><td class="num">0</td>
+          <td>Check 성공률</td><td class="num">100.00%</td></tr>
+      <tr><td>서버 대기(waiting) 평균</td><td class="num">32ms</td>
+          <td>서버 대기 P95</td><td class="num">130ms</td></tr>
+      <tr><td>Iteration 평균 소요</td><td class="num">9.08s</td>
+          <td>연결(blocked) 평균</td><td class="num">0.1ms</td></tr>
+      <tr><td>수신 데이터</td><td class="num">648 KB</td>
+          <td>송신 데이터</td><td class="num">214 KB</td></tr>
+    </tbody>
+  </table></div>
+  </section>
+  <section><h2>Regression</h2><div class="card">
+      <p class="empty">비교 기준이 없습니다 — 이 실행 조건의 첫 실행입니다.</p>
+      <div class="note">다음 실행부터 이 결과가 기준선이 되어 자동으로 비교됩니다.
+      기준은 <b>같은 실행 조건</b>(시나리오·환경·데이터셋·부하 프로파일)의 직전 성공 실행을 씁니다.
+      이 실행에는 절대 게이트(SLO)만 적용됐습니다.</div>
+    </div></section>
+  <section><h2>Infrastructure Summary</h2><div class="card">
+      <p class="empty">운영 지표를 가져오지 못했습니다.</p>
+      <div class="note">Prometheus(http://localhost:9090)가 기동 중인지 확인하세요.
+      <code>docker compose -f environment/docker-compose.perf.yml up -d prometheus</code> 후
+      <code>node tools/collect.js posts-2026-08-11T12-05-00 --force --no-wait</code>로 재수집할 수 있습니다.</div>
+    </div></section>
+  <section><h2>Breakdown</h2><h3>기능별 응답시간 (P95 내림차순)</h3>
+      <div class="card scroll"><table>
+        <thead><tr><th>feature</th><th class="num">요청 수</th><th class="num">평균</th>
+          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
+        <tbody><tr>
+        <td>auth</td>
+        <td class="num">—</td>
+        <td class="num">417ms</td>
+        <td class="num">466ms</td>
+        <td class="num">471ms</td>
+        <td class="num">472ms</td>
+        <td class="num">473ms</td>
+      </tr><tr>
+        <td>post</td>
+        <td class="num">—</td>
+        <td class="num">18ms</td>
+        <td class="num">29ms</td>
+        <td class="num">51ms</td>
+        <td class="num">153ms</td>
+        <td class="num">233ms</td>
+      </tr></tbody></table></div><h3>오퍼레이션별 응답시간 (P95 내림차순)</h3>
+      <div class="card scroll"><table>
+        <thead><tr><th>op</th><th class="num">요청 수</th><th class="num">평균</th>
+          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
+        <tbody><tr>
+        <td>auth</td>
+        <td class="num">—</td>
+        <td class="num">417ms</td>
+        <td class="num">466ms</td>
+        <td class="num">471ms</td>
+        <td class="num">472ms</td>
+        <td class="num">473ms</td>
+      </tr><tr>
+        <td>read</td>
+        <td class="num">—</td>
+        <td class="num">18ms</td>
+        <td class="num">31ms</td>
+        <td class="num">60ms</td>
+        <td class="num">158ms</td>
+        <td class="num">233ms</td>
+      </tr><tr>
+        <td>write</td>
+        <td class="num">—</td>
+        <td class="num">14ms</td>
+        <td class="num">21ms</td>
+        <td class="num">23ms</td>
+        <td class="num">38ms</td>
+        <td class="num">44ms</td>
+      </tr></tbody></table></div><h3>expected_response 응답시간 (P95 내림차순)</h3>
+      <div class="card scroll"><table>
+        <thead><tr><th>expected_response</th><th class="num">요청 수</th><th class="num">평균</th>
+          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
+        <tbody><tr>
+        <td>true</td>
+        <td class="num">—</td>
+        <td class="num">32ms</td>
+        <td class="num">45ms</td>
+        <td class="num">130ms</td>
+        <td class="num">456ms</td>
+        <td class="num">473ms</td>
+      </tr></tbody></table></div>
+    <div class="note">P95가 가장 큰 항목이 곧 최적화 1순위 후보다. 요청 수가 적은데 P95가 크면
+    "느리지만 드문" 경로이므로 사용자 체감 영향은 작을 수 있다 — 요청 수와 같이 본다.</div></section>
+  <section><h2>Trend (최근 2회)</h2>
+    <div class="sparks"><div class="spark">
+    <div class="st">P95 응답시간</div>
+    <div class="sv">130ms</div>
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+    <div class="range"><span>min 130ms</span><span>max 241ms</span></div>
+  </div><div class="spark">
+    <div class="st">평균 응답시간</div>
+    <div class="sv">32ms</div>
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+    <div class="range"><span>min 32ms</span><span>max 36ms</span></div>
+  </div><div class="spark">
+    <div class="st">TPS</div>
+    <div class="sv">2.1/s</div>
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+    <div class="range"><span>min 1.9/s</span><span>max 2.1/s</span></div>
+  </div><div class="spark">
+    <div class="st">오류율</div>
+    <div class="sv">0.0%</div>
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+  <path d="M0.00,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+    <div class="range"><span>min 0.0%</span><span>max 0.0%</span></div>
+  </div></div>
+    <div class="note">같은 시나리오·같은 환경의 최근 실행만 모았다. 오른쪽 끝이 이번 실행이다.
+    한 번의 변화보다 <b>추세의 방향</b>이 중요하다 — 매 실행 5%씩 나빠지면 개별 판정은 계속 통과하지만
+    10회 뒤에는 1.6배가 된다.</div></section>
+  <section><h2>SLO Thresholds</h2><div class="card scroll">
+    <table><thead><tr><th>메트릭</th><th>조건</th><th>결과</th></tr></thead><tbody><tr>
+    <td><code>checks</code></td><td><code>rate&gt;0.99</code></td>
+    <td><span class="badge b-PASS">✓ 통과</span></td>
+  </tr><tr>
+    <td><code>http_req_failed</code></td><td><code>rate&lt;0.01</code></td>
+    <td><span class="badge b-PASS">✓ 통과</span></td>
+  </tr><tr>
+    <td><code>http_req_duration{op:read}</code></td><td><code>p(95)&lt;300</code></td>
+    <td><span class="badge b-PASS">✓ 통과</span></td>
+  </tr><tr>
+    <td><code>http_req_duration{op:read}</code></td><td><code>p(99)&lt;800</code></td>
+    <td><span class="badge b-PASS">✓ 통과</span></td>
+  </tr><tr>
+    <td><code>http_req_duration{op:write}</code></td><td><code>p(95)&lt;500</code></td>
+    <td><span class="badge b-PASS">✓ 통과</span></td>
+  </tr><tr>
+    <td><code>http_req_duration{op:write}</code></td><td><code>p(99)&lt;1200</code></td>
+    <td><span class="badge b-PASS">✓ 통과</span></td>
+  </tr></tbody></table>
+    <div class="note">전 항목 충족 — k6 실행 중 판정된 SLO다.
+    회귀(직전 대비)와 달리 <b>절대 기준</b>이므로, 성능이 개선됐어도 SLO를 못 넘으면 실패다.</div>
+  </div></section>
+  <section><h2>Grafana</h2><div class="card">
+    <div class="links">
+      <a class="primary" href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786449712382&amp;to=1786450020111" target="_blank" rel="noopener">전체 대시보드 열기</a>
+      <a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786449712382&amp;to=1786450020111&amp;kiosk" target="_blank" rel="noopener">Kiosk 모드</a>
+      <a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786449712382&amp;to=1786450020111&amp;viewPanel=2" target="_blank" rel="noopener">지연 P50/P95/P99</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786449712382&amp;to=1786450020111&amp;viewPanel=1" target="_blank" rel="noopener">RPS</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786449712382&amp;to=1786450020111&amp;viewPanel=3" target="_blank" rel="noopener">오류율 / VU</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786449712382&amp;to=1786450020111&amp;viewPanel=4" target="_blank" rel="noopener">JVM Heap</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786449712382&amp;to=1786450020111&amp;viewPanel=5" target="_blank" rel="noopener">GC Pause</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786449712382&amp;to=1786450020111&amp;viewPanel=7" target="_blank" rel="noopener">HikariCP</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786449712382&amp;to=1786450020111&amp;viewPanel=6" target="_blank" rel="noopener">Tomcat Threads</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786449712382&amp;to=1786450020111&amp;viewPanel=9" target="_blank" rel="noopener">MySQL</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786449712382&amp;to=1786450020111&amp;viewPanel=10" target="_blank" rel="noopener">Redis</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786449712382&amp;to=1786450020111&amp;viewPanel=11" target="_blank" rel="noopener">컨테이너 CPU</a>
+    </div>
+    <div class="note">링크에는 이 테스트의 시간 구간이 앞뒤 2분 여유와 함께 이미 박혀 있다.
+    여유를 두는 이유는 "부하 직전 상태"와 비교해야 이번 부하로 올라간 값인지 원래 높았던 값인지 구분되기 때문이다.</div>
+  </div></section>
+  <footer>
+    생성 2026-08-11 21:05:00 KST · Run ID <code>posts-2026-08-11T12-05-00</code> ·
+    원본 <code>run.json</code> / <code>k6.json</code> 은 같은 디렉터리에 있습니다.
+  </footer>
+</div>
+</body></html>

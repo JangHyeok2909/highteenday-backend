@@ -46,10 +46,14 @@ const BREAKDOWN_FEATURES = [
   'notification', 'friend', 'mypage', 'school', 'timetable', 'chat', 'hot',
 ];
 
-const BREAKDOWN_THRESHOLDS = BREAKDOWN_FEATURES.reduce((acc, f) => {
-  acc[`http_req_duration{feature:${f}}`] = ['p(99)<600000'];
-  return acc;
-}, {});
+const BREAKDOWN_THRESHOLDS = {
+  ...BREAKDOWN_FEATURES.reduce((acc, f) => {
+    acc[`http_req_duration{feature:${f}}`] = ['p(99)<600000'];
+    return acc;
+  }, {}),
+  // 인증은 도메인 쓰기 SLO에서 분리하되 별도 응답시간 분포는 리포트에 남긴다(S-02).
+  'http_req_duration{op:auth}': ['p(99)<600000'],
+};
 
 /**
  * 공통 SLO — 개별 시나리오는 필요 시 이 값을 덮어쓴다.
