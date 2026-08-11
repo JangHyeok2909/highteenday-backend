@@ -19,7 +19,30 @@ throttledPct/slowQueries/hikariTimeouts는 **탄생 이래 발동 불가능**이
 `bottleneckHints`(regression.js:239-245)는 브래킷 접근이라 정상 동작 — 리포트가
 "CPU throttling 발생"이라 말하면서 회귀 표는 "값 없음"인 자기모순 상태.
 
-### T-02. 기준선 선택이 dataset/VU/duration을 무시 — 상태: 미해결
+### T-02. 기준선 선택이 dataset/VU/duration을 무시 — 상태: **해결** (2026-08-09, 미커밋)
+> `tools/lib/comparability.js` 신설 — 실행 조건(conditions)을 일급 개념으로 분리하고
+> 등급(blocking/degrading)을 선언적으로 정의. `findPrevious` → `findBaseline`으로 교체:
+> "직전 실행"이 아니라 "비교 가능한 가장 최근 실행"을 고르고, 탈락 후보와 사유를 함께 반환.
+> `analyze`의 scriptVersion 사후 강등 특수 분기를 이 메커니즘으로 흡수. 실측 검증:
+> 같은 조건 → 비교, 부하/데이터셋 변경 → 상대 비교 생략 + 사유 표시, 스크립트만 변경 → 경고 후 비교.
+>
+> 함께 처리한 것:
+> - **부하 프로파일을 실제로 기록** — `exec.test.options.scenarios`(k6가 해석 완료한 선언 값).
+>   `handleSummary(data)`의 `data.options`에는 summaryTrendStats/summaryTimeUnit/noColor 3개뿐이라
+>   부하 설정이 없다(실측 확인).
+> - **`vusMax`를 조건으로 쓰지 않음** — 관측값이라 arrival-rate(`scenarios/breakpoint.js`)에서
+>   서버가 느려질수록 올라간다. 조건으로 쓰면 회귀가 심할수록 기준선이 탈락해 게이트가 열리는
+>   역전이 생긴다. 회귀 테스트로 고정(`tools/test/comparability.test.js`).
+> - **`baselineStatus` 신설** (compared/incomparable/first-run) — 조건이 엄격해지면 기준선 없는
+>   실행이 흔해지는데, 그게 조용한 PASS로 새면 고치기 전보다 나쁘다. 절대 게이트는 계속 돈다.
+> - **`recentRuns` 계열 분리** — 리뷰에 없던 같은 결함. 추세 그래프가 small/15VU와 large/200VU를
+>   한 선에 섞고 있었다.
+>
+> 남은 것: 데이터셋 시드 매니페스트 해시(프로파일 이름만으로는 다른 `seed.js`가 만든 `large`를
+> 구분 못 함), 인프라 스펙 해시(`docker-compose.seed.yml`의 HikariCP 50 / sync_binlog=0을
+> 되돌리지 않은 채 측정하는 실패 모드). 둘 다 conditions 표에 한 줄씩 추가하면 된다.
+> **저장된 과거 런은 조건이 없어 기준선 후보에서 제외된다** — 의도된 동작(사용자 결정).
+
 `tools/lib/repository.js:203-214` `findPrevious`는 scenario+environment+`thresholdsPassed!==false`만
 필터. `toIndexEntry`가 `dataset`·`vusMax`를 저장하는데(124, 130행) 사용하지 않는다.
 실증: normal-day large/200VU/1650s 런이 small/15VU/545s 런(`normal-day-2026-08-04T06-38-42`)을
