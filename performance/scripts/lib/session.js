@@ -2,13 +2,14 @@
  * 세션 관리 — 로그인 / 토큰 재발급 / 로그아웃.
  *
  * HighTeenDay는 JWT를 HttpOnly 쿠키(accessToken / refreshToken)로 내려준다.
- * k6는 VU마다 독립 쿠키 저장소를 가지므로 로그인 후 별도 헤더 관리가 필요 없다.
+ * 세션은 config.js의 `vuJar`(VU 단위로 유지되는 쿠키 저장소)에 담기며,
+ * 모든 요청은 `tags()`를 통해 이 저장소를 함께 전달받는다.
  * 401 발생 시 /api/token/refresh 로 재발급 후 1회 재시도한다.
  */
 import http from 'k6/http';
 import { check, fail } from 'k6';
 import { Counter } from 'k6/metrics';
-import { BASE_URL, SEED_PASSWORD, tags } from './config.js';
+import { BASE_URL, SEED_PASSWORD, tags, vuJar } from './config.js';
 
 export const tokenRefreshes = new Counter('auth_token_refreshes');
 export const authFailures = new Counter('auth_failures');
@@ -58,29 +59,24 @@ export function withAuth(fn) {
 }
 
 /**
- * 매 iteration 시작 시 accessToken 쿠키가 있는지 확인하고, 없으면 로그인한다.
+ * iteration 시작 시 accessToken 쿠키가 있는지 확인하고, 없으면 로그인한다.
  *
- * ⚠ k6는 같은 VU 안에서도 **iteration마다 쿠키 저장소를 리셋한다**(실측 확인됨 —
- * VU 모듈 스코프 변수는 iteration 사이에 그대로 남아있지만, http.cookieJar()의
- * 쿠키는 리셋된다). 그래서 "VU 최초 1회만 로그인" 방식(모듈 스코프 플래그만으로
- * 판단)은 2번째 iteration부터 쿠키 없이 요청을 보내 전부 401이 난다.
- * 매번 쿠키 존재 여부를 실제로 확인해서, 없을 때만 다시 로그인한다 — 결과적으로는
- * 매 iteration 로그인하는 것과 같지만(k6가 매번 리셋하므로), 코드는 미래에 k6가
- * 쿠키를 유지하는 방향으로 바뀌어도 그대로 안전하게 동작한다.
+ * 세션은 `config.js`의 `vuJar`에 담긴다. k6의 기본 저장소(`http.cookieJar()`)는
+ * iteration마다 리셋되지만 모듈 스코프 저장소는 VU 단위로 유지되므로, 실제 사용자처럼
+ * VU당 한 번만 로그인하고 이후 iteration은 그 세션을 그대로 쓴다(S-01).
+ * 토큰이 만료돼 401이 나면 `withAuth`가 재발급으로 처리한다.
  */
 export function ensureSession(user) {
-  const jar = http.cookieJar();
-  const cookies = jar.cookiesForURL(BASE_URL);
+  const cookies = vuJar.cookiesForURL(BASE_URL);
   if (!cookies.accessToken || !cookies.accessToken[0]) {
     login(user);
   }
   return user;
 }
 
-/** WebSocket 핸드셰이크용 Cookie 헤더 문자열을 쿠키 저장소에서 꺼낸다. */
+/** WebSocket 핸드셰이크용 Cookie 헤더 문자열을 세션 저장소에서 꺼낸다. */
 export function cookieHeader() {
-  const jar = http.cookieJar();
-  const cookies = jar.cookiesForURL(BASE_URL);
+  const cookies = vuJar.cookiesForURL(BASE_URL);
   return Object.entries(cookies)
     .map(([name, values]) => `${name}=${values[0]}`)
     .join('; ');

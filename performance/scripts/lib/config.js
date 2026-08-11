@@ -7,6 +7,8 @@
  *   DATASET    datasets/generated/<DATASET>/ 아래의 시드 데이터 사용 (기본 small)
  *   THINK_MIN / THINK_MAX  Think time 범위(초)
  */
+import http from 'k6/http';
+
 export const BASE_URL = __ENV.BASE_URL || 'http://localhost:18080';
 
 export const WS_URL =
@@ -66,9 +68,24 @@ export const DEFAULT_THRESHOLDS = {
   checks: ['rate>0.99'],
 };
 
-/** 표준 태그 — 모든 요청은 feature / op 태그를 갖는다. Grafana 필터 축. */
+/**
+ * VU 세션 쿠키 저장소 — iteration 경계를 넘어 로그인 상태를 유지한다.
+ *
+ * k6의 기본 저장소(`http.cookieJar()`)는 **iteration마다 리셋된다**(v2.1.0 실측 확인).
+ * 그래서 기본 저장소를 쓰면 매 iteration이 로그인으로 시작하고, BCrypt 검증이
+ * 전체 요청의 20%를 차지해 측정 대상을 가린다(S-01 — 실측: 요청 905건 중 로그인 187건).
+ * 모듈 스코프에서 만든 저장소는 VU 단위로 유지되므로 실제 사용자처럼 한 번 로그인하고
+ * 계속 쓴다. `myUser()`가 VU마다 계정을 고정 할당하므로 세션이 섞이지 않는다.
+ */
+export const vuJar = new http.CookieJar();
+
+/**
+ * 표준 태그 — 모든 요청은 feature / op 태그를 갖는다. Grafana 필터 축.
+ * 세션 저장소도 여기서 함께 실어 보낸다 — 모든 요청이 이 함수를 파라미터로 쓰므로
+ * 호출부를 고치지 않고 전 요청에 같은 저장소를 적용할 수 있다.
+ */
 export function tags(feature, op, name) {
-  return { tags: { feature, op, name: name || feature } };
+  return { tags: { feature, op, name: name || feature }, jar: vuJar };
 }
 
 /** min~max 초 사이 균등분포 think time (VU 단위 사용자 행동 모사) */
