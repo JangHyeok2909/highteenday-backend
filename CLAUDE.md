@@ -17,8 +17,8 @@ Stack: Java 17 · Spring Boot 3.4.5 · MySQL 8 · Redis · AWS S3 · JWT + OAuth
 # Build (skip tests)
 ./gradlew build -x test
 
-# Run locally (requires application-local.properties)
-./gradlew bootRun --args='--spring.profiles.active=local'
+# Run locally — dev profile has localhost defaults built in (see docs/00-quickstart.md)
+./gradlew bootRun --args='--spring.profiles.active=dev'
 
 # Run tests
 ./gradlew test
@@ -58,7 +58,7 @@ enums/            Shared enumerations (Role, Provider, Grade, etc.)
 | Concern | Solution |
 |---------|----------|
 | Auth tokens | JWT (JJWT 0.12.3) in HttpOnly cookies, SameSite=None |
-| OAuth2 | Google / Kakao / Naver via Spring Security OAuth2 Client |
+| OAuth2 | Google via Spring Security OAuth2 Client (Kakao/Naver: provider endpoints prepared, registrations commented out) |
 | Token revocation | Refresh token stored in `Token` entity (DB) |
 | Caching | Redis — view counts, board/post lists, hot rankings |
 | File storage | AWS S3 — tmp upload then promote pattern |
@@ -70,11 +70,11 @@ enums/            Shared enumerations (Role, Provider, Grade, etc.)
 ## Authentication Flow
 
 1. User hits `/oauth2/authorization/{provider}` → provider consent screen
-2. Provider redirects to `/login/oauth2/code/{provider}`
+2. Provider redirects to `/oauth2/login/code/{provider}` (custom redirection endpoint — see `SecurityConfig.filterChain()`)
 3. `CustomOAuth2UserService.loadUser()` — looks up user by email
-   - **New user** → `ROLE_GUEST`, auto-registers via `UserService.registerOAuthUser()`
-   - **Existing user** → `ROLE_USER`
-4. `OAuth2SuccessHandler` issues JWT cookies and redirects:
+   - **New user** → auto-registers via `registerOAuthUser()` and sets `isNewUser=true` on the principal
+   - **Existing user** → `isNewUser=false` (roles are no longer used to signal newness)
+4. `OAuth2SuccessHandler` issues JWT cookies and redirects based on `isNewUser`:
    - New user → `{frontend-url}/welcome`
    - Existing user → `{frontend-url}`
 5. All subsequent requests carry the `accessToken` cookie
@@ -93,7 +93,7 @@ enums/            Shared enumerations (Role, Provider, Grade, etc.)
 - **Index naming:** `idx_{table}_{fields}`
 - **Soft delete:** `is_valid` boolean in `BaseEntity` — never hard-delete rows
 - **Audit fields:** `created`, `updatedDate`, `updatedBy` from `BaseEntity`
-- **DDL:** `ddl-auto=none` in prod. Schema changes require manual `ALTER TABLE`.
+- **DDL:** schema is owned by Flyway (`src/main/resources/db/migration/`, see `docs/MIGRATION.md`). `ddl-auto=none` in dev and prod. Never edit an applied migration; add a new numbered one.
 - **Denormalization:** `Post` carries `nickname`, `likeCount`, `dislikeCount`, `commentCount`, `scrapCount` to avoid joins on hot paths
 
 ---
@@ -170,7 +170,7 @@ throw new CustomException(ErrorCode.USER_NOT_FOUND, "optional detail");
 ## Testing
 
 - Unit tests live in `src/test/java/`
-- Use `Embedded Redis` for Redis-dependent tests
+- Most unit tests are Mockito-based and run without infrastructure (the `embedded-redis` dependency in build.gradle is currently unused)
 - Use `@Nested` classes for BDD-style grouping within a test class
 - Do **not** mock the database in service-layer tests — use a real (test) DB or `@DataJpaTest`
 - New service methods should have corresponding unit tests
@@ -198,8 +198,10 @@ ALB
 ```
 
 **Profiles:**
-- `local` — local development, H2 or local MySQL, localhost Redis
-- `prod` — all credentials from environment variables, `ddl-auto=none`
+- `local` — default profile; requires a personal gitignored `application-local.properties` (not in the repo)
+- `dev` — recommended for local development; localhost defaults built in, actuator on port 8081 (`docs/00-quickstart.md`)
+- `prod` — all credentials from environment variables, actuator on port 8081
+- `perf` — layered on top of prod (`--spring.profiles.active=prod,perf`) for load testing; see `application-perf.properties` comments
 
 ---
 
@@ -267,6 +269,6 @@ Rules for "simplify":
 - Do not add error handling for scenarios that cannot happen
 - Do not add speculative abstractions — implement only what is asked
 - Do not add docstrings or comments to code you did not change
-- Do not use `ddl-auto=update` or `ddl-auto=create` in production — schema changes are manual
+- Do not use `ddl-auto=update` or `ddl-auto=create` anywhere — schema changes go through Flyway migrations (`docs/MIGRATION.md`)
 - Do not add backwards-compatibility shims when the old code can simply be replaced
 - Do not design for hypothetical future requirements
