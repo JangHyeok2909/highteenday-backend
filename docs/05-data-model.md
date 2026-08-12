@@ -57,7 +57,7 @@ erDiagram
 
 보조 관계 메모:
 
-- `RecentHotPost`(게시판별 실시간 인기글의 DB 흔적)도 존재하며 `Post`·`User`를 참조한다 (`domain/hot/RecentHotPost.java`). 현재 핵심 경로는 `DailyHotPost`다 — 흐름은 [crosscutting/schedulers.md](crosscutting/schedulers.md) 참고.
+- `RecentHotPost`(게시판별 실시간 인기글의 DB 흔적)는 미사용으로 확인되어 2026-08에 삭제됐다. 현재 핵심 경로는 `DailyHotPost`이며, `daily_hot_post` 테이블은 V6 마이그레이션으로 정식 생성됐다 — 흐름은 [crosscutting/schedulers.md](crosscutting/schedulers.md) 참고.
 - 일정 도메인 엔티티 `PersonalSchedule`·`SchoolSchedule`(`domain/schedule/`)은 존재하나 컨트롤러가 없다. `[미확인: 사용 여부 — 리포지토리만 있고 서비스·컨트롤러에서 참조를 찾지 못함]`
 - 유니크 제약으로 중복을 막는 곳: 게시글 반응(`uk_posts_reactions_pst_usr`), 댓글 반응(`uk_comments_reactions_cmt_usr`), 1:1 채팅방(`uk_chat_rooms_pair_key`), 채팅 참가(`uk_chat_participants_room_usr`), 메시지 멱등성(`uk_chat_messages_room_client`), 일별 핫게시글(`uk_daily_hot_post_date_post`), 이메일(`uk_users_email`).
 
@@ -146,4 +146,4 @@ CLAUDE.md의 "컬럼은 `{DOMAIN_PREFIX}_{column}` UPPER_SNAKE" 서술은 절반
 - [KI-26](KNOWN-ISSUES.md#ki-26-스크랩-목록이-전량-로딩과-메모리-페이징으로-동작) soft delete 필터 누락 사례 포함
 - `[미확인]` 2건: `PersonalSchedule`/`SchoolSchedule`의 실사용 여부, 대댓글 깊이 제한의 프론트 처리
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-07-30 (2026-08-11 코드 변경 반영분은 본문의 갱신 표시 참고)

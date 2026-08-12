@@ -68,7 +68,7 @@ stateDiagram-v2
 | GET | `/list` | `getFriendsList()` | 양방향 UNION native 쿼리 |
 | GET | `/requests/sent` | `getSentFriendsRequestList()` | DTO의 `id`는 **상대 사용자 id** |
 | GET | `/requests/received` | `getReceivedFriendsList()` | DTO의 `id`는 **FriendReq id** (응답 API에 필요) |
-| POST | `/request` | `sendFriendsRequest()` | 닉네임으로 수신자 지정. 같은 방향 중복 요청만 차단 |
+| POST | `/request` | `sendFriendsRequest()` | 수신자 지정 후 자기 자신·차단(양방향)·기존 친구·중복/역방향 요청을 검증 |
 | POST | `/respond` | `respondToFriendRequest()` | status 문자열로 수락/거절/차단 |
 | DELETE | `/delete` | `deleteFriends()` | 양방향 행 물리 삭제 |
 | PATCH | `/block` | `blockUser()` | 이메일로 대상 지정 |
@@ -105,11 +105,11 @@ stateDiagram-v2
 
 아래는 이번 검증에서 확인한 신규 결함으로, [KI-42](../KNOWN-ISSUES.md)(요청 검증 공백·status 오입력 시 소실), [KI-43](../KNOWN-ISSUES.md)(물리 삭제), [KI-25](../KNOWN-ISSUES.md)(리스너 없는 이벤트)로 등재되어 있다. 마지막 DTO id 항목은 경미하여 미등재.
 
-- `sendFriendsRequest()`가 같은 방향(`existsByRequesterAndReceiver`) 중복만 막는다 — 역방향 기존 요청, 이미 친구인 상태, 심지어 상대가 나를 차단한 상태에서도 요청이 만들어지고 FRIEND_REQUEST 알림이 간다. 차단 비가시성 정책과 충돌하며, 차단 상태에서 수락되면 기존 BLOCKED 행과 신규 FRIEND 행이 공존하게 된다.
-- `respondToFriendRequest()`는 status가 세 값 중 무엇과도 일치하지 않으면 아무 분기도 타지 않고 요청 행만 조용히 삭제한다 (오타 요청이 거절과 동일하게 동작하되 이벤트도 없음).
-- `Friend`·`FriendReq`는 `deleteAll()`/`delete()`로 **물리 삭제**된다 — `BaseEntity.isValid` soft delete 컨벤션(CLAUDE.md·[01-overview.md](../01-overview.md) 용어집)과 불일치.
+- ~~`sendFriendsRequest()`가 같은 방향 중복만 막는다~~ → 갱신 (2026-08-11): **해소** — 자기 자신·차단(양방향)·기존 친구·역방향 요청 검증이 추가됐다 ([KI-42](../KNOWN-ISSUES.md) 갱신 참고). 역방향 요청이 있으면 자동 수락하지 않고 "받은 요청에서 처리"를 안내한다.
+- `respondToFriendRequest()`는 status가 세 값 중 무엇과도 일치하지 않으면 아무 분기도 타지 않고 요청만 종결한다 (오타 요청이 거절과 동일하게 동작하되 이벤트도 없음) — 잔존.
+- ~~`Friend`·`FriendReq`는 물리 삭제~~ → 갱신 (2026-08-11): **부분 해소** — `FriendReq`는 `BaseEntity.delete()`(soft delete)로 전환되어 이력이 보존된다. `Friend` 관계 행은 여전히 물리 삭제다 ([KI-43](../KNOWN-ISSUES.md) 갱신 참고).
 - `FriendRequestDeclinedEvent`, `FriendBlockedEvent`는 발행되지만 구독하는 리스너가 없다 — 의도된 확장 지점인지 죽은 코드인지 불명.
 - sent/received 목록 DTO의 `id` 의미가 다르다(상대 user id vs FriendReq id) — API 계약 혼선 소지.
 - `[미확인]` 차단 시 게시글·댓글 등 커뮤니티 영역에서의 상호 비노출 — 주석의 정책 서술과 달리 Post/Comment 조회 경로에서 차단 필터를 확인하지 못함 (친구·채팅 영역에서만 확인됨).
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-07-30 (2026-08-11 코드 변경 반영분은 본문의 갱신 표시 참고)
