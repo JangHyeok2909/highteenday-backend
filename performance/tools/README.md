@@ -9,6 +9,7 @@
 | **`perf-run.js`** | **표준 진입점** — k6 실행 → 지표 수집 → 회귀 판정 → 리포트 생성 | `node tools/perf-run.js scenarios/normal-day.js` |
 | `collect.js` | 2단계 수집기 (운영 지표 조회 + 회귀 분석 + 리포트) | `node tools/collect.js <runId> --force --no-wait` |
 | `history.js` | 이력/추세 대시보드 생성 | `node tools/history.js` · `--print` · `--rebuild` |
+| `repeatability.js` | 반복 정밀도 측정 — 같은 조건 N회 실행의 변동계수(CV)를 잰다. 회귀 임계값이 자연 편차보다 커야 의미가 있는지 검증할 때 사용 | `node tools/repeatability.js scripts/posts.js --runs 10` |
 | `migrate-raw.js` | 과거 `reports/raw/*.summary.json` 이관 | `node tools/migrate-raw.js --dry-run` |
 
 ```bash
@@ -17,6 +18,9 @@ node tools/perf-run.js scenarios/normal-day.js --note "인덱스 추가 후"
 
 # 리포트만 다시 만들기 (k6 재실행 없이)
 node tools/collect.js <runId> --force --no-wait
+
+# 도구 자체의 단위 테스트 (판정을 내리는 코드는 스스로도 검증돼야 한다)
+npm test          # = node tools/test/all.js
 ```
 
 ### `lib/` — 내부 모듈
@@ -26,10 +30,17 @@ node tools/collect.js <runId> --force --no-wait
 | `promql.js` | Prometheus HTTP 클라이언트 (재시도·부분 실패 허용) |
 | `metrics-catalog.js` | **운영 지표 정의** — 지표 추가는 여기 한 줄이면 끝 |
 | `regression.js` | 회귀 판정 엔진 + 병목 가설 생성 |
-| `repository.js` | 이력 저장/조회, 기준선 선택 |
+| `comparability.js` | **실행 조건(conditions) 비교 가능성 판정** — 데이터셋·부하 프로파일이 다른 실행을 기준선에서 제외하고 사유를 남긴다. 조건 추가는 이 파일의 `CONDITIONS` 표 한 줄 |
+| `repository.js` | 이력 저장/조회, 기준선 선택 (`findBaseline` — comparability 기반) |
 | `report.js` | HTML 보고서 생성 |
 | `grafana.js` | 테스트 구간이 박힌 딥링크 생성 |
 | `format.js` | 표시 포맷 (콘솔/HTML 공용) |
+
+### `test/` — 도구 단위 테스트
+
+`node:test` 기반. `tools/test/all.js`가 전체를 실행한다 (`comparability`, `regression`,
+`repository`, `summary-parsing` 4개 스위트). 기준선 선택·회귀 판정처럼 "숫자를 판단으로
+바꾸는" 코드의 회귀를 막는 목적이다.
 
 ## 기타 자체 도구
 

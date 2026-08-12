@@ -1,7 +1,7 @@
 # BTL-010: 이미지 없는 댓글 수정 시 NPE (`comment update` 전면 장애)
 
 > 유형: Correctness (성능이 아니라 가용성 버그 — 부하 테스트 스크립트 검증 중 실측으로 발견)
-> 상태: **확정** (재현 완료)
+> 상태: **해소** — `processUpdateCommentMedia()`에 null 가드 추가 + 단위 테스트 (커밋 `346fb17`)
 > 관련: 없음. `scripts/comments.js`의 `updateComment()` 실행 중 100% 재현됨
 
 ## 증상

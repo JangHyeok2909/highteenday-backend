@@ -1,7 +1,7 @@
 # BTL-009: `DailyHotPost` 엔티티가 실제로 쿼리하는 테이블이 생성되지 않음
 
 > 유형: DB / Correctness (성능이 아니라 가용성 버그 — 성능 테스트 중 실측으로 발견)
-> 상태: **확정** (재현 완료)
+> 상태: **해소** — V6 마이그레이션(`V6__create_daily_hot_post.sql`)으로 `daily_hot_post` 정식 생성 (커밋 `519d331`). 결함 있던 수동 스크립트 `ddl/V_daily_hot_post.sql`은 경고 주석을 달아 기록용으로 보존
 > 관련: BTL-008과 유사한 계열의 스키마/엔티티 불일치 문제. `GET /api/hotposts/daily` 전면 장애
 
 ## 증상
