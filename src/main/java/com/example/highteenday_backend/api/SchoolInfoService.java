@@ -32,9 +32,8 @@ public class SchoolInfoService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    // NEIS 인증키는 NEIS_API_KEY 환경변수로 주입한다. 키를 코드나 주석에 남기지 않는다.
     @Value("${neis.api.key}")
-//# NEIS API 인증키
-//neis.api.key=cee4ba90a5d34912a1e7c38edad08c01
     private String apiKey;
 
     public void loadAllSchools() {
