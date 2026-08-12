@@ -60,6 +60,9 @@
 | [adr/adr-003-hybrid-pagination.md](adr/adr-003-hybrid-pagination.md) | 커서 + 오프셋 하이브리드 페이징 |
 | [adr/adr-004-s3-tmp-promote.md](adr/adr-004-s3-tmp-promote.md) | S3 임시 업로드 후 확정 패턴 |
 
+성능 테스트·병목 분석 체계는 별도 트리로 관리된다 — [../performance/README.md](../performance/README.md)에서 시작
+(실측된 병목 기록은 `performance/bottlenecks/`, 측정 시스템 설계는 `performance/PERFORMANCE-MANAGEMENT.md`).
+
 프론트엔드 문서는 `highteenday-frontend/docs/INDEX.md`에서 시작한다.
 
 ## 문서 체계 규칙

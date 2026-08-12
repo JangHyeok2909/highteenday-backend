@@ -69,7 +69,9 @@ $env:NEIS_API_KEY = "dummy"; $env:DB_PASSWORD = "root"
 ./gradlew bootRun --args='--spring.profiles.active=dev'
 ```
 
-dev 프로파일은 `spring.jpa.hibernate.ddl-auto=update`라 첫 부팅 시 스키마가 자동 생성된다 (`application-dev.properties`).
+스키마는 부팅 시 Flyway가 만든다 — 빈 DB라면 `db/migration/`의 마이그레이션(V1 baseline부터)이
+순서대로 실행되어 전체 테이블이 생성된다. `ddl-auto`는 dev/prod 모두 `none`이라 엔티티를
+수정해도 스키마가 자동으로 바뀌지 않는다. 스키마 변경 절차는 [MIGRATION.md](MIGRATION.md) 참고.
 
 ## 4. 부팅 시 자동으로 일어나는 일
 
@@ -85,7 +87,7 @@ prod가 아닌 프로파일에서는 `initializers/AppStartupRunner.java · onAp
 
 | 확인 | 방법 |
 |---|---|
-| 헬스체크 | `GET http://localhost:8080/actuator/health` → `{"status":"UP"}` |
+| 헬스체크 | `GET http://localhost:8081/actuator/health` → `{"status":"UP"}` — dev/prod는 액추에이터가 관리 포트 8081로 분리되어 있다 (`application-dev.properties · management.server.port`) |
 | API 문서 | 브라우저에서 `http://localhost:8080/swagger-ui/index.html` (`configs/SwaggerConfig.java`) |
 | 로그인 | `POST http://localhost:8080/api/user/login` body `{"email":"test1@gmail.com","password":"asd"}` — 응답 Set-Cookie로 `accessToken`, `refreshToken` 수신 (`controllers/UserController.java · login`) |
 | 게시글 목록 | `GET http://localhost:8080/api/boards/1/posts?page=0` (시드가 게시판·게시글을 만들어 둠) |
@@ -96,7 +98,7 @@ prod가 아닌 프로파일에서는 `initializers/AppStartupRunner.java · onAp
 ./gradlew test
 ```
 
-주의: 단위 테스트 대부분은 Mockito 기반이라 인프라 없이 돌지만, `HighteendayBackendApplicationTests`(@SpringBootTest)는 테스트 전용 프로파일이 없어 환경에 따라 실패한다 ([KI-12](KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음)). 테스트 구조와 실행 전략은 06-testing.md(Phase 4 예정)에서 다룬다.
+주의: 단위 테스트 대부분은 Mockito 기반이라 인프라 없이 돌지만, `HighteendayBackendApplicationTests`(@SpringBootTest)는 테스트 전용 프로파일이 없어 환경에 따라 실패한다 ([KI-12](KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음)). 테스트는 H2로 돌므로 MySQL 문법인 Flyway 마이그레이션은 테스트에서 비활성화되어 있다 (`build.gradle · test` 태스크). 테스트 구조와 실행 전략은 [06-testing.md](06-testing.md)에서 다룬다.
 
 ## 코드 좌표
 
@@ -116,4 +118,4 @@ prod가 아닌 프로파일에서는 `initializers/AppStartupRunner.java · onAp
 - [KI-09](KNOWN-ISSUES.md#ki-09-readme-실행-가이드가-현재-코드와-불일치) README 실행 가이드의 프로퍼티 키가 코드와 불일치 — 이 문서가 현행 기준이다
 - `[미확인]` 항목 2건: NEIS 무효 키 시 부팅 동작, 시드 재실행 멱등성
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-08-11
