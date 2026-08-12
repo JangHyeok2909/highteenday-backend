@@ -67,6 +67,11 @@ public class PostService {
         return postRepository.findByUser(user, pageable);
     }
 
+    /**
+     * 게시글 목록 조회. 캐시는 "최신순 + 앞쪽 5페이지"에만 적용한다 —
+     * 트래픽 대부분이 이 구간에 몰리고, 정렬 조건별로 캐시를 다 두면
+     * 무효화 비용이 커지기 때문이다. 그 외 조건은 DB(QueryDSL) 직행.
+     */
     public List<PostPreviewDto> getPagedPosts(PostListingDto dto) {
         if (dto.getPage() < CACHE_PAGE_LIMIT && dto.getSortType() == SortType.RECENT) {
             return postPrevCache.getPostPrevs(dto.getBoardId(), dto.getPage(), dto.getSize());
@@ -78,11 +83,6 @@ public class PostService {
         return postPrevCache.getCount(boardId);
     }
 
-//    public PageResponse<PostPreviewDto> getPagedPosts(List<PostPreviewDto> dtos){
-//        Long total = postRepository.countTotal(dto);
-//    }
-
-    //로그남기기
     @Transactional
     public Post createPost(User user,RequestPostDto dto){
         Board board = boardService.findById(dto.getBoardId());
@@ -92,13 +92,14 @@ public class PostService {
         mediaProcessingService.processCreatePostMedia(user.getId(),post);
         post.setUpdatedDate(null);
 
+        // 주의: 아직 트랜잭션 커밋 전에 캐시를 갱신한다. 이후 롤백되면 존재하지 않는
+        // 게시글이 목록 캐시에 남는다 (TTL 만료까지) — docs/KNOWN-ISSUES.md KI-22.
         postPrevCache.evictBoard(post.getBoard().getId());
         postPrevCache.cachePostPrev(PostPreviewDto.fromEntity(post));
         postPrevCache.incrementBoardCount(post.getBoard().getId());
 
         return savedPost;
     }
-    //로그 남기기,이미지 업로드
     @Transactional
     public void updatePost(Long postId,Long userId, @Valid UpdatePostDto dto){
         String newTile = dto.getTitle();

@@ -22,12 +22,22 @@ import java.util.Optional;
 import java.util.Set;
 
 
-/*게시판별 인기글, 실시간 인기글
- * 실시간 인기글:반응마다 스코어 갱신,5분마다 5개 선정하고 좋아요 컷 10개,하루단위 시간감쇄율
- * 게시판별 인기글:1분마다 스코어 갱신, 1분마다 3개 선정하고 좋아요 컷 5개, 시간감쇄 없이 db 저장
- * */
-
-
+/**
+ * 핫게시글 랭킹 서비스 — Redis ZSET에 점수를 쌓고 상위 게시글을 조회한다.
+ *
+ * 실제 서비스 경로는 "일간 리더보드" 하나다.
+ * - 갱신: updateLeaderboardDayScore() — 반응/댓글/스크랩 이벤트(AFTER_COMMIT)와
+ *   조회수 배치, 그리고 HotScoreScheduler(5분 주기, 시간 감쇠 반영)가 호출한다.
+ * - 조회: getLeaderboardDayHotPosts() — GET /api/hotposts/daily. 당일 ZSET 상위
+ *   10개 중 좋아요 10개 이상만 노출하고, ZSET이 비면(장애·초기화 직후) DB의
+ *   daily_hot_post로 fallback한다. syncLeaderboardDayToDb()가 그 fallback을 채운다.
+ *
+ * 키는 달력일 버킷(hot:leaderboard:day:{yyyyMMdd})이다 — 게시글 작성일 필터가 아니라,
+ * "오늘 점수가 갱신된 글"이 오늘 키에 들어간다. 어제 글도 오늘 반응을 받으면 순위에 든다.
+ *
+ * updateRecentScore()/getRecentHotPosts()(게시판별 5분 버킷 실시간 랭킹)는 설계만 있고
+ * 아직 어떤 컨트롤러·스케줄러에도 연결되지 않았다 — docs/domains/reaction-hotpost.md 참고.
+ */
 @Slf4j
 @RequiredArgsConstructor
 @Service
