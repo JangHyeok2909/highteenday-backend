@@ -41,7 +41,7 @@
 | `initializers/` | 시드·기초데이터 로더 (`AppStartupRunner`는 `@Profile("!prod")`) | |
 | `configs/` | Bean 설정 (Redis, S3, Swagger, WebSocket, AppConfig) | |
 | `constants/` | `SchoolFileConstants` (급식 JSON 경로) | |
-| `Utils/` | `HotScoreCalculator`, `MediaUtils`, `PageUtils` | 대문자 표기 주의 (함정 F-2) |
+| `utils/` | `HotScoreCalculator`, `MediaUtils`, `PageUtils` | (과거 `Utils/` 대문자 표기였다가 소문자로 정리됨) |
 | `queryDsl/` | `QueryDslConfig` (JPAQueryFactory 빈) | 위치가 configs가 아닌 점 주의 |
 
 ## 함정 목록 — 알고 시작해야 헤매지 않는 것들
@@ -54,7 +54,6 @@
 
 | 실제 경로 | 관례대로라면 |
 |---|---|
-| `Utils/` | `utils/` |
 | `domain/Token/` | `domain/token/` |
 | `domain/schools/UserTimetables/` | `domain/schools/usertimetables/` |
 | `dtos/Chat/`, `dtos/Friends/`, `dtos/Login/` | 소문자 (`dtos/paged/`만 관례를 따름) |
@@ -84,7 +83,7 @@ JPA 엔티티가 아니라 Spring Event 클래스(record)와 리스너다. DB와
 열어보고 "어디서 쓰이지?"를 오래 찾게 되는 파일들. 참조가 없음을 확인한 목록이며, 정리 전까지는 새 코드에서 사용하지 않는다.
 
 - `services/domain/redisService/CursorCacheService` — 본문 전체가 주석인데 `@Service`로 빈 등록됨
-- `domain/hot/RecentHotPost` + `RecentHotPostRepository` — 주입처 없음
+- ~~`domain/hot/RecentHotPost` + `RecentHotPostRepository` — 주입처 없음~~ → 2026-08에 삭제됨
 - `domain/schedule/PersonalSchedule` + `PersonalScheduleRepository` — 주입처 없음
 - `services/security/CustomUserDetailsService` — formLogin/httpBasic이 비활성이라 호출 경로 없음 (`security/SecurityConfig.java · filterChain()`)
 
@@ -102,4 +101,4 @@ JPA 엔티티가 아니라 Spring Event 클래스(record)와 리스너다. DB와
 - F-8의 미사용 코드들은 삭제 대상 후보다 — 정리 여부는 별도 작업으로 결정한다.
 - 이 문서의 함정 목록은 Phase 1 시점 기준이다. 패키지 정리(리네임) 작업이 이뤄지면 이 문서를 함께 갱신해야 한다.
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-07-30 (2026-08-11 코드 변경 반영분은 본문의 갱신 표시 참고)

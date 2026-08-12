@@ -14,7 +14,7 @@
 
 - 반응은 `posts_reactions` 단일 테이블 한 행으로 관리된다 — `(PST_id, USR_id)` 유니크, `kind`(LIKE/DISLIKE), 취소는 `isValid=false` soft cancel. 과거 `posts_likes`/`posts_dislikes` 2테이블에서 통합된 구조다 (마이그레이션 SQL은 [POST_REACTION_MIGRATION.md](../POST_REACTION_MIGRATION.md) 원본 참고).
 - 반응·댓글·신규 스크랩·조회수 반영이 각각 이벤트/배치를 통해 `HotPostService.updateLeaderboardDayScore()`로 모이고, `hot:leaderboard:day:{yyyyMMdd}` Redis ZSET에 `calculateDailyHotScore` 점수를 ZADD한다.
-- `GET /api/hotposts/daily`는 당일 ZSET 상위 10개 중 좋아요 10개 이상만 노출하며, ZSET이 비면 `DailyHotPost` DB 테이블로 fallback한다. 게시판별 실시간 인기글(`RecentHotPost`, `hot:board:...` 키)은 코드만 있고 어디서도 연동되지 않는다.
+- `GET /api/hotposts/daily`는 당일 ZSET 상위 10개 중 좋아요 10개 이상만 노출하며, ZSET이 비면 `DailyHotPost` DB 테이블로 fallback한다. 게시판별 실시간 인기글(`hot:board:...` 키를 쓰는 서비스 메서드)은 코드만 있고 어디서도 연동되지 않는다 — 관련 엔티티 `RecentHotPost`는 2026-08에 삭제됐다.
 
 ## 반응 토글
 
@@ -111,10 +111,10 @@ sequenceDiagram
 
 DB 동기화는 `HotScoreScheduler`가 5분마다 `HotPostService.syncLeaderboardDayToDb()`를 호출해 수행한다: 당일 ZSET 상위 50개를 `domain/hot/DailyHotPost`(`(DHP_leaderboard_date, PST_id)` 유니크, score·날짜 보관)로 저장한다. **이미 있는 (게시글, 날짜) 행은 건너뛰고 score를 갱신하지 않으므로**, DB에 남는 score는 그 게시글이 처음 동기화된 시점의 값이다. 오래된 날짜의 행을 지우는 로직은 없어 테이블은 계속 누적된다 (`schedulers/` 4개 클래스 전수 확인).
 
-## 미사용 코드 현황 — RecentHotPost와 게시판별 실시간 인기글
+## 미사용 코드 현황 — 게시판별 실시간 인기글
 
-- `domain/hot/RecentHotPost` 엔티티와 `RecentHotPostRepository`는 선언만 있고 주입·호출처가 전혀 없다 (전체 소스 grep으로 확인). 테이블만 생성되는 상태.
-- `HotPostService.updateRecentScore()`/`getRecentHotPosts()`(게시판별 5분 버킷 랭킹)도 호출처가 없고 API로 노출되지 않는다. 기존 HOT_POST_SYSTEM.md의 4.4절 시퀀스는 "연동 시"의 설계 스케치였다.
+- `domain/hot/RecentHotPost` 엔티티와 `RecentHotPostRepository`는 선언만 있고 주입·호출처가 전혀 없어 **2026-08에 삭제됐다**.
+- `HotPostService.updateRecentScore()`/`getRecentHotPosts()`(게시판별 5분 버킷 랭킹)는 여전히 코드에 있으나 호출처가 없고 API로 노출되지 않는다. 기존 HOT_POST_SYSTEM.md의 4.4절 시퀀스는 "연동 시"의 설계 스케치였다.
 - 참고: `updateRecentScore()`는 이름과 달리 내부에서 `calculateDailyHotScore()`를 쓴다 — 기존 문서의 "실시간은 `calculateRecentHotScore` 사용" 서술은 현재 코드와 다르다.
 
 ## 코드 좌표
@@ -132,7 +132,7 @@ DB 동기화는 `HotScoreScheduler`가 5분마다 `HotPostService.syncLeaderboar
 | Redis ZSET 어댑터 | `infrastructure/redis/RedisHotPostRanking.java` (`HotPostRankingPort` 구현) |
 | 재계산·DB 동기화 스케줄러 | `schedulers/HotScoreScheduler.java · updateHotScore()` |
 | DB fallback 엔티티 | `domain/hot/DailyHotPost.java`, `domain/hot/DailyHotPostRepository.java` |
-| 미사용 엔티티 | `domain/hot/RecentHotPost.java`, `domain/hot/RecentHotPostRepository.java` |
+| ~~미사용 엔티티~~ (2026-08 삭제) | ~~`domain/hot/RecentHotPost.java`, `domain/hot/RecentHotPostRepository.java`~~ |
 | 조회 API | `controllers/HotPostController.java · getLeaderboardDayHotPosts()` |
 
 ## 알려진 문제·미확인 사항
@@ -143,4 +143,4 @@ DB 동기화는 `HotScoreScheduler`가 5분마다 `HotPostService.syncLeaderboar
 - [KI-20](../KNOWN-ISSUES.md) — **핫 랭킹 Redis 키에 TTL이 없음**: 날짜별 `hot:leaderboard:day:*` ZSET이 만료 설정 없이 무한 누적된다. `DailyHotPost` 테이블도 정리 배치가 없다.
 - `[미확인]` `DailyHotPost` fallback이 실제 장애 상황에서 의도대로 노출되는지 — Redis 비운 상태의 통합 테스트가 저장소에 없다.
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-07-30 (2026-08-11 코드 변경 반영분은 본문의 갱신 표시 참고)

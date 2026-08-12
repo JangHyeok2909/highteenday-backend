@@ -6,6 +6,10 @@
 > KI-01~12는 Phase 1(구조·흐름 문서), KI-13~31은 Phase 2(crosscutting·데이터 모델 문서),
 > KI-32부터는 Phase 3~4(도메인·운영 문서) 작성 중 확인된 항목이다 — 전 Phase 보강 완료.
 > "확인 방법"은 신입이 직접 재현해볼 수 있는 절차다.
+>
+> **2026-08-11 상태 재검증**: 최초 검증(2026-07-30) 이후 Flyway 도입(V1~V7), 반응/스크랩
+> upsert 전환, RecentHotPost 엔티티 삭제 등이 반영되어 일부 항목이 해소되었다. 해소된
+> 항목은 삭제하지 않고 원문 아래 **→ 갱신** 줄로 현재 상태를 남긴다 (발견 당시 기록 보존).
 
 ## 실행 환경
 
@@ -25,6 +29,7 @@
 ### KI-03. 실제 NEIS API 키가 소스 주석에 커밋되어 있음
 - 위치: `api/SchoolInfoService.java` — `apiKey` 필드 위 주석에 실제 키 문자열이 남아 있고, git 히스토리 다수 리비전에도 존재한다.
 - 조치 필요: 주석 삭제 + NEIS 포털에서 키 재발급(히스토리에 남으므로 삭제만으로는 무효화되지 않음).
+- → 갱신 (2026-08-11): 소스의 주석은 삭제됨. **키 재발급은 여전히 필요** — git 히스토리에 키가 남아 있다.
 
 ### KI-04. GET 전체가 permitAll인 블랙리스트 인가 구조
 - 위치: `security/SecurityConfig.java · filterChain()` — 명시된 GET 경로만 `authenticated()`이고 마지막에 `GET /**`가 `permitAll()`이다.
@@ -54,12 +59,14 @@
 ### KI-09. README 실행 가이드가 현재 코드와 불일치
 - `README.md` 실행 섹션이 `jwt.secret`, `jwt.access-token-expiration` 등 코드에 존재하지 않는 프로퍼티 키를 안내한다. 실제 키는 `jwt.key`다. DB명도 `highteenday`로 안내하나 dev 기본값은 `highteenday_db`다.
 - README 기술 스택 표의 "CI/CD: GitHub Actions → EC2 (PM2)"는 과거 방식이다. 현재는 Docker/ECR 배포다 (`.github/workflows/deploy.yml`).
+- → 갱신 (2026-08-11): **해소** — README 실행 섹션을 실제 환경변수 기반으로 재작성하고 00-quickstart.md로 연결, CI/CD 표기를 ECR/Docker로 정정.
 
 ### KI-10. SYSTEM_ARCHITECTURE.md가 구버전 상태로 방치됨
 - Next.js·duckdns 도메인·`PostLike`/`PostDislike`(통합 전 스키마)·잘못된 OAuth 콜백 경로 등 현재 코드와 다른 서술 다수. 현행 기준은 [02-architecture.md](02-architecture.md)를 따른다.
 
 ### KI-11. README의 핫스코어 갱신 주기 서술이 코드와 다름
 - README는 "1분 주기로 전체 게시글 스코어 갱신"이라 하나, 코드는 `schedulers/HotScoreScheduler.java · @Scheduled(fixedRate = 5분)`로 리더보드 상위 50개만 갱신한다.
+- → 갱신 (2026-08-11): **해소** — README 핫게시글 절을 5분 주기·상위 50개 갱신으로 정정.
 
 ## 테스트·CI
 
@@ -167,6 +174,7 @@
   - `src/main/resources/ddl/V_daily_hot_post.sql` — FK가 `REFERENCES post(PST_id)`로 존재하지 않는 `post` 테이블을 참조한다 (실제 테이블명은 `posts`). 이 스크립트를 그대로 실행하면 실패한다.
   - `application-prod.properties` — 주석은 "validate — block DDL changes; startup fails fast on schema mismatch"라 하나 실제 값은 `ddl-auto=none`이다. none은 검증 자체를 안 하므로 스키마 불일치 시 기동은 성공하고 런타임 SQL 오류로 나타난다.
 - 조치 필요: DDL 오타 수정 + 주석과 값 일치화(validate 채택 여부 결정). 근본적으로는 미병합 `feature/flyway-migration` 브랜치의 마이그레이션 도입 여부 결정.
+- → 갱신 (2026-08-11): **대부분 해소** — Flyway가 도입되어 스키마를 소유한다 (V1 baseline ~ V7, [MIGRATION.md](MIGRATION.md)). `daily_hot_post`는 V6 마이그레이션으로 정식 생성됐고, `ddl/V_daily_hot_post.sql`은 결함 경고 주석을 단 채 기록용으로 보존된다. prod 프로퍼티의 "validate" 주석도 실제 값(none)에 맞게 수정됨.
 
 ### KI-29. 엔티티 명명 규칙 이탈 모음
 - 위치: 컬럼 규칙(`{대문자 접두어}_{소문자 snake}`, 복수형 테이블명)에서 벗어난 사례들.
@@ -177,6 +185,7 @@
   - `domain/schools/SchoolMeal.java` — `date` 컬럼이 `@Column(name=...)` 없이 무접두어. `domain/schools/subjects/Subject.java` — `SBJ_hours_per_Week`의 대문자 W.
 - 결과: 실질 버그는 아니나 `ddl-auto=update` 산출물과 수동 DDL·쿼리 작성 시 혼동을 유발한다.
 - 확인 방법: 각 파일의 `@Table`/`@Column` 애노테이션 확인.
+- → 갱신 (2026-08-11): **부분 해소** — `Token`은 `@Table(name="tokens")` 명시 + V5 마이그레이션으로 정리됐고 (부하 테스트에서 대소문자 불일치 장애로 실증된 뒤 수정 — [performance/bottlenecks/BTL-008](../performance/bottlenecks/BTL-008-token-table-case-mismatch.md)), `RecentHotPost`는 엔티티 자체가 삭제됐다. `Media`·`BaseEntity`·`SchoolMeal`·`Subject`의 이탈은 그대로 남아 있다.
 
 ## 문서-코드 불일치 (Phase 2에서 확인분)
 
@@ -184,11 +193,13 @@
 - 위치: `schedulers/SchoolMealScheduler.java` — `@Scheduled(cron = "0 0 0 1 * ?")`, 즉 **매월 1일 00:00**에 당월 데이터를 수집한다. `README.md`는 "급식 데이터는 매월 말일 스케줄러로 NEIS API에서 자동 수집"이라 서술한다.
 - 결과: 운영 시점 예측이 어긋난다 (말일에 다음 달 선수집이 아니라, 1일 0시에 당월 수집).
 - 확인 방법: cron 식과 README 학교 도메인 절 대조.
+- → 갱신 (2026-08-11): **해소** — README 서술을 "매월 1일 00:00 당월 수집"으로 정정.
 
 ### KI-31. 부하 테스트 스크립트가 저장소에 없어 성능 수치 재현 불가
 - 위치: `.gitignore`가 `k6/`와 `load-tests/`를 "Load test scripts (local only)" 주석과 함께 배제한다. 저장소에 해당 디렉터리가 없다.
 - 결과: `README.md` 성능 개선 절의 k6 기반 전후 수치(처리량·p95 등)를 제3자가 재현·검증할 수 없다. `controllers/testing/PostConsistencyController` 주석이 언급하는 "k6 teardown에서 호출" 스크립트도 저장소 밖이다.
 - 조치 필요: 스크립트를 저장소에 포함하거나 README에 재현 불가임을 명시.
+- → 갱신 (2026-08-11): **구조적으로 해소** — `performance/`에 k6 스크립트(`scripts/`, `scenarios/`), 전용 관측 환경(`environment/`), 실행 이력·회귀 판정 도구(`tools/`)가 저장소에 포함됐다. 단 README의 **과거** 수치를 만든 당시 스크립트는 복원되지 않았으므로, 그 수치들은 여전히 "당시 기록"으로 읽어야 한다 ([07-performance.md](07-performance.md)).
 
 ## 인증·사용자 (Phase 3에서 확인분)
 
@@ -236,15 +247,18 @@
 ### KI-41. 댓글 수정 미디어 처리에서 NPE 가능
 - 위치: `services/domain/MediaProcessingService · processUpdateCommentMedia()` — 기존 s3Url이 null인 댓글을 수정할 때 null 역참조 경로가 있다.
 - 결과: 이미지 없던 댓글 수정 시 500 가능.
+- → 갱신 (2026-08-11): **해소** — null 가드 추가 (부하 테스트에서 실증 후 수정, [performance/bottlenecks/BTL-010](../performance/bottlenecks/BTL-010-comment-update-npe.md)). 단위 테스트 포함.
 
 ## 친구·학교 (Phase 3에서 확인분)
 
 ### KI-42. 친구 요청에 상태 검증이 없음
 - 위치: `services/domain/FriendService · sendFriendsRequest()` — 역방향 요청 존재·이미 친구·차단 상태를 검증하지 않는다. 또한 `respondToFriendRequest()`는 알 수 없는 status 값이 오면 요청 행을 조용히 삭제한다.
 - 결과: 중복 관계·차단 우회 요청이 가능하고(차단 비가시성 정책과 충돌), 잘못된 status로 요청이 소실된다.
+- → 갱신 (2026-08-11): **대부분 해소** — `sendFriendsRequest()`에 자기 자신·차단(양방향)·기존 친구·역방향 요청 검증이 추가됐다. 단 `respondToFriendRequest()`는 알 수 없는 status가 오면 여전히 아무 분기도 타지 않고 요청을 soft delete로 종결한다 (물리 삭제에서 이력 보존으로 바뀌었을 뿐, 오입력 소실 문제 자체는 잔존).
 
 ### KI-43. Friend/FriendReq가 물리 삭제됨
 - 위치: `services/domain/FriendService` — 친구 삭제·요청 처리에서 행을 물리 삭제한다. soft delete 컨벤션 위배 (KI-34와 동일 계열).
+- → 갱신 (2026-08-11): **부분 해소** — `FriendReq`는 `BaseEntity.delete()`(soft delete)로 전환되어 요청 이력이 보존된다. `Friend` 관계 행은 여전히 `deleteAll()` 물리 삭제다.
 
 ### KI-44. 외부 API RestTemplate에 타임아웃이 없음
 - 위치: `configs/AppConfig.java · restTemplate()` — `new RestTemplate()` 기본 생성으로 connect/read 타임아웃 미설정.
@@ -270,6 +284,7 @@
 
 ### KI-49. README의 "게시판 목록 캐싱" 서술과 달리 캐싱이 없음
 - 위치: `services/domain/BoardService` — README 캐싱 전략 절은 게시판 목록 캐싱을 포함한다고 서술하나 코드에 캐시 경로가 없다 (캐시는 게시글 목록·카운트에만 존재 — `services/domain/redisService/RedisPostsCache`).
+- → 갱신 (2026-08-11): **해소** — README 캐싱 절에서 게시판 목록을 제외하고 실제 캐시 대상(게시글 목록·total count)만 서술하도록 정정.
 
 ### KI-50. 미사용 테스트 헬퍼와 미사용 의존성
 - 위치: `src/test/.../configs/TestFileStorageConfig`, `src/test/.../services/global/LocalFileStorageAdapter` — 참조 0건. `build.gradle`의 `it.ozimov:embedded-redis`도 코드 사용처가 없다 (CLAUDE.md의 "Embedded Redis 사용" 서술과 불일치).
@@ -282,4 +297,4 @@
 - 위치: `build.gradle` — `spring-security-test` 의존성이 없고, `@WebMvcTest` 사용이 0건이다.
 - 결과: 인가 규칙(KI-04, KI-05)과 요청 매핑·검증·직렬화가 테스트로 고정될 수 없는 상태다 (KI-12와 결합해 회귀 방지 공백).
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-08-11 (최초 작성 2026-07-30, 이후 해소분은 각 항목의 "→ 갱신" 줄 참고)

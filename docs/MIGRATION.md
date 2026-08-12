@@ -9,9 +9,16 @@
 
 ```
 src/main/resources/db/migration/
-  V1__baseline.sql                    Flyway 도입 이전 스키마
-  V2__friend_relation_indexes.sql     친구 관계 조회용 인덱스
+  V1__baseline.sql                       Flyway 도입 이전 스키마 (빈 DB에만 실행)
+  V2__friend_relation_indexes.sql        친구 관계 조회용 인덱스
+  V3__rename_notification_entity_id.sql  Notification 컬럼명 정정 (BTL-011)
+  V4__chat_room_category_group.sql       채팅방 category 확장
+  V5__rename_token_table.sql             token → tokens 개명 (BTL-008)
+  V6__create_daily_hot_post.sql          daily_hot_post 정식 생성 (BTL-009)
+  V7__scraps_unique_usr_pst.sql          스크랩 중복 방지 유니크 제약 (BTL-012)
 ```
+
+(BTL-nnn은 부하 테스트에서 실증된 결함 기록 — `performance/bottlenecks/` 참고)
 
 - 이름은 `V{번호}__{설명}.sql`. **밑줄 두 개**다. 하나면 Flyway가 인식하지 못한다.
 - 번호는 이어서 붙인다. 같은 번호를 두 사람이 쓰면 배포 시 충돌한다. PR을 올리기 전에
@@ -64,8 +71,8 @@ V1을 **실행하지 않고 적용된 것으로 표시만** 하고 V2부터 진�
 
 | 상황 | 동작 |
 |---|---|
-| 기존 스키마가 있는 DB | V1을 `BASELINE` 으로 기록하고 건너뜀 → V2만 실행 |
-| 빈 DB | V1, V2 순서대로 전부 실행 (테이블 24개 생성) |
+| 기존 스키마가 있는 DB | V1을 `BASELINE` 으로 기록하고 건너뜀 → V2부터 실행 |
+| 빈 DB | V1부터 최신 버전까지 순서대로 전부 실행 (V1이 테이블 24개 생성) |
 
 즉 **V1과 운영 DB의 실제 스키마가 완전히 같지 않아도 마이그레이션은 정상 동작한다.**
 V1은 새로 만드는 빈 DB에만 쓰인다.

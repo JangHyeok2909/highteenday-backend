@@ -15,7 +15,7 @@
 
 ## 서비스 소개
 
-하이틴데이(HighTeenDay)는 학교 단위 이슈를 익명으로 공유하는 커뮤니티다. 사용자는 익명으로 글과 반응을 남기고, 핫게시글 랭킹으로 지금 뜨거운 이슈를 확인하며, 친구를 맺어 시간표를 공유하고 1:1/그룹 채팅을 한다. 서비스 배경과 기능 상세는 저장소 루트 `README.md` 참고 (단, README 일부 서술은 코드와 불일치 — [KI-09](KNOWN-ISSUES.md#ki-09-readme-실행-가이드가-현재-코드와-불일치), [KI-11](KNOWN-ISSUES.md#ki-11-readme의-핫스코어-갱신-주기-서술이-코드와-다름)).
+하이틴데이(HighTeenDay)는 학교 단위 이슈를 익명으로 공유하는 커뮤니티다. 사용자는 익명으로 글과 반응을 남기고, 핫게시글 랭킹으로 지금 뜨거운 이슈를 확인하며, 친구를 맺어 시간표를 공유하고 1:1/그룹 채팅을 한다. 서비스 배경과 기능 상세는 저장소 루트 `README.md` 참고 (README의 코드 불일치 서술은 2026-08-11 정정됨 — [KI-09](KNOWN-ISSUES.md#ki-09-readme-실행-가이드가-현재-코드와-불일치), [KI-11](KNOWN-ISSUES.md#ki-11-readme의-핫스코어-갱신-주기-서술이-코드와-다름) 갱신 참고).
 
 ## 도메인 지도
 
@@ -90,7 +90,7 @@ graph TD
 
 ## 알려진 문제·미확인 사항
 
-- README의 일부 서술이 코드와 불일치: [KI-09](KNOWN-ISSUES.md#ki-09-readme-실행-가이드가-현재-코드와-불일치), [KI-11](KNOWN-ISSUES.md#ki-11-readme의-핫스코어-갱신-주기-서술이-코드와-다름)
-- `domain/hot/RecentHotPost`는 코드에 존재하나 주입되는 곳이 확인되지 않는 미사용 엔티티다 — 상세는 Phase 3 domains/reaction-hotpost.md에서 다룬다.
+- README의 코드 불일치 서술은 2026-08-11 정정됐다 ([KI-09](KNOWN-ISSUES.md#ki-09-readme-실행-가이드가-현재-코드와-불일치)·[KI-11](KNOWN-ISSUES.md#ki-11-readme의-핫스코어-갱신-주기-서술이-코드와-다름)의 갱신 줄 참고)
+- `domain/hot/RecentHotPost`는 미사용 엔티티로 확인된 뒤 삭제됐다 (2026-08). 게시판별 실시간 인기글 관련 서비스 메서드는 아직 코드에 남아 있으나 API에 연결되지 않았다 — 상세는 [domains/reaction-hotpost.md](domains/reaction-hotpost.md).
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-07-30 (2026-08-11 코드 변경 반영분은 본문의 갱신 표시 참고)

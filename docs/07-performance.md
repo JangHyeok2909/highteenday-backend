@@ -8,9 +8,9 @@
 
 ## 3줄 요약
 
-- README의 개선 항목 5건은 모두 현재 코드에서 좌표를 확인할 수 있다 — 단 "게시판 목록 캐싱"만은 코드에 없다 (아래 ⑤).
-- 측정 조건 중 데이터 규모(게시글 10만 건, `data.sql`)는 저장소에서 확인되지만, k6 부하 스크립트는 `.gitignore`로 배제되어 있어 **수치 재현이 불가능하다** ([KI-31](KNOWN-ISSUES.md)).
-- 따라서 이 문서의 모든 수치는 "README가 보고하는 수치"이며, 코드로 재검증된 사실이 아니다.
+- README의 개선 항목 5건은 모두 현재 코드에서 좌표를 확인할 수 있다 — "게시판 목록 캐싱" 오서술은 README에서 정정됐다 ([KI-49](KNOWN-ISSUES.md) 갱신 참고).
+- README의 **과거** 수치를 만든 당시 k6 스크립트는 저장소에 없으므로, 그 수치들은 여전히 "README가 보고하는 수치"로 읽어야 한다.
+- 다만 2026-08부터는 [performance/](../performance/README.md)에 k6 스크립트·시나리오·전용 관측 환경·실행 이력 저장이 도입되어, **이후의 모든 측정은 저장소 안에서 재현·검증 가능하다**.
 
 ## 수치를 읽는 법 (먼저 읽을 것)
 
@@ -19,8 +19,9 @@ README "성능 개선 경험" 섹션의 수치(P95, 처리량 등)는 k6 부하 
 | 측정 조건 | 확인 가능? | 근거 |
 |---|---|---|
 | 데이터 규모: 게시글 10만 건 | 가능 | `src/main/resources/data.sql` — 재귀 CTE(`cte_max_recursion_depth=100000`)로 posts 10만 건 생성. 단 `spring.sql.init.mode=never`(dev·prod 공통)라 자동 실행되지 않는 **수동 적재 스크립트**다 |
-| k6 스크립트·부하 시나리오 (VU 수, 지속시간 등) | 불가 | `.gitignore`가 `k6/`, `load-tests/`를 배제 — 저장소에 없음. README의 실행 예시 `k6 run load-tests/k6-board-posts.js`도 현재 클론으로는 동작하지 않는다 |
-| 측정 환경 (하드웨어, DB 설정) | 불가 | `[미확인: 저장소에 기록 없음]` |
+| 당시 k6 스크립트·부하 시나리오 (VU 수, 지속시간 등) | 불가 | 과거 수치를 만든 스크립트는 `.gitignore`(`k6/`, `load-tests/`) 시절의 것으로 복원되지 않았다 |
+| 당시 측정 환경 (하드웨어, DB 설정) | 불가 | `[미확인: 저장소에 기록 없음]` |
+| **현재의 측정 체계** | 가능 | `performance/` — k6 스크립트(`scripts/`, `scenarios/`), 데이터셋 시더(`datasets/`), Docker 관측 스택(`environment/`), 실행 이력·회귀 판정(`tools/`, `reports/`). 새 측정은 실행 조건(데이터셋·부하 프로파일)까지 함께 기록된다 |
 
 ## 개선 항목별 코드 좌표
 
@@ -103,9 +104,8 @@ slow threshold는 `aop/ExecutionLoggingAspect.java`가 소비한다 — 컨트�
 
 ## 알려진 문제·미확인 사항
 
-- [KI-31](KNOWN-ISSUES.md) k6 부하 테스트 스크립트가 `.gitignore`(`k6/`, `load-tests/`)로 저장소에 없어 README 성능 수치를 재현할 수 없고, README의 `k6 run load-tests/k6-board-posts.js` 안내도 동작하지 않음
-- [KI-49](KNOWN-ISSUES.md) README "게시판 목록 캐싱" 서술과 달리 `BoardService`에는 캐싱이 없음 (캐싱 대상은 게시글 목록·count뿐)
-- [KI-09](KNOWN-ISSUES.md#ki-09-readme-실행-가이드가-현재-코드와-불일치), [KI-11](KNOWN-ISSUES.md#ki-11-readme의-핫스코어-갱신-주기-서술이-코드와-다름) — README의 다른 구버전 서술들
-- `[미확인]` 2건: prod DB의 실제 인덱스 존재 여부, k6 측정 환경
+- [KI-31](KNOWN-ISSUES.md) 과거 수치를 만든 k6 스크립트는 복원 불가 — 현재 측정 체계는 `performance/`로 저장소에 포함됨 (갱신 줄 참고)
+- [KI-49](KNOWN-ISSUES.md) README "게시판 목록 캐싱" 오서술 — 2026-08-11 README에서 정정됨
+- `[미확인]` 2건: prod DB의 실제 인덱스 존재 여부, 과거 k6 측정 환경
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-08-11
