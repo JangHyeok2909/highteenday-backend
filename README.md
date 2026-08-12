@@ -17,16 +17,34 @@
 
 ---
 
+## 문서 안내
+
+이 README는 프로젝트의 진입점입니다. 처음 접하는 개발자는 아래 순서로 읽으면 됩니다.
+
+| 목적 | 문서 |
+|------|------|
+| **로컬에서 바로 실행해보기** | [docs/00-quickstart.md](docs/00-quickstart.md) — 클론부터 첫 로그인까지 |
+| **코드베이스 전체 이해** | [docs/INDEX.md](docs/INDEX.md) — 온보딩 문서 체계의 목차 (아키텍처, 도메인별 심층, 운영, ADR) |
+| **알려진 결함·문서-코드 불일치** | [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md) — 코드를 읽고 확인한 결함의 단일 목록 |
+| **성능 테스트·병목 분석** | [performance/README.md](performance/README.md) — k6 부하 테스트와 자체 측정 시스템 |
+| **DB 스키마 변경 방법** | [docs/MIGRATION.md](docs/MIGRATION.md) — Flyway 마이그레이션 절차 |
+
+모든 온보딩 문서는 실제 코드를 읽고 검증한 내용만 담으며, 문서와 코드가 어긋나는 부분은
+본문에 숨기지 않고 KNOWN-ISSUES에 번호(KI-nn)로 기록하는 규칙을 따릅니다.
+
+---
+
 ## 주요 기능
 
 | 기능 | 설명 |
 |------|------|
 | 익명 게시판 | 게시글 작성·수정·삭제, 댓글·대댓글, 좋아요·싫어요, 스크랩 |
-| 소셜 로그인 | Google OAuth2 + JWT (Access/Refresh Token) |
-| 핫게시글 랭킹 | Redis Sorted Set 기반 실시간 인기글 (최신·일간) |
+| 소셜 로그인 | Google OAuth2 + JWT (Access/Refresh Token) — Kakao/Naver는 엔드포인트만 준비된 상태 |
+| 핫게시글 랭킹 | Redis Sorted Set 기반 일간 인기글 랭킹 |
 | 친구 | 친구 요청·수락·거절·차단 |
 | 학교 정보 | 급식 조회 (NEIS API), 시간표 템플릿 관리 |
 | 이미지 업로드 | S3 기반 이미지 업로드 (임시 저장 → 게시글 확정 시 영구 이동) |
+| 단체 채팅 | STOMP WebSocket 기반 채팅 (1:1, 그룹, 학교/학년 단위) |
 
 ---
 
@@ -37,12 +55,14 @@
 | Framework | Spring Boot 3.4, Java 17 |
 | ORM / Query | Spring Data JPA, QueryDSL 5.0 |
 | DB | MySQL 8 |
+| DB Migration | Flyway (`src/main/resources/db/migration/`) |
 | Cache | Redis (Spring Data Redis) |
 | Auth | OAuth2 (Google) + JWT |
 | Storage | AWS S3 |
-| Load Test | k6 |
+| Load Test | k6 + 자체 측정 시스템 ([performance/](performance/README.md)) |
+| Observability | Spring Actuator + Micrometer → Prometheus/Grafana |
 | Docs | Springdoc OpenAPI (Swagger UI) |
-| CI/CD | GitHub Actions → EC2 (PM2) |
+| CI/CD | GitHub Actions → ECR → EC2 (Docker Compose) |
 
 ---
 
@@ -64,12 +84,10 @@
 - 환경 일관성
 - 롤백 용이
 
+#### CI/CD
 
-####  CI/CD
-
-git push → GitHub Actions → ECR → EC2 배포
-
-
+git push → GitHub Actions → Docker 이미지 빌드 → ECR push → EC2에서 `docker compose up`
+(`.github/workflows/deploy.yml`)
 
 ### 백엔드 레이어 아키텍처
 
@@ -77,17 +95,22 @@ git push → GitHub Actions → ECR → EC2 배포
 
 이 프로젝트는 전통적인 계층형 아키텍처를 기반으로 구성하되,
 Redis, S3 같은 외부 인프라에 서비스 로직이 직접 결합되지 않도록
-일부 영역에 Port/Adapter 패턴을 적용함.
+일부 영역에 Port/Adapter 패턴을 적용했습니다.
 
 - Controller → 요청/응답 처리
 - Service → 비즈니스 로직 및 트랜잭션 관리
-- Domain → Entity / Repository / Value Object
-- Infrastructure → Redis, S3, QueryDSL 구현
+- Domain → Entity / Repository / Value Object / Port 인터페이스
+- Infrastructure → Redis, S3, QueryDSL 구현 (Adapter)
+
+예를 들어 조회수 버퍼는 `domain/port/ViewCountStorePort` 인터페이스를
+`infrastructure/redis/RedisViewCountStore`가 구현하는 구조라,
+서비스 계층은 Redis라는 구현 기술을 알지 못합니다.
 
 조회수 캐싱, 핫게시글 랭킹, 토큰 관리처럼
 트래픽과 성능 영향을 크게 받는 기능들을
-가용성과 성능을 우선하는 방향으로 설계함.
+가용성과 성능을 우선하는 방향으로 설계했습니다.
 
+자세한 구조는 [docs/02-architecture.md](docs/02-architecture.md) 참고.
 
 ### Event-driven architecture
 
@@ -108,10 +131,14 @@ Spring Event 기반으로 분리했습니다.
 
 구조를 얻을 수 있었습니다.
 
+이벤트 7종의 전수 목록은 [docs/crosscutting/transactions-events.md](docs/crosscutting/transactions-events.md) 참고.
+
 ---
 
-
 ## 데이터 설계 (ERD)
+
+스키마는 Flyway 마이그레이션(`src/main/resources/db/migration/`)이 소유합니다.
+엔티티를 수정해도 컬럼이 자동으로 생기지 않으며, 변경 절차는 [docs/MIGRATION.md](docs/MIGRATION.md)를 따릅니다.
 
 ### Post Domain
 
@@ -123,6 +150,7 @@ Spring Event 기반으로 분리했습니다.
 - `Post.nickname`을 비정규화하여 User 테이블 JOIN 없이 작성자 표시
 - `Comment`는 `parent_id` 자기참조로 대댓글 구현
 - `BaseEntity`의 `is_valid` 컬럼으로 Soft Delete 구현
+- `scraps`는 `UNIQUE(USR_id, PST_id)` 제약으로 동시 토글의 중복 행 생성을 DB 레벨에서 차단
 
 ### User / Friend Domain
 
@@ -130,9 +158,9 @@ Spring Event 기반으로 분리했습니다.
 
 ![User Domain ERD](docs/images/erd-user.png)
 
-- OAuth2 Provider(Google) + Role(GUEST, USER) 구분
-- `FriendRequests`의 `frq_status`로 요청/수락/거절 상태 관리
-- `Token` 엔티티로 Refresh Token 관리, Access Token은 HttpOnly Cookie로 전달
+- OAuth2 Provider(Google) 기반 사용자 등록
+- `FriendRequests`의 `frq_status`로 요청/수락/거절 상태 관리 — 처리된 요청은 soft delete로 이력 보존
+- `Token` 엔티티(`tokens` 테이블)로 Refresh Token 관리, Access Token은 HttpOnly Cookie로 전달
 
 ### School Domain
 
@@ -140,8 +168,10 @@ Spring Event 기반으로 분리했습니다.
 
 ![School Domain ERD](docs/images/erd-school.png)
 
-- 급식 데이터는 매월 말일 스케줄러로 NEIS API에서 자동 수집
+- 급식 데이터는 매월 1일 00:00 스케줄러가 NEIS API에서 당월 데이터를 수집 (`schedulers/SchoolMealScheduler`)
 - 시간표는 사용자별 템플릿 → 과목 → 요일/교시 매핑 구조
+
+상세 데이터 모델과 명명 규칙: [docs/05-data-model.md](docs/05-data-model.md)
 
 ---
 
@@ -149,12 +179,10 @@ Spring Event 기반으로 분리했습니다.
 
 ### 인증 / 인가 (OAuth2 + JWT)
 
-Google OAuth2 로그인을 지원합니다.
-
+Google OAuth2 로그인과 이메일/비밀번호 일반 로그인을 지원합니다.
 
 #### 일반로그인 흐름
 ![default login sequence](docs/images/default-login-flow.png)
-
 
 ```
 POST /api/user/login
@@ -166,27 +194,26 @@ POST /api/user/login
 → JWT 발급 (accessToken HttpOnly 쿠키)
 ```
 
-
 #### 소셜로그인
 ![social login sequence](docs/images/social-login-flow.png)
 ```
 → OAuth2 인증 서버 리다이렉트
 
-→ 콜백 → CustomOAuth2UserService.loadUser()
+→ 콜백 (/oauth2/login/code/{provider}) → CustomOAuth2UserService.loadUser()
+   신규 사용자는 여기서 자동 등록되고 principal에 isNewUser 플래그가 실린다
 
 → OAuth2SuccessHandler → JWT 발급
+   isNewUser면 {frontend}/welcome, 기존 사용자면 {frontend}로 리다이렉트
 ```
 
-
-필터체인 
+필터체인
 
 ```
 요청 → [TokenExceptionFilter]
-         → \[TokenAuthenticationFilter\]  ← 쿠키에서 JWT 추출 → SecurityContext 설정
-            → \[ExceptionTranslationFilter\]
+         → [TokenAuthenticationFilter]  ← 쿠키에서 JWT 추출 → SecurityContext 설정
+            → [ExceptionTranslationFilter]
                → Controller
 ```
-
 
 #### 토큰 구조
 
@@ -194,8 +221,8 @@ POST /api/user/login
 |---|---|---|
 | 유효기간 | 30분 | 7일 |
 | 쿠키 Path | `/` | `/api/token/refresh` |
-| 저장 위치 | Cookie only | Cookie + DB (`Token` 테이블) |
-| 서명 알고리즘 | HMAC-SHA512 | HMAC-SHA512 |
+| 저장 위치 | Cookie only | Cookie + DB (`tokens` 테이블) + Redis 캐시 |
+| 서명 알고리즘 | HMAC-SHA512 |  HMAC-SHA512 |
 
 - JWT Payload: `sub`(이메일), `role`, `name`, `provider`
 - Access Token 만료 시 → `POST /api/token/refresh` 호출 → 두 토큰 모두 재발급 (Token Rotation)
@@ -212,7 +239,10 @@ HttpOnly; Secure; SameSite=None; Domain=.highteenday.org
 | Role | 설명 |
 |---|---|
 | `ROLE_USER` | 일반 인증 사용자 |
-| `ROLE_ADMIN` | 관리자 |
+| `ROLE_ADMIN` | 관리자 (enum에 정의되어 있으나 현재 부여 경로 없음) |
+| `ROLE_GUEST` | 과거 신규 OAuth2 사용자 표식 — `isNewUser` 플래그로 대체되어 현재 사용 경로 없음 |
+
+인증 전 구간 상세: [docs/domains/auth.md](docs/domains/auth.md), 엔드포인트×인가 전수 표: [docs/crosscutting/security.md](docs/crosscutting/security.md)
 
 자세한 내용: https://janghyeok.tistory.com/39
 
@@ -224,11 +254,14 @@ HttpOnly; Secure; SameSite=None; Domain=.highteenday.org
 사용자 조회 → Redis SETNX viewed:{postId}:{userId} (중복 방지, 1h TTL)
            → Redis INCR post:views:{postId}
 
-ViewCountScheduler (60초 주기)
-           → KEYS post:views:* 스캔
-           → DB에 누적값 일괄 UPDATE
-           → Redis 키 삭제
+ViewCountScheduler (60초 주기, fixedDelay)
+           → KEYS post:views:* 로 대기 중인 카운터 키 목록 조회
+           → 키마다 GETDEL로 값을 꺼내며 삭제
+           → 게시글별로 DB에 누적값 UPDATE + 핫스코어 갱신
 ```
+
+Redis 장애 시에도 조회 자체는 동작하도록 `@ResilientRedis` AOP로 감싸 실패를 격리합니다.
+설계 배경: [docs/adr/adr-002-viewcount-redis-buffer.md](docs/adr/adr-002-viewcount-redis-buffer.md)
 
 ### 게시글 작성 (S3 이미지 업로드)
 
@@ -261,7 +294,7 @@ sequenceDiagram
     API-->>C: 201 /api/posts/{id}
 ```
 
-#### 서버 처리 순서 (`PostMediaService`)
+#### 서버 처리 순서 (`MediaProcessingService`)
 
 1. **Jsoup**으로 `content` 내 모든 `<img src>` URL 수집  
 2. 각 URL에 대해 **같은 버킷 내 `CopyObject`**: 임시 키 → `post-file/{postId}/` 아래 영구 키  
@@ -282,17 +315,13 @@ sequenceDiagram
 - **기존에만 있던 URL**은 S3 객체 삭제  
 - 이미지가 하나도 없는 수정이면 본문만 갱신
 
+설계 배경: [docs/adr/adr-004-s3-tmp-promote.md](docs/adr/adr-004-s3-tmp-promote.md)
+
 ### 핫게시글 시스템
 
-Redis Sorted Set 기반 실시간 인기 게시글 랭킹 시스템입니다.
+Redis Sorted Set 기반 일간 인기 게시글 랭킹 시스템입니다.
 
-스코어 계산 방식은 용도에 따라 두 가지로 나뉜다.
-
-**최신 핫게시글** (`calculateRecentHotScore`)
-```
-score = sign × log₁₀(max(|weighted_sum|, 1))
-weighted_sum = 5×좋아요 − 1×싫어요 + 2×스크랩 + 3×댓글 + 1×조회수
-```
+스코어 산식은 두 가지가 정의되어 있고, 현재 서비스 경로에서 사용되는 것은 **일간 핫게시글**입니다.
 
 **일간 핫게시글** (`calculateDailyHotScore`) — 시간 감쇠 적용
 ```
@@ -300,11 +329,16 @@ score = sign × log₁₀(max(|weighted_sum|, 1)) / (경과시간 + 2)^1.5
 weighted_sum = 5×좋아요 − 2×싫어요 + 2×스크랩 + 3×댓글 + 1×조회수
 ```
 
+**최신 핫게시글** (`calculateRecentHotScore`) — 게시판별 실시간 랭킹용으로 정의만 있고,
+이를 사용하는 서비스 메서드는 아직 API에 연결되지 않았습니다.
+
 - **로그 스케일**: 좋아요 0→10의 영향이 10→100보다 크게 반영되어 초기 반응이 중요
 - **시간 감쇠**: 오래된 글일수록 점수가 낮아져 최신 글 우대
-- **일간 핫게시글**: 상위 10개 노출 (좋아요 ≥ 10 필터)
-- **Redis ZSET**: `ZREVRANGE`로 O(log N + K) 시간에 상위 K개 조회
-- **스케줄러**: 1분 주기로 전체 게시글 스코어 갱신
+- **일간 핫게시글 API**: `GET /api/hotposts/daily` — 상위 10개 노출 (좋아요 ≥ 10 필터)
+- **Redis ZSET**: `ZREVRANGE`로 O(log N + K) 시간에 상위 K개 조회, Redis 장애 시 `DailyHotPost` DB 테이블로 fallback
+- **갱신 경로 2개**: 반응·댓글·스크랩·조회수 반영 시 이벤트로 즉시 갱신 + `HotScoreScheduler`가 5분 주기로 리더보드 상위 50개를 재계산하고 DB에 동기화
+
+상세 흐름: [docs/domains/reaction-hotpost.md](docs/domains/reaction-hotpost.md)
 
 ---
 
@@ -346,20 +380,26 @@ weighted_sum = 5×좋아요 − 2×싫어요 + 2×스크랩 + 3×댓글 + 1×조
 - 일부 오차는 허용 가능
 - 주기적 동기화(sync)로 정합성 보완
 
+의사결정 기록: [docs/adr/adr-001-reaction-count-no-lock.md](docs/adr/adr-001-reaction-count-no-lock.md)
+
+#### 이후 개선
+
+반응/스크랩의 "조회 후 없으면 insert" 패턴이 동시 요청에서 중복 행을 만드는 경쟁 상태가
+부하 테스트에서 실제로 재현되어 ([performance/bottlenecks/BTL-012](performance/bottlenecks/BTL-012-scrap-toggle-race-duplicate.md)),
+유니크 제약(`UNIQUE(USR_id, PST_id)`) + `INSERT ... ON DUPLICATE KEY UPDATE` 단일 upsert 문으로 재작성했다.
+
+자세한 내용: https://janghyeok.tistory.com/38
+
 ---
 
-#### 🚀 개선 방향
-- 낙관적 락 + retry 전략
-- Redis 기반 캐싱 후 비동기 반영 (eventual consistency)
+## 성능 개선 경험
 
-자세한 내용:https://janghyeok.tistory.com/38
-
----
-
-##  성능 개선 경험
-
-단순 CRUD 수준을 넘어, 실제 서비스 상황을 가정하고 트래픽을 발생시켜 병목을 분석하여 성능을 개선했습니다. 
+단순 CRUD 수준을 넘어, 실제 서비스 상황을 가정하고 트래픽을 발생시켜 병목을 분석하여 성능을 개선했습니다.
 k6를 활용한 부하 테스트 기반으로 개선 전후를 검증했습니다.
+
+> 아래 수치는 당시 측정 환경 기준의 기록입니다. 개선 항목별 현재 코드 좌표와 재현 가능성은
+> [docs/07-performance.md](docs/07-performance.md)에서 검증하며, 현재의 부하 테스트는
+> [performance/](performance/README.md)의 측정 시스템으로 수행·기록됩니다.
 
 ---
 
@@ -387,7 +427,6 @@ Fetch Join을 적용하여 단일 쿼리로 조회
 
 ### 2. 인덱싱 최적화
 
-
 #### 2-1. 특정 게시판의 삭제되지 않은 게시글 최신순 조회
 #### 📌 문제
 정렬 + 필터 조건(ex: brd_id=1 && is_valid=1 && created_at DESC)에서 인덱스를 활용하지 못해 FileSort 발생 
@@ -399,8 +438,6 @@ Fetch Join을 적용하여 단일 쿼리로 조회
 정렬과 필터 조건 모두에서 효율적으로 사용 가능
 
 =>id 기준 내림차순 정렬 시 FileSort 발생과 모든 행을 순회하며 is_valid로 필터링하는 비용을 제거
-
-
 
 #### 📊 결과
 | 지표 | 인덱스 없음 | 인덱스 적용 | 개선율 |
@@ -415,7 +452,6 @@ Fetch Join을 적용하여 단일 쿼리로 조회
 (brd_id), (brd_id, is_valid), (brd_id, is_valid, pst_id) 조건에서 모두 활용 가능
 - 복합 인덱스의 prefix 특성으로 기존 단일 인덱스(brd_id)를 대체할 수 있으나,
   쿼리 패턴에 따라 유지 여부를 판단해야 함
-
 
 #### ⚖️ Trade-off
 - 인덱스 증가로 쓰기 성능 저하 및 저장 공간 증가
@@ -464,8 +500,6 @@ id 기반 커서 페이징 적용
 | avg | 42ms | 11ms |
 | P95 | 212ms | 32ms |
 
-
-
 #### 💡 인사이트
 - OFFSET 방식은 처음부터 원하는 데이터가 있는 위치까지 모든 행을 스캔하고,
 앞쪽의 불필요한 행을 버리는 비효율이 발생함
@@ -480,6 +514,7 @@ id 기반 커서 페이징 적용
 - 실제 사용자가 이런 뒤 페이지를 조회할 가능성은 낮아 현재 하이브리드 방식 유지
 - 다만, 악의적 트래픽 공격이 들어오면 심각한 성능 문제가 발생할 수 있음
 
+의사결정 기록: [docs/adr/adr-003-hybrid-pagination.md](docs/adr/adr-003-hybrid-pagination.md)
 
 자세한 내용:https://janghyeok.tistory.com/35
 
@@ -488,24 +523,23 @@ id 기반 커서 페이징 적용
 ### 4. 캐싱 전략 적용
 
 #### 📌 문제
-게시판 목록 + 게시글 목록 + total count 조회시 반복 쿼리로 병목 발생 
+게시글 목록 + total count 조회시 반복 쿼리로 병목 발생
 
 #### 🔧 해결
 Redis 기반 캐싱 적용
-- 게시판 목록
-- 게시글 목록
+- 게시글 목록 (게시판별 최신 페이지)
 - total count
 
 #### 📊 결과
 | 단계 | avg | P95 |
 |------|-----|-----|
 | 캐싱 없음 | 2.22s | 5.72s |
-| 게시판 목록+게시글목록만 캐싱 | 1.63s | 3.57s |
+| 게시글 목록만 캐싱 | 1.63s | 3.57s |
 | count도 캐싱 | 19ms | 96ms |
 
 #### 💡 인사이트
 - count 쿼리가 주요 병목 지점
--예상과는 다르게 게시글 목록에 대한 캐싱보다 집계함수인 count에 대한 캐싱이 더 극적인 성능개선을 보임.
+- 예상과는 다르게 게시글 목록에 대한 캐싱보다 집계함수인 count에 대한 캐싱이 더 극적인 성능개선을 보임.
 
 #### ⚖️ Trade-off
 데이터 정합성 문제 
@@ -513,6 +547,7 @@ Redis 기반 캐싱 적용
 
 => 그러나 대용량 트래픽 환경에서 서비스 안정성을 위해, 자주 조회되는 데이터에 대해 캐싱 적용 결정
 
+캐시 키 전체 목록과 장애 격리 정책: [docs/crosscutting/redis.md](docs/crosscutting/redis.md)
 
 자세한 내용:https://janghyeok.tistory.com/36
 
@@ -539,7 +574,6 @@ Redis는 성능 최적화를 위한 캐시 레이어로 사용하며,
 
 반면 인증, 사용자 정보 같은 핵심 데이터는
 DB를 기준으로 처리하여 안정성을 유지했습니다.
-
 
 ---
 
@@ -579,16 +613,17 @@ DB를 기준으로 처리하여 안정성을 유지했습니다.
 
 ## API 엔드포인트
 
-api 명세서:https://api.highteenday.org/swagger-ui/index.html#/
+api 명세서: https://api.highteenday.org/swagger-ui/index.html#/ (로컬 실행 시 http://localhost:8080/swagger-ui/index.html)
 
 | 도메인 | 경로 | 주요 기능 |
 |--------|------|-----------|
-| 인증 | `/api/user/*` | OAuth2 로그인, 회원가입, 프로필 수정 |
+| 인증 | `/api/user/*` | 로그인, 회원가입, 프로필 수정 |
+| 토큰 | `/api/token/refresh` | Access/Refresh Token 재발급 |
 | 게시판 | `/api/boards` | 게시판 목록 |
 | 게시글 목록 | `/api/boards/{boardId}/posts` | 페이징 조회 (캐시, 커서, 정렬) |
 | 게시글 | `/api/posts` | CRUD, 검색 |
 | 댓글 | `/api/posts/{postId}/comments` | CRUD (대댓글 지원) |
-| 반응 | `/api/posts/{postId}/like, dislike` | 좋아요/싫어요 토글 |
+| 반응 | `/api/posts/{postId}/reaction?type=LIKE\|DISLIKE` | 좋아요/싫어요 토글 |
 | 스크랩 | `/api/posts/{postId}/scraps` | 스크랩 토글 |
 | 핫게시글 | `/api/hotposts/daily` | 일간 인기글 TOP 10 |
 | 마이페이지 | `/api/mypage/*` | 내 글, 댓글, 스크랩 |
@@ -596,50 +631,61 @@ api 명세서:https://api.highteenday.org/swagger-ui/index.html#/
 | 학교 | `/api/schools/*` | 학교 검색, 급식 조회 |
 | 시간표 | `/api/timetableTemplates/*` | 시간표 템플릿 CRUD |
 | 미디어 | `/api/media` | 이미지 업로드 (S3) |
+| 채팅 | `/api/chat/*` + STOMP `/ws` | 채팅방 관리, 실시간 메시지 |
 
 ---
 
 ## 실행 방법
 
-### 필요 환경
-- Java 17+
-- MySQL 8
-- Redis
-
-### 실행
+전체 절차(사전 요구사항, 환경변수, 시드 계정, 동작 확인)는
+**[docs/00-quickstart.md](docs/00-quickstart.md)** 를 따르는 것이 가장 정확합니다. 요약하면:
 
 ```bash
-./gradlew build
-java -jar build/libs/highteenday-backend-0.0.1-SNAPSHOT.jar
+# 1. 인프라 — Redis는 compose로, MySQL은 개별 기동
+#    (전체 docker compose up은 현재 불가 — docs/KNOWN-ISSUES.md KI-01)
+docker compose up -d redis
+docker run -d --name highteenday-mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=highteenday_db mysql:8
+
+# 2. 필수 환경변수 (전체 목록은 quickstart 참고)
+#    JWT_KEY, GOOGLE_CLIENT_ID/SECRET, NEIS_API_KEY, DB_PASSWORD ...
+
+# 3. dev 프로파일로 기동 — 첫 부팅 시 Flyway가 스키마를 생성하고 시드 데이터가 적재됨
+./gradlew bootRun --args='--spring.profiles.active=dev'
+
+# 4. 동작 확인
+#    헬스체크는 관리 포트(8081)에 분리되어 있다
+curl http://localhost:8081/actuator/health   # {"status":"UP"}
+# Swagger: http://localhost:8080/swagger-ui/index.html
+# 시드 계정: test1@gmail.com / asd
+
+# 테스트
+./gradlew test
 ```
 
 ### 부하 테스트
 
+k6 시나리오, 전용 Docker 관측 스택(Prometheus/Grafana), 실행 이력·회귀 판정 도구가
+[performance/](performance/README.md)에 있습니다.
+
 ```bash
-k6 run load-tests/k6-board-posts.js
+cd performance
+node tools/perf-run.js scenarios/normal-day.js --note "변경 후 측정"
 ```
 
-### 환경 설정
+### 환경변수
 
-`src/main/resources/application.properties`에 아래 항목을 설정합니다.
+애플리케이션이 읽는 값은 프로파일 파일(`src/main/resources/application-{dev,prod,perf}.properties`)에
+`${ENV_VAR:기본값}` 형태로 선언되어 있습니다. 주요 항목:
 
-```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/highteenday
-spring.datasource.username=
-spring.datasource.password=
+| 환경변수 | 용도 | 기본값 (dev) |
+|---|---|---|
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | MySQL 접속 | `jdbc:mysql://localhost:3306/highteenday_db` / `root` / 빈 값 |
+| `REDIS_HOST` / `REDIS_PORT` | Redis 접속 | `localhost` / `6379` |
+| `JWT_KEY` | JWT HMAC-SHA512 서명 키 | 없음 (**필수**) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth2 | 없음 (**부팅에 필수**, 더미값 가능) |
+| `NEIS_API_KEY` | 급식 데이터 수집 | 없음 (**부팅에 필수**, 더미값 가능) |
+| `S3_BUCKET` | 이미지 업로드 버킷 | `highteenday-bucket-0906` |
 
-spring.data.redis.host=localhost
-spring.data.redis.port=6379
-
-jwt.secret=
-jwt.access-token-expiration=
-jwt.refresh-token-expiration=
-
-spring.security.oauth2.client.registration.google.client-id=
-spring.security.oauth2.client.registration.google.client-secret=
-
-cloud.aws.s3.bucket=
-cloud.aws.credentials.access-key=
-cloud.aws.credentials.secret-key=
-cloud.aws.region.static=
-```
+Docker Compose로 띄울 때는 `.env.example`을 `.env`로 복사해 채웁니다.
+프로파일별 차이(local/dev/prod/perf)는 [docs/operations/environments.md](docs/operations/environments.md) 참고.
