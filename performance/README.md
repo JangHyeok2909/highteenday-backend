@@ -70,7 +70,9 @@ node tools/history.js          # reports/history.html — 이력과 추세
 ```
 
 > `perf-run.js`가 k6 실행 → 운영 지표 수집 → 회귀 판정 → 보고서 생성까지 한 번에 처리한다.
-> 기준선을 손으로 저장할 필요가 없다 — 같은 시나리오·환경의 직전 실행이 자동으로 기준이 된다.
+> 기준선을 손으로 저장할 필요가 없다 — 같은 시나리오·환경에서 **실행 조건(데이터셋·부하
+> 프로파일)까지 일치하는** 가장 최근 실행이 자동으로 기준이 된다. 조건이 다르면 상대 비교를
+> 생략하고 그 사유를 리포트에 남긴다 (`tools/lib/comparability.js`).
 > 구조와 설계 근거: [`PERFORMANCE-MANAGEMENT.md`](PERFORMANCE-MANAGEMENT.md)
 
 ## 5. 디렉터리 구조
@@ -89,7 +91,7 @@ performance/
 ├── bottlenecks/       # 병목 카탈로그 (BTL-001~012) — 원인/영향/재현/해결
 ├── optimizations/     # 개선 기록 (Before/After 수치 필수)
 ├── regression/        # rules.json(회귀 판정 규칙) + CI 워크플로
-└── tools/             # perf-run/collect/history + lib/(수집·분석·리포트 엔진)
+└── tools/             # perf-run/collect/history/repeatability + lib/(수집·분석·리포트 엔진) + test/(도구 단위 테스트)
 ```
 
 성능 관리 파이프라인의 구조와 설계 근거는 별도 문서로 분리했다:
