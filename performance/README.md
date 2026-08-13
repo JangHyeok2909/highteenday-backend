@@ -74,8 +74,10 @@ node tools/history.js          # reports/history.html — 이력과 추세
 
 > `perf-run.js`가 k6 실행 → 운영 지표 수집 → 회귀 판정 → 보고서 생성까지 한 번에 처리한다.
 > 기준선을 손으로 저장할 필요가 없다 — 같은 시나리오·환경에서 **실행 조건(데이터셋·부하
-> 프로파일)까지 일치하는** 가장 최근 실행이 자동으로 기준이 된다. 조건이 다르면 상대 비교를
-> 생략하고 그 사유를 리포트에 남긴다 (`tools/lib/comparability.js`).
+> 프로파일)까지 일치하고 정상적으로 측정된** 가장 최근 실행이 자동으로 기준이 된다.
+> 그 실행이 SLO를 넘겼는지는 따지지 않는다 — 개선 전후를 비교하려면 느린 Before가
+> 기준선이어야 한다(S-10). 조건이 다르거나 측정이 온전하지 않으면 상대 비교를 생략하고
+> 그 사유를 리포트에 남긴다 (`tools/lib/comparability.js`, `repository.js`의 `eligibilityOf()`).
 > 구조와 설계 근거: [`PERFORMANCE-MANAGEMENT.md`](PERFORMANCE-MANAGEMENT.md)
 
 ## 5. 디렉터리 구조
