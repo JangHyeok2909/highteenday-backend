@@ -56,6 +56,13 @@ const cmp = require('../lib/comparability');
 
 const LOAD = (target) => ({ s: { executor: 'ramping-vus', stages: [{ duration: '5m', target }] } });
 
+// measurementProfile 조건의 축약형(conditionsOf().read()가 만드는 모양) — entry()의
+// conditions는 flatten된 값을 직접 구성하므로 이 형태로 넣는다.
+const MP_STEADY = { mode: 'steady-state', warmupSec: 300, measureSec: 1200, rampdownSec: 120, gatePhase: 'measure' };
+// current()는 실제 run.phasePlan(전체 스키마)을 넣는다 — conditionsOf()가 이걸 읽어서
+// MP_STEADY와 같은 축약형으로 변환하는 실제 경로를 그대로 타야 한다.
+const PLAN_STEADY = { schemaVersion: 1, ...MP_STEADY, measureStartOffsetSec: 300, measureEndOffsetSec: 1500 };
+
 function entry(id, startedAt, over = {}) {
   const conditions = {
     scenario: 'normal-day',
@@ -63,6 +70,7 @@ function entry(id, startedAt, over = {}) {
     dataset: 'large',
     loadProfile: LOAD(200),
     scriptVersion: 'abc123',
+    measurementProfile: MP_STEADY,
     ...over,
   };
   return {
@@ -78,7 +86,7 @@ function indexWith(runs) {
 }
 
 function current(startedAt = '2026-08-05T00:00:00Z') {
-  return { run: { id: 'cur', startedAt, scenario: 'normal-day', environment: 'perf', dataset: 'large', loadProfile: LOAD(200), scriptVersion: 'abc123' } };
+  return { run: { id: 'cur', startedAt, scenario: 'normal-day', environment: 'perf', dataset: 'large', loadProfile: LOAD(200), scriptVersion: 'abc123', phasePlan: PLAN_STEADY } };
 }
 
 test('findBaseline: 조건이 같은 가장 최근 실행을 고른다', () => {

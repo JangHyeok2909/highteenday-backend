@@ -75,6 +75,33 @@ const CONDITIONS = [
     // 전부 불일치로 잡히면 이 장치 자체가 무의미해진다.
     isUnknown: (v) => !v || v === 'unknown',
   },
+  {
+    key: 'measurementProfile',
+    label: '측정 구간 설계',
+    materiality: 'blocking',
+    // loadProfile 이 "어떤 부하를 발생시켰는가"라면 이건 "어느 시간대를 판정했는가"다.
+    // 둘은 책임이 다르다 — stagesFor()가 phase-plan 초 수로 stages를 생성하므로 보통
+    // 같이 바뀌지만(그때는 report.js가 두 mismatch를 한 줄로 합쳐 표시한다),
+    // 이론적으로는 부하 크기는 그대로 두고 측정 창(warmup/rampdown 길이)만 바꿀 수도
+    // 있다 — 그 경우를 잡아내려면 별도 조건이어야 한다.
+    //
+    // 값 전체(equal()의 stableStringify 딥비교)를 비교하므로 mode/warmupSec/measureSec/
+    // rampdownSec/gatePhase 중 하나라도 다르면 blocking이다. phasePlan이 기록되지 않은
+    // 과거 실행(T-02 이전, S-17 이전)은 read()가 null을 반환해 기존 "미기록이면 비교
+    // 안 함" 규칙을 그대로 탄다 — 임의의 기본값을 소급 적용하지 않는다.
+    read: (r) => {
+      const p = r.run && r.run.phasePlan;
+      if (!p) return null;
+      return {
+        mode: p.mode,
+        warmupSec: p.warmupSec,
+        measureSec: p.measureSec,
+        rampdownSec: p.rampdownSec,
+        gatePhase: p.gatePhase,
+      };
+    },
+    format: formatMeasurementProfile,
+  },
 ];
 
 /** 사람이 읽는 한 줄 요약 — 리포트가 "해시가 다릅니다"밖에 못 말하면 쓸모가 없다. */
@@ -97,4 +124,15 @@ function formatLoadProfile(profile) {
   return parts.join(' | ');
 }
 
-module.exports = { CONDITIONS, SCHEMA_VERSION, formatLoadProfile };
+/** 사람이 읽는 한 줄 요약 — measurementProfile 조건 값을 리포트 표에 올릴 때 쓴다. */
+function formatMeasurementProfile(p) {
+  if (!p) return '—';
+  const bits = [p.mode || '?'];
+  bits.push(`warmup ${p.warmupSec}s`);
+  bits.push(`measure ${p.measureSec}s`);
+  bits.push(`rampdown ${p.rampdownSec}s`);
+  bits.push(`gate:${p.gatePhase == null ? '없음' : p.gatePhase}`);
+  return bits.join(' · ');
+}
+
+module.exports = { CONDITIONS, SCHEMA_VERSION, formatLoadProfile, formatMeasurementProfile };

@@ -12,6 +12,11 @@ const LOAD_15 = {
   normal_day: { executor: 'ramping-vus', startVUs: 0, stages: [{ duration: '5m', target: 15 }] },
 };
 
+const PLAN_STEADY = {
+  schemaVersion: 1, mode: 'steady-state', warmupSec: 300, measureSec: 1200, rampdownSec: 120,
+  measureStartOffsetSec: 300, measureEndOffsetSec: 1500, gatePhase: 'measure',
+};
+
 function run(over = {}) {
   return {
     run: {
@@ -20,6 +25,7 @@ function run(over = {}) {
       dataset: 'large',
       loadProfile: LOAD_200,
       scriptVersion: 'abc123',
+      phasePlan: PLAN_STEADY,
       ...over,
     },
   };
@@ -124,4 +130,77 @@ test('formatLoadProfile: 사람이 읽을 수 있는 한 줄을 만든다', () =
   const s = cmp.formatLoadProfile(LOAD_200);
   assert.match(s, /ramping-vus/);
   assert.match(s, /200@5m/);
+});
+
+// ---------------------------------------------------------------------------
+// measurementProfile — T-03/S-08/S-17: "어느 시간대를 판정했는가"가 다르면 비교 불가.
+// ---------------------------------------------------------------------------
+test('measurementProfile: 동일한 phasePlan이면 exact', () => {
+  const res = cmp.compare(cmp.conditionsOf(run()), cmp.conditionsOf(run()));
+  assert.equal(res.level, 'exact');
+});
+
+test('measurementProfile: warmupSec이 다르면 blocking', () => {
+  const other = run({ phasePlan: { ...PLAN_STEADY, warmupSec: 60 } });
+  const res = cmp.compare(cmp.conditionsOf(run()), cmp.conditionsOf(other));
+  assert.equal(res.comparable, false);
+  assert.equal(res.mismatches[0].key, 'measurementProfile');
+  assert.equal(res.mismatches[0].materiality, 'blocking');
+});
+
+test('measurementProfile: measureSec이 다르면 blocking', () => {
+  const other = run({ phasePlan: { ...PLAN_STEADY, measureSec: 600 } });
+  const res = cmp.compare(cmp.conditionsOf(run()), cmp.conditionsOf(other));
+  assert.equal(res.comparable, false);
+  assert.deepEqual(res.mismatches.map((m) => m.key), ['measurementProfile']);
+});
+
+test('measurementProfile: rampdownSec이 다르면 blocking', () => {
+  const other = run({ phasePlan: { ...PLAN_STEADY, rampdownSec: 0 } });
+  const res = cmp.compare(cmp.conditionsOf(run()), cmp.conditionsOf(other));
+  assert.equal(res.comparable, false);
+});
+
+test('measurementProfile: mode가 다르면 blocking (cache-warm vs steady-state)', () => {
+  const cacheWarm = run({ phasePlan: { ...PLAN_STEADY, mode: 'cache-warm' } });
+  const res = cmp.compare(cmp.conditionsOf(run()), cmp.conditionsOf(cacheWarm));
+  assert.equal(res.comparable, false);
+});
+
+test('measurementProfile: gatePhase가 다르면 blocking (진단 시나리오 vs 게이트 대상)', () => {
+  const diagnostic = run({ phasePlan: { ...PLAN_STEADY, gatePhase: null } });
+  const res = cmp.compare(cmp.conditionsOf(run()), cmp.conditionsOf(diagnostic));
+  assert.equal(res.comparable, false);
+});
+
+test('measurementProfile: phasePlan이 기록되지 않은 과거 실행은 비교 불가 (소급 금지)', () => {
+  const legacy = run({ phasePlan: null });
+  const res = cmp.compare(cmp.conditionsOf(run()), cmp.conditionsOf(legacy));
+  assert.equal(res.comparable, false);
+  assert.equal(res.mismatches.find((m) => m.key === 'measurementProfile').reason, 'unrecorded');
+});
+
+test('measurementProfile: loadProfile과 동시에 달라도 두 mismatch가 각각 기록된다 (report.js가 표시를 합친다)', () => {
+  // stagesFor()가 phase-plan 초 수로 stages를 생성하므로 실제로는 이렇게 같이 바뀐다.
+  const other = run({
+    loadProfile: LOAD_15,
+    phasePlan: { ...PLAN_STEADY, warmupSec: 60 },
+  });
+  const res = cmp.compare(cmp.conditionsOf(run()), cmp.conditionsOf(other));
+  assert.deepEqual(res.mismatches.map((m) => m.key).sort(), ['loadProfile', 'measurementProfile']);
+});
+
+test('seriesHash: measurementProfile이 다르면 다른 계열로 분리된다', () => {
+  const other = run({ phasePlan: { ...PLAN_STEADY, mode: 'cache-warm' } });
+  assert.notEqual(
+    cmp.seriesHash(cmp.conditionsOf(run())),
+    cmp.seriesHash(cmp.conditionsOf(other)),
+  );
+});
+
+test('formatMeasurementProfile: 사람이 읽을 수 있는 한 줄을 만든다', () => {
+  const s = cmp.formatMeasurementProfile({ mode: 'steady-state', warmupSec: 300, measureSec: 1200, rampdownSec: 120, gatePhase: 'measure' });
+  assert.match(s, /steady-state/);
+  assert.match(s, /warmup 300s/);
+  assert.match(s, /gate:measure/);
 });
