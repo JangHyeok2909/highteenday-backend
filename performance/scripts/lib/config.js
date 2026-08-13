@@ -14,10 +14,18 @@ import { phaseAt } from './phases.js';
 
 /**
  * threshold 선언은 ./thresholds.js 로 옮겼다(순수 데이터라 Node 테스트가 직접 검증한다).
- * 호출부는 계속 config.js 에서 가져다 쓰도록 그대로 재수출한다 — 시나리오/스크립트 30여
+ * 호출부는 계속 config.js에서 가져다 쓰도록 그대로 재수출한다 — 시나리오/스크립트 30여
  * 개의 import 경로를 바꿀 이유가 없다.
  */
-export { DEFAULT_THRESHOLDS, PHASED_THRESHOLDS } from './thresholds.js';
+export {
+  BREAKDOWN_THRESHOLDS,
+  COMMON_SLO_THRESHOLDS,
+  DEFAULT_THRESHOLDS,
+  PHASE_DIAGNOSTIC_THRESHOLDS,
+  PHASED_THRESHOLDS,
+  measureOnly,
+  abortDelayAfterMeasure,
+} from './thresholds.js';
 
 export const BASE_URL = __ENV.BASE_URL || 'http://localhost:18080';
 

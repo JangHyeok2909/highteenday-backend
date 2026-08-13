@@ -8,7 +8,7 @@
  * 예상 TPS : ≈ 60~80 RPS (그중 로그인 ≈ 15%)
  * 종료조건 : 시간 만료. 로그인 P95 2초 초과 시 조기 중단
  */
-import { PHASED_THRESHOLDS, setActivePhasePlan } from '../scripts/lib/config.js';
+import { PHASED_THRESHOLDS, abortDelayAfterMeasure, measureOnly, setActivePhasePlan } from '../scripts/lib/config.js';
 import { buildPhasePlan, stagesFor, startVusFor, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_REGISTRATION } from './lib/workload.js';
@@ -31,13 +31,16 @@ export const options = {
       stages: stagesFor(PLAN, VUS),
     },
   },
-  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
+  // 로그인 지연 조기 중단은 measure 시작 + 2분부터 본다. 이 시나리오의 warmup은 로그인
+  // 폭주 구간 자체라 예전 기준(테스트 시작 + 2분)이면 램프업 한복판에서 평가돼,
+  // 재려던 정상 상태에 도달하기도 전에 실행이 죽을 수 있었다.
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, measureOnly({
     'http_req_duration{name:login}': [
       'p(95)<800',
-      { threshold: 'p(95)<2000', abortOnFail: true, delayAbortEval: '2m' },
+      { threshold: 'p(95)<2000', abortOnFail: true, delayAbortEval: abortDelayAfterMeasure(PLAN, 120) },
     ],
     'http_req_duration{name:school_search}': ['p(95)<400'],
-  }),
+  })),
 };
 
 export default function () {

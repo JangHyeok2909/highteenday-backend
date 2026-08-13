@@ -11,3 +11,5 @@ require('./repository.test.js');
 require('./summary-parsing.test.js');
 require('./phases.test.js');
 require('./collect-window.test.js');
+require('./thresholds.test.js');
+require('./scenario-thresholds.test.js');

@@ -11,7 +11,7 @@
  * 예상 TPS : REST ≈ 40 RPS + WS 메시지 ≈ 30~50 msg/s
  * 종료조건 : 시간 만료. ws RTT P95 1s 초과 시 조기 중단
  */
-import { PHASED_THRESHOLDS, setActivePhasePlan } from '../scripts/lib/config.js';
+import { PHASED_THRESHOLDS, abortDelayAfterMeasure, measureOnly, setActivePhasePlan } from '../scripts/lib/config.js';
 import { buildPhasePlan, stagesFor, startVusFor, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_CHAT_HEAVY } from './lib/workload.js';
@@ -35,13 +35,19 @@ export const options = {
       gracefulRampDown: '60s', // WS 세션 정상 종료 시간 확보
     },
   },
-  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
+  // WS 지표도 measure 구간만 판정한다 — chat-ws.js가 커스텀 메트릭에 phase 태그를 직접
+  // 실어 보내므로(phaseTag()) `chat_ws_rtt{phase:measure}` 서브메트릭이 존재한다.
+  // ramp-up 중에는 세션이 400개까지 늘어나는 동안 브로드캐스트가 밀려 RTT가 튀는데,
+  // 그걸로 조기 중단되면 정작 재려던 정상 상태를 못 본다.
+  // 조기 중단 평가는 measure 시작 + 3분부터 — 원래 "3분치 데이터를 보고 판단"이던 의도를
+  // measure 구간 기준으로 옮긴 것이다(k6의 delayAbortEval은 테스트 시작 기준).
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, measureOnly({
     chat_ws_rtt: [
       'p(95)<500',
-      { threshold: 'p(95)<1000', abortOnFail: true, delayAbortEval: '3m' },
+      { threshold: 'p(95)<1000', abortOnFail: true, delayAbortEval: abortDelayAfterMeasure(PLAN, 180) },
     ],
     chat_ws_errors: ['count<50'],
-  }),
+  })),
 };
 
 export default function () {
