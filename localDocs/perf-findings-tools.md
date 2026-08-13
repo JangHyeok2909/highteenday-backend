@@ -34,8 +34,11 @@ k6 원자료
 - **비교 가능한 기준선의 정의가 없다**는 문제는 T-02에서 해결했다. 실행 조건을 일급 개념으로
   분리해, 데이터셋이나 부하 프로파일이 다른 실행은 기준선에서 제외하고 그 사유를 리포트에
   표시한다. 다만 **느린 실행이 기준선 후보에서 사라지는 문제는 그대로 남아 있다**(S-10).
-- 필수 지표가 없을 때 SKIP은 최종 FAIL을 만들지 않는다. “문제 없음”과 “측정하지 못함”이
-  분리되지 않는다(T-08).
+- **“문제 없음”과 “측정하지 못함”이 분리되지 않던 문제는 T-08에서 해결했다**(2026-08-13).
+  판정(`verdict`)과 나란한 측정 상태(`measurementStatus`) 축을 만들고, 필수 지표 결측은
+  전용 종료 코드 3으로 끝낸다. 판정을 값이 아니라 **표본 수**로 시작하는 것이 핵심이다 —
+  k6는 표본이 0건인 서브메트릭도 0으로 채워 주기 때문에, 값만 보면 “요청 0건”이 “P95 0ms에
+  오류 0%”인 완벽한 실행으로 둔갑한다.
 - 일부 PromQL은 짧은 피크, 컨테이너 재시작, 트래픽 0인 Redis를 실제와 다르게 표현한다(T-18).
 - MySQL 락·트랜잭션·풀스캔 원자료가 이미 Prometheus에 있지만 수집 카탈로그가 읽지 않는다(T-29).
 - 자동 테스트는 추가됐고 기준선 선택은 T-02 작업에서 회귀 테스트로 덮였다. 그러나 Prometheus
@@ -67,10 +70,10 @@ k6 원자료
 | 심각도 | 해결 | 부분 해결 | 미해결 |
 |---|---:|---:|---:|
 | CRITICAL | 2 | 0 | 0 |
-| HIGH | 3 | 0 | 5 |
+| HIGH | 4 | 0 | 4 |
 | MEDIUM | 3 | 1 | 5 |
 | LOW | 1 | 0 | 2 |
-| **합계** | **9** | **1** | **12** |
+| **합계** | **10** | **1** | **11** |
 
 ## CRITICAL
 
@@ -263,9 +266,55 @@ large 데이터셋, 200 VU, 1650초로 실행한 normal-day 결과가 다음 실
 > 없으므로 `pick()`이 새 rules.json 키를 못 찾아 SKIP되고, 재수집(`--force`) 해도
 > `run.phasePlan`이 없어 그 사실이 그대로 유지된다(의도된 동작). 실제 k6 실행 환경에서
 > `k6 inspect`/실측 실행으로 phase 태그가 기대대로 붙는지 확인이 아직 안 됐다.
-> op:read/op:write 외 시나리오별 커스텀 threshold(예: `name:login`, `op:write` 단독
-> abortOnFail)는 phase로 스코프하지 않고 전체 구간 기준으로 남겨뒀다 — 조합 폭발을
-> 피하기 위한 의도적 범위 제한.
+>
+> **후속 수정 (2026-08-13, 미커밋): threshold 평가 범위를 measure 구간으로 일원화.**
+> 최초 구현은 `PHASED_THRESHOLDS`에 `DEFAULT_THRESHOLDS`(태그 없는 SLO)를 그대로 얹어서,
+> 같은 기준이 전체 구간과 measure 구간에 이중으로 걸렸다. warmup 구간의 느린 응답 하나로
+> measure 결과와 무관하게 k6가 FAIL을 내는 상태였고, 이는 warmup을 선언한 목적 자체를
+> 무효로 만든다. 시나리오별 커스텀 threshold(`name:login`, `op:write` 단독 abortOnFail 등)도
+> 같은 이유로 전체 구간을 평가하고 있었다 — 램프업 중 로그인 폭주로 조기 중단될 수 있었다.
+>
+> 수정 내용: `config.js`에 기준값만 담은 `COMMON_SLO_THRESHOLDS`를 분리하고,
+> `DEFAULT_THRESHOLDS`(= 분해축 + 공통 SLO, 전체 구간)와 `PHASED_THRESHOLDS`(= 분해축 +
+> phase 진단축 + measure로 스코프된 공통 SLO)가 그 하나의 정의에서 갈라져 나오게 했다.
+> `PHASED_THRESHOLDS`에는 태그 없는 SLO가 더 이상 없다. 시나리오 고유 기준은 새 헬퍼
+> `measureOnly()`(= `scopeThresholds(t, {phase:'measure'})`)를 통과시켜 9개 phase
+> 시나리오(cache-warm·chat-heavy·exam-week·notification-heavy·peak-hour·read-heavy·
+> registration-day·soak·write-heavy) 전부를 measure 스코프로 옮겼다. 단독 스크립트 13개와
+> 진단 시나리오 5개는 `DEFAULT_THRESHOLDS`를 그대로 써서 전체 구간 판정을 유지한다.
+>
+> 덮어쓰기 성립 여부를 확인했다: `buildSelector()`가 태그 키를 정렬하므로 시나리오가 만든
+> `http_req_failed{phase:measure}`·`http_req_duration{op:write,phase:measure}`는 공통 게이트와
+> 문자열이 동일한 키다. 따라서 시나리오 값이 공통 값을 대체하며 한 대상에 두 기준이
+> 겹치지 않는다(peak-hour 2% vs 공통 1% 같은 모순 제거). `chat_ws_rtt`처럼 커스텀 메트릭도
+> `chat-ws.js`가 `phaseTag()`로 phase를 실어 보내므로 서브메트릭이 실제로 존재한다.
+>
+> **abortOnFail 평가 시점도 함께 옮겼다.** k6의 `delayAbortEval`은 threshold 스코프와 무관하게
+> 테스트 시작부터 세므로, measure로 스코프해도 지연이 warmup보다 짧으면 표본 몇 건으로 평가가
+> 시작된다. 새 헬퍼 `abortDelayAfterMeasure(PLAN, N)`이 `measureStartOffsetSec + N`을 계산해
+> 넘긴다(chat-heavy 7분, peak-hour 5분, registration-day 4분, soak 15분, write-heavy 6분 —
+> 전부 "measure 시작 + 원래 관측 시간"). 기준 수치 자체는 하나도 바꾸지 않았다. 진단 시나리오
+> 5개(stress/spike/breakpoint/chaos/failover)의 중단 정책은 손대지 않았다.
+>
+> **threshold 정의를 `scripts/lib/thresholds.js`로 분리했다** — config.js는 `k6/http`를
+> import해서 Node 테스트가 로드할 수 없다. 순수 데이터만 옮기고 config.js가 재수출하므로
+> 호출부(시나리오·스크립트 30여 개)는 그대로다. 새 테스트 `tools/test/thresholds.test.js`(19건)와
+> `tools/test/scenario-thresholds.test.js`(7건, 시나리오 소스 감사)를 추가했다.
+>
+> **k6 실측으로 검증했다** (k6 v2.1.0, [[k6-binary-path-workaround]] 경로). `k6 inspect`로
+> 시나리오 9개의 해석된 threshold 키에 bare 공통 SLO가 하나도 없고 게이트가 전부
+> `{...,phase:measure}`임을 확인했다. 임시 프로브 스크립트와 로컬 스텁 서버로 판정 4사례를
+> 실행했다: warmup 불량+measure 정상 → PASS(exit 0), warmup 정상+measure 불량 → FAIL(exit 99),
+> cold-start 전 구간 불량 → FAIL, 단독 스크립트 전 구간 불량 → FAIL(bare 키 위반).
+>
+> 그 과정에서 두 가지 실제 동작을 발견해 반영했다.
+>   1. 진단축 `http_req_failed{phase:X}: rate<1`은 warmup 요청이 **전부** 실패하면 rate가
+>      정확히 1이 되어 FAIL 한다 — 집계 축이 판정에 끼는 셈이라 `rate<=1`로 고쳤다
+>      (`tools/lib/report.js`의 느슨한 threshold 필터 정규식도 함께 갱신).
+>   2. k6는 **등록되지 않은 메트릭**에 걸린 threshold를 만나면 실행을 시작하지 못하고 중단한다
+>      (`invalid threshold defined on phase_iterations{phase:measure}`). PHASED_THRESHOLDS를
+>      쓰는 시나리오는 그 Counter를 만드는 `scenarios/lib/workload.js`를 반드시 로드해야 한다는
+>      뜻이라, 감사 테스트로 고정했다.
 
 **문제**
 
@@ -350,7 +399,107 @@ p95가 `60000.96ms`로 표시된 사례가 있다. 이는 실제 응답 시간�
 
 실제 실행에 영향을 주는 모든 파일을 버전 계산에 포함해야 한다. 단순히 스크립트가 바뀌었다는 이유만으로 모든 실패를 WARN으로 낮추지 말고, 필요하면 엄격하게 판정할 수 있는 정책을 제공해야 한다.
 
-### T-08. 필수 지표를 수집하지 못해도 테스트가 통과함 — 상태: 미해결
+### T-08. 필수 지표를 수집하지 못해도 테스트가 통과함 — 상태: **해결** (2026-08-13, 미커밋)
+
+> **무엇을 어떻게 고쳤나 — 2층 구조**
+>
+> *1층 (`scripts/lib/phases.js`의 `metricsByPhase`)*: 표본이 0건인 phase의 통계를 `null`로
+> 되돌린다. 판정 근거는 값이 아니라 표본 수다 — `http_reqs{phase:X}` 서브메트릭이 요약에
+> 존재하고 그 `count`가 0이며, iteration 수도 0/미집계일 때만 결측으로 본다. 그때
+> `avg/min/med/max/p90/p95/p99`와 `rps·errorRate·checkRate`를 전부 `null`로 만들고,
+> `httpReqs`(0)와 `iterations`(null)는 결측의 증거로 남긴다.
+>
+> *2층 (`tools/lib/regression.js`의 `analyze`)*: `null`을 세 갈래로 나눈다. 새 함수
+> `isApplicable()`이 "이 실행에 해당 없는 규칙"(진단 시나리오의 measure 규칙)을 먼저
+> 걸러내고, `isRequired()`가 나머지를 필수/참고로 가른다. 결과로
+> `measurementStatus`(MEASURED/PARTIAL/UNMEASURED)와 `missingRequired`·`missingOptional`·
+> `notApplicable`을 `verdict`와 **별도 필드로** 반환한다. `collect.js`가 이미 계산해 두고
+> 리포트 표시에만 쓰던 `window.incomplete`도 여기서 PARTIAL 강등 조건으로 연결했다.
+>
+> *필수의 정의*: `gate: true`를 그대로 쓴다. 면제 조건은 둘 — measure 게이트는
+> `phasePlan.gatePhase === 'measure'`인 실행에서만, 인프라 게이트는 `rules.json`의 새
+> `requirements.infraRequiredEnvironmentPrefixes`(`["perf"]`)에 prefix가 걸리는 환경에서만
+> 필수다. `validateRequirements()`가 그 블록의 형식을 검증한다.
+>
+> *종료 코드*: `collect.js`에 3(측정 불가)을 신설했다. 게이트 회귀(1)와 동시에 성립하면
+> 3이 이기고, 두 사실 모두 콘솔에 출력된다. `--no-gate`는 0을 유지한다. `perf-run.js`는
+> 수집 종료 코드를 그대로 전달하므로 수정하지 않았다.
+>
+> *파급*: `repository.js`의 인덱스 엔트리에 `measurementStatus`를 넣고 `findBaseline()`이
+> `UNMEASURED` 실행을 기준선 후보에서 제외한다. 리포트는 요약 지표보다 위에 측정 상태
+> 배너를 그리고(`sectionMeasurement`), "평가 불가" 집계를 필수/참고/해당없음 셋으로 쪼갠다.
+>
+> **고민한 대안과 버린 이유**
+>
+> - *`rules.json`에 독립 `required` 필드를 추가한다*(원래 계획, `NEXT-DAY-PERF-TASKS.md`):
+>   버렸다. `gate:true`가 이미 "이 지표가 나쁘면 빌드를 세운다"는 선언이고, 그 지표가 없으면
+>   빌드를 세울 방법이 없으므로 게이트 규칙은 정의상 필수다. 별도 필드를 두면
+>   `gate:true, required:false`("실패시키긴 하는데 없어도 됨") 같은 모순 조합만 가능해지고,
+>   32개 규칙 전부에 유지해야 할 필드가 하나 늘어난다. 예외가 실제로 생기면 그때
+>   `required:false` 오버라이드를 더하는 편이 낫다.
+> - *`regression.js`에서 `null`만 검사한다*(첫 설계): **실측으로 기각했다.** k6는 threshold가
+>   참조한 서브메트릭을 표본이 0건이어도 0으로 채워 요약에 실어 준다. 그래서 measure 구간이
+>   비면 값이 `null`이 아니라 0으로 들어오고, `p95:0`은 절대 게이트(500ms 상한)를 통과하며
+>   기준선 대비로는 "100% 개선"으로 읽힌다. 값만 보는 층에서는 이걸 가려낼 수 없어서 1층이
+>   필요했다.
+> - *표본 0건이면 phase 버킷 자체를 만들지 않는다*: 버렸다. 버킷이 없으면 "그 구간을
+>   선언하지도 않았다"와 "선언했는데 못 쟀다"가 다시 구별되지 않는다. 버킷은 만들되 통계만
+>   `null`로 두어, 저장된 `run.json`만 보고도 결측을 재구성할 수 있게 했다.
+> - *`http_reqs` 서브메트릭이 없으면 결측으로 본다*: 버렸다. 서브메트릭 부재는 "0건"이 아니라
+>   "그 축을 선언하지 않았다"는 뜻이다. 기존 테스트(`phases.test.js`)가 이 구분을 바로
+>   잡아냈다. 적극적 증거(축이 존재하고 count가 0)가 있을 때만 결측으로 판정한다.
+> - *`iterations` 없이 `http_reqs`만 본다*: 버렸다. WebSocket 위주 구간은 HTTP 요청이 0이어도
+>   iteration이 실제로 돈다. 한쪽만 보면 정상 구간을 결측으로 오판한다.
+> - *진단 시나리오의 measure 결측을 "참고 결측"으로 센다*: 버렸다. 그러면 진단 실행이 항상
+>   PARTIAL로 표시돼, 정작 익스포터가 죽었을 때의 PARTIAL 신호가 묻힌다. `isApplicable()`로
+>   "해당 없음"을 세 번째 분류로 분리한 이유다.
+> - *환경을 정확히 일치로 판정한다*: 버렸다. 실제 이력의 환경 값이
+>   `perf`·`perf-mi-smoke`·`perf-mi-before`·`perf-s02-ab`라, 정확히 일치로 걸면 변형 셋이 전부
+>   면제된다. prefix 판정으로 바꿨다.
+> - *`UNMEASURED`를 `verdict`의 네 번째 값으로 만든다*: 버렸다. "서버가 느리다"와 "재지
+>   못했다"는 고칠 대상도 고칠 사람도 달라서, 한 필드에 넣으면 다시 섞인다. 종료 코드도
+>   1과 3으로 갈랐다.
+> - *게이트 회귀(1)를 측정 불가(3)보다 우선한다*: 버렸다. 게이트 회귀는 측정을 고치면 다음
+>   실행에서 다시 잡히는 재발견 가능한 신호지만, 측정 파이프라인이 깨진 상태를 방치하면 이후
+>   모든 실행의 판정이 계속 무의미해진다. 계통적 고장을 먼저 알린다.
+>
+> **어떻게 검증했나**
+>
+> ⑴ *k6 실측* (v2.1.0, [[k6-binary-path-workaround]] 경로). measure executor 없이
+> `{phase:measure}` threshold만 선언한 프로브를 돌려 빈 서브메트릭의 실제 모양을 확인했다.
+> `http_req_duration{op:read,phase:measure}`는 p(95)=0, `http_req_failed{phase:measure}`는
+> rate=0으로 요약에 존재했고, **`checks{phase:measure}`는 rate가 0인데도 `rate>0.99`가
+> PASS로 보고됐다**(k6는 표본 없는 지표의 threshold를 통과 처리한다). 실행 종료 코드 0.
+> 즉 `thresholdsPassed`는 이 상황에서 신뢰할 수 없다.
+>
+> ⑵ *수정 전 도구 동작 실측*. 저장된 실제 런을 세 고장 상황으로 바꿔 `analyze()`에 넣었다.
+> Prometheus 사망 → PASS(32개 중 25개 SKIP), 게이트 인프라 3개 결측 → WARN(게이트 실패 0건),
+> measure 표본 0건 → FAIL이지만 사유가 "Check 성공률 0% — SLO 미달"이었다(성능 오진).
+>
+> ⑶ *수정 후 같은 사례 재실행*: Prometheus 사망 → PASS/UNMEASURED(필수 3건), measure 표본
+> 0건 → PASS/UNMEASURED(필수 10건), 로컬 환경 + Prometheus 없음 → PASS/PARTIAL(필수 0건).
+> 판정과 측정 상태가 의도대로 분리됐다.
+>
+> ⑷ *종료 코드 end-to-end*. 현행 스키마의 합성 런 2개를 만들어 `collect.js`를 끝까지
+> 돌렸다 — 정상 런 exit 1(게이트 회귀), 표본 0건 런 exit 3(측정 불가, 콘솔에 두 사실 모두
+> 출력), `--no-gate` exit 0. 확인 후 합성 런을 지우고 `reports/`를 원상복구했다.
+>
+> ⑸ *자동 테스트*: `node tools/test/all.js` 149개 통과(수정 전 130개 → 19개 추가).
+> `phases.test.js`에 표본 0건 판정 4건, `regression.test.js`에 측정 상태·필수 판정 13건,
+> `repository.test.js`에 기준선 제외 2건.
+>
+> **남은 부작용 / 후속 작업**
+>
+> - *저장된 과거 런은 재계산되지 않는다.* 1층 수정은 `k6.json`을 파싱하는 시점에 적용되므로,
+>   이미 0으로 기록된 phase 통계는 그대로다. 게다가 저장된 런 전부가 구 스키마(`k6.overall`)라
+>   현재 `collect.js`로는 재수집 자체가 안 된다(`Cannot read properties of undefined (reading
+>   'vusMax')`). 이건 T-08과 무관한 별건이며 아직 발견 항목으로 등록돼 있지 않다.
+> - *`perf*` 환경에서 Prometheus 없이 돌리면 이제 exit 3이다.* 탐색적 실행에는 `--no-gate`를
+>   붙인다.
+> - *S-10과 이어진다.* `findBaseline()`의 `thresholdsPassed !== false` 조건을 걷어낼 때,
+>   이번에 추가한 `measurementStatus !== 'UNMEASURED'`가 그 자리를 대신한다. ⑴에서 확인했듯
+>   `thresholdsPassed`는 표본 0건 런에서도 true라 기준선 자격 판정에 쓸 수 없다.
+> - 커밋: (미커밋)
 
 **문제**
 

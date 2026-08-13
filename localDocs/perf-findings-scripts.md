@@ -639,7 +639,7 @@ HTTP 200만 오면 내용이 비어 있어도 성공이다. 실행할 데이터�
 - 저니 실행·스킵·실패 Counter 추가
 - 커버리지 표를 코드에서 생성하거나 테스트로 유지
 
-### S-17. cache-warm 실행의 구간 혼합과 다중 태그 파싱 문제 — 상태: **해결** (2026-08-12, 미커밋)
+### S-17. cache-warm 실행의 구간 혼합과 다중 태그 파싱 문제 — 상태: **해결** (2026-08-12 + 2026-08-13 후속 수정, 미커밋)
 
 **쉽게 말하면**
 
@@ -673,7 +673,100 @@ HTTP 200만 오면 내용이 비어 있어도 성공이다. 실행할 데이터�
 > 구조(`{phase:warmup}`/`{phase:measure}`/`{op:read,phase:measure}` 서브메트릭 공존)를
 > 픽스처로 검증한다. 실제 `cache-warm.js` 실행으로 확인은 못 했다(k6 미설치 환경).
 
-**남은 부분** — 없음(위 인용블록 참고).
+> **후속 수정 (2026-08-13, 미커밋) — 위 기록의 전제 하나가 틀렸다.**
+>
+> 위에서 "checks·iterations를 포함한 모든 메트릭이 원래도 정확히 태깅돼 있었다"고 적었는데,
+> phase별 TPS는 k6 builtin `iterations`가 아니라 `scenarios/lib/workload.js`의
+> `phase_iterations` 커스텀 Counter에서 나온다. 그 Counter는 `currentPhase()`가 null이 아닐
+> 때만 증가하는데(`workload.js:290-291`), cache-warm은 정적 executor 태그를 쓰느라
+> `setActivePhasePlan()`을 부르지 않아 `currentPhase()`가 항상 null이다. 결과적으로
+> `k6.phases.warmup.tps`와 `k6.phases.measure.tps`가 항상 0으로 기록됐다. p95·오류율·
+> checks·RPS는 정적 태그 덕에 정상이라 눈에 띄지 않았다.
+>
+> **무엇을 고쳤나**: `scripts/lib/phases.js`에 `iterationCountFor()`를 추가해 iteration 수
+> 소스를 폴백 체인으로 만들었다 — ① `phase_iterations{phase:X}.count`가 0보다 크면 그 값,
+> ② 아니면 `iterations{phase:X}.count`, ③ 둘 다 없거나 0이면 `null`. `metricsByPhase()`의
+> 버킷 생성 guard에도 `iterations{phase:X}` 축을 넣어, 그 축만 있어도 버킷이 만들어지게 했다.
+> `scripts/lib/config.js`의 `PHASE_DIAGNOSTIC_THRESHOLDS`에 `iterations{phase:X}`
+> (`count>=0`, 판정에 영향 없음)를 선언해 k6가 그 서브메트릭을 만들도록 했다 — k6는
+> threshold가 참조한 태그 조합에만 서브메트릭을 만들기 때문이다.
+>
+> **고민한 대안과 버린 이유**
+> - *cache-warm에서도 `setActivePhasePlan()`을 호출한다*: 정적 executor 태그와 동적 시간
+>   계산이 같은 `phase` 키를 두고 겹친다. 두 값이 대개 일치하더라도, iteration이 executor
+>   경계를 넘는 순간 요청 태그(동적)와 메트릭 태그(정적)가 갈라진다. 위 원 기록에서 이미
+>   기각한 방향이라 그대로 유지했다.
+> - *`workload.js`에서 `exec.scenario.name`으로 phase를 추론해 Counter를 증가시킨다*:
+>   워크로드 공통 코드가 특정 시나리오의 executor 이름을 알아야 해서, phase 정의가
+>   `phases.js` 한 곳이라는 원칙이 깨진다.
+> - *0을 그대로 두고 리포트에서만 숨긴다*: 저장되는 `run.json` 자체가 틀린 값을 갖게 된다.
+>   `phases.js`가 지키는 "측정 안 된 값을 0으로 채우지 않는다" 원칙과도 어긋난다.
+> - 폴백 순서를 builtin 우선으로 두는 안도 기각했다. 동적 태깅 시나리오 10개에서는 엔진이
+>   builtin `iterations`에 스크립트의 요청 단위 태그를 싣지 않아 `iterations{phase:X}`가
+>   0으로 남는다 — 순서를 뒤집으면 같은 0 문제가 그쪽으로 옮겨간다.
+>
+> **검증**: `cd performance && node --test tools/test/*.test.js` 전부 통과.
+> `tools/test/phases.test.js`에 회귀 테스트 4개를 추가했다(파일 총 30개 통과) — ⑴ cache-warm
+> 형태(커스텀 0 + builtin 값 있음)에서 TPS가 builtin으로 계산되는지, ⑵ 커스텀 Counter가
+> builtin보다 우선하는지, ⑶ 둘 다 비면 `tps`/`iterations`가 `null`인지, ⑷ builtin 축만 있어도
+> 버킷이 생기는지. 기존 `metricsByPhase` 테스트 4개는 수정 없이 통과 — 동적 태깅 시나리오
+> 회귀 없음.
+>
+> **실측 검증 (2026-08-13)**: 이 폴백의 유일한 전제 —— "k6 네이티브
+> `scenarios.<name>.tags`(정적 태그)가 builtin `iterations` 메트릭에도 붙는다" —— 를 실제
+> k6 v2.1.0 실행으로 확인했다. 서버 없이 되는 최소 스크립트(HTTP 호출 없음, cache-warm과
+> 같은 2-executor 구조 + 정적 phase 태그, 커스텀 Counter는 선언만 하고 증가시키지 않음)를
+> 돌린 결과:
+>
+> ```
+> iterations{phase:warmup}        count 2,252,354
+> iterations{phase:measure}       count 3,540,531
+> phase_iterations{phase:warmup}  count 0      ← cache-warm에서 벌어지던 상황 그대로
+> phase_iterations{phase:measure} count 0
+> → metricsByPhase(): warmup.tps 750,784 / measure.tps 885,132 (둘 다 0이 아님)
+> ```
+>
+> 두 사실이 같이 확인됐다. ⑴ 정적 태그는 builtin `iterations`를 phase별로 정확히 가른다.
+> ⑵ threshold로 선언된 `phase_iterations{phase:X}` 서브메트릭은 표본이 없어도 count 0으로
+> 요약에 존재한다 — 즉 폴백 이전 코드에서 이 phase 버킷의 tps가 "없음"이 아니라 **0**으로
+> 확정되던 것이 맞다(추론이 아니라 실측). iteration 수가 큰 것은 본문이 빈 함수라 초당
+> 수십만 회가 도는 탓이며, 태그 분리 여부만 보는 실험이라 절대값은 의미 없다.
+>
+> 환경 메모: 이 PC에서 `k6`를 PATH로 부르면 chocolatey shim
+> (`C:\ProgramData\chocolatey\bin\k6.exe`)이 Windows Application Control에 막힌다. 실제
+> 바이너리(`C:\ProgramData\chocolatey\lib\k6\tools\k6-v2.1.0-windows-amd64\k6.exe`)를
+> 직접 부르면 정상 실행된다.
+>
+> **실제 시나리오 실행으로 최종 확인 (2026-08-13)**: perf 스택(`environment/docker-compose.perf.yml`,
+> DATASET_PROFILE=large)을 띄우고 `scenarios/cache-warm.js`를 짧게 돌렸다
+> (`-e DATASET=large -e VUS=5 -e WARMUP=30 -e HOLD=30`, 결과는 `-e RUNS_DIR`로 저장소 밖에 기록).
+>
+> ```
+> iterations                       26
+>   { phase:warmup }               24     ← executor 정적 태그가 builtin에 그대로 붙는다
+>   { phase:measure }               2
+> phase_iterations                  0     ← 커스텀 Counter는 예상대로 한 건도 없음
+>   { phase:warmup }                0
+>   { phase:measure }               0
+>
+> run.json → k6.phases.warmup.tps  = 0.8      (24 / 30초)
+>            k6.phases.measure.tps = 0.0333   (2 / 60초)
+> ```
+>
+> 수정 전이라면 두 값 모두 0이었을 자리다. 실 시나리오에서 폴백이 동작하는 것까지 확인됐으므로
+> 이 항목의 검증 고리는 모두 닫혔다.
+>
+> 주의: 이 실행의 응답시간·오류율(measure p95 32초, 오류율 25%, iteration 49건 중단)은 성능
+> 데이터로 쓸 수 없다. cache-warm의 warmup executor는 VUS 인자와 무관하게 50 VU 고정인데,
+> 컨테이너를 막 기동한 2 vCPU 앱(JIT 콜드, InnoDB 버퍼풀 콜드)에 large 데이터셋으로 그
+> 부하를 걸었기 때문이다. 이번 실행의 목적은 "iteration 수가 어느 메트릭 축에 실리는가"
+> 하나이며, 그 축은 부하 수준과 무관하다.
+>
+> **남은 부작용**: 이미 저장된 cache-warm 과거 실행의 TPS 0은 재계산되지 않는다
+> (`rawMetrics`에 `iterations{phase:X}` 축 자체가 없다 — 그 축은 이번에 threshold로
+> 선언해서 처음 생겼다. 값을 채우려면 k6를 다시 돌리는 수밖에 없다).
+
+**남은 부분** — 없음(위 두 인용블록 참고).
 
 ### S-18. breakpoint가 서버 한계보다 k6의 VU 한계에 먼저 걸릴 수 있음 — 상태: 미해결
 
@@ -781,6 +874,46 @@ HTTP 200만 오면 내용이 비어 있어도 성공이다. 실행할 데이터�
 - 사용자 작업 기준의 최종 성공 여부 Counter 추가
 - 복구 성공률과 refresh 지연을 별도 SLO로 정의
 - 전체 HTTP 오류율과 사용자 작업 실패율을 나란히 표시
+
+### S-24. cache-warm의 워밍업 VU가 리터럴이라 VUS를 낮추면 부하가 뒤집힘 — 상태: **해결** (2026-08-13, 미커밋)
+
+> **발견 경위**: S-17 후속 수정을 실측 검증하려고 `-e VUS=5`로 cache-warm을 돌렸는데,
+> measure 구간이 p95 32초·오류율 25%로 나왔다. 원인을 보니 워밍업 executor의 VU 수가
+> `vus: 50` 리터럴이라 `VUS`를 낮춰도 그대로 50이었다. 저장된 레코드의 `run.loadProfile`이
+> `warmup.vus = 50` / `measurement.stages.target = 5`로 그 역전을 그대로 보여준다.
+>
+> **왜 문제인가**: 단순히 무거운 게 아니라 시나리오의 전제가 깨진다. cache-warm은 캐시가
+> 데워진 **정상 상태**를 재는 cold-start의 대조군인데, 워밍업이 앱을 포화시키면 measure
+> 구간이 큐 적체·GC·커넥션 풀 고갈의 잔여 효과 위에서 시작한다. 또 짝인 cold-start는
+> `VUS` 하나로 전체가 스케일되므로, `VUS`를 낮춘 순간 1:1 비교의 대칭성도 사라진다.
+>
+> **무엇을 고쳤나**: `scenarios/cache-warm.js`에 `WARMUP_VUS`를 도입해
+> `Number(__ENV.WARMUP_VUS || Math.max(1, Math.round(VUS / 2)))`로 계산하고 warmup
+> executor가 그 값을 쓰게 했다. 헤더의 "사용자" 줄도 고정 수치 대신 VUS 기준 표현으로 바꿨다.
+>
+> **고민한 대안과 버린 이유**
+> - *워밍업도 VUS와 동일하게 맞춘다*: 기본 실행의 워밍업 부하가 50 → 100으로 바뀐다.
+>   `run.loadProfile`은 k6가 해석한 최종 설정을 그대로 지문으로 쓰므로(`summary.js`의
+>   `loadProfile()`), 과거 cache-warm 실행 전부와 blocking 불일치가 되어 기준선 비교가
+>   끊긴다. 부하 설계를 바꿀 근거가 없는데 이력을 버리는 선택이라 기각.
+> - *리터럴을 그대로 두고 "VUS를 낮추지 말 것"이라고 문서에만 적는다*: 사람이 매번
+>   기억해야 하는 절차는 지켜지지 않는다는 게 이 저장소의 기본 입장이다(`perf-run.js`
+>   래퍼가 존재하는 이유와 같다). 기각.
+> - 비율을 1/2로 고른 이유는 기본값 보존이다 — VUS=100이면 계산 결과가 정확히 50이라
+>   기존 동작·지문이 그대로 유지된다. 워밍업 강도만 따로 실험하려면 `WARMUP_VUS`로 덮는다.
+>
+> **검증**: `k6 inspect`로 해석된 옵션을 직접 확인했다(부하 실행 없이 init 컨텍스트만 평가).
+>
+> ```
+> 기본값             warmup.vus = 50 | measure target = 100,100   ← 기존과 동일
+> -e VUS=4           warmup.vus =  2 | measure target = 4,4       ← 비례
+> -e VUS=4 -e WARMUP_VUS=1  warmup.vus = 1 | measure target = 4,4 ← 오버라이드
+> ```
+>
+> **남은 작업**: 다른 시나리오에는 같은 문제가 없음을 확인했다(chaos·failover는
+> `__ENV.VUS`, spike는 `SPIKE_VUS`, breakpoint는 `MAX_VUS`를 탄다). `MEASURE_RAMP_SEC=30`은
+> 리터럴로 남겨 뒀다 — 시간 값이고 `measureSec`에 합산돼 phasePlan에 그대로 기록되므로
+> VU 수와 달리 부하 강도를 왜곡하지 않는다.
 
 ## 우선순위 정리
 
