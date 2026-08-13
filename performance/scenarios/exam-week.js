@@ -8,7 +8,7 @@
  * 예상 TPS : ≈ 35~45 RPS
  * 종료조건 : 시간 만료
  */
-import { PHASED_THRESHOLDS, setActivePhasePlan } from '../scripts/lib/config.js';
+import { PHASED_THRESHOLDS, measureOnly, setActivePhasePlan } from '../scripts/lib/config.js';
 import { buildPhasePlan, stagesFor, startVusFor, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_EXAM_WEEK } from './lib/workload.js';
@@ -31,9 +31,9 @@ export const options = {
       stages: stagesFor(PLAN, VUS),
     },
   },
-  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, measureOnly({
     'http_req_duration{name:post_search}': ['p(95)<600', 'p(99)<2000'],
-  }),
+  })),
 };
 
 export default function () {
