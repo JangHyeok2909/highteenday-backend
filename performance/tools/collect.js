@@ -17,7 +17,12 @@
  *   --prom <url>     Prometheus 주소 (기본 http://localhost:9090)
  *   --no-gate        회귀가 있어도 exit 0 (관찰만)
  *
- * 종료 코드: 0 통과 / 1 게이트 회귀 / 2 실행 오류
+ * 종료 코드
+ *   0  통과
+ *   1  게이트 회귀      — 서버 성능이 나빠졌다. 대응 주체: 애플리케이션 개발자
+ *   2  실행 오류        — 수집 도구가 예외로 죽었다. 대응 주체: 도구 담당
+ *   3  측정 불가        — 필수 지표를 못 받아 판정이 성립하지 않는다(T-08).
+ *                        대응 주체: 측정 인프라(Prometheus·익스포터·k6 실행) 담당
  */
 'use strict';
 
@@ -182,6 +187,17 @@ function printConsole(record) {
   line('═'.repeat(74));
   line(`  Performance Report — ${r.scenario}   Run #${r.number}   ${icon[reg.verdict] || ''} ${reg.verdict}`);
   line('═'.repeat(74));
+  // 측정 상태는 판정 바로 아래에 둔다 — 판정을 읽기 전에 "이 판정을 믿어도 되는가"를
+  // 먼저 알아야 한다(T-08). 정상(MEASURED)일 때는 줄을 늘리지 않는다.
+  if (reg.measurementStatus === 'UNMEASURED') {
+    line(`  ❌ 측정 불가 — 필수 지표 ${reg.missingRequired.length}건 결측. 아래 판정은 신뢰할 수 없습니다.`);
+    for (const key of reg.missingRequired) line(`     · ${key}`);
+  } else if (reg.measurementStatus === 'PARTIAL') {
+    const why = [];
+    if (reg.missingOptional.length) why.push(`참고 지표 ${reg.missingOptional.length}건 결측`);
+    if (reg.windowIncomplete) why.push('측정 구간이 계획보다 짧게 끝남');
+    line(`  ⚠  부분 측정 — ${why.join(', ')}. 판정 자체는 유효합니다.`);
+  }
   line(`  환경 ${r.environment}  |  브랜치 ${r.branch}  |  커밋 ${r.commitShort}  |  빌드 ${r.buildNumber}`);
   line(`  시작 ${fmt.localTime(r.startedAt)}  |  수행 ${fmt.duration(r.durationSec)}  |  VU max ${record.k6.all.vusMax}`);
   // 비교 가능성을 가르는 조건 — 기준선이 왜 선택/탈락됐는지 읽으려면 이게 보여야 한다.
@@ -378,13 +394,15 @@ async function main() {
   }
 
   let gateFailed = false;
+  let unmeasured = false;
   let errored = 0;
   for (const runId of targets) {
     try {
       const rec = await processRun(runId, opts);
       if (!opts.quiet) printConsole(rec);
-      else console.log(`${runId}: ${rec.regression.verdict}`);
+      else console.log(`${runId}: ${rec.regression.verdict} (${rec.regression.measurementStatus})`);
       if (rec.regression.gateFailed) gateFailed = true;
+      if (rec.regression.measurementStatus === 'UNMEASURED') unmeasured = true;
     } catch (e) {
       console.error(`✗ ${runId} 실패: ${e.message}`);
       errored++;
@@ -396,10 +414,19 @@ async function main() {
     console.error(`수집 실패 ${errored}건 / ${targets.length}건`);
     process.exit(2);
   }
-  if (gateFailed && opts.gate) {
-    console.error('게이트 회귀 감지 — 실패로 종료합니다.');
-    process.exit(1);
-  }
+  // 두 사실은 항상 같이 알린다. 종료 코드는 하나뿐이라 하나를 골라야 하지만, 로그에서까지
+  // 지워지면 다른 하나를 영영 모르게 된다.
+  if (gateFailed) console.error('게이트 회귀 감지 — 기준을 넘은 지표가 있습니다.');
+  if (unmeasured) console.error('필수 지표 결측 — 이 실행의 판정은 신뢰할 수 없습니다.');
+
+  if (!opts.gate) process.exit(0);
+
+  // 측정 불가를 게이트 회귀보다 먼저 본다. 게이트 회귀는 "가진 데이터로 확인된 사실"이라
+  // 측정만 고치면 다음 실행에서 다시 잡히지만, 측정 파이프라인이 깨진 상태는 그냥 두면
+  // 이후 모든 실행의 판정이 계속 무의미해진다. 재발견 가능한 신호보다 계통적 고장을
+  // 먼저 알리는 쪽이 손해가 작다.
+  if (unmeasured) process.exit(3);
+  if (gateFailed) process.exit(1);
   process.exit(0);
 }
 

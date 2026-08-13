@@ -182,6 +182,13 @@ function iterationCountFor(m, phase) {
 }
 
 /**
+ * 표본이 0건인 phase의 지연 통계 — trendStats()와 같은 키를 전부 null로 채운다.
+ * 키를 아예 빼지 않는 이유: 저장되는 run.json이 "이 값을 못 쟀다"를 명시적으로 남겨야
+ * 나중에 그 파일만 보고도 결측을 재구성할 수 있다.
+ */
+const EMPTY_TREND = { avg: null, min: null, med: null, max: null, p90: null, p95: null, p99: null };
+
+/**
  * plan이 선언한 phase(warmup/measure/rampdown) 각각의 요약 지표를 k6 raw metrics(`m`)에서
  * 뽑는다. `m`은 k6 handleSummary의 `data.metrics`(또는 그와 같은 구조의 값)여야 한다.
  *
@@ -198,6 +205,8 @@ function iterationCountFor(m, phase) {
  * iteration 수(=TPS의 분자)만은 소스가 둘이라 iterationCountFor()로 폴백한다 — 시나리오가
  * phase를 동적 태그로 나누느냐(커스텀 Counter) 정적 executor 태그로 나누느냐(k6 builtin)에
  * 따라 값이 실리는 축이 달라진다. 자세한 우선순위는 그 함수 주석 참고.
+ *
+ * 표본이 0건인 phase는 통계를 전부 null로 남긴다 — noSamples 판정 주석 참고.
  */
 export function metricsByPhase(m, plan) {
   if (!plan) return {};
@@ -214,18 +223,41 @@ export function metricsByPhase(m, plan) {
     const builtinIterM = m[buildSelector('iterations', { phase })];
     if (!durM && !reqsM && !failedM && !checksM && !iterM && !builtinIterM) continue;
 
-    const dur = trendStats(durM && durM.values) || {};
     const iterCount = iterationCountFor(m, phase);
+    const reqCount = reqsM && reqsM.values && typeof reqsM.values.count === 'number' ? reqsM.values.count : null;
+
+    /*
+     * 표본 0건 판정 — "이 구간을 재지 못했다"를 값이 아니라 표본 수로 가른다(T-08).
+     *
+     * k6는 threshold가 참조한 서브메트릭을, 표본이 한 건도 없어도 0으로 채워 요약에 실어
+     * 준다(k6 v2.1.0 실측: p(95)=0, rate=0, count=0). 그래서 조기 종료 등으로 measure
+     * 구간이 통째로 비면 이 함수가 "P95 0ms, 오류율 0%, 체크 성공률 0%"라는 버킷을 만들고,
+     * 회귀 게이트는 그걸 완벽한 실행으로 읽는다. 0은 null이 아니라서 SKIP되지도 않는다.
+     *
+     * 판정은 "표본이 없다는 적극적 증거"가 있을 때만 내린다 — http_reqs 서브메트릭이 요약에
+     * 실제로 있고 그 count가 0일 때다. 서브메트릭 자체가 없는 것은 "0건"이 아니라 "그 축을
+     * 선언하지 않았다"는 뜻이라 결측으로 단정하면 안 된다. phase 축을 쓰는 시나리오는
+     * PHASE_DIAGNOSTIC_THRESHOLDS가 http_reqs{phase:X}를 항상 선언하므로(thresholds.js),
+     * 실제 실행에서는 언제나 이 증거가 존재한다.
+     *
+     * iterations를 함께 보는 이유: WebSocket 위주 구간은 HTTP 요청이 0이어도 iteration은
+     * 실제로 돈다. http_reqs만 보면 정상 구간을 결측으로 오판한다.
+     *
+     * httpReqs·iterations 값 자체는 0/null 그대로 남긴다 — "왜 결측인가"의 증거이자,
+     * 상위 계층(tools/lib/regression.js의 measurementStatus)이 판정을 재구성할 근거다.
+     */
+    const noSamples = reqCount === 0 && !(iterCount > 0);
+    const dur = noSamples ? EMPTY_TREND : (trendStats(durM && durM.values) || {});
 
     out[phase] = {
       ...dur,
       durationSec: phaseSec,
-      rps: (reqsM && reqsM.values && reqsM.values.rate != null) ? reqsM.values.rate : null,
+      rps: !noSamples && reqsM && reqsM.values && reqsM.values.rate != null ? reqsM.values.rate : null,
       tps: iterCount != null && phaseSec > 0 ? iterCount / phaseSec : null,
-      errorRate: (failedM && failedM.values && failedM.values.rate != null) ? failedM.values.rate : null,
-      httpReqs: (reqsM && reqsM.values && reqsM.values.count) || 0,
+      errorRate: !noSamples && failedM && failedM.values && failedM.values.rate != null ? failedM.values.rate : null,
+      httpReqs: reqCount || 0,
       iterations: iterCount,   // null = 두 소스 모두 비어 있음(미집계) — 0으로 확정하지 않는다
-      checkRate: (checksM && checksM.values && checksM.values.rate != null) ? checksM.values.rate : null,
+      checkRate: !noSamples && checksM && checksM.values && checksM.values.rate != null ? checksM.values.rate : null,
       checksPassed: (checksM && checksM.values && checksM.values.passes) || null,
       checksFailed: (checksM && checksM.values && checksM.values.fails) || null,
     };

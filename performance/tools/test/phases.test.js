@@ -345,3 +345,70 @@ test('metricsByPhase: builtin iterations{phase:X} 축만 있어도 그 phase 버
   assert.ok(out.measure, 'iterations 축만 존재해도 버킷이 있어야 한다');
   assert.equal(out.measure.tps, 1200 / 600);
 });
+
+// ---------------------------------------------------------------------------
+// 표본 0건 구간 — T-08. k6는 threshold로 선언된 서브메트릭을 표본이 없어도 0으로 채워
+// 요약에 실어 준다(v2.1.0 실측). 그 0을 그대로 쓰면 "요청 0건"이 "P95 0ms·오류율 0%"라는
+// 완벽한 실행으로 둔갑해 회귀 게이트를 전부 통과한다.
+// ---------------------------------------------------------------------------
+
+/** 조기 종료로 measure 구간이 통째로 빈 실행 — k6가 실제로 내놓는 모양 그대로. */
+function emptyMeasureMetrics() {
+  return {
+    'http_req_duration{phase:measure}': { values: { avg: 0, min: 0, med: 0, max: 0, 'p(90)': 0, 'p(95)': 0, 'p(99)': 0 } },
+    'http_reqs{phase:measure}': { values: { count: 0, rate: 0 } },
+    'http_req_failed{phase:measure}': { values: { rate: 0, passes: 0, fails: 0 } },
+    'checks{phase:measure}': { values: { rate: 0, passes: 0, fails: 0 } },
+    'phase_iterations{phase:measure}': { values: { count: 0 } },
+    'iterations{phase:measure}': { values: { count: 0 } },
+  };
+}
+
+test('metricsByPhase: 표본 0건 구간의 통계는 0이 아니라 null이다 (T-08)', async () => {
+  const { buildPhasePlan, metricsByPhase } = await loadPhases();
+  const plan = buildPhasePlan({ warmupSec: 60, measureSec: 600, rampdownSec: 0 });
+  const out = metricsByPhase(emptyMeasureMetrics(), plan);
+
+  assert.ok(out.measure, '버킷 자체는 만든다 — 구간이 선언됐다는 사실은 남아야 한다');
+  for (const key of ['avg', 'min', 'med', 'max', 'p90', 'p95', 'p99']) {
+    assert.equal(out.measure[key], null, `${key}가 0으로 채워지면 안 된다`);
+  }
+  assert.equal(out.measure.rps, null);
+  assert.equal(out.measure.errorRate, null, '오류율 0%는 "오류가 없었다"로 읽힌다');
+  assert.equal(out.measure.checkRate, null, 'check 성공률 0%는 "단정이 전부 실패했다"로 오진된다');
+  assert.equal(out.measure.tps, null);
+});
+
+test('metricsByPhase: 표본 0건이어도 httpReqs/iterations는 결측의 증거로 남긴다', async () => {
+  const { buildPhasePlan, metricsByPhase } = await loadPhases();
+  const plan = buildPhasePlan({ warmupSec: 60, measureSec: 600, rampdownSec: 0 });
+  const out = metricsByPhase(emptyMeasureMetrics(), plan);
+
+  assert.equal(out.measure.httpReqs, 0);
+  assert.equal(out.measure.iterations, null);
+});
+
+test('metricsByPhase: HTTP 요청이 0이어도 iteration이 돌았으면 결측이 아니다 (WS 위주 구간)', async () => {
+  const { buildPhasePlan, metricsByPhase } = await loadPhases();
+  const m = emptyMeasureMetrics();
+  m['phase_iterations{phase:measure}'] = { values: { count: 1200 } };
+  m['checks{phase:measure}'] = { values: { rate: 0.995, passes: 199, fails: 1 } };
+  const plan = buildPhasePlan({ warmupSec: 60, measureSec: 600, rampdownSec: 0 });
+  const out = metricsByPhase(m, plan);
+
+  assert.equal(out.measure.tps, 1200 / 600);
+  assert.equal(out.measure.checkRate, 0.995, 'iteration이 돌았으므로 값을 지우면 안 된다');
+});
+
+test('metricsByPhase: http_reqs 축 자체가 없으면 결측으로 단정하지 않는다', async () => {
+  const { buildPhasePlan, metricsByPhase } = await loadPhases();
+  // 서브메트릭 부재는 "0건"이 아니라 "그 축을 선언하지 않았다"는 뜻이다.
+  const m = {
+    'http_req_duration{phase:measure}': { values: { avg: 50, 'p(95)': 100 } },
+    'phase_iterations{phase:measure}': { values: { count: 0 } },
+  };
+  const plan = buildPhasePlan({ warmupSec: 0, measureSec: 600, rampdownSec: 0 });
+  const out = metricsByPhase(m, plan);
+
+  assert.equal(out.measure.p95, 100);
+});

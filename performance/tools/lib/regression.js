@@ -88,11 +88,87 @@ function validateRules(rules) {
   }
 }
 
-function loadRules(file = RULES_FILE) {
+const DEFAULT_REQUIREMENTS = { infraRequiredEnvironmentPrefixes: [] };
+
+/**
+ * requirements 블록 검증 — 오타 하나로 인프라 필수 판정이 통째로 꺼지면 T-08을 고친 의미가
+ * 없다. 형식이 틀리면 조용히 기본값(=아무것도 필수 아님)으로 떨어지지 않고 멈춘다.
+ */
+function validateRequirements(req) {
+  if (req == null) return;
+  if (typeof req !== 'object' || Array.isArray(req)) {
+    throw new Error('rules.json 검증 실패:\n  requirements 는 객체여야 한다');
+  }
+  const prefixes = req.infraRequiredEnvironmentPrefixes;
+  if (prefixes == null) return;
+  if (!Array.isArray(prefixes) || prefixes.some((p) => typeof p !== 'string' || !p)) {
+    throw new Error('rules.json 검증 실패:\n  requirements.infraRequiredEnvironmentPrefixes 는 비어 있지 않은 문자열 배열이어야 한다');
+  }
+}
+
+/**
+ * 규칙 파일 전체를 읽는다 — 규칙 목록과 requirements 블록은 함께 검증돼야 의미가 있다.
+ */
+function loadRuleSet(file = RULES_FILE) {
   const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
   const rules = raw.rules || [];
   validateRules(rules);
-  return rules;
+  validateRequirements(raw.requirements);
+  return {
+    rules,
+    requirements: { ...DEFAULT_REQUIREMENTS, ...(raw.requirements || {}) },
+  };
+}
+
+function loadRules(file = RULES_FILE) {
+  return loadRuleSet(file).rules;
+}
+
+/**
+ * 이 규칙이 이 실행에 적용되는가 — "값이 없다"의 세 가지 뜻 중 첫 번째를 가른다(T-08).
+ *
+ *   해당 없음  이 실행에는 그 지표라는 개념 자체가 없다 (여기서 걸러낸다)
+ *   참고 결측  잴 수 있었어야 하는데 안 들어왔다. 판정은 유효하다
+ *   필수 결측  잴 수 있었어야 하는데 안 들어왔고, 그래서 판정이 무의미하다
+ *
+ * measure 구간 규칙이 유일한 해당 없음 사례다. 진단 전용 시나리오(gatePhase !== 'measure')와
+ * phasePlan이 없는 과거 실행은 measure 구간을 아예 선언하지 않았다. 이를 결측으로 세면
+ * 그런 실행이 항상 "부분 측정"으로 표시돼, 정작 익스포터가 죽었을 때의 신호가 묻힌다.
+ */
+function isApplicable(rule, record) {
+  if (rule.key.startsWith('k6.phases.measure.')) {
+    const plan = record.run && record.run.phasePlan;
+    return !!(plan && plan.gatePhase === 'measure');
+  }
+  return true;
+}
+
+/**
+ * 이 실행에서 "없으면 판정 자체가 성립하지 않는" 지표인가(T-08).
+ *
+ * 별도의 `required` 필드를 두지 않고 `gate`를 그대로 쓴다. `gate:true`는 "이 지표가 나쁘면
+ * 빌드를 세운다"는 선언인데, 그 지표가 없으면 빌드를 세울 방법이 없다 — 즉 gate 규칙은
+ * 정의상 필수다. 필드를 따로 두면 `gate:true, required:false`("실패시키긴 하는데 없어도
+ * 됨") 같은 모순 조합이 가능해질 뿐이다.
+ *
+ * 인프라 게이트만 환경 조건이 하나 더 붙는다 — Prometheus가 있어야 하는 환경에서만
+ * 필수다. 익스포터가 없는 로컬 환경까지 강제하면 모든 실행이 영구히 막힌다. 그런 환경에서도
+ * 결측 사실 자체는 참고 결측으로 남아 리포트에 표시된다.
+ *
+ * 환경 판정을 prefix 로 하는 이유: environment 는 `__ENV.PERF_ENV || 'perf'`(summary.js)라
+ * 자유 문자열이고, 실제로 `perf-mi-smoke`·`perf-s02-ab` 처럼 목적을 덧붙인 이름이 쓰인다.
+ * 정확히 일치로 걸면 그 변형들이 전부 면제돼 버린다.
+ */
+function isRequired(rule, record, requirements) {
+  if (!rule.gate) return false;
+  if (!isApplicable(rule, record)) return false;
+
+  if (rule.key.startsWith('infra.flat.')) {
+    const env = (record.run && record.run.environment) || '';
+    return requirements.infraRequiredEnvironmentPrefixes.some((p) => env.startsWith(p));
+  }
+
+  return true;
 }
 
 /**
@@ -227,10 +303,15 @@ function analyze(record, prevRun, opts = {}) {
   // baseline=null 로 돌아 절대 게이트만 평가한다 — 상대 비교가 꺼져도 SLO 강제는 남는다.
   const baseline = comparability && comparability.comparable ? prevRun : null;
 
-  const rules = loadRules(rulesFile);
-  const comparisons = rules.map((rule) =>
-    evaluateRule(rule, pick(record, rule.key), baseline ? pick(baseline, rule.key) : null),
-  );
+  const { rules, requirements } = loadRuleSet(rulesFile);
+  const comparisons = rules.map((rule) => {
+    const out = evaluateRule(rule, pick(record, rule.key), baseline ? pick(baseline, rule.key) : null);
+    // 결측이 "해당 없음"인지 "참고 지표"인지 "판정 불가"인지는 규칙만으로 정해지지 않는다.
+    // 이 실행의 phasePlan·environment까지 봐야 하므로 여기서 붙인다(isApplicable/isRequired).
+    out.applicable = isApplicable(rule, record);
+    out.required = isRequired(rule, record, requirements);
+    return out;
+  });
 
   const failures = comparisons.filter((c) => c.verdict === 'FAIL');
   const warnings = comparisons.filter((c) => c.verdict === 'WARN');
@@ -251,6 +332,33 @@ function analyze(record, prevRun, opts = {}) {
     verdict = 'WARN';
   }
 
+  /*
+   * 측정 상태 — 성능 판정(verdict)과 나란한 두 번째 축이다(T-08).
+   *
+   * verdict 는 "서버가 괜찮은가"를 말하고, measurementStatus 는 "그 판단을 내릴 데이터가
+   * 있었는가"를 말한다. 둘을 한 값에 섞으면 "느리다"와 "재지 못했다"가 구분되지 않는데,
+   * 이 둘은 고쳐야 할 대상도 고칠 사람도 다르다(애플리케이션 vs 측정 인프라).
+   *
+   *   MEASURED   필수 지표가 모두 있고 측정 구간도 계획대로 채워졌다
+   *   PARTIAL    필수는 있으나 선택 지표가 빠졌거나 측정 구간이 잘렸다 — 판정은 유효
+   *   UNMEASURED 필수 지표가 없어 판정을 신뢰할 수 없다
+   *
+   * PARTIAL 을 남기는 이유: 필수 인프라 지표는 gate 규칙 3개뿐이라, Redis 익스포터가
+   * 통째로 죽어도 상태는 MEASURED 가 된다. PARTIAL 과 missingOptional 목록이 그 조용한
+   * 붕괴를 드러내는 유일한 신호다.
+   */
+  const skipped = comparisons.filter((c) => c.verdict === 'SKIP');
+  const missingRequired = skipped.filter((c) => c.required).map((c) => c.key);
+  const missingOptional = skipped.filter((c) => !c.required && c.applicable).map((c) => c.key);
+  const notApplicable = skipped.filter((c) => !c.applicable).map((c) => c.key);
+  // collect.js 가 조기 종료를 감지해 이미 기록해 둔 값이다(measureWindow). 지금까지는
+  // 리포트에 표시만 됐고 판정 경로에는 연결되지 않았다.
+  const windowIncomplete = !!(record.infra && record.infra.window && record.infra.window.incomplete);
+
+  let measurementStatus = 'MEASURED';
+  if (missingRequired.length) measurementStatus = 'UNMEASURED';
+  else if (missingOptional.length || windowIncomplete) measurementStatus = 'PARTIAL';
+
   // 판정과 별개로 "무엇에 대고 비교했는가"를 항상 노출한다. 조건이 엄격해지면
   // 기준선 없는 실행이 흔해지는데, 그게 조용한 PASS 로 새면 고치기 전보다 나쁘다.
   //   compared     — 유효한 대조군과 비교했다
@@ -270,6 +378,11 @@ function analyze(record, prevRun, opts = {}) {
     downgradedFrom,
     hasBaseline: !!baseline,
     verdict,
+    measurementStatus,
+    missingRequired,
+    missingOptional,
+    notApplicable,
+    windowIncomplete,
     gateFailed: gateFailures.length > 0 && !degraded,
     counts: {
       total: comparisons.length,
@@ -376,4 +489,7 @@ function bottleneckHints(record) {
   return hints.sort((a, b) => b.score - a.score);
 }
 
-module.exports = { analyze, evaluateRule, loadRules, validateRules, bottleneckHints, pick, RULES_FILE };
+module.exports = {
+  analyze, evaluateRule, loadRules, loadRuleSet, validateRules, validateRequirements,
+  isApplicable, isRequired, bottleneckHints, pick, RULES_FILE,
+};
