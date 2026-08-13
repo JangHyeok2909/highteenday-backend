@@ -31,7 +31,7 @@ npm test          # = node tools/test/all.js
 | `metrics-catalog.js` | **운영 지표 정의** — 지표 추가는 여기 한 줄이면 끝 |
 | `regression.js` | 회귀 판정 엔진 + 병목 가설 생성 |
 | `comparability.js` | **실행 조건(conditions) 비교 가능성 판정** — 데이터셋·부하 프로파일이 다른 실행을 기준선에서 제외하고 사유를 남긴다. 조건 추가는 이 파일의 `CONDITIONS` 표 한 줄 |
-| `repository.js` | 이력 저장/조회, 기준선 선택 (`findBaseline` — comparability 기반) |
+| `repository.js` | 이력 저장/조회, 기준선 선택 (`findBaseline`) — 자격은 **측정 무결성**(`eligibilityOf`)과 comparability 로만 정해진다. threshold 통과 여부는 자격 조건이 아니다(S-10) |
 | `report.js` | HTML 보고서 생성 |
 | `grafana.js` | 테스트 구간이 박힌 딥링크 생성 |
 | `format.js` | 표시 포맷 (콘솔/HTML 공용) |
@@ -39,8 +39,10 @@ npm test          # = node tools/test/all.js
 ### `test/` — 도구 단위 테스트
 
 `node:test` 기반. `tools/test/all.js`가 전체를 실행한다 (`comparability`, `regression`,
-`repository`, `summary-parsing` 4개 스위트). 기준선 선택·회귀 판정처럼 "숫자를 판단으로
-바꾸는" 코드의 회귀를 막는 목적이다.
+`repository`, `summary-parsing`, `phases`, `collect-window`, `thresholds`,
+`scenario-thresholds`, `baseline-report`). 기준선 선택·회귀 판정처럼 "숫자를 판단으로
+바꾸는" 코드의 회귀를 막는 목적이다. `baseline-report`는 판정 결과가 콘솔과 HTML 리포트에
+**같은 문장으로** 나오는지까지 본다 — 사유를 못 대는 리포트는 조용한 통과와 구분되지 않는다.
 
 ## 기타 자체 도구
 
