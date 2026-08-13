@@ -49,7 +49,7 @@ flowchart TD
 
     HIST --> TREND["History / Trend<br/>tools/history.js"]
     OUT -->|deep link| GRAF[Grafana]
-    COL -->|게이트 실패 시 exit 1| CI[CI]
+    COL -->|"게이트 실패 exit 1 · 측정 불가 exit 3"| CI[CI]
 
     ORCH["tools/perf-run.js<br/>단일 진입점"] -.->|실행| K6
     ORCH -.->|실행| COL
@@ -163,15 +163,78 @@ phase별로 쪼갤 실익이 적다.
 > 태그를 실을 수 없다(그건 스크립트가 아니라 k6가 만든다). 그래서 `workload.js`가 매
 > iteration 끝에 `phase_iterations` Counter를 phase 태그와 함께 직접 증가시키고,
 > `phases.<phase>.tps`는 `phase_iterations{phase:X}.count / plan.<X>Sec`로 계산한다.
+>
+> **단, 정적 executor 태그를 쓰는 시나리오는 builtin `iterations`로 폴백한다.**
+> `cache-warm`은 warmup/measure를 두 개의 executor로 나누고 `scenarios.<name>.tags`로
+> 정적 태깅하므로 동적 phase 계산(`setActivePhasePlan`)을 켜지 않는다. 그러면 위의 커스텀
+> Counter는 한 번도 증가하지 않는다(`workload.js`가 `currentPhase()`가 null이면 세지 않는다).
+> 대신 정적 태그는 builtin 메트릭에도 붙으므로 `iterations{phase:X}`에 값이 남는다.
+> 그래서 `metricsByPhase()`는 ① `phase_iterations{phase:X}` → ② `iterations{phase:X}`
+> 순으로 확인하고, 둘 다 비어 있으면 0이 아니라 `null`(미집계)을 기록한다. 0으로 확정하면
+> 리포트에 "TPS 0.00"이라는 거짓 값이 찍힌다 — 실제로 cache-warm이 그랬다.
 
 `breakdown`은 기능별/오퍼레이션별 분해이며, `all`과 마찬가지로 phase 구분이 없는
 전체 구간 값이다(기능별로 phase까지 쪼개면 threshold 축이 조합 폭발한다 — 의도적 범위
 제한). k6는 threshold에 태그 필터가 걸린 항목에만 서브메트릭을 만들어 주므로,
-`config.js`의 `DEFAULT_THRESHOLDS`에 판정에 영향 없는 느슨한 상한(`p(99)<600000`)으로
+`config.js`의 `BREAKDOWN_THRESHOLDS`에 판정에 영향 없는 느슨한 상한(`p(99)<600000`)으로
 축을 선언해 둔다. `phases.*`도 같은 메커니즘이다 — `PHASE_DIAGNOSTIC_THRESHOLDS`가
-`http_req_duration{phase:X}` 같은 bare per-phase 축을 강제로 만들고,
-`MEASURE_GATED_THRESHOLDS`가 `op:read`/`op:write` 같은 실제 SLO만 `{phase:measure}`로
-스코프해서 게이트로 쓴다.
+`http_req_duration{phase:X}` 같은 bare per-phase 축을 강제로 만든다.
+
+### k6 threshold의 평가 범위
+
+판정 기준값은 `COMMON_SLO_THRESHOLDS` 한 곳에만 있고(읽기 P95 300ms, 쓰기 P95 500ms,
+오류율 1%, 체크 성공률 99%), **적용 범위는 실행 종류에 따라 갈린다.**
+
+| 실행 종류 | 쓰는 상수 | 실제 SLO가 평가되는 범위 |
+|---|---|---|
+| 단독 스크립트(`scripts/*.js`), 진단 시나리오(stress·spike·breakpoint·chaos·failover) | `DEFAULT_THRESHOLDS` | 실행 전체 구간 |
+| phase 시나리오(normal-day·soak·peak-hour·cache-warm·cold-start 등) | `PHASED_THRESHOLDS` | `{phase:measure}` 구간만 |
+
+주의할 점은 "모든 threshold가 measure만 본다"가 **아니라는** 것이다. 범위가 갈리는 것은
+**실제 SLO**뿐이다.
+
+- `PHASED_THRESHOLDS`에는 태그 없는 SLO가 들어 있지 않다. 넣으면 같은 기준이 전체 구간과
+  measure 구간에 이중으로 걸려서, warmup의 JIT 컴파일·커넥션 풀 확장·캐시 미스로 생긴
+  느린 응답이 measure 결과와 무관하게 실행 전체를 FAIL로 만든다. warmup을 선언한 이유가
+  그 구간을 판정에서 빼려는 것이므로 이중 적용은 그 선언을 무효로 만든다.
+- `BREAKDOWN_THRESHOLDS`·`PHASE_DIAGNOSTIC_THRESHOLDS`는 **전체 구간에 그대로 남는다.**
+  이들은 판정 장치가 아니라 집계 축 생성 장치다 — k6는 threshold가 참조한 태그 조합에만
+  서브메트릭을 만들어 주므로, 기능별 분해와 phase별 p95·오류율·checks·RPS·TPS 요약이
+  이 축에서 나온다. 값은 어떤 결과에도 통과하도록 잡혀 있다(`p(99)<600000`, `rate<=1`,
+  `rate>=0`, `count>=0`). 오류율 축이 `rate<1`이 아니라 `rate<=1`인 것은 warmup 요청이
+  전부 실패하면 rate가 정확히 1이 되어 실행이 FAIL 되기 때문이다(k6 실측).
+- phase를 쓰지 않는 단독 스크립트는 예나 지금이나 전체 실행을 판정한다. 이 문서의
+  measure 관련 서술은 그쪽에는 적용되지 않는다.
+
+시나리오가 자기 기준을 얹을 때는 `measureOnly()`를 통과시킨다. 이 헬퍼는 threshold 키에
+`phase:measure` 태그를 병합하므로, `http_req_duration{name:login}`은
+`http_req_duration{name:login,phase:measure}`가 된다. 값 배열은 그대로 전달되어
+`abortOnFail`·`delayAbortEval`도 유지된다.
+
+> **덮어쓰기가 성립하는 이유** `measureOnly()`가 만드는 키는 태그 이름을 정렬해
+> 직렬화하므로, `peak-hour`가 선언한 `http_req_failed{phase:measure}`는
+> `PHASED_THRESHOLDS`의 공통 오류율 게이트와 **같은 키**다. 따라서 시나리오 값이 공통
+> 값을 대체하며, 하나의 대상에 1%와 2% 두 기준이 동시에 걸리지 않는다. 키 문자열을 손으로
+> 조합하면 태그 순서가 어긋나 중복 게이트가 생기므로 반드시 이 헬퍼를 쓴다.
+
+**조기 중단(abortOnFail)의 평가 시작 시점.** k6의 `delayAbortEval`은 threshold의 스코프와
+무관하게 **테스트 시작**부터 센다. measure로 스코프해도 이 지연이 warmup보다 짧으면
+표본이 몇 건뿐인 상태에서 평가가 시작돼 이상치 하나로 실행이 중단될 수 있다. 그래서 phase
+시나리오는 `abortDelayAfterMeasure(PLAN, N)`으로 "measure 시작 + N초"를 계산해 넘긴다.
+N은 원래 의도했던 관측 시간 그대로이며 기준 수치는 바뀌지 않는다. 예를 들어 soak는
+warmup 300초 + 관측 600초 = 900초부터 오류율 2% 중단 조건을 평가한다.
+
+진단 전용 시나리오(stress·spike·breakpoint·chaos·failover)의 중단 정책은 손대지 않았다.
+한계 탐색이 목적이라 램프업 구간의 붕괴 자체가 관찰 대상이고, phase 태깅도 켜지 않는다.
+
+**cold-start는 예외처럼 보이지만 같은 규칙이다.** `warmupSec: 0`으로 선언해 30초 ramp를
+포함한 전 구간이 `phase:measure`로 태깅되므로, measure 게이트가 곧 전체 실행 게이트다.
+재기동 직후의 콜드 상태 자체가 측정 대상이라, 앞부분을 판정에서 빼면 이 시나리오의 존재
+이유가 사라진다.
+
+**전제 조건.** `PHASED_THRESHOLDS`는 `phase_iterations` 축을 선언하므로, 이 상수를 쓰는
+시나리오는 그 Counter를 등록하는 `scenarios/lib/workload.js`를 반드시 로드해야 한다.
+k6는 등록되지 않은 메트릭의 threshold를 만나면 실행을 시작하지 못하고 중단한다.
 
 `rawMetrics`에 k6 원본 전체를 보관한다 — 나중에 새 지표가 필요해져도 과거 실행을
 다시 계산할 수 있어야 하므로.
@@ -466,7 +529,8 @@ Grafana를 열고 대시보드를 찾고 시간 범위를 맞추는 3단계가 �
 ```
 performance/
 ├─ scripts/lib/summary.js        1단계: k6 결과 + 메타데이터 기록 (all/phases 분리)
-├─ scripts/lib/config.js         SLO + 분해축 threshold 정의 + phase 태깅(tags/check)
+├─ scripts/lib/config.js         환경 주입 + phase 태깅(tags/check) + thresholds 재수출
+├─ scripts/lib/thresholds.js     SLO·분해축·phase 축 정의 — 평가 범위(전체/measure)가 갈리는 곳
 ├─ scripts/lib/phases.js         phase plan 순수 로직 — warmup/measure/rampdown 정의는 여기 한 곳
 ├─ tools/
 │  ├─ perf-run.js                단일 진입점 (실행 → 수집 → 판정)
