@@ -11,6 +11,9 @@
     "  noiseFloor : 이 값보다 작은 절대 변화는 회귀로 보지 않는다 (아래 설명)",
     "  minBaseline: 기준값이 이보다 작으면 상대 비교를 건너뛴다",
     "  gate       : true 면 CI 실패 대상, false 면 참고용(경고만)",
+    "               동시에 '필수 지표' 선언이기도 하다 — gate 규칙의 값이 없으면 판정 자체가",
+    "               성립하지 않으므로 measurementStatus 가 UNMEASURED 가 된다(T-08).",
+    "               적용 면제 조건은 아래 requirements 설명과 regression.js 의 isRequired() 참고.",
     "",
     "noiseFloor 가 왜 필요한가",
     "  2ms → 3ms 는 +50% 지만 사람에게 아무 의미가 없다. 상대 변화율만 쓰면 이런 항목이",
@@ -18,6 +21,18 @@
     "  실측 노이즈보다 큰 변화만 회귀로 인정하도록 절대 하한을 같이 둔다.",
     "  값은 이 환경에서 같은 시나리오를 반복 실행했을 때의 편차를 근거로 정한다."
   ],
+  "requirements": {
+    "_comment": [
+      "인프라 gate 지표(cpu.throttledPct·mysql.slowQueries·pool.hikariTimeouts)를 '필수'로",
+      "취급할 환경을 지정한다. 여기 해당하지 않는 환경에서는 Prometheus 가 없어도 UNMEASURED",
+      "가 되지 않는다 — 익스포터가 없는 로컬 환경까지 강제하면 모든 실행이 영구히 막힌다.",
+      "",
+      "정확히 일치가 아니라 prefix 로 판정한다. environment 는 `__ENV.PERF_ENV || 'perf'`",
+      "(scripts/lib/summary.js)라 자유 문자열이고, 실제 이력에 perf-mi-smoke·perf-s02-ab 처럼",
+      "목적을 덧붙인 이름이 쓰인다. 정확히 일치로 걸면 그 변형이 전부 면제돼 버린다."
+    ],
+    "infraRequiredEnvironmentPrefixes": ["perf"]
+  },
   "rules": [
     {
       "key": "k6.phases.measure.p95",

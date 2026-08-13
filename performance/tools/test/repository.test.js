@@ -115,6 +115,23 @@ test('findBaseline: 비교 가능한 후보가 없으면 null + 탈락 사유', 
   assert.ok(res.rejected[0].mismatches.some((m) => m.key === 'dataset' && m.materiality === 'blocking'));
 });
 
+test('findBaseline: 측정 불가(UNMEASURED) 실행은 기준선이 될 수 없다 (T-08)', () => {
+  // thresholdsPassed 만으로는 걸러지지 않는다 — k6는 표본이 0건인 서브메트릭의 threshold를
+  // 통과 처리하므로, 아무것도 재지 못한 실행도 thresholdsPassed:true 로 남는다.
+  const indexFile = indexWith([
+    entry('measured', '2026-08-01T00:00:00Z'),
+    { ...entry('unmeasured', '2026-08-03T00:00:00Z'), measurementStatus: 'UNMEASURED' },
+  ]);
+  const res = repo.findBaseline(current(), { indexFile });
+  assert.equal(res.baseline.id, 'measured', '시간상 직전이어도 측정 불가 실행은 건너뛴다');
+});
+
+test('findBaseline: measurementStatus 가 없는 과거 엔트리는 소급 탈락시키지 않는다', () => {
+  const indexFile = indexWith([entry('legacy-but-valid', '2026-08-01T00:00:00Z')]);
+  const res = repo.findBaseline(current(), { indexFile });
+  assert.equal(res.baseline.id, 'legacy-but-valid');
+});
+
 test('findBaseline: 조건이 기록되지 않은 과거 실행은 기준선이 될 수 없다', () => {
   const indexFile = indexWith([{ id: 'legacy', startedAt: '2026-08-01T00:00:00Z', scenario: 'normal-day', thresholdsPassed: true }]);
   const res = repo.findBaseline(current(), { indexFile });

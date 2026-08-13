@@ -6,7 +6,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { pick, evaluateRule, analyze, validateRules, loadRules, bottleneckHints } = require('../lib/regression');
+const {
+  pick, evaluateRule, analyze, validateRules, validateRequirements,
+  loadRules, loadRuleSet, isRequired, bottleneckHints,
+} = require('../lib/regression');
 
 // ---------------------------------------------------------------------------
 // pick — T-01 회귀 테스트. infra.flat 은 키에 점이 든 평면 맵이다.
@@ -256,4 +259,180 @@ test('bottleneckHints: k6.phases.measure가 없으면(진단 시나리오) k6.al
   };
   const hints = bottleneckHints(record);
   assert.ok(hints.some((h) => h.title.includes('Slow Query')), 'phases가 비어 있으면 k6.all로 폴백해야 한다');
+});
+
+// ---------------------------------------------------------------------------
+// 측정 상태 — T-08. "성능이 나쁘다"와 "잴 수 없었다"를 다른 축으로 가른다.
+//
+// 지금까지는 값이 없는 규칙이 SKIP 으로 빠지고 analyze 는 FAIL/WARN 개수만 세어 최종
+// 판정을 만들었다. 그래서 Prometheus 가 죽어 인프라 지표를 하나도 못 받아도 결과가
+// PASS + exit 0 이었다. 아래 테스트가 그 경로를 고정한다.
+// ---------------------------------------------------------------------------
+
+/** requirements 블록까지 담은 규칙 파일 — 인프라 필수 판정은 이 블록이 있어야 켜진다. */
+function tmpRuleSet(rules, requirements) {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'perf-rules-')), 'rules.json');
+  fs.writeFileSync(file, JSON.stringify({ rules, requirements }));
+  return file;
+}
+
+const REQ_PERF = { infraRequiredEnvironmentPrefixes: ['perf'] };
+
+/** k6 게이트 3개 + 인프라 게이트 1개 + 참고 지표 1개 — 실제 rules.json 의 축소판. */
+function gateRules() {
+  return [
+    { key: 'k6.phases.measure.p95', direction: 'lower_is_better', absolute: { fail: { gt: 500 } }, gate: true },
+    { key: 'k6.phases.measure.errorRate', direction: 'lower_is_better', absolute: { fail: { gt: 0.01 } }, gate: true },
+    { key: 'k6.phases.measure.checkRate', direction: 'higher_is_better', absolute: { fail: { lt: 0.99 } }, gate: true },
+    { key: 'infra.flat.cpu.throttledPct', direction: 'lower_is_better', absolute: { fail: { gt: 10 } }, gate: true },
+    { key: 'infra.flat.redis.hitRatioPct', direction: 'higher_is_better', gate: false },
+  ];
+}
+
+/** 정상적으로 측정된 실행. */
+function healthyRecord(over = {}) {
+  return {
+    run: conds(),
+    k6: { phases: { measure: { p95: 120, errorRate: 0.001, checkRate: 0.999 } } },
+    infra: { flat: { 'cpu.throttledPct': 0.2, 'redis.hitRatioPct': 99.1 }, window: { incomplete: false } },
+    ...over,
+  };
+}
+
+test('analyze: 필수 지표가 모두 있으면 MEASURED', () => {
+  const rulesFile = tmpRuleSet(gateRules(), REQ_PERF);
+  const res = analyze(healthyRecord(), null, { rulesFile });
+  assert.equal(res.measurementStatus, 'MEASURED');
+  assert.deepEqual(res.missingRequired, []);
+  assert.deepEqual(res.missingOptional, []);
+});
+
+test('analyze: 참고 지표만 빠지면 PARTIAL — 판정 자체는 유효하다', () => {
+  const rulesFile = tmpRuleSet(gateRules(), REQ_PERF);
+  const rec = healthyRecord();
+  delete rec.infra.flat['redis.hitRatioPct'];
+  const res = analyze(rec, null, { rulesFile });
+
+  assert.equal(res.measurementStatus, 'PARTIAL');
+  assert.deepEqual(res.missingRequired, []);
+  assert.deepEqual(res.missingOptional, ['infra.flat.redis.hitRatioPct']);
+  assert.equal(res.verdict, 'PASS', 'PARTIAL 은 성능 판정을 바꾸지 않는다');
+});
+
+test('analyze: Prometheus 전면 미응답이면 UNMEASURED (T-08 원래 시나리오)', () => {
+  const rulesFile = tmpRuleSet(gateRules(), REQ_PERF);
+  const rec = healthyRecord({ infra: { flat: {}, available: false, window: {} } });
+  const res = analyze(rec, null, { rulesFile });
+
+  assert.equal(res.measurementStatus, 'UNMEASURED');
+  assert.deepEqual(res.missingRequired, ['infra.flat.cpu.throttledPct']);
+  assert.equal(res.verdict, 'PASS', 'verdict 와 측정 상태는 별도 축이다 — 섞지 않는다');
+});
+
+test('analyze: measure 구간 표본 0건이면 UNMEASURED (성능 오진이 아니라 측정 불가로)', () => {
+  const rulesFile = tmpRuleSet(gateRules(), REQ_PERF);
+  // phases.js 가 표본 0건 구간을 null 로 남긴 뒤의 모양.
+  const rec = healthyRecord({
+    k6: { phases: { measure: { p95: null, errorRate: null, checkRate: null, httpReqs: 0, iterations: null } } },
+  });
+  const res = analyze(rec, null, { rulesFile });
+
+  assert.equal(res.measurementStatus, 'UNMEASURED');
+  assert.deepEqual(res.missingRequired, [
+    'k6.phases.measure.p95', 'k6.phases.measure.errorRate', 'k6.phases.measure.checkRate',
+  ]);
+  assert.equal(res.verdict, 'PASS',
+    'checkRate 0 으로 인한 가짜 FAIL(성능 오진)이 아니라 측정 불가로 잡혀야 한다');
+});
+
+test('analyze: 진단 시나리오(gatePhase != measure)는 measure 결측이 면제된다', () => {
+  const rulesFile = tmpRuleSet(gateRules(), REQ_PERF);
+  const rec = healthyRecord({
+    run: conds({ phasePlan: { ...PLAN_STEADY, gatePhase: null } }),
+    k6: { all: { p95: 300 }, phases: {} },
+  });
+  const res = analyze(rec, null, { rulesFile });
+
+  assert.equal(res.measurementStatus, 'MEASURED', 'measure 구간이라는 개념 자체가 없는 실행이다');
+  assert.deepEqual(res.missingRequired, []);
+});
+
+test('analyze: phasePlan 없는 과거 실행도 measure 결측이 면제된다', () => {
+  const rulesFile = tmpRuleSet(gateRules(), REQ_PERF);
+  const rec = healthyRecord({ run: conds({ phasePlan: undefined }), k6: { all: { p95: 300 }, phases: {} } });
+  const res = analyze(rec, null, { rulesFile });
+
+  assert.equal(res.measurementStatus, 'MEASURED');
+});
+
+test('analyze: 인프라 필수 환경이 아니면 Prometheus 가 없어도 UNMEASURED 가 아니다', () => {
+  const rulesFile = tmpRuleSet(gateRules(), REQ_PERF);
+  const rec = healthyRecord({
+    run: conds({ environment: 'local' }),
+    infra: { flat: {}, available: false, window: {} },
+  });
+  const res = analyze(rec, null, { rulesFile });
+
+  assert.equal(res.measurementStatus, 'PARTIAL', '결측 사실은 남기되 판정을 막지는 않는다');
+  assert.deepEqual(res.missingRequired, []);
+});
+
+test('analyze: 환경 prefix 로 판정한다 (perf-mi-smoke 같은 변형도 필수 대상)', () => {
+  const rulesFile = tmpRuleSet(gateRules(), REQ_PERF);
+  const rec = healthyRecord({
+    run: conds({ environment: 'perf-mi-smoke' }),
+    infra: { flat: {}, available: false, window: {} },
+  });
+  const res = analyze(rec, null, { rulesFile });
+
+  assert.equal(res.measurementStatus, 'UNMEASURED');
+});
+
+test('analyze: 측정 구간이 잘린 실행(window.incomplete)은 PARTIAL 로 낮춘다', () => {
+  const rulesFile = tmpRuleSet(gateRules(), REQ_PERF);
+  const rec = healthyRecord();
+  rec.infra.window = { incomplete: true };
+  const res = analyze(rec, null, { rulesFile });
+
+  assert.equal(res.measurementStatus, 'PARTIAL');
+  assert.equal(res.windowIncomplete, true);
+});
+
+test('analyze: 필수 결측과 게이트 실패는 동시에 성립한다', () => {
+  const rulesFile = tmpRuleSet(gateRules(), REQ_PERF);
+  const rec = healthyRecord();
+  rec.k6.phases.measure.p95 = 900;           // 절대 게이트 초과 → FAIL
+  rec.infra.flat['cpu.throttledPct'] = null; // 필수 인프라 결측 → UNMEASURED
+  const res = analyze(rec, null, { rulesFile });
+
+  assert.equal(res.verdict, 'FAIL');
+  assert.equal(res.gateFailed, true);
+  assert.equal(res.measurementStatus, 'UNMEASURED');
+});
+
+// ---------------------------------------------------------------------------
+// isRequired / requirements 검증
+// ---------------------------------------------------------------------------
+test('isRequired: gate:false 규칙은 어떤 환경에서도 필수가 아니다', () => {
+  const rec = healthyRecord();
+  assert.equal(isRequired({ key: 'infra.flat.redis.hitRatioPct', gate: false }, rec, REQ_PERF), false);
+  assert.equal(isRequired({ key: 'infra.flat.cpu.throttledPct', gate: true }, rec, REQ_PERF), true);
+});
+
+test('validateRequirements: 형식이 틀리면 조용히 기본값으로 떨어지지 않고 예외', () => {
+  assert.throws(() => validateRequirements({ infraRequiredEnvironmentPrefixes: 'perf' }), /infraRequiredEnvironmentPrefixes/);
+  assert.throws(() => validateRequirements({ infraRequiredEnvironmentPrefixes: [''] }), /infraRequiredEnvironmentPrefixes/);
+  assert.throws(() => validateRequirements([]), /requirements/);
+  assert.doesNotThrow(() => validateRequirements(undefined));
+  assert.doesNotThrow(() => validateRequirements({ infraRequiredEnvironmentPrefixes: ['perf'] }));
+});
+
+test('loadRuleSet: 실제 rules.json 의 requirements 가 인프라 게이트를 필수로 만든다', () => {
+  const { rules, requirements } = loadRuleSet();
+  assert.ok(requirements.infraRequiredEnvironmentPrefixes.includes('perf'));
+  const infraGate = rules.filter((r) => r.gate && r.key.startsWith('infra.flat.'));
+  assert.ok(infraGate.length > 0, '인프라 게이트 규칙이 하나도 없으면 이 정책은 무의미하다');
+  for (const rule of infraGate) {
+    assert.equal(isRequired(rule, healthyRecord(), requirements), true);
+  }
 });

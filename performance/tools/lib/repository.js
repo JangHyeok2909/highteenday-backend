@@ -168,6 +168,10 @@ function toIndexEntry(record) {
     hikariPct: flat['saturation.hikariPct'],
     hikariPendingMax: flat['pool.hikariPending.max'],
     verdict: reg.verdict || null,
+    // 기준선 탐색이 run.json 을 열지 않고 "제대로 측정된 실행인가"를 걸러낼 수 있어야 한다.
+    // 이 필드가 없는 과거 엔트리는 undefined 라 아래 findBaseline 필터를 그대로 통과한다
+    // (기존 이력을 소급 탈락시키지 않는다).
+    measurementStatus: reg.measurementStatus || null,
     infraAvailable: !!(i.flat && Object.keys(i.flat).length),
   };
 }
@@ -244,7 +248,12 @@ function findBaseline(record, opts = {}) {
     .filter((r) => r.id !== id)
     .filter((r) => r.scenario === scenario)
     .filter((r) => String(r.startedAt) < String(startedAt))
-    .filter((r) => (opts.includeFailed ? true : r.thresholdsPassed !== false));
+    .filter((r) => (opts.includeFailed ? true : r.thresholdsPassed !== false))
+    // 측정 불가 실행은 기준선이 될 수 없다. thresholdsPassed 만으로는 걸러지지 않는다 —
+    // k6는 표본이 0건인 서브메트릭의 threshold 를 통과 처리하므로(v2.1.0 실측), 아무것도
+    // 재지 못한 실행도 thresholdsPassed:true 로 남는다. 그런 실행을 기준선으로 삼으면
+    // 다음 실행의 모든 증감률이 무의미해진다.
+    .filter((r) => r.measurementStatus !== 'UNMEASURED');
 
   const rejected = [];
   for (let i = earlier.length - 1; i >= 0; i--) {
