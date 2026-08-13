@@ -91,6 +91,10 @@ const PHASE_DIAGNOSTIC_THRESHOLDS = PHASE_AXES.reduce((acc, phase) => {
   acc[buildSelector('checks', { phase })] = ['rate>=0'];
   acc[buildSelector('http_reqs', { phase })] = ['count>=0'];
   acc[buildSelector('phase_iterations', { phase })] = ['count>=0'];
+  // k6 builtin iterations의 phase 축 — cache-warm처럼 executor를 phase별로 나눠 정적
+  // 태깅하는 시나리오는 동적 phase 계산(setActivePhasePlan)을 켜지 않아 위의 커스텀
+  // Counter가 비어 있다. 그 경우 phases.js가 이 축으로 폴백해 TPS를 계산한다.
+  acc[buildSelector('iterations', { phase })] = ['count>=0'];
   return acc;
 }, {});
 
