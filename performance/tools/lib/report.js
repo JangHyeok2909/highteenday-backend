@@ -24,6 +24,8 @@
 
 const fmt = require('./format');
 const cmp = require('./comparability');
+// 기준선 탈락 사유 문장은 repository 가 만든다 — 콘솔 리포트와 같은 문장을 써야 한다(S-10).
+const repo = require('./repository');
 const { escapeHtml: esc } = fmt;
 
 /* ─────────────────────────── 스타일 ─────────────────────────── */
@@ -542,6 +544,17 @@ function combineMismatchDescs(mismatches) {
   return out;
 }
 
+/**
+ * 탈락 사유 칸. 조건 불일치는 무엇이 달랐는지를 줄별로 펼치고(그래야 사람이 조치할 수 있다),
+ * 측정 자격 탈락은 mismatch 가 없으므로 reasonCode 문장을 쓴다 — 어느 쪽이든 빈 칸이 되면
+ * "이유를 못 대는 침묵"이 되어 조용한 통과와 구분되지 않는다(S-10).
+ */
+function rejectionCell(rej) {
+  const blocking = (rej.mismatches || []).filter((m) => m.materiality === 'blocking');
+  if (blocking.length) return combineMismatchDescs(blocking).map(esc).join('<br>');
+  return esc(repo.describeRejection(rej));
+}
+
 function sectionRegression(record) {
   const reg = record.regression;
   if (!reg.hasBaseline) {
@@ -551,30 +564,35 @@ function sectionRegression(record) {
     if (reg.baselineStatus === 'incomparable') {
       const rows = rejected.map((rej) => `<tr>
         <td><code>${esc(rej.id)}</code></td>
-        <td>${combineMismatchDescs(rej.mismatches.filter((m) => m.materiality === 'blocking')).map(esc).join('<br>')}</td>
+        <td>${rejectionCell(rej)}</td>
       </tr>`).join('');
       return `<section><h2>Regression</h2><div class="card scroll">
         <div class="hint">
           <div class="n">!</div>
           <div>
-            <div class="t">비교 가능한 기준선이 없어 상대 비교를 생략했다</div>
-            <div class="d">이전 실행은 있지만 <b>실행 조건이 달라</b> 대조군으로 쓸 수 없다.
-              데이터셋이나 부하가 다른 두 실행의 P95를 나란히 놓으면 그건 성능 변화가 아니라
-              다른 실험의 수치다. 이 실행에는 <b>절대 게이트(SLO)만</b> 적용됐다.</div>
+            <div class="t">기준선으로 쓸 수 있는 과거 실행이 없어 상대 비교를 생략했다</div>
+            <div class="d">과거 실행은 있지만 <b>대조군으로 쓸 수 없었다</b> — 실행 조건이
+              달랐거나(데이터셋·부하·측정 구간), 그 실행 자체가 제대로 측정되지 않았다.
+              조건이 다른 두 실행의 P95를 나란히 놓으면 그건 성능 변화가 아니라 다른 실험의
+              수치다. 이 실행에는 <b>절대 게이트(SLO)만</b> 적용됐다.
+              <b>당시 성능이 나빴다는 이유로 탈락하지는 않는다</b> — threshold 실패는 기준선
+              자격 조건이 아니다.</div>
           </div>
         </div>
         <table>
           <thead><tr><th>탈락한 후보</th><th>사유</th></tr></thead>
           <tbody>${rows || '<tr><td colspan="2" class="empty">—</td></tr>'}</tbody>
         </table>
-        <div class="note">같은 조건으로 한 번 더 실행하면 그때부터 비교가 시작됩니다.
-          조건 정의는 <code>tools/lib/comparability.js</code>에 있습니다.</div>
+        <div class="note">같은 조건으로 정상 측정된 실행을 한 번 더 만들면 그때부터 비교가 시작됩니다.
+          조건 정의는 <code>tools/lib/comparability.js</code>, 기준선 자격 판정은
+          <code>tools/lib/repository.js</code>의 <code>eligibilityOf()</code>에 있습니다.</div>
       </div></section>`;
     }
     return `<section><h2>Regression</h2><div class="card">
-      <p class="empty">비교 기준이 없습니다 — 이 실행 조건의 첫 실행입니다.</p>
+      <p class="empty">비교 기준이 없습니다 — 이 시나리오의 과거 실행이 하나도 없습니다.</p>
       <div class="note">다음 실행부터 이 결과가 기준선이 되어 자동으로 비교됩니다.
-      기준은 <b>같은 실행 조건</b>(시나리오·환경·데이터셋·부하 프로파일)의 직전 성공 실행을 씁니다.
+      기준은 <b>같은 실행 조건</b>(시나리오·환경·데이터셋·부하 프로파일·측정 구간)으로
+      <b>정상 측정된</b> 직전 실행을 씁니다 — 그 실행이 SLO를 넘겼는지는 따지지 않습니다.
       이 실행에는 절대 게이트(SLO)만 적용됐습니다.</div>
     </div></section>`;
   }
@@ -630,8 +648,28 @@ function sectionRegression(record) {
       </div>`
     : '';
 
+  // 기준선의 당시 상태 — 자격이 아니라 참고 정보다(S-10). threshold 실패 실행도 정상
+  // 측정됐다면 기준선이 되므로, 증감률만 보고 "좋아졌으니 통과"로 읽는 것을 막아야 한다.
+  // thresholdsPassed 는 measure SLO 하나가 아니라 전체 구간·시나리오별·abort threshold 까지
+  // 묶은 AND 값이라, "SLO 실패"가 아니라 "k6 threshold 미통과"라고만 쓴다.
+  const badgeOf = (v) => (v == null ? '알 수 없음' : v === true ? 'PASS' : v === false ? 'FAIL' : String(v));
+  const baselineStateWarn = reg.baselineThresholdsPassed === false
+    ? `<div class="hint">
+        <div class="n">!</div>
+        <div>
+          <div class="t">기준선 실행은 당시 k6 threshold를 통과하지 못했다</div>
+          <div class="d">아래 증감은 <b>그 실행 대비 개선/악화 폭</b>일 뿐, 현재 실행이 SLO를
+            만족한다는 뜻이 아니다. 예를 들어 3,800ms → 2,200ms 는 42% 개선이지만 절대 기준이
+            500ms라면 현재 실행은 여전히 FAIL이다. SLO 충족 여부는 이 표의 <b>판정</b> 열과
+            GATE 표시로만 판단해야 한다 — 절대 게이트는 기준선과 무관하게 평가된다.
+            기준선 Node 판정: <b>${esc(badgeOf(reg.baselineVerdict))}</b>.</div>
+        </div>
+      </div>`
+    : '';
+
   return `<section><h2>Regression</h2>
     <div class="card scroll">
+      ${baselineStateWarn}
       ${scriptWarn}
       <table>
         <thead><tr><th>지표</th><th class="num">직전 (${esc(reg.baselineCommit || '—')})</th>
@@ -639,7 +677,11 @@ function sectionRegression(record) {
         <tbody>${rows || '<tr><td colspan="6" class="empty">비교 가능한 지표가 없습니다.</td></tr>'}</tbody>
       </table>
       <div class="note">
-        기준 실행: <b>${esc(reg.baselineRunId)}</b> (${fmt.localTime(reg.baselineStartedAt)})<br>
+        기준 실행: <b>${esc(reg.baselineRunId)}</b> (${fmt.localTime(reg.baselineStartedAt)})
+        · 당시 k6 thresholds <b>${esc(badgeOf(reg.baselineThresholdsPassed))}</b>
+        · 당시 Node 판정 <b>${esc(badgeOf(reg.baselineVerdict))}</b>
+        <span style="color:var(--ink-2)">— 기준선 자격은 측정 무결성과 실행 조건으로만 정해집니다.
+        당시 성능이 나빴다는 사실은 기준선을 무효로 만들지 않습니다.</span><br>
         판정 ${reg.counts.fail}건 실패 / ${reg.counts.warn}건 경고 / ${unmeasured}건 평가 불가${unmeasuredBreakdown} / ${suppressed}건 판정 생략${unmeasured ? ` — <b>평가 불가는 지표가 수집되지 않아 판정할 수 없었던 규칙</b>입니다(노이즈 억제와 다릅니다).${missingRequired ? ' 그중 <b>필수</b> 지표 결측은 이 실행 전체를 측정 불가로 만듭니다.' : ' 전부 참고용 지표라 판정에는 영향이 없습니다.'} 익스포터/Prometheus 상태를 확인하세요.` : ''}${suppressed ? ` 판정 생략은 변화폭이 노이즈 하한 미만이거나 기준값이 너무 작은 경우입니다.` : ''}<br>
         <b>GATE</b> 표시가 붙은 실패만 CI를 중단시킵니다. 규칙은 <code>regression/rules.json</code>에서 조정합니다.
       </div>
@@ -762,4 +804,5 @@ ${sectionHeader(record)}
 </body></html>`;
 }
 
-module.exports = { renderReport, sparkline, meter, CSS };
+// sectionRegression 은 기준선 탈락 사유·기준선 상태 표시의 단위 테스트를 위해 노출한다.
+module.exports = { renderReport, sectionRegression, sparkline, meter, CSS };
