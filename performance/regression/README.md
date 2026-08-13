@@ -31,13 +31,15 @@ flowchart LR
 ```
 
 **기준선을 손으로 저장하지 않는다.** 이력에 쌓인 "실행 조건이 같은 최근 성공 실행"이
-자동으로 기준이 된다. 조건은 시나리오·환경·데이터셋·부하 프로파일이며, 하나라도 다르면
-그건 다른 실험이라 상대 비교를 생략한다(절대 게이트는 계속 적용). 부하 스크립트 지문만
-다른 경우는 비교하되 게이트를 연다. threshold 미달 실행도 기준에서 제외한다 — 망가진
-실행을 기준 삼으면 다음 실행이 "개선"으로 보이는 착시가 생긴다.
+자동으로 기준이 된다. 조건은 시나리오·환경·데이터셋·부하 프로파일·측정 구간 설계
+(warmup/measure/rampdown 길이·mode·gatePhase, T-03/S-08)이며, 하나라도 다르면 그건 다른
+실험이라 상대 비교를 생략한다(절대 게이트는 계속 적용). 부하 스크립트 지문만 다른 경우는
+비교하되 게이트를 연다. threshold 미달 실행도 기준에서 제외한다 — 망가진 실행을 기준
+삼으면 다음 실행이 "개선"으로 보이는 착시가 생긴다.
 
-조건 정의는 `tools/lib/comparability.js` 한 곳에 선언적으로 모여 있다. 새 차원을
-추가하려면 그 표에 한 줄을 더하면 기준선 선택·리포트·추세 계열 분리가 함께 따라온다.
+조건 정의는 `tools/lib/conditions.js` 한 곳에 선언적으로 모여 있다. 새 차원을
+추가하려면 그 표에 한 줄을 더하면 기준선 선택·리포트·추세 계열 분리가 함께 따라온다
+(비교 알고리즘은 `tools/lib/comparability.js`).
 
 ## 사용법
 
@@ -51,7 +53,7 @@ node tools/history.js --print                      # 이력 표로 확인
 
 ```json
 {
-  "key": "k6.overall.p95",
+  "key": "k6.phases.measure.p95",
   "direction": "lower_is_better",
   "warn": { "changePct": 10 },
   "fail": { "changePct": 20 },
@@ -64,7 +66,7 @@ node tools/history.js --print                      # 이력 표로 확인
 
 | 필드 | 역할 |
 |------|------|
-| `key` | run 레코드에서 값을 꺼낼 경로 (`k6.overall.*` / `infra.flat.*`) |
+| `key` | run 레코드에서 값을 꺼낼 경로 (`k6.phases.measure.*` — warmup/rampdown 제외한 게이트 구간 / `k6.all.*` — 전체 구간 참고용 / `infra.flat.*`) |
 | `direction` | `lower_is_better` \| `higher_is_better` — 어느 쪽 변화가 나쁜지 |
 | `warn` / `fail` | 직전 대비 **나쁜 방향** 변화율 임계 |
 | `absolute` | 기준선과 무관한 절대 상·하한 (SLO 게이트) |

@@ -77,7 +77,11 @@ jobs:
           sudo apt-get update && sudo apt-get install -y k6
 
       # perf-run 이 k6 실행 → 지표 수집 → 회귀 판정 → 리포트 생성을 한 번에 처리한다.
-      # --warmup 60: ramp-up 구간의 JIT 워밍업을 자원 통계에서 제외해 CI 러너의 콜드스타트 편차를 줄인다.
+      # --warmup 60: k6의 ramp-up 단계 자체를 60초로 줄인다(T-03/S-08) — 예전에는 이 값이
+      # collect.js의 Prometheus 조회 창만 미뤘고 k6는 실제로 시나리오 기본값(normal-day
+      # 기준 5분)만큼 ramp했다. 이제는 k6 threshold와 인프라 지표가 모두 이 60초 ramp
+      # 이후만 measure 구간으로 본다 — CI 러너 콜드스타트 편차를 자원 통계에서 제외하는
+      # 동시에, 부수효과로 실제 ramp 시간도 60초로 줄어 CI 실행 시간이 짧아진다.
       - name: Run performance test
         working-directory: performance
         env:

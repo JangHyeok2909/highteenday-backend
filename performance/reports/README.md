@@ -87,9 +87,9 @@ Before/After 수치는 각 실행의 `run.json`에서 그대로 옮기면 된다
 
 | 항목 | Before | After | 출처 (`run.json` 경로) |
 |------|--------|-------|------------------------|
-| TPS | | | `k6.overall.tps` |
-| P50 / P95 / P99 (ms) | | | `k6.overall.{med,p95,p99}` |
-| Error Rate | | | `k6.overall.errorRate` |
+| TPS | | | `k6.phases.measure.tps` |
+| P50 / P95 / P99 (ms) | | | `k6.phases.measure.{med,p95,p99}` |
+| Error Rate | | | `k6.phases.measure.errorRate` |
 | CPU (포화도 %) | | | `infra.flat.saturation.cpuPct` |
 | Memory (heap used peak) | | | `infra.flat.heap.used.max` |
 | Redis (hit ratio / ops) | | | `infra.flat.redis.{hitRatioPct,opsPerSec}` |
