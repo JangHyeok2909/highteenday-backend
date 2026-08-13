@@ -14,7 +14,7 @@
  * 판정     : Grafana에서 힙/커넥션/세션 그래프의 "기울기"가 0인지 확인 —
  *            우상향 추세가 보이면 누수. P95의 시간에 따른 표류(drift)도 함께 본다.
  */
-import { PHASED_THRESHOLDS, setActivePhasePlan } from '../scripts/lib/config.js';
+import { PHASED_THRESHOLDS, abortDelayAfterMeasure, measureOnly, setActivePhasePlan } from '../scripts/lib/config.js';
 import { buildPhasePlan, stagesFor, startVusFor, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_NORMAL } from './lib/workload.js';
@@ -37,9 +37,11 @@ export const options = {
       stages: stagesFor(PLAN, VUS),
     },
   },
-  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
-    http_req_failed: [{ threshold: 'rate<0.02', abortOnFail: true, delayAbortEval: '10m' }],
-  }),
+  // 2시간 유지 구간(measure)의 오류율만 본다. delayAbortEval은 테스트 시작 기준이므로
+  // "measure 데이터를 10분 모은 뒤 평가"가 되도록 warmup 길이를 더해 계산한다.
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, measureOnly({
+    http_req_failed: [{ threshold: 'rate<0.02', abortOnFail: true, delayAbortEval: abortDelayAfterMeasure(PLAN, 600) }],
+  })),
 };
 
 export default function () {

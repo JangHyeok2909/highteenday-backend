@@ -634,7 +634,7 @@ function sectionThresholds(record) {
   const th = record.k6.thresholds || [];
   // 분해축/phase 서브메트릭 생성용 느슨한 임계값은 판정 의미가 없으므로 보고서에서 제외한다.
   // (config.js의 BREAKDOWN_THRESHOLDS·PHASE_DIAGNOSTIC_THRESHOLDS가 같은 목적으로 건 값들)
-  const LOOSE = /p\(99\)<600000|^rate<1$|^rate>=0$|^count>=0$/;
+  const LOOSE = /p\(99\)<600000|^rate<=?1$|^rate>=0$|^count>=0$/;
   const real = th.filter((t) => !LOOSE.test(t.expression));
   if (!real.length) return '';
   const rows = real.map((t) => `<tr>

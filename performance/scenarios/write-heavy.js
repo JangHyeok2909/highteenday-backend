@@ -10,7 +10,7 @@
  * 예상 TPS : ≈ 50~70 RPS (그중 쓰기 ≈ 60%)
  * 종료조건 : 시간 만료. 쓰기 P99 3초 초과 시 조기 중단 (풀 고갈 신호)
  */
-import { PHASED_THRESHOLDS, setActivePhasePlan } from '../scripts/lib/config.js';
+import { PHASED_THRESHOLDS, abortDelayAfterMeasure, measureOnly, setActivePhasePlan } from '../scripts/lib/config.js';
 import { buildPhasePlan, stagesFor, startVusFor, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_WRITE_HEAVY } from './lib/workload.js';
@@ -33,15 +33,16 @@ export const options = {
       stages: stagesFor(PLAN, VUS),
     },
   },
-  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
-    // 주의: 이 bare 키(phase 태그 없음)가 PHASED_THRESHOLDS의 measure-scoped
-    // op:write 게이트(`{op:write,phase:measure}`)와 별개로 전체 구간 기준 abortOnFail을
-    // 유지한다 — 기존 조기 중단 동작을 그대로 보존하기 위한 의도적 중복이다.
+  // 쓰기 P99 3초 초과 시 조기 중단(커넥션 풀 고갈 신호)도 measure 구간 기준이다.
+  // measureOnly()가 만든 `{op:write,phase:measure}` 키가 PHASED_THRESHOLDS의 공통
+  // 쓰기 SLO와 같은 키라 이 값이 그것을 대체한다 — 같은 대상에 두 기준이 겹치지 않는다.
+  // 평가 시작은 measure 시작 + 3분(원래 의도한 관측 시간 3분 유지).
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, measureOnly({
     'http_req_duration{op:write}': [
       'p(95)<500',
-      { threshold: 'p(99)<3000', abortOnFail: true, delayAbortEval: '3m' },
+      { threshold: 'p(99)<3000', abortOnFail: true, delayAbortEval: abortDelayAfterMeasure(PLAN, 180) },
     ],
-  }),
+  })),
 };
 
 export default function () {

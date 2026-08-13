@@ -24,8 +24,8 @@
  *   summary.js가 phase 태그로 k6.phases.warmup / k6.phases.measure를 분리 추출하므로
  *   "캐시 데우는 구간"과 "측정 구간"이 리포트에서 완전히 갈라진다.
  */
-import { PHASED_THRESHOLDS } from '../scripts/lib/config.js';
-import { buildPhasePlan, buildSelector, toSeconds } from '../scripts/lib/phases.js';
+import { PHASED_THRESHOLDS, measureOnly } from '../scripts/lib/config.js';
+import { buildPhasePlan, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_READ_HEAVY } from './lib/workload.js';
 
@@ -76,11 +76,12 @@ export const options = {
       tags: { phase: 'measure' },
     },
   },
-  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, measureOnly({
     // 웜 캐시라면 읽기 P95는 콜드 대비 큰 폭으로 낮아야 한다 — measure phase 게이트를
     // PHASED_THRESHOLDS의 기본 op:read 기준보다 더 엄격하게 덮어쓴다.
-    [buildSelector('http_req_duration', { op: 'read', phase: 'measure' })]: ['p(95)<200'],
-  }),
+    // (warmup executor가 캐시를 채우는 5분 구간은 애초에 판정 대상이 아니다.)
+    'http_req_duration{op:read}': ['p(95)<200'],
+  })),
 };
 
 export default function () {

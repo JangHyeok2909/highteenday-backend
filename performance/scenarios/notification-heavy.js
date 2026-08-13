@@ -9,7 +9,7 @@
  * 예상 TPS : ≈ 80~100 RPS
  * 종료조건 : 시간 만료
  */
-import { PHASED_THRESHOLDS, setActivePhasePlan } from '../scripts/lib/config.js';
+import { PHASED_THRESHOLDS, measureOnly, setActivePhasePlan } from '../scripts/lib/config.js';
 import { buildPhasePlan, stagesFor, startVusFor, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_NOTIFICATION_HEAVY } from './lib/workload.js';
@@ -32,10 +32,10 @@ export const options = {
       stages: stagesFor(PLAN, VUS),
     },
   },
-  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, measureOnly({
     'http_req_duration{name:notif_unread_count}': ['p(95)<100', 'p(99)<300'],
     'http_req_duration{name:notif_read_all}': ['p(95)<800'],
-  }),
+  })),
 };
 
 export default function () {

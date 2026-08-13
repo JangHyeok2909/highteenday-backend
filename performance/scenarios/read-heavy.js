@@ -9,7 +9,7 @@
  * 예상 TPS : ≈ 90~110 RPS (95% 이상 GET)
  * 종료조건 : 시간 만료
  */
-import { PHASED_THRESHOLDS, setActivePhasePlan } from '../scripts/lib/config.js';
+import { PHASED_THRESHOLDS, measureOnly, setActivePhasePlan } from '../scripts/lib/config.js';
 import { buildPhasePlan, stagesFor, startVusFor, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_READ_HEAVY } from './lib/workload.js';
@@ -32,10 +32,12 @@ export const options = {
       stages: stagesFor(PLAN, VUS),
     },
   },
-  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
-    // 읽기 전용이므로 전체 P95도 읽기 SLO로 조인다
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, measureOnly({
+    // 읽기 전용이므로 (measure 구간의) 전체 P95도 읽기 SLO로 조인다.
+    // 이 키는 PHASED_THRESHOLDS의 `http_req_duration{phase:measure}` 진단용 느슨한
+    // 상한을 대체한다 — 같은 서브메트릭이므로 phase별 요약 추출에는 영향이 없다.
     http_req_duration: ['p(95)<300'],
-  }),
+  })),
 };
 
 export default function () {
