@@ -427,7 +427,97 @@ stress, breakpoint, spike, chaos, failover는 자체 threshold를 정의하면�
 - 모든 시나리오가 공통 feature·op·name 축을 기록하게 한다.
 - 한계 탐색형 시나리오에는 정상 부하 SLO와 다른 판정 규칙을 적용한다.
 
-### S-10. 느린 실행을 기준선에서 제외해 상대 비교가 꺼짐 — 상태: 미해결
+### S-10. 느린 실행을 기준선에서 제외해 상대 비교가 꺼짐 — 상태: **해결** (2026-08-13, 미커밋)
+> **무엇을 어떻게 고쳤나.** 기준선 자격을 성능 결과에서 떼어내고, 자격 판정과 탈락 사유 수집을
+> `findBaseline()` 한 곳으로 모았다(B안).
+> ⑴ `repository.js`의 `.filter((r) => r.thresholdsPassed !== false)` 사전 필터와 죽은 옵션
+> `opts.includeFailed`를 제거했다. ⑵ 자격 판정을 `eligibilityOf(entry)`로 분리했다 —
+> `UNMEASURED`는 `unmeasured`, `windowIncomplete === true`는 `window-incomplete`로 탈락시키고,
+> 참고 지표만 빠진 `PARTIAL`과 `measurementStatus` 미기록 과거 레코드는 통과시킨다.
+> ⑶ 사전 필터를 없애고 후보 순회 안에서 자격 → 비교 가능성 순으로 판정해, 모든 탈락이
+> `reasonCode`('unmeasured' | 'window-incomplete' | 'conditions')와 함께 `rejected`에 남게 했다.
+> ⑷ `findBaseline()`이 `hadPriorCandidates`를 함께 돌려주고 `analyze()`가 그것으로만
+> `first-run`을 판정한다. ⑸ 인덱스 엔트리에 `windowIncomplete`를 추가했다
+> (`regression.windowIncomplete` → `infra.window.incomplete` → `null` 순 폴백).
+> ⑹ `analyze()`가 `baselineThresholdsPassed`·`baselineVerdict`를 노출하고, 콘솔(`collect.js`)과
+> HTML(`report.js`)이 `repo.describeRejection()`이 만든 **같은 문장**을 쓴다.
+>
+> **고민한 대안과 버린 이유**
+> - *A안 — 필터 한 줄만 제거*: 버렸다. 그러면 침묵이 `thresholdsPassed` 쪽에서
+>   `measurementStatus` 쪽으로 옮겨갈 뿐이다. 사전 필터로 지운 후보는 `rejected`에 남지 않고,
+>   `baselineStatus`는 `rejected.length`로 `first-run`을 추측하고 있었다. 실측 증거:
+>   저장된 `posts-2026-08-11T12-05-00`은 1분 25초 전 같은 조건의 실행이 있었는데도
+>   `baselineStatus: first-run`으로 기록됐다 — 그 후보가 `thresholdsPassed=false`라 사전
+>   필터에서 사라졌기 때문이다. 필터만 지우면 이 거짓말이 UNMEASURED 후보에서 재발한다.
+> - *C안 — `baseline-policy.json` 같은 정책 설정 파일*: 버렸다. 자격 규칙은 지금 2개뿐이고
+>   전부 코드에서 파생되는 값이다. 설정으로 빼면 `rules.json`처럼 검증 로직을 또 만들어야
+>   하고, "왜 기준선이 없나"를 설명할 지점이 하나 더 늘어난다.
+> - *`MEASURED`만 기준선으로 허용*(NEXT-DAY-PERF-TASKS.md의 원래 계획): 버렸다. `PARTIAL`은
+>   성격이 다른 두 상황을 묶는다 — Redis 익스포터만 죽은 실행(k6 지연·오류율은 온전)과
+>   measure 구간을 못 채우고 끊긴 실행. 전자까지 막으면 참고 지표 하나 때문에 p95 대조군
+>   자격을 잃는다. 후자만 제외한다 — `report.js`가 이미 "이 실행을 정상 완료된 실행과
+>   비교하면 안 된다"고 쓰고 있었는데 정작 기준선 탐색은 그 실행을 쓰고 있었다.
+> - *`measurementStatus` 없는 과거 레코드를 소급 탈락*(같은 문서의 권고): 버렸다. T-08이
+>   반대 결정을 내렸고 테스트로 고정해 뒀다. 실측으로도 T-08 쪽이 맞다 — 저장된 37개 런 중
+>   `conditions`를 가진 2건조차 `phasePlan` 미기록이라 comparability에서 이미 탈락한다.
+>   소급 탈락시켜도 걸러지는 런은 늘지 않고, 탈락 사유만 "측정 상태 미기록"이라는 덜 유용한
+>   문장으로 바뀐다.
+> - *`thresholdsPassed`를 인덱스에서 삭제*: 버렸다. 자격 조건이 아닐 뿐 "그 실행의 당시 성능
+>   상태"로는 여전히 필요하다. `history.js`도 이 값으로 이력 표의 판정을 채운다.
+> - *리포트에 "기준선이 measure SLO를 실패했다"고 쓰기*: 버렸다. `thresholdsPassed`는
+>   measure SLO 하나가 아니라 전체 구간·시나리오별·abort·분해축 생성용 threshold의 AND다.
+>   어느 것이 걸렸는지 그 값만으로 알 수 없으므로 "당시 k6 threshold 미통과"로만 쓴다.
+> - *`hasBaseline`으로 first-run을 판정*: 버렸다. `rejected`는 `REJECTED_LIMIT`(5)로 잘리므로
+>   길이는 "후보가 있었는가"의 근거가 될 수 없다. 후보 존재 여부를 세는 지점(`findBaseline`)이
+>   그 사실을 직접 전달하는 게 유일하게 정확하다.
+>
+> **어떻게 검증했나**
+>
+> ⑴ *자동 테스트* `node tools/test/all.js` **172개 통과**(수정 전 149개 → 23개 추가:
+> `repository` 15→25, `regression` 36→41, 새 파일 8).
+> `repository.test.js`에 자격 판정 9건(threshold FAIL+MEASURED 선택,
+> PARTIAL 허용/제외, `hadPriorCandidates`, `eligibilityOf`, `describeRejection`,
+> `toIndexEntry`의 `windowIncomplete` 4건), `regression.test.js`에 5건(incomparable vs
+> first-run, 기준선 상태 노출, 42% 개선 + 절대 SLO FAIL), 새 파일
+> `test/baseline-report.test.js`에 렌더링 8건(세 reasonCode가 콘솔·HTML에서 빈 칸 없이 출력,
+> escape, 기준선 threshold 경고).
+> 기존 테스트 `threshold 미달 실행은 기준선에서 제외된다`는 삭제하지 않고
+> `threshold 미달이어도 정상 측정된 실행은 기준선이 될 수 있다`로 의미를 뒤집었다 —
+> 더 오래된 통과 실행이 아니라 최신 후보를 고르는지까지 함께 본다.
+>
+> ⑵ *합성 end-to-end*(실제 `regression/rules.json` 사용, `reports/`는 건드리지 않고 임시
+> 인덱스 파일만 사용). 느린 Before(p95 3,800ms, `thresholdsPassed=false`, MEASURED)와 개선
+> After(p95 2,200ms)를 같은 조건으로 넣었다.
+> ```text
+> baselineStatus            compared          (수정 전에는 first-run)
+> baselineRunId             before-slow
+> p95                       3800 → 2200 (-42.1%)
+> p95 판정                  FAIL — "2200 > 상한 500"
+> verdict / gateFailed      FAIL / true
+> baselineThresholdsPassed  false
+> baselineVerdict           FAIL
+> ```
+> 같은 Before를 `windowIncomplete=true`로 바꾸면 기준선에서 빠지고
+> `reasonCode: 'window-incomplete'`, `baselineStatus: incomparable`(first-run 아님)이 되며
+> 절대 게이트는 그대로 FAIL이었다. **느린 기준선 대비 개선이 거짓 PASS를 만들지 않는다**는
+> 것이 이 검증의 핵심이다.
+>
+> ⑶ *실제 k6 신규 실행은 하지 않았다.* 저장된 37개 런은 전부 구 스키마(`k6.overall`)라
+> 재수집이 불가능하고(T-08 기록 참고), EXP-000 10런은 `loadProfile`·`phasePlan`이 아예
+> 기록돼 있지 않아 이 수정과 무관하게 comparability에서 탈락한다. 억지로 변환하지 않고
+> 합성 단위 테스트를 주된 근거로 삼았다.
+>
+> **남은 부작용 / 후속 작업**
+>
+> - *과거 실행은 소급 복구되지 않는다.* EXP-000이 겪은 12회 연속 first-run의 원인은
+>   `thresholdsPassed` 필터 **하나가 아니라** 조건 미기록과 겹쳐 있었다. 이 수정의 효과는
+>   S-17 이후 스키마(`phasePlan` 기록)로 생성되는 앞으로의 실행에 나타난다.
+> - *`windowIncomplete`는 새로 저장되는 인덱스 엔트리에만 들어간다.* 과거 엔트리는 `null`이라
+>   자격 판정을 통과한다(의도된 동작 — 소급 탈락 금지). `history.js --rebuild`를 돌리면
+>   `run.json`에 `regression.windowIncomplete`가 있는 런은 값이 채워진다.
+> - *`report.js`가 `repository.js`를 require 하게 됐다.* 탈락 사유 문장의 단일 출처를 위해서다.
+>   순환 참조는 없다(`repository` → `comparability`만 참조).
+> - 커밋: (미커밋)
 
 **쉽게 말하면**
 

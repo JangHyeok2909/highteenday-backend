@@ -496,9 +496,12 @@ p95가 `60000.96ms`로 표시된 사례가 있다. 이는 실제 응답 시간�
 >   'vusMax')`). 이건 T-08과 무관한 별건이며 아직 발견 항목으로 등록돼 있지 않다.
 > - *`perf*` 환경에서 Prometheus 없이 돌리면 이제 exit 3이다.* 탐색적 실행에는 `--no-gate`를
 >   붙인다.
-> - *S-10과 이어진다.* `findBaseline()`의 `thresholdsPassed !== false` 조건을 걷어낼 때,
->   이번에 추가한 `measurementStatus !== 'UNMEASURED'`가 그 자리를 대신한다. ⑴에서 확인했듯
->   `thresholdsPassed`는 표본 0건 런에서도 true라 기준선 자격 판정에 쓸 수 없다.
+> - *S-10과 이어진다.* → **2026-08-13 처리됨.** `findBaseline()`의 `thresholdsPassed !== false`
+>   조건을 걷어내고, 이번에 추가한 측정 상태가 그 자리를 대신한다. 다만 사전 필터 형태가
+>   아니라 `eligibilityOf()`로 옮겨 탈락 사유가 리포트에 남도록 했다 — 사전 필터로 지운
+>   후보는 `rejected`에 남지 않아 리포트가 "첫 실행"이라고 거짓 보고했기 때문이다.
+>   `PARTIAL` 중 measure 구간 미완만 제외한다는 세부 정책도 그때 정해졌다.
+>   ⑴에서 확인했듯 `thresholdsPassed`는 표본 0건 런에서도 true라 기준선 자격 판정에 쓸 수 없다.
 > - 커밋: (미커밋)
 
 **문제**

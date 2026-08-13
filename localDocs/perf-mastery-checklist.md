@@ -807,6 +807,12 @@ console.log('값이 null 인 지표 수:', Object.values(r.infra.flat).filter(v=
 | 같은 파일 `:225` | `thresholdsPassed !== false` — 3단계의 그 boolean이 여기 쓰인다 |
 | 같은 파일 `:107` | `toIndexEntry()` — 인덱스에 저장되는 필드. `dataset`, `vusMax`가 있는데 필터엔 안 쓰인다 |
 
+> 위 줄 번호는 리뷰 시점(2026-08-05) 기준이다. **S-10 수정(2026-08-13) 이후 코드가 달라졌다** —
+> `thresholdsPassed` 필터는 사라졌고, 기준선 자격은 같은 파일의 `eligibilityOf()`가 측정
+> 무결성만 보고 판정한다. 지금 읽을 때는 "무엇을 보고 무엇을 안 보는가"를 그 함수와
+> `findBaseline()`의 후보 순회 루프에서 확인할 것. 왜 이렇게 바뀌었는지는
+> [perf-findings-scripts.md](perf-findings-scripts.md)의 S-10 기록에 있다.
+
 ### 판정 엔진 (이 순서로)
 
 | 파일:줄 | 볼 것 |

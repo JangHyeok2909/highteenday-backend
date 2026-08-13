@@ -163,7 +163,18 @@ SKIP 중 필수 결측을 따로 세어 최종 측정 상태를 만드는 것이
 
 ---
 
-## 2. S-10 — 기준선 자격과 성능 통과 여부 분리
+## 2. S-10 — 기준선 자격과 성능 통과 여부 분리 — ✅ 완료 (2026-08-13, 미커밋)
+
+> 실제 구현은 아래 계획과 두 곳에서 다르다. 판단 근거는
+> [perf-findings-scripts.md](perf-findings-scripts.md)의 S-10 해결 기록에 남겼다.
+> ⑴ **`MEASURED`만 허용하지 않는다** — 참고 지표만 빠진 `PARTIAL`은 기준선으로 쓰고,
+> measure 구간을 못 채운 실행(`windowIncomplete`)만 제외한다.
+> ⑵ **`measurementStatus` 없는 과거 레코드를 소급 탈락시키지 않는다** — T-08의 결정을
+> 유지했다. 실측상 그 레코드들은 조건 미기록으로 comparability에서 이미 탈락하며,
+> 소급 탈락시키면 탈락 사유만 덜 유용해진다.
+> 계획에 없었지만 함께 고친 것: 사전 필터로 지워진 후보 때문에 리포트가 `first-run`이라고
+> 거짓 보고하던 문제(`hadPriorCandidates` 도입), 탈락 사유의 `reasonCode` 구조화와
+> 콘솔·HTML 문장 통일, 기준선의 당시 k6/Node 판정 노출.
 
 ### T-08 다음에 하는 이유
 
@@ -213,12 +224,17 @@ Before다.
 
 ### 구현 순서
 
-- [ ] 인덱스 엔트리에 `measurementStatus` 추가
-- [ ] `thresholdsPassed !== false` 필터 제거
-- [ ] `measurementStatus === 'MEASURED'`만 기준선 후보로 허용
-- [ ] 과거 레코드에 measurementStatus가 없을 때 정책 결정
-- [ ] 추천: 과거 레코드는 자동 추측하지 말고 기준선에서 제외하며 이유 표시
-- [ ] 탈락 사유에 `측정 상태 없음` 또는 `UNMEASURED` 기록
+- [x] 인덱스 엔트리에 `measurementStatus` 추가 (T-08에서 이미 완료)
+- [x] `thresholdsPassed !== false` 필터 제거 (죽은 옵션 `includeFailed`도 함께)
+- [x] ~~`measurementStatus === 'MEASURED'`만 기준선 후보로 허용~~ → `UNMEASURED`와
+      `windowIncomplete`만 제외. 참고 지표 결측 `PARTIAL`은 허용
+- [x] 과거 레코드에 measurementStatus가 없을 때 정책 결정
+- [x] ~~추천: 과거 레코드는 자동 추측하지 말고 기준선에서 제외~~ → 소급 탈락시키지 않는
+      T-08 정책 유지. comparability가 정확한 사유로 걸러낸다
+- [x] 탈락 사유를 `reasonCode`로 기록 (`unmeasured` / `window-incomplete` / `conditions`)
+- [x] 인덱스 엔트리에 `windowIncomplete` 추가
+- [x] `hadPriorCandidates`로 `first-run` 오보 제거
+- [x] 기준선의 당시 k6 threshold·Node 판정을 콘솔·HTML에 표시
 
 ### 꼭 넣을 테스트
 
@@ -235,11 +251,12 @@ measurementStatus 없는 과거 값 → 제외 사유 표시
 
 ### 완료 기준
 
-- [ ] 느린 Before와 개선된 After가 실제로 compared 상태가 됨
-- [ ] UNMEASURED 실행은 빠르더라도 기준선이 되지 않음
-- [ ] 기준선이 없을 때 왜 없는지 리포트에 표시
-- [ ] T-02의 데이터셋·부하 조건 비교는 그대로 통과
-- [ ] S-10 문서와 P0 목록 갱신
+- [x] 느린 Before와 개선된 After가 실제로 compared 상태가 됨 (합성 e2e: p95 3800→2200,
+      deltaPct -42.1%, 동시에 절대 SLO 500ms 위반으로 gateFailed=true)
+- [x] UNMEASURED 실행은 빠르더라도 기준선이 되지 않음
+- [x] 기준선이 없을 때 왜 없는지 리포트에 표시 (콘솔·HTML 같은 문장)
+- [x] T-02의 데이터셋·부하 조건 비교는 그대로 통과 (기존 테스트 전부 유지)
+- [x] S-10 문서와 P0 목록 갱신
 
 ---
 
