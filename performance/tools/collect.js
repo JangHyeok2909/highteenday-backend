@@ -223,6 +223,14 @@ function printConsole(record) {
   if (reg.hasBaseline) {
     line();
     line(`  ── 회귀 (기준: ${reg.baselineRunId}) ────────────────`.slice(0, 74));
+    // 기준선이 당시 threshold 를 못 넘겼다면 증감률만 보고 안심하면 안 된다(S-10).
+    // "당시 k6 threshold 미통과"라고만 쓴다 — thresholdsPassed 는 measure SLO 하나가 아니라
+    // 전체 구간·시나리오별·abort threshold 까지 묶은 AND 값이라 SLO 실패로 단정할 수 없다.
+    if (reg.baselineThresholdsPassed === false) {
+      const nodeVerdict = reg.baselineVerdict ? `, 당시 Node 판정 ${reg.baselineVerdict}` : '';
+      line(`  ⚠  기준선은 당시 k6 threshold 미통과 실행입니다${nodeVerdict}.`);
+      line('     아래 증감률은 개선/악화 폭이며 현재 SLO 통과를 뜻하지 않습니다.');
+    }
     // 조건이 다르면 아래 증감을 성능 변화로 읽으면 안 된다. 표보다 먼저 말해 준다.
     if (reg.comparability && reg.comparability.level === 'degraded') {
       for (const m of reg.comparability.mismatches) line(`  ⚠  ${m.desc}`);
@@ -244,12 +252,13 @@ function printConsole(record) {
     // "비교 안 함"과 "비교했는데 문제 없음"이 같은 문장으로 보이면 안 된다.
     // 상대 비교가 꺼진 상태라는 걸 먼저 말하고, 절대 게이트는 계속 돈다는 것도 밝힌다.
     if (reg.baselineStatus === 'first-run') {
-      line('  비교 기준이 없습니다 (이 조건의 첫 실행). 다음 실행부터 비교됩니다.');
+      line('  비교 기준이 없습니다 (이 시나리오의 첫 실행). 다음 실행부터 비교됩니다.');
     } else {
-      line('  ⚠  비교 가능한 기준선이 없어 상대 비교를 생략했습니다 (절대 게이트만 적용).');
+      line('  ⚠  기준선으로 쓸 수 있는 과거 실행이 없어 상대 비교를 생략했습니다 (절대 게이트만 적용).');
+      // 탈락 사유는 repo.describeRejection 이 만든다 — HTML 리포트와 같은 문장을 써야
+      // 콘솔만 본 사람과 리포트만 본 사람이 다른 결론에 도달하지 않는다.
       for (const rej of (reg.rejectedBaselines || []).slice(0, 3)) {
-        const why = rej.mismatches.filter((m) => m.materiality === 'blocking').map((m) => m.desc).join('; ');
-        line(`     · ${rej.id} — ${why}`);
+        line(`     · ${rej.id} — ${repo.describeRejection(rej)}`);
       }
     }
   }
@@ -312,7 +321,12 @@ async function processRun(runId, opts) {
   // 받아 리포트에 싣는다 — 비교하지 않았다면 왜 안 했는지 말할 수 있어야 한다.
   const search = repo.findBaseline(record);
   const prevRun = search.baseline ? repo.loadRun(search.baseline.id) : null;
-  record.regression = analyze(record, prevRun, { rejected: search.rejected });
+  // hadPriorCandidates 를 함께 넘긴다 — 후보가 전부 탈락한 실행을 "첫 실행"으로 보고하지
+  // 않기 위해서다(S-10). rejected 는 최근 몇 건만 담기므로 그 길이로는 판단할 수 없다.
+  record.regression = analyze(record, prevRun, {
+    rejected: search.rejected,
+    hadPriorCandidates: search.hadPriorCandidates,
+  });
   record.bottleneckHints = bottleneckHints(record);
 
   // ---- 링크 -------------------------------------------------------------
@@ -437,4 +451,5 @@ if (require.main === module) {
   });
 }
 
-module.exports = { processRun, collectInfra, measureWindow };
+// printConsole 은 콘솔 리포트와 HTML 리포트가 같은 사실을 말하는지 검증하기 위해 노출한다.
+module.exports = { processRun, collectInfra, measureWindow, printConsole };

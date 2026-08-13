@@ -13,3 +13,4 @@ require('./phases.test.js');
 require('./collect-window.test.js');
 require('./thresholds.test.js');
 require('./scenario-thresholds.test.js');
+require('./baseline-report.test.js');
