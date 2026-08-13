@@ -65,6 +65,11 @@ test('evaluateRule: higher_is_better 는 하락이 악화다', () => {
 // ---------------------------------------------------------------------------
 // analyze — 규칙 파일을 실제로 읽는 경로 전체를 검증
 // ---------------------------------------------------------------------------
+const PLAN_STEADY = {
+  schemaVersion: 1, mode: 'steady-state', warmupSec: 300, measureSec: 1200, rampdownSec: 120,
+  measureStartOffsetSec: 300, measureEndOffsetSec: 1500, gatePhase: 'measure',
+};
+
 /** 비교 가능한 실행 조건 — 기준선 비교가 성립하려면 양쪽에 있어야 한다. */
 function conds(over = {}) {
   return {
@@ -73,6 +78,7 @@ function conds(over = {}) {
     dataset: 'large',
     loadProfile: { s: { executor: 'ramping-vus', stages: [{ duration: '5m', target: 200 }] } },
     scriptVersion: 'abc123',
+    phasePlan: PLAN_STEADY,
     ...over,
   };
 }
