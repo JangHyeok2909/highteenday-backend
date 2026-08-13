@@ -13,7 +13,6 @@
  *
  * 주요 옵션
  *   --wait <sec>     스크레이프 지연 대기 (기본 15초 = 5초 간격 × 3회)
- *   --warmup <sec>   구간 앞부분을 지표 집계에서 제외 (ramp-up/JIT 워밍업 배제)
  *   --no-wait        대기 없이 즉시 조회 (과거 실행을 재처리할 때)
  *   --prom <url>     Prometheus 주소 (기본 http://localhost:9090)
  *   --no-gate        회귀가 있어도 exit 0 (관찰만)
@@ -37,12 +36,11 @@ const fmt = require('./lib/format');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function parseArgs(argv) {
-  const out = { positional: [], wait: 15, warmup: 0, force: false, all: false, gate: true, prom: undefined, quiet: false };
+  const out = { positional: [], wait: 15, force: false, all: false, gate: true, prom: undefined, quiet: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--wait') out.wait = Number(argv[++i]);
     else if (a === '--no-wait') out.wait = 0;
-    else if (a === '--warmup') out.warmup = Number(argv[++i]);
     else if (a === '--force') out.force = true;
     else if (a === '--all') out.all = true;
     else if (a === '--no-gate') out.gate = false;
@@ -51,12 +49,61 @@ function parseArgs(argv) {
     else if (a.startsWith('--')) { /* 알 수 없는 플래그는 무시 */ }
     else out.positional.push(a);
   }
-  // NaN 은 "값이 이상하다"가 아니라 조용히 대기 0초/워밍업 0초가 되어 버린다. 즉시 멈춘다.
-  if (!Number.isFinite(out.wait) || !Number.isFinite(out.warmup)) {
-    console.error('--wait / --warmup 값이 숫자가 아닙니다.');
+  // NaN 은 "값이 이상하다"가 아니라 조용히 대기 0초가 되어 버린다. 즉시 멈춘다.
+  if (!Number.isFinite(out.wait)) {
+    console.error('--wait 값이 숫자가 아닙니다.');
     process.exit(2);
   }
   return out;
+}
+
+/**
+ * phasePlan으로부터 Prometheus 조회 구간을 계산한다(T-03/S-08).
+ *
+ * 예전에는 `--warmup`이 collect.js에서 독립적으로 시작 시각만 뒤로 밀었다 — k6 지표는
+ * 그 값을 전혀 모르고 전체 구간으로 계산됐다. 이제는 k6가 기록한 phasePlan
+ * (measureStartOffsetSec/measureSec)이 유일한 출처다. k6.phases.measure와 여기서
+ * 계산한 창이 항상 같은 시간대를 가리킨다 — 다른 계산식이 아니라 같은 값을 읽을 뿐이다.
+ *
+ * to를 항상 endedAt으로 두지 않는다 — plan.measureSec만큼만 뒤로 가서 rampdown/
+ * gracefulRampDown 구간을 인프라 창에서도 제외한다.
+ *
+ * phasePlan이 없거나(과거 run.json) gatePhase가 'measure'가 아니면(진단 시나리오)
+ * measure 구간이라는 개념 자체가 없다 — 전체 구간으로 폴백하되 mode로 그 사실을 남긴다.
+ * 조용히 "이것도 measure다"라고 우기지 않는다.
+ */
+function measureWindow(run) {
+  const startedAt = new Date(run.startedAt);
+  const endedAt = new Date(run.endedAt);
+  const plan = run.phasePlan;
+
+  if (!plan || plan.gatePhase !== 'measure') {
+    return {
+      from: startedAt,
+      to: endedAt,
+      durationSec: Math.max(1, (endedAt.getTime() - startedAt.getTime()) / 1000),
+      mode: plan ? 'diagnostic-full-run' : 'legacy-no-phase-plan',
+      incomplete: false,
+    };
+  }
+
+  const plannedFrom = new Date(startedAt.getTime() + plan.measureStartOffsetSec * 1000);
+  const plannedTo = new Date(plannedFrom.getTime() + plan.measureSec * 1000);
+
+  // 조기 종료(패닉/타임아웃)로 warmup 도중 끝나면 measure 구간 자체가 존재하지 않는다.
+  // 값을 억지로 만들지 않고 0 길이로 표시한다.
+  if (plannedFrom.getTime() >= endedAt.getTime()) {
+    return { from: plannedFrom, to: plannedFrom, durationSec: 0, mode: 'measure', incomplete: true };
+  }
+
+  // 조기 종료로 계획된 measure 종료 시각이 실제 실행 범위를 넘으면, "계획대로 다
+  // 쟀다"고 하지 않고 실제 가용 구간으로 잘라내며 incomplete로 표시한다 — 잘못된
+  // 정상 비교를 막는다.
+  const incomplete = plannedTo.getTime() > endedAt.getTime();
+  const to = incomplete ? endedAt : plannedTo;
+  const durationSec = Math.max(1, (to.getTime() - plannedFrom.getTime()) / 1000);
+
+  return { from: plannedFrom, to, durationSec, mode: 'measure', incomplete };
 }
 
 /**
@@ -65,7 +112,7 @@ function parseArgs(argv) {
  * 부분 실패를 허용하는 이유: exporter 하나가 죽었다고 20분짜리 테스트 결과를 통째로
  * 버릴 이유가 없다. 실패한 항목만 null로 남기고 errors에 기록해 리포트에 표시한다.
  */
-async function collectInfra(prom, window, opts = {}) {
+async function collectInfra(prom, window) {
   const flat = {};
   const groups = [];
   const errors = [];
@@ -102,7 +149,11 @@ async function collectInfra(prom, window, opts = {}) {
       from: window.from.toISOString(),
       to: window.to.toISOString(),
       durationSec: window.durationSec,
-      warmupExcludedSec: opts.warmup || 0,
+      // 'measure' | 'diagnostic-full-run' | 'legacy-no-phase-plan' — 이 창이 실제로
+      // phasePlan.measure 구간인지, 아니면 폴백인지를 리포트가 구분해 표시할 수 있게 한다.
+      mode: window.mode,
+      // true면 계획된 measure 구간을 다 채우지 못했다(조기 종료) — 정상 비교에 쓰면 안 된다.
+      incomplete: window.incomplete,
     },
     prometheusUrl: prom.baseUrl,
     queryStats: prom.stats,
@@ -116,7 +167,11 @@ async function collectInfra(prom, window, opts = {}) {
 /** 콘솔 요약 — CI 로그에서 이것만 봐도 상황이 판단되어야 한다. */
 function printConsole(record) {
   const r = record.run;
-  const k = record.k6.overall;
+  // 게이트가 실제로 보는 값(k6.phases.measure)을 우선 보여준다. 진단 시나리오나 과거
+  // run.json처럼 measure 구간이 없으면 k6.all(전체 구간)로 폴백하고 그 사실을 밝힌다.
+  const measure = record.k6.phases && record.k6.phases.measure;
+  const k = measure || record.k6.all;
+  const kLabel = measure ? 'measure 구간' : '전체 구간(측정 구간 미분리)';
   const f = record.infra.flat;
   const reg = record.regression;
 
@@ -128,11 +183,11 @@ function printConsole(record) {
   line(`  Performance Report — ${r.scenario}   Run #${r.number}   ${icon[reg.verdict] || ''} ${reg.verdict}`);
   line('═'.repeat(74));
   line(`  환경 ${r.environment}  |  브랜치 ${r.branch}  |  커밋 ${r.commitShort}  |  빌드 ${r.buildNumber}`);
-  line(`  시작 ${fmt.localTime(r.startedAt)}  |  수행 ${fmt.duration(r.durationSec)}  |  VU max ${k.vusMax}`);
+  line(`  시작 ${fmt.localTime(r.startedAt)}  |  수행 ${fmt.duration(r.durationSec)}  |  VU max ${record.k6.all.vusMax}`);
   // 비교 가능성을 가르는 조건 — 기준선이 왜 선택/탈락됐는지 읽으려면 이게 보여야 한다.
   line(`  데이터셋 ${r.dataset}  |  부하 ${cmp.formatLoadProfile(r.loadProfile)}`);
   line();
-  line('  ── 성능 ──────────────────────────────────────────────────────────');
+  line(`  ── 성능 (${kLabel}) ─────────────────────────────────────────`.slice(0, 74));
   line(`  평균 ${fmt.ms(k.avg).padEnd(9)} P95 ${fmt.ms(k.p95).padEnd(9)} P99 ${fmt.ms(k.p99).padEnd(9)}`);
   line(`  RPS  ${fmt.num(k.rps, 1).padEnd(9)} TPS ${fmt.num(k.tps, 2).padEnd(9)} 오류율 ${fmt.pct(k.errorRate * 100, 2)}`);
 
@@ -194,7 +249,12 @@ function printConsole(record) {
 
   line();
   line(`  보고서 : ${path.relative(repo.PERF_ROOT, repo.reportFile(r.id))}`);
-  if (record.links && record.links.grafana) line(`  Grafana: ${record.links.grafana}`);
+  if (record.links && record.links.full && record.links.full.dashboard) {
+    line(`  Grafana(전체 실행): ${record.links.full.dashboard}`);
+  }
+  if (record.links && record.links.measured && record.links.measured.dashboard) {
+    line(`  Grafana(measure) : ${record.links.measured.dashboard}`);
+  }
   line('═'.repeat(74));
   line();
 }
@@ -213,13 +273,10 @@ async function processRun(runId, opts) {
   record.run.number = (existing && existing.run && existing.run.number) || repo.nextRunNumber();
 
   // ---- 지표 조회 구간 결정 -------------------------------------------
-  // warmup 만큼 앞을 잘라내면 ramp-up 구간의 JIT 워밍업/캐시 콜드스타트가 통계에서 빠진다.
-  // "정상 상태(steady state)의 자원 사용량"을 보려면 이게 맞다.
-  const startedAt = new Date(record.run.startedAt);
-  const endedAt = new Date(record.run.endedAt);
-  const from = new Date(startedAt.getTime() + (opts.warmup || 0) * 1000);
-  const durationSec = Math.max(1, (endedAt.getTime() - from.getTime()) / 1000);
-  const window = { from, to: endedAt, durationSec };
+  // run.phasePlan(=k6가 결정한 계획)만으로 창을 계산한다 — CLI 재입력 없이 재수집해도
+  // 항상 같은 창이 재현된다(완료 조건). measureWindow()가 rampdown 제외, 조기 종료
+  // clamp, phasePlan 없는 과거 실행 폴백까지 전부 처리한다.
+  const window = measureWindow(record.run);
 
   const prom = new PromClient({ baseUrl: opts.prom, debug: !opts.quiet });
   const alive = await prom.ping();
@@ -228,8 +285,11 @@ async function processRun(runId, opts) {
   }
 
   record.infra = alive
-    ? await collectInfra(prom, window, { warmup: opts.warmup })
-    : { window: { from: from.toISOString(), to: endedAt.toISOString(), durationSec }, groups: [], flat: {}, errors: [{ key: '*', error: 'Prometheus 미응답' }], available: false };
+    ? await collectInfra(prom, window)
+    : {
+        window: { from: window.from.toISOString(), to: window.to.toISOString(), durationSec: window.durationSec, mode: window.mode, incomplete: window.incomplete },
+        groups: [], flat: {}, errors: [{ key: '*', error: 'Prometheus 미응답' }], available: false,
+      };
 
   // ---- 회귀 분석 --------------------------------------------------------
   // 기준선은 "직전 실행"이 아니라 "비교 가능한 가장 최근 실행"이다. 탈락 사유도 함께
@@ -240,10 +300,18 @@ async function processRun(runId, opts) {
   record.bottleneckHints = bottleneckHints(record);
 
   // ---- 링크 -------------------------------------------------------------
-  record.links = grafana.buildLinks({
-    startedAt: record.run.startedAt,
-    endedAt: record.run.endedAt,
-  });
+  // 전체 실행 링크와 measure 구간 링크의 의미가 섞이면 안 된다(S-08) — 별도로 만든다.
+  // measure 구간이 없는 실행(진단 시나리오·과거 run.json)은 measured가 null이 되어
+  // report.js가 "전체 실행 링크만 있다"고 구분해서 보여줄 수 있다.
+  record.links = {
+    full: grafana.buildLinks({
+      startedAt: record.run.startedAt,
+      endedAt: record.run.endedAt,
+    }),
+    measured: window.mode === 'measure'
+      ? grafana.buildLinks({ startedAt: window.from.toISOString(), endedAt: window.to.toISOString() })
+      : null,
+  };
 
   // ---- 저장 -------------------------------------------------------------
   repo.saveRun(record);
@@ -342,4 +410,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { processRun, collectInfra };
+module.exports = { processRun, collectInfra, measureWindow };

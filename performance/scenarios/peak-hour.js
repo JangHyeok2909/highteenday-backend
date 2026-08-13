@@ -10,24 +10,31 @@
  * 예상 TPS : ≈ 120~150 RPS
  * 종료조건 : 시간 만료. 오류율 2% 초과 시 조기 중단(abortOnFail)
  */
-import { DEFAULT_THRESHOLDS } from '../scripts/lib/config.js';
+import { PHASED_THRESHOLDS, setActivePhasePlan } from '../scripts/lib/config.js';
+import { buildPhasePlan, stagesFor, startVusFor, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_PEAK } from './lib/workload.js';
+
+const VUS = Number(__ENV.VUS || 500);
+
+const PLAN = buildPhasePlan({
+  mode: 'steady-state',
+  warmupSec: toSeconds(__ENV.WARMUP, 180),
+  measureSec: toSeconds(__ENV.HOLD, 900),
+  rampdownSec: 180,
+});
+setActivePhasePlan(PLAN);
 
 export const options = {
   scenarios: {
     peak_hour: {
       executor: 'ramping-vus',
-      startVUs: 0,
-      stages: [
-        { duration: '3m', target: Number(__ENV.VUS || 500) },
-        { duration: __ENV.HOLD || '15m', target: Number(__ENV.VUS || 500) },
-        { duration: '3m', target: 0 },
-      ],
+      startVUs: startVusFor(PLAN, VUS),
+      stages: stagesFor(PLAN, VUS),
       gracefulRampDown: '30s',
     },
   },
-  thresholds: Object.assign({}, DEFAULT_THRESHOLDS, {
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
     http_req_failed: [{ threshold: 'rate<0.02', abortOnFail: true, delayAbortEval: '2m' }],
     'http_req_duration{name:meal_today}': ['p(95)<200'],
     'http_req_duration{name:timetable_today}': ['p(95)<250'],
@@ -39,4 +46,4 @@ export default function () {
   mixedIteration(PROFILE_PEAK);
 }
 
-export const handleSummary = makeHandleSummary('peak-hour');
+export const handleSummary = makeHandleSummary('peak-hour', PLAN);

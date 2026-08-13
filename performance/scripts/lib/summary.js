@@ -23,6 +23,7 @@
  */
 import exec from 'k6/execution';
 import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
+import { trendStats, metricsByPhase } from './phases.js';
 
 /**
  * 부하 프로파일 지문 — "이 실행이 어떤 부하를 걸기로 했는가"의 선언 값.
@@ -68,7 +69,7 @@ function dropNulls(value) {
 }
 
 /** 실행 메타데이터는 전부 환경변수로 주입된다 (CI/로컬 공통 인터페이스). */
-function metadata(scenario, state) {
+function metadata(scenario, state, phasePlan) {
   const durationSec = state && state.testRunDurationMs ? state.testRunDurationMs / 1000 : 0;
   const endedAt = new Date();
   // k6는 시작 시각을 직접 주지 않는다. 종료 시각에서 실제 수행 시간을 빼는 게 가장 정확하다.
@@ -95,34 +96,16 @@ function metadata(scenario, state) {
     hold: __ENV.HOLD || null,
     // 비교 가능성의 키 — 기준선 선택이 이 값을 본다(tools/lib/comparability.js).
     loadProfile: loadProfile(),
+    // warmup/measure/rampdown 을 k6 실행 계획의 1급 개념으로 선언한 값(T-03/S-08/S-17).
+    // collect.js 는 이 값만으로 Prometheus 창을 계산한다 — CLI 재입력 없이 재수집해도
+    // 같은 창이 재현된다. comparability.js 의 measurementProfile 조건도 이 값을 읽는다.
+    phasePlan,
   };
 }
 
-/**
- * 지연 계열 통계 추출.
- *
- * 없는 분위수를 0으로 채우지 않는 이유 (중요)
- *   k6는 기본적으로 avg/min/med/max/p(90)/p(95) 만 계산한다. p(99)는 계산하지 않는다.
- *   여기서 `?? 0`으로 메우면 "P99 = 0ms"라는 거짓 데이터가 만들어지고, 그게 그대로
- *   회귀 판정과 보고서에 들어간다. 측정 안 된 값은 0이 아니라 **없는 값**이어야
- *   하류 로직이 "비교 불가"로 올바르게 처리한다.
- *
- *   p(99)를 실제로 얻으려면 k6에 --summary-trend-stats 를 넘겨야 한다.
- *   tools/perf-run.js 가 항상 붙여 준다.
- */
-function trendStats(v) {
-  if (!v) return null;
-  const g = (k) => (v[k] == null ? null : v[k]);
-  return {
-    avg: g('avg'),
-    min: g('min'),
-    med: v.med != null ? v.med : g('p(50)'),
-    max: g('max'),
-    p90: g('p(90)'),
-    p95: g('p(95)'),
-    p99: g('p(99)'),
-  };
-}
+// trendStats 는 scripts/lib/phases.js 에서 가져온다 (p(99) 미측정을 0으로 채우지 않는 이유
+// 등 상세 설명도 그쪽에 있다) — 순수 로직이라 phases.js 에 두어야 Node 테스트가 직접
+// 검증할 수 있다.
 
 /**
  * `http_req_duration{feature:posts}` 같은 서브메트릭을 태그축별로 묶는다.
@@ -176,11 +159,17 @@ function ts(date) {
 
 /**
  * @param {string} name 시나리오 식별자 (예: 'normal-day')
+ * @param {object} phasePlan scripts/lib/phases.js의 buildPhasePlan()으로 만든 계획.
+ *   warmup/measure/rampdown을 k6 실행 계획의 1급 개념으로 만드는 것이 이번 변경의 핵심이라
+ *   선택 인자로 두지 않는다 — 시나리오가 빠뜨리면 여기서 바로 알아챈다.
  */
-export function makeHandleSummary(name) {
+export function makeHandleSummary(name, phasePlan) {
+  if (!phasePlan) {
+    throw new Error(`makeHandleSummary('${name}'): phasePlan이 필요하다 — scripts/lib/phases.js의 buildPhasePlan()으로 선언할 것`);
+  }
   return function (data) {
     const m = data.metrics || {};
-    const meta = metadata(name, data.state);
+    const meta = metadata(name, data.state, phasePlan);
     const val = (k, f = 'count') => (m[k] && m[k].values ? m[k].values[f] : null);
 
     const dur = trendStats(m.http_req_duration && m.http_req_duration.values) || {};
@@ -193,7 +182,10 @@ export function makeHandleSummary(name) {
     //      경영/용량 관점 지표는 RPS가 아니라 TPS다. 둘을 구분해 저장한다.
     const missingPercentiles = ['p90', 'p95', 'p99'].filter((p) => dur[p] == null);
 
-    const overall = {
+    // 전체 구간(ramp-up + hold + ramp-down 전부 포함) — 진단용. 회귀 게이트는 이 값을
+    // 쓰지 않는다(k6.phases.measure가 그 역할이다). 이름을 overall→all로 바꾼 것은
+    // "이게 판정 기준이 아니라 참고용 전체 집계"임을 명확히 하기 위함이다.
+    const all = {
       ...dur,
       // 어떤 분위수가 측정되지 않았는지 기록해 둔다. 보고서가 "0"과 "미측정"을 구분해
       // 표시하려면 이 정보가 필요하다.
@@ -235,7 +227,12 @@ export function makeHandleSummary(name) {
       phase: 'k6',
       run: meta,
       k6: {
-        overall,
+        all,
+        // warmup/measure/rampdown 별 요약 — 회귀 게이트와 report.js의 기본 표시는
+        // phases[phasePlan.gatePhase]를 쓴다(보통 'measure'). warmup/rampdown은 버리지
+        // 않고 진단 정보로 남긴다. gatePhase:null(진단 전용 시나리오)이거나 phase 태깅이
+        // 비활성화된 경우 빈 객체가 된다 — 그 경우 회귀 규칙은 값이 없어 SKIP된다.
+        phases: metricsByPhase(m, phasePlan),
         breakdown: breakdown(m),
         thresholds,
         thresholdsPassed: thresholds.every((t) => t.ok),

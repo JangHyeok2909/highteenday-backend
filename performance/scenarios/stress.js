@@ -10,7 +10,21 @@
  * 산출물   : 한계점 수치 → regression/baseline의 capacity 항목으로 기록
  */
 import { makeHandleSummary } from '../scripts/lib/summary.js';
+import { buildPhasePlan } from '../scripts/lib/phases.js';
 import { mixedIteration, PROFILE_NORMAL } from './lib/workload.js';
+
+// 한계 탐색이 목적이라 warmup/measure/rampdown 구분이 없다 — 계단식 부하 전체가
+// 관찰 대상이다. phase 태깅은 켜지 않는다(setActivePhasePlan 미호출) — 기존 자체
+// abortOnFail threshold가 이미 판정 주체이고, gatePhase:null이라 Node 회귀 게이트는
+// 이 시나리오를 건너뛴다(원래도 게이트 대상이 아니었다). plan은 comparability에서
+// 다른 모드의 실행과 섞이지 않도록 기록용으로만 선언한다.
+const PLAN = buildPhasePlan({
+  mode: 'diagnostic',
+  warmupSec: 0,
+  measureSec: 1620, // 13단계 합 (2+3+1+3+1+3+1+3+1+3+1+3+2분)
+  rampdownSec: 0,
+  gatePhase: null,
+});
 
 export const options = {
   scenarios: {
@@ -44,4 +58,4 @@ export default function () {
   mixedIteration(PROFILE_NORMAL);
 }
 
-export const handleSummary = makeHandleSummary('stress');
+export const handleSummary = makeHandleSummary('stress', PLAN);

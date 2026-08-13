@@ -10,23 +10,33 @@
  * 예상 TPS : ≈ 50~70 RPS (그중 쓰기 ≈ 60%)
  * 종료조건 : 시간 만료. 쓰기 P99 3초 초과 시 조기 중단 (풀 고갈 신호)
  */
-import { DEFAULT_THRESHOLDS } from '../scripts/lib/config.js';
+import { PHASED_THRESHOLDS, setActivePhasePlan } from '../scripts/lib/config.js';
+import { buildPhasePlan, stagesFor, startVusFor, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_WRITE_HEAVY } from './lib/workload.js';
+
+const VUS = Number(__ENV.VUS || 200);
+
+const PLAN = buildPhasePlan({
+  mode: 'steady-state',
+  warmupSec: toSeconds(__ENV.WARMUP, 180),
+  measureSec: toSeconds(__ENV.HOLD, 900),
+  rampdownSec: 120,
+});
+setActivePhasePlan(PLAN);
 
 export const options = {
   scenarios: {
     write_heavy: {
       executor: 'ramping-vus',
-      startVUs: 0,
-      stages: [
-        { duration: '3m', target: Number(__ENV.VUS || 200) },
-        { duration: __ENV.HOLD || '15m', target: Number(__ENV.VUS || 200) },
-        { duration: '2m', target: 0 },
-      ],
+      startVUs: startVusFor(PLAN, VUS),
+      stages: stagesFor(PLAN, VUS),
     },
   },
-  thresholds: Object.assign({}, DEFAULT_THRESHOLDS, {
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
+    // 주의: 이 bare 키(phase 태그 없음)가 PHASED_THRESHOLDS의 measure-scoped
+    // op:write 게이트(`{op:write,phase:measure}`)와 별개로 전체 구간 기준 abortOnFail을
+    // 유지한다 — 기존 조기 중단 동작을 그대로 보존하기 위한 의도적 중복이다.
     'http_req_duration{op:write}': [
       'p(95)<500',
       { threshold: 'p(99)<3000', abortOnFail: true, delayAbortEval: '3m' },
@@ -38,4 +48,4 @@ export default function () {
   mixedIteration(PROFILE_WRITE_HEAVY);
 }
 
-export const handleSummary = makeHandleSummary('write-heavy');
+export const handleSummary = makeHandleSummary('write-heavy', PLAN);

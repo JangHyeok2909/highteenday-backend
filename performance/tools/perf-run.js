@@ -22,7 +22,11 @@
  *   --env <name>     환경 이름 (기본 perf)
  *   --dataset <name> 데이터셋 프로파일 (기본 small)
  *   --note "<text>"  이 실행에 대한 메모 — 보고서 상단에 표시된다
- *   --warmup <sec>   지표 집계에서 앞부분 제외 (ramp-up 배제)
+ *   --warmup <sec>   k6 실행 계획의 ramp-up(warmup) 단계 자체를 이 길이로 만든다
+ *                    (시나리오 기본값을 덮어씀 — -e WARMUP으로 전달, T-03/S-08).
+ *                    수집기가 사후에 자르는 옵션이 아니다: k6 threshold와 Prometheus
+ *                    조회 창이 둘 다 이 값을 기준으로 measure 구간을 판정한다.
+ *                    미지정 시 시나리오 기본값 유지, 명시적 0은 "warmup 없음"으로 구분된다.
  *   --wait <sec>     스크레이프 대기 (기본 20)
  *   --no-collect     k6만 실행하고 수집은 건너뜀
  *   --no-gate        회귀가 있어도 exit 0
@@ -108,7 +112,10 @@ function scriptVersion(scriptPath) {
 function parseArgs(argv) {
   const o = {
     script: null, vus: null, duration: null, hold: null, env: 'perf', dataset: null,
-    note: '', warmup: 0, wait: 20, collect: true, gate: true, passthrough: [], k6Extra: [],
+    // warmup은 undefined가 기본값이다(0이 아니다) — "지정 안 함"과 "명시적으로 0"을
+    // 구분해야 한다(T-03). 0으로 두면 --warmup 0을 준 것과 아예 안 준 것을 구별할 수
+    // 없어, k6로 WARMUP을 전달해야 하는지 판단이 틀어진다.
+    note: '', warmup: undefined, wait: 20, collect: true, gate: true, passthrough: [], k6Extra: [],
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -127,7 +134,7 @@ function parseArgs(argv) {
     else if (!o.script && !a.startsWith('-')) o.script = a;
     else o.k6Extra.push(a);
   }
-  if (!Number.isFinite(o.warmup) || !Number.isFinite(o.wait)) {
+  if ((o.warmup !== undefined && !Number.isFinite(o.warmup)) || !Number.isFinite(o.wait)) {
     console.error('--warmup / --wait 값이 숫자가 아닙니다.');
     process.exit(2);
   }
@@ -163,6 +170,9 @@ function main() {
   if (o.vus) args.push('-e', `VUS=${o.vus}`);
   if (o.duration) args.push('-e', `DURATION=${o.duration}`);
   if (o.hold) args.push('-e', `HOLD=${o.hold}`);
+  // warmup은 이제 k6 실행 계획 자체를 바꾼다(T-03/S-08) — collect.js에 별도로 넘기지
+  // 않는다. undefined(미지정)면 시나리오의 phasePlan 기본값이 그대로 쓰인다.
+  if (o.warmup !== undefined) args.push('-e', `WARMUP=${o.warmup}`);
   args.push(...o.passthrough, ...o.k6Extra);
 
   console.log(`\n▶ k6 run ${o.script}`);
@@ -206,7 +216,6 @@ function main() {
   if (!o.collect) process.exit(k6.status == null ? 1 : k6.status);
 
   const collectArgs = [path.join(__dirname, 'collect.js'), runId, '--wait', String(o.wait)];
-  if (o.warmup) collectArgs.push('--warmup', String(o.warmup));
   if (!o.gate) collectArgs.push('--no-gate');
 
   const col = spawnSync(process.execPath, collectArgs, { stdio: 'inherit', cwd: PERF_ROOT });

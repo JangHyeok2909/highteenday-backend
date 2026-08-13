@@ -9,23 +9,30 @@
  * 예상 TPS : ≈ 80~100 RPS
  * 종료조건 : 시간 만료
  */
-import { DEFAULT_THRESHOLDS } from '../scripts/lib/config.js';
+import { PHASED_THRESHOLDS, setActivePhasePlan } from '../scripts/lib/config.js';
+import { buildPhasePlan, stagesFor, startVusFor, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_NOTIFICATION_HEAVY } from './lib/workload.js';
+
+const VUS = Number(__ENV.VUS || 300);
+
+const PLAN = buildPhasePlan({
+  mode: 'steady-state',
+  warmupSec: toSeconds(__ENV.WARMUP, 180),
+  measureSec: toSeconds(__ENV.HOLD, 720),
+  rampdownSec: 120,
+});
+setActivePhasePlan(PLAN);
 
 export const options = {
   scenarios: {
     notification_heavy: {
       executor: 'ramping-vus',
-      startVUs: 0,
-      stages: [
-        { duration: '3m', target: Number(__ENV.VUS || 300) },
-        { duration: __ENV.HOLD || '12m', target: Number(__ENV.VUS || 300) },
-        { duration: '2m', target: 0 },
-      ],
+      startVUs: startVusFor(PLAN, VUS),
+      stages: stagesFor(PLAN, VUS),
     },
   },
-  thresholds: Object.assign({}, DEFAULT_THRESHOLDS, {
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
     'http_req_duration{name:notif_unread_count}': ['p(95)<100', 'p(99)<300'],
     'http_req_duration{name:notif_read_all}': ['p(95)<800'],
   }),
@@ -35,4 +42,4 @@ export default function () {
   mixedIteration(PROFILE_NOTIFICATION_HEAVY);
 }
 
-export const handleSummary = makeHandleSummary('notification-heavy');
+export const handleSummary = makeHandleSummary('notification-heavy', PLAN);
