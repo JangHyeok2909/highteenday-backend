@@ -17,7 +17,7 @@
 'use strict';
 
 const crypto = require('crypto');
-const { CONDITIONS, SCHEMA_VERSION, formatLoadProfile } = require('./conditions');
+const { CONDITIONS, SCHEMA_VERSION, formatLoadProfile, formatMeasurementProfile } = require('./conditions');
 
 const BLOCKING = CONDITIONS.filter((c) => c.materiality === 'blocking');
 
@@ -147,6 +147,6 @@ function describeAll(conditions) {
 
 module.exports = {
   CONDITIONS, SCHEMA_VERSION,
-  conditionsOf, seriesHash, compare, describeAll, formatLoadProfile,
+  conditionsOf, seriesHash, compare, describeAll, formatLoadProfile, formatMeasurementProfile,
   stableStringify, digest,
 };
