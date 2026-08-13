@@ -292,7 +292,9 @@ function signed(n) {
  * @param {object} record   현재 run 레코드 (infra 보강 완료 상태)
  * @param {object|null} prevRun 기준선 후보 — 인덱스 엔트리가 아니라 전체 run 레코드여야 한다
  *                              (infra.flat 값이 필요하므로)
- * @param {object} opts     { rulesFile, rejected } — rejected 는 기준선 탐색에서 탈락한 후보들
+ * @param {object} opts     { rulesFile, rejected, hadPriorCandidates }
+ *                          rejected 는 기준선 탐색에서 탈락한 후보들,
+ *                          hadPriorCandidates 는 애초에 과거 후보가 있었는지(findBaseline 이 알려준다)
  */
 function analyze(record, prevRun, opts = {}) {
   const { rulesFile, rejected = [] } = opts;
@@ -362,15 +364,46 @@ function analyze(record, prevRun, opts = {}) {
   // 판정과 별개로 "무엇에 대고 비교했는가"를 항상 노출한다. 조건이 엄격해지면
   // 기준선 없는 실행이 흔해지는데, 그게 조용한 PASS 로 새면 고치기 전보다 나쁘다.
   //   compared     — 유효한 대조군과 비교했다
-  //   incomparable — 이전 실행은 있으나 조건이 달라 상대 비교를 생략했다
-  //   first-run    — 이 계열의 첫 실행이다
-  const baselineStatus = baseline ? 'compared' : prevRun || rejected.length ? 'incomparable' : 'first-run';
+  //   incomparable — 과거 후보는 있었으나 자격 또는 조건 때문에 쓰지 못했다
+  //   first-run    — 이 시나리오의 과거 실행이 아예 없다
+  //
+  // hadPriorCandidates 를 findBaseline 에서 받아 쓰는 이유(S-10): rejected 는 REJECTED_LIMIT
+  // 로 잘리고, 과거에는 사전 필터에서 지워진 후보가 아예 담기지도 않았다. 그 길이로 first-run
+  // 을 추측하면 "후보가 전부 탈락한 실행"이 "첫 실행"으로 보고된다 — 실제로 그렇게 보고됐다.
+  // 직접 호출(재분석·테스트)에서 값을 안 넘기면 예전 추측 방식으로 폴백한다.
+  const hadPriorCandidates = opts.hadPriorCandidates != null
+    ? !!opts.hadPriorCandidates
+    : !!(prevRun || rejected.length);
+  const baselineStatus = baseline ? 'compared' : hadPriorCandidates ? 'incomparable' : 'first-run';
+
+  /*
+   * 기준선의 "당시 성능 상태" — 자격 조건이 아니라 표시용이다(S-10).
+   *
+   * threshold 실패 실행도 기준선이 될 수 있게 되면서, 리포트에 `p95 3800ms → 2200ms(-42%)`
+   * 같은 초록색 개선이 뜨는데 둘 다 SLO 위반인 상황이 정상적으로 발생한다. 현재 실행의 절대
+   * 게이트는 그대로 FAIL 을 내지만(evaluateRule 의 절대 판정은 기준선과 무관하다), 사람이
+   * 증감률만 보고 "좋아졌으니 됐다"고 읽는 것은 막아야 한다.
+   *
+   * thresholdsPassed 는 measure SLO 하나가 아니라 전체 구간 threshold, 시나리오별 threshold,
+   * abort threshold, 분해축 생성용 threshold 의 AND 다. 그래서 "SLO 실패"라고 단정하지 않고
+   * "당시 k6 threshold 미통과"라고만 말한다. Node 판정(regression.verdict)은 별도 축이므로
+   * 따로 노출한다. 값이 없는 과거 레코드는 null 이다.
+   */
+  const baselineThresholdsPassed = baseline && baseline.k6 && baseline.k6.thresholdsPassed != null
+    ? baseline.k6.thresholdsPassed
+    : null;
+  const baselineVerdict = baseline && baseline.regression && baseline.regression.verdict
+    ? baseline.regression.verdict
+    : null;
 
   return {
     baselineRunId: baseline ? baseline.run.id : null,
     baselineStartedAt: baseline ? baseline.run.startedAt : null,
     baselineCommit: baseline ? baseline.run.commitShort : null,
     baselineStatus,
+    hadPriorCandidates,
+    baselineThresholdsPassed,
+    baselineVerdict,
     conditions,
     seriesHash: cmp.seriesHash(conditions),
     comparability,

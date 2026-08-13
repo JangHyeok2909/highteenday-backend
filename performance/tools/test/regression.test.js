@@ -237,6 +237,79 @@ test('analyze: 기준선이 아예 없으면 first-run', () => {
 });
 
 // ---------------------------------------------------------------------------
+// S-10 — 느린 기준선을 허용하되, 그 사실과 절대 SLO 판정을 섞지 않는다.
+// ---------------------------------------------------------------------------
+test('analyze: 후보가 전부 탈락했으면 first-run 이 아니라 incomparable (S-10)', () => {
+  const rulesFile = tmpRules([{ key: 'k6.phases.measure.p95', direction: 'lower_is_better' }]);
+  // 사전 필터로 지워진 후보는 prevRun 도 rejected 도 남기지 않는다 — 그래서 findBaseline 이
+  // 알려주는 hadPriorCandidates 가 유일한 근거다.
+  const res = analyze({ run: conds(), k6: { phases: { measure: { p95: 100 } } } }, null, {
+    rulesFile, rejected: [], hadPriorCandidates: true,
+  });
+  assert.equal(res.baselineStatus, 'incomparable');
+  assert.equal(res.hadPriorCandidates, true);
+});
+
+test('analyze: hadPriorCandidates=false 면 first-run (S-10)', () => {
+  const rulesFile = tmpRules([{ key: 'k6.phases.measure.p95', direction: 'lower_is_better' }]);
+  const res = analyze({ run: conds(), k6: { phases: { measure: { p95: 100 } } } }, null, {
+    rulesFile, rejected: [], hadPriorCandidates: false,
+  });
+  assert.equal(res.baselineStatus, 'first-run');
+});
+
+test('analyze: 기준선의 당시 k6 threshold·Node 판정을 노출한다 (S-10)', () => {
+  const rulesFile = tmpRules([{ key: 'k6.phases.measure.p95', direction: 'lower_is_better' }]);
+  const record = { run: conds(), k6: { phases: { measure: { p95: 2200 } } } };
+  const prev = {
+    run: { ...conds(), id: 'slow-before', startedAt: 't' },
+    k6: { phases: { measure: { p95: 3800 } }, thresholdsPassed: false },
+    regression: { verdict: 'FAIL' },
+  };
+
+  const res = analyze(record, prev, { rulesFile, hadPriorCandidates: true });
+  assert.equal(res.hasBaseline, true, 'threshold 실패 실행도 기준선이 될 수 있다');
+  assert.equal(res.baselineThresholdsPassed, false);
+  assert.equal(res.baselineVerdict, 'FAIL');
+});
+
+test('analyze: 기준선에 threshold 기록이 없는 과거 레코드는 null 로 표시한다', () => {
+  const rulesFile = tmpRules([{ key: 'k6.phases.measure.p95', direction: 'lower_is_better' }]);
+  const record = { run: conds(), k6: { phases: { measure: { p95: 100 } } } };
+  const prev = { run: { ...conds(), id: 'legacy', startedAt: 't' }, k6: { phases: { measure: { p95: 90 } } } };
+  const res = analyze(record, prev, { rulesFile });
+  assert.equal(res.baselineThresholdsPassed, null);
+  assert.equal(res.baselineVerdict, null);
+});
+
+test('analyze: 느린 기준선 대비 42% 개선이어도 절대 SLO 위반이면 FAIL 이다 (S-10 핵심)', () => {
+  const rulesFile = tmpRules([
+    {
+      key: 'k6.phases.measure.p95',
+      direction: 'lower_is_better',
+      fail: { changePct: 20 },
+      absolute: { fail: { gt: 500 } },
+      gate: true,
+    },
+  ]);
+  const record = { run: conds(), k6: { phases: { measure: { p95: 2200 } } } };
+  const prev = {
+    run: { ...conds(), id: 'slow-before', startedAt: 't' },
+    k6: { phases: { measure: { p95: 3800 } }, thresholdsPassed: false },
+    regression: { verdict: 'FAIL' },
+  };
+
+  const res = analyze(record, prev, { rulesFile, hadPriorCandidates: true });
+  const c = res.comparisons[0];
+  assert.equal(res.baselineStatus, 'compared');
+  assert.ok(c.deltaPct < -40 && c.deltaPct > -45, `상대 비교는 개선으로 나와야 한다 (${c.deltaPct})`);
+  assert.equal(c.verdict, 'FAIL', '2200ms > 500ms 이므로 절대 게이트가 걸린다');
+  assert.equal(res.verdict, 'FAIL');
+  assert.equal(res.gateFailed, true, '느린 기준선보다 좋아졌다고 거짓 PASS 가 되면 안 된다');
+  assert.equal(res.baselineThresholdsPassed, false);
+});
+
+// ---------------------------------------------------------------------------
 // bottleneckHints — T-03/S-08: 병목 진단은 measure 구간을 우선 봐야 한다.
 // warmup/rampdown이 섞인 전체 구간(k6.all)으로 진단하면 왜곡될 수 있다.
 // ---------------------------------------------------------------------------
