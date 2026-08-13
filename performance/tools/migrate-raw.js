@@ -123,9 +123,13 @@ function convert(data, info) {
       vusConfigured: null,
       rampUp: null,
       hold: null,
+      // 원본 raw 파일은 phase 개념 자체가 생기기 전 데이터라 복원할 수 없다. 임의의 기본값을
+      // 소급 적용하지 않는다 — null이면 collect.js가 전체 구간 폴백으로, comparability.js가
+      // "미기록"으로 각각 안전하게 처리한다(T-03/S-08 설계).
+      phasePlan: null,
     },
     k6: {
-      overall: {
+      all: {
         ...dur,
         missingPercentiles: ['p90', 'p95', 'p99'].filter((p) => dur[p] == null),
         rps: val('http_reqs', 'rate') || 0,
@@ -147,6 +151,8 @@ function convert(data, info) {
         connectingAvgMs: m.http_req_connecting ? m.http_req_connecting.values.avg : null,
         iterationDurationAvgMs: m.iteration_duration ? m.iteration_duration.values.avg : null,
       },
+      // phase 태그가 있을 수 없는 원본이므로 항상 빈 객체 — 회귀 규칙은 값이 없어 SKIP된다.
+      phases: {},
       breakdown: breakdown(m),
       thresholds,
       thresholdsPassed: thresholds.every((t) => t.ok),

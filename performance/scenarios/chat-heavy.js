@@ -11,24 +11,31 @@
  * 예상 TPS : REST ≈ 40 RPS + WS 메시지 ≈ 30~50 msg/s
  * 종료조건 : 시간 만료. ws RTT P95 1s 초과 시 조기 중단
  */
-import { DEFAULT_THRESHOLDS } from '../scripts/lib/config.js';
+import { PHASED_THRESHOLDS, setActivePhasePlan } from '../scripts/lib/config.js';
+import { buildPhasePlan, stagesFor, startVusFor, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_CHAT_HEAVY } from './lib/workload.js';
+
+const VUS = Number(__ENV.VUS || 400);
+
+const PLAN = buildPhasePlan({
+  mode: 'steady-state',
+  warmupSec: toSeconds(__ENV.WARMUP, 240),
+  measureSec: toSeconds(__ENV.HOLD, 900),
+  rampdownSec: 120,
+});
+setActivePhasePlan(PLAN);
 
 export const options = {
   scenarios: {
     chat_heavy: {
       executor: 'ramping-vus',
-      startVUs: 0,
-      stages: [
-        { duration: '4m', target: Number(__ENV.VUS || 400) },
-        { duration: __ENV.HOLD || '15m', target: Number(__ENV.VUS || 400) },
-        { duration: '2m', target: 0 },
-      ],
+      startVUs: startVusFor(PLAN, VUS),
+      stages: stagesFor(PLAN, VUS),
       gracefulRampDown: '60s', // WS 세션 정상 종료 시간 확보
     },
   },
-  thresholds: Object.assign({}, DEFAULT_THRESHOLDS, {
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
     chat_ws_rtt: [
       'p(95)<500',
       { threshold: 'p(95)<1000', abortOnFail: true, delayAbortEval: '3m' },
@@ -41,4 +48,4 @@ export default function () {
   mixedIteration(PROFILE_CHAT_HEAVY);
 }
 
-export const handleSummary = makeHandleSummary('chat-heavy');
+export const handleSummary = makeHandleSummary('chat-heavy', PLAN);

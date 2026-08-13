@@ -7,8 +7,9 @@
  *  - 댓글 작성 → Post.commentCount 비정규화 카운터 갱신 경합
  */
 import http from 'k6/http';
-import { check, sleep } from 'k6';
-import { BASE_URL, DEFAULT_THRESHOLDS, tags, thinkTime } from './lib/config.js';
+import { sleep } from 'k6';
+import { BASE_URL, DEFAULT_THRESHOLDS, check, tags, thinkTime } from './lib/config.js';
+import { buildPhasePlan, toSeconds } from './lib/phases.js';
 import { ensureSession, withAuth } from './lib/session.js';
 import { myUser, hotPost } from './lib/data.js';
 import { makeHandleSummary } from './lib/summary.js';
@@ -116,4 +117,14 @@ export default function () {
   }
 }
 
-export const handleSummary = makeHandleSummary('comments');
+// 단독 실행은 constant-vus라 warmup/measure 구분이 없다 — 진단 전용으로 선언한다
+// (Node 회귀 게이트 대상 아님).
+const STANDALONE_PLAN = buildPhasePlan({
+  mode: 'diagnostic',
+  warmupSec: 0,
+  measureSec: toSeconds(options.duration, 120),
+  rampdownSec: 0,
+  gatePhase: null,
+});
+
+export const handleSummary = makeHandleSummary('comments', STANDALONE_PLAN);

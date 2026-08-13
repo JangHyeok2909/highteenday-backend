@@ -9,23 +9,30 @@
  * 예상 TPS : ≈ 90~110 RPS (95% 이상 GET)
  * 종료조건 : 시간 만료
  */
-import { DEFAULT_THRESHOLDS } from '../scripts/lib/config.js';
+import { PHASED_THRESHOLDS, setActivePhasePlan } from '../scripts/lib/config.js';
+import { buildPhasePlan, stagesFor, startVusFor, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_READ_HEAVY } from './lib/workload.js';
+
+const VUS = Number(__ENV.VUS || 300);
+
+const PLAN = buildPhasePlan({
+  mode: 'steady-state',
+  warmupSec: toSeconds(__ENV.WARMUP, 180),
+  measureSec: toSeconds(__ENV.HOLD, 900),
+  rampdownSec: 120,
+});
+setActivePhasePlan(PLAN);
 
 export const options = {
   scenarios: {
     read_heavy: {
       executor: 'ramping-vus',
-      startVUs: 0,
-      stages: [
-        { duration: '3m', target: Number(__ENV.VUS || 300) },
-        { duration: __ENV.HOLD || '15m', target: Number(__ENV.VUS || 300) },
-        { duration: '2m', target: 0 },
-      ],
+      startVUs: startVusFor(PLAN, VUS),
+      stages: stagesFor(PLAN, VUS),
     },
   },
-  thresholds: Object.assign({}, DEFAULT_THRESHOLDS, {
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
     // 읽기 전용이므로 전체 P95도 읽기 SLO로 조인다
     http_req_duration: ['p(95)<300'],
   }),
@@ -35,4 +42,4 @@ export default function () {
   mixedIteration(PROFILE_READ_HEAVY);
 }
 
-export const handleSummary = makeHandleSummary('read-heavy');
+export const handleSummary = makeHandleSummary('read-heavy', PLAN);

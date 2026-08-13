@@ -19,7 +19,19 @@
  *            구간별 오류율/P95/회복 시간을 실험 문서에 정리
  */
 import { makeHandleSummary } from '../scripts/lib/summary.js';
+import { buildPhasePlan, toSeconds } from '../scripts/lib/phases.js';
 import { mixedIteration, PROFILE_NORMAL } from './lib/workload.js';
+
+// 장애 주입 타이밍은 외부 스크립트(tools/chaos-*.sh)가 결정하고 k6 스크립트 자체에는
+// phase 경계가 없다 — 부하는 시종일관 평시 수준으로 고정한다. phase 태깅은 켜지 않는다
+// (진단 전용, gatePhase:null) — 기존 부하 형태·threshold 불변.
+const PLAN = buildPhasePlan({
+  mode: 'diagnostic',
+  warmupSec: 0,
+  measureSec: toSeconds(__ENV.DURATION, 1800),
+  rampdownSec: 0,
+  gatePhase: null,
+});
 
 export const options = {
   scenarios: {
@@ -38,4 +50,4 @@ export default function () {
   mixedIteration(PROFILE_NORMAL);
 }
 
-export const handleSummary = makeHandleSummary('chaos');
+export const handleSummary = makeHandleSummary('chaos', PLAN);

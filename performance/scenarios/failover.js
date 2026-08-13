@@ -18,7 +18,19 @@
  * 판정     : 장애 구간 오류율과 복구 후 P95 회복 시간(RTO)을 리포트에 기록
  */
 import { makeHandleSummary } from '../scripts/lib/summary.js';
+import { buildPhasePlan, toSeconds } from '../scripts/lib/phases.js';
 import { mixedIteration, PROFILE_NORMAL } from './lib/workload.js';
+
+// 장애 타이밍(T2의 docker stop/start)은 실행하는 사람이 벽시계로 맞추는 수동 절차라
+// k6 스크립트에 phase 경계가 없다. phase 태깅은 켜지 않는다(진단 전용, gatePhase:null)
+// — 기존 부하 형태·threshold 불변.
+const PLAN = buildPhasePlan({
+  mode: 'diagnostic',
+  warmupSec: 0,
+  measureSec: toSeconds(__ENV.DURATION, 900),
+  rampdownSec: 0,
+  gatePhase: null,
+});
 
 export const options = {
   scenarios: {
@@ -38,4 +50,4 @@ export default function () {
   mixedIteration(PROFILE_NORMAL);
 }
 
-export const handleSummary = makeHandleSummary('failover');
+export const handleSummary = makeHandleSummary('failover', PLAN);

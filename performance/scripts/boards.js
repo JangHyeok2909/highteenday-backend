@@ -7,8 +7,9 @@
  *    HotScoreScheduler 재계산 시점과 겹칠 때 지연 스파이크가 있는지 관찰
  */
 import http from 'k6/http';
-import { check, sleep } from 'k6';
-import { BASE_URL, DEFAULT_THRESHOLDS, tags, thinkTime } from './lib/config.js';
+import { sleep } from 'k6';
+import { BASE_URL, DEFAULT_THRESHOLDS, check, tags, thinkTime } from './lib/config.js';
+import { buildPhasePlan, toSeconds } from './lib/phases.js';
 import { makeHandleSummary } from './lib/summary.js';
 
 export function listBoards() {
@@ -40,4 +41,14 @@ export default function () {
   sleep(thinkTime());
 }
 
-export const handleSummary = makeHandleSummary('boards');
+// 단독 실행은 constant-vus라 warmup/measure 구분이 없다 — 진단 전용으로 선언한다
+// (Node 회귀 게이트 대상 아님).
+const STANDALONE_PLAN = buildPhasePlan({
+  mode: 'diagnostic',
+  warmupSec: 0,
+  measureSec: toSeconds(options.duration, 60),
+  rampdownSec: 0,
+  gatePhase: null,
+});
+
+export const handleSummary = makeHandleSummary('boards', STANDALONE_PLAN);

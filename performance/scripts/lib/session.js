@@ -7,9 +7,9 @@
  * 401 발생 시 /api/token/refresh 로 재발급 후 1회 재시도한다.
  */
 import http from 'k6/http';
-import { check, fail } from 'k6';
+import { fail } from 'k6';
 import { Counter } from 'k6/metrics';
-import { BASE_URL, SEED_PASSWORD, tags, vuJar } from './config.js';
+import { BASE_URL, SEED_PASSWORD, check, tags, vuJar } from './config.js';
 
 export const tokenRefreshes = new Counter('auth_token_refreshes');
 export const authFailures = new Counter('auth_failures');

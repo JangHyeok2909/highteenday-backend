@@ -13,9 +13,10 @@
  *   k6 run scripts/chat-ws.js -e VUS=100 -e DURATION=2m
  */
 import ws from 'k6/ws';
-import { check, sleep } from 'k6';
+import { sleep } from 'k6';
 import { Trend, Counter } from 'k6/metrics';
-import { WS_URL, thinkTime } from './lib/config.js';
+import { WS_URL, thinkTime, check, currentPhase } from './lib/config.js';
+import { buildPhasePlan, toSeconds } from './lib/phases.js';
 import { ensureSession, cookieHeader } from './lib/session.js';
 import { myUser } from './lib/data.js';
 import { pickMyRoom } from './chat-rest.js';
@@ -24,6 +25,16 @@ import { makeHandleSummary } from './lib/summary.js';
 export const wsRtt = new Trend('chat_ws_rtt', true);        // 전송→브로드캐스트 수신 왕복
 export const wsMessages = new Counter('chat_ws_messages_sent');
 export const wsErrors = new Counter('chat_ws_errors');
+
+/**
+ * WebSocket 커스텀 메트릭은 tags() 헬퍼(HTTP 전용)를 거치지 않는 별도 경로라 phase 태그가
+ * 누락되기 쉽다 — Counter/Trend.add(value, tags)에 직접 실어 보낸다. phase가 활성화되지
+ * 않은 컨텍스트(단독 실행 등)에서는 undefined를 반환해 태그 없이 기록된다.
+ */
+function phaseTag() {
+  const phase = currentPhase();
+  return phase ? { phase } : undefined;
+}
 
 const NUL = '\u0000'; // STOMP 프레임 종결(NULL) 문자
 
@@ -107,23 +118,23 @@ export function chatSession(roomId, sessionSeconds = 30) {
             imageUrl: null,
             clientMsgId,
           }));
-          wsMessages.add(1);
+          wsMessages.add(1, phaseTag());
         }, (2 + Math.random() * 4) * 1000); // 2~6초 간격 타이핑
       } else if (msg.startsWith('MESSAGE')) {
         // 내 clientMsgId가 브로드캐스트로 돌아오면 RTT 기록
         for (const [id, sentAt] of pending) {
           if (msg.includes(id)) {
-            wsRtt.add(Date.now() - sentAt);
+            wsRtt.add(Date.now() - sentAt, phaseTag());
             pending.delete(id);
             break;
           }
         }
       } else if (msg.startsWith('ERROR')) {
-        wsErrors.add(1);
+        wsErrors.add(1, phaseTag());
       }
     });
 
-    socket.on('error', () => wsErrors.add(1));
+    socket.on('error', () => wsErrors.add(1, phaseTag()));
     socket.setTimeout(() => socket.close(), sessionSeconds * 1000);
   });
 
@@ -150,4 +161,14 @@ export default function () {
   chatSession(roomId, 20 + Math.random() * 20);
 }
 
-export const handleSummary = makeHandleSummary('chat-ws');
+// 단독 실행(`k6 run scripts/chat-ws.js`)은 constant-vus라 warmup/rampdown 구분이 없다 —
+// 진단 전용으로 선언하고 Node 회귀 게이트에는 올리지 않는다(setActivePhasePlan 미호출).
+const STANDALONE_PLAN = buildPhasePlan({
+  mode: 'diagnostic',
+  warmupSec: 0,
+  measureSec: toSeconds(options.duration, 120),
+  rampdownSec: 0,
+  gatePhase: null,
+});
+
+export const handleSummary = makeHandleSummary('chat-ws', STANDALONE_PLAN);

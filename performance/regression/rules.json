@@ -4,7 +4,7 @@
     "회귀 판정 규칙 — tools/lib/regression.js 가 읽는다. 코드 수정 없이 이 파일만 고쳐서 기준을 바꾼다.",
     "",
     "필드 설명",
-    "  key        : run 레코드에서 값을 꺼낼 경로 (k6.overall.* 또는 infra.flat.*)",
+    "  key        : run 레코드에서 값을 꺼낼 경로 (k6.phases.measure.* / k6.all.* 또는 infra.flat.*)",
     "  direction  : lower_is_better | higher_is_better  — 어느 쪽 변화가 나쁜 것인지",
     "  warn/fail  : 직전 실행 대비 상대 변화 임계. changePct 는 '나쁜 방향으로의 변화율(%)'",
     "  absolute   : 직전 실행과 무관하게 무조건 걸리는 절대 상한/하한 (SLO 게이트)",
@@ -20,7 +20,7 @@
   ],
   "rules": [
     {
-      "key": "k6.overall.p95",
+      "key": "k6.phases.measure.p95",
       "label": "P95 응답시간",
       "unit": "ms",
       "direction": "lower_is_better",
@@ -32,7 +32,7 @@
       "gate": true
     },
     {
-      "key": "k6.overall.p99",
+      "key": "k6.phases.measure.p99",
       "label": "P99 응답시간",
       "unit": "ms",
       "direction": "lower_is_better",
@@ -44,7 +44,7 @@
       "gate": true
     },
     {
-      "key": "k6.overall.avg",
+      "key": "k6.phases.measure.avg",
       "label": "평균 응답시간",
       "unit": "ms",
       "direction": "lower_is_better",
@@ -55,7 +55,7 @@
       "gate": true
     },
     {
-      "key": "k6.overall.errorRate",
+      "key": "k6.phases.measure.errorRate",
       "label": "오류율",
       "unit": "ratio",
       "direction": "lower_is_better",
@@ -65,7 +65,7 @@
       "gate": true
     },
     {
-      "key": "k6.overall.tps",
+      "key": "k6.phases.measure.tps",
       "label": "TPS (초당 트랜잭션)",
       "unit": "per_sec",
       "direction": "higher_is_better",
@@ -76,7 +76,7 @@
       "gate": true
     },
     {
-      "key": "k6.overall.rps",
+      "key": "k6.phases.measure.rps",
       "label": "RPS (초당 요청)",
       "unit": "per_sec",
       "direction": "higher_is_better",
@@ -87,7 +87,7 @@
       "gate": true
     },
     {
-      "key": "k6.overall.checkRate",
+      "key": "k6.phases.measure.checkRate",
       "label": "Check 성공률",
       "unit": "ratio",
       "direction": "higher_is_better",

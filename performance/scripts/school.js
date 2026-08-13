@@ -7,8 +7,9 @@
  *    캐시 히트율이 100%에 가까워야 정상. 미스 시 외부 API 지연 전파 관찰
  */
 import http from 'k6/http';
-import { check, sleep } from 'k6';
-import { BASE_URL, DEFAULT_THRESHOLDS, tags, thinkTime } from './lib/config.js';
+import { sleep } from 'k6';
+import { BASE_URL, DEFAULT_THRESHOLDS, check, tags, thinkTime } from './lib/config.js';
+import { buildPhasePlan, toSeconds } from './lib/phases.js';
 import { ensureSession, withAuth } from './lib/session.js';
 import { myUser } from './lib/data.js';
 import { makeHandleSummary } from './lib/summary.js';
@@ -74,4 +75,14 @@ export default function () {
   }
 }
 
-export const handleSummary = makeHandleSummary('school');
+// 단독 실행은 constant-vus라 warmup/measure 구분이 없다 — 진단 전용으로 선언한다
+// (Node 회귀 게이트 대상 아님).
+const STANDALONE_PLAN = buildPhasePlan({
+  mode: 'diagnostic',
+  warmupSec: 0,
+  measureSec: toSeconds(options.duration, 60),
+  rampdownSec: 0,
+  gatePhase: null,
+});
+
+export const handleSummary = makeHandleSummary('school', STANDALONE_PLAN);

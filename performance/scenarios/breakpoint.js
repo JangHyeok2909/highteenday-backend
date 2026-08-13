@@ -10,7 +10,19 @@
  * 산출물   : 최대 지속 가능 TPS → regression/baseline.json 의 capacity 기준값
  */
 import { makeHandleSummary } from '../scripts/lib/summary.js';
+import { buildPhasePlan, toSeconds } from '../scripts/lib/phases.js';
 import { mixedIteration, PROFILE_NORMAL } from './lib/workload.js';
+
+// 한계 탐색이 목적이라 warmup/measure 구분이 없다. arrival-rate 시나리오는 vusMax가
+// 관측값이라 비교 조건으로 못 쓴다는 게 이미 comparability.js의 설계 원칙이므로
+// (conditions.js 참고), phase 태깅도 켜지 않는다(gatePhase:null, 진단 전용).
+const PLAN = buildPhasePlan({
+  mode: 'diagnostic',
+  warmupSec: 0,
+  measureSec: toSeconds(__ENV.RAMP, 1200),
+  rampdownSec: 0,
+  gatePhase: null,
+});
 
 export const options = {
   scenarios: {
@@ -34,4 +46,4 @@ export default function () {
   mixedIteration(PROFILE_NORMAL);
 }
 
-export const handleSummary = makeHandleSummary('breakpoint');
+export const handleSummary = makeHandleSummary('breakpoint', PLAN);

@@ -10,7 +10,8 @@
  * 어떤 시나리오에서든 재현하면서, 비율만 조정해 Normal Day/Exam Week 등을 만든다.
  */
 import { sleep } from 'k6';
-import { thinkTime } from '../../scripts/lib/config.js';
+import { Counter } from 'k6/metrics';
+import { thinkTime, currentPhase } from '../../scripts/lib/config.js';
 import { ensureSession } from '../../scripts/lib/session.js';
 import { myUser, hotPost, randomBoard, zipfIndex } from '../../scripts/lib/data.js';
 
@@ -269,6 +270,14 @@ export function pickJourney(profile) {
 }
 
 /**
+ * k6 builtin `iterations`는 iteration 완료 시점에 엔진이 직접 기록하므로, 경과 시간에 따라
+ * 동적으로 바뀌는 phase 태그를 실어 보낼 방법이 없다(스크립트가 값을 만드는 게 아니라
+ * k6가 만든다). phase별 TPS를 내려면 iteration이 끝나는 시점에 우리가 직접 세는 대체
+ * Counter가 필요하다 — k6.phases.<phase>.tps는 이 값을 measureSec 등으로 나눠 계산한다.
+ */
+const phaseIterations = new Counter('phase_iterations');
+
+/**
  * 시나리오 기본 반복 — 로그인 보장 후 프로파일 기반 여정 1회 수행.
  * 모든 시나리오 파일의 default function은 이 함수 하나로 충분하다.
  */
@@ -277,4 +286,7 @@ export function mixedIteration(profile) {
   const j = pickJourney(profile);
   if (j === 'relogin') journeyRelogin(user);
   else JOURNEYS[j]();
+
+  const phase = currentPhase();
+  if (phase) phaseIterations.add(1, { phase });
 }

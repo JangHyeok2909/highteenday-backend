@@ -35,10 +35,18 @@ const INFO = { runId: 'posts-2026-01-01T00-00-00', scenario: 'posts', endedAt: n
 // S-05 회귀 테스트 — failedRequests 가 성공 수(fails=600)가 아니라 실패 수(passes=400)여야 한다.
 test('convert: failedRequests 는 실패한 요청 수다 (passes/fails 의미 반전 주의)', () => {
   const rec = convert(fakeData(), INFO);
-  assert.equal(rec.k6.overall.failedRequests, 400);
-  assert.equal(rec.k6.overall.errorRate, 0.4);
+  assert.equal(rec.k6.all.failedRequests, 400);
+  assert.equal(rec.k6.all.errorRate, 0.4);
   // 교차 검증: errorRate × httpReqs ≈ failedRequests
-  assert.equal(Math.round(rec.k6.overall.errorRate * rec.k6.overall.httpReqs), rec.k6.overall.failedRequests);
+  assert.equal(Math.round(rec.k6.all.errorRate * rec.k6.all.httpReqs), rec.k6.all.failedRequests);
+});
+
+// T-03/S-08 — 이관된 과거 실행은 phase 개념 자체가 없던 데이터라 phasePlan을 복원할 수 없다.
+// 임의의 기본값을 소급 적용하지 않고 명시적으로 null/빈 객체로 남겨야 한다.
+test('convert: 이관 레코드는 phasePlan이 null이고 phases가 빈 객체다 (소급 금지)', () => {
+  const rec = convert(fakeData(), INFO);
+  assert.equal(rec.run.phasePlan, null);
+  assert.deepEqual(rec.k6.phases, {});
 });
 
 // S-17 회귀 테스트 — 다중 태그 서브메트릭이 엉뚱한 축을 만들면 안 된다.

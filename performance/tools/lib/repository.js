@@ -107,7 +107,10 @@ function promoteStaged(runId) {
  */
 function toIndexEntry(record) {
   const r = record.run || {};
-  const k = (record.k6 && record.k6.overall) || {};
+  // measure 구간(k6.phases.measure)을 우선한다 — 이력 표와 추세 스파크라인이 warmup/
+  // rampdown 섞인 전체 구간이 아니라 게이트가 실제로 본 값을 추적해야 한다(T-03/S-08).
+  // measure가 없는 실행(진단 시나리오·과거 run.json)만 k6.all로 폴백한다.
+  const k = (record.k6 && ((record.k6.phases && record.k6.phases.measure) || record.k6.all)) || {};
   const i = record.infra || {};
   const flat = i.flat || {};
   const reg = record.regression || {};
@@ -137,7 +140,8 @@ function toIndexEntry(record) {
     conditions,
     seriesHash: cmp.seriesHash(conditions),
     note: r.note,
-    vusMax: k.vusMax,
+    // vusMax는 항상 전체 구간 기준 — ramp-up까지 포함해야 "최대 몇 VU를 걸었는가"에 맞다.
+    vusMax: record.k6 && record.k6.all ? record.k6.all.vusMax : null,
     avg: k.avg,
     p90: k.p90,
     p95: k.p95,

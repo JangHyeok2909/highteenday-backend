@@ -6,8 +6,9 @@
  *  - 템플릿 + 과목 + 사용자시간표 3계층 조인 로딩 비용
  */
 import http from 'k6/http';
-import { check, sleep } from 'k6';
-import { BASE_URL, DEFAULT_THRESHOLDS, tags, thinkTime } from './lib/config.js';
+import { sleep } from 'k6';
+import { BASE_URL, DEFAULT_THRESHOLDS, check, tags, thinkTime } from './lib/config.js';
+import { buildPhasePlan, toSeconds } from './lib/phases.js';
 import { ensureSession, withAuth } from './lib/session.js';
 import { myUser } from './lib/data.js';
 import { makeHandleSummary } from './lib/summary.js';
@@ -73,4 +74,14 @@ export default function () {
   }
 }
 
-export const handleSummary = makeHandleSummary('timetable');
+// 단독 실행은 constant-vus라 warmup/measure 구분이 없다 — 진단 전용으로 선언한다
+// (Node 회귀 게이트 대상 아님).
+const STANDALONE_PLAN = buildPhasePlan({
+  mode: 'diagnostic',
+  warmupSec: 0,
+  measureSec: toSeconds(options.duration, 60),
+  rampdownSec: 0,
+  gatePhase: null,
+});
+
+export const handleSummary = makeHandleSummary('timetable', STANDALONE_PLAN);
