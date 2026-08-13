@@ -273,12 +273,14 @@ function sectionHeader(record) {
     ['시작', fmt.localTime(r.startedAt)],
     ['종료', fmt.localTime(r.endedAt)],
     ['수행 시간', fmt.duration(r.durationSec)],
-    ['VU 최대', fmt.num(record.k6.overall.vusMax, 0)],
+    ['VU 최대', fmt.num(record.k6.all.vusMax, 0)],
     ['Ramp-up', r.rampUp || '—'],
     ['데이터셋', r.dataset],
     // 선언된 부하 프로파일 — 위의 'VU 최대'는 관측값이라 서버가 느려지면 같이 움직인다.
     // 비교 가능성을 판정하는 건 이쪽이다.
     ['부하 프로파일', cmp.formatLoadProfile(r.loadProfile)],
+    // 측정 구간 설계(T-03/S-08) — k6와 Prometheus가 같은 구간을 봤는지는 이 값으로 판단한다.
+    ['측정 구간', cmp.formatMeasurementProfile(r.phasePlan)],
     ['스크립트 버전', r.scriptVersion],
     ['조건 계열', reg.seriesHash || '—'],
     ['Run ID', r.id],
@@ -298,8 +300,13 @@ function sectionHeader(record) {
 }
 
 function sectionSummary(record, previous) {
-  const k = record.k6.overall;
-  const p = previous ? previous.k6.overall : null;
+  // 게이트가 실제로 보는 값(k6.phases.measure)을 기본으로 보여준다(T-03/S-08) — warmup·
+  // rampdown이 섞인 전체 구간이 아니다. measure 구간이 없는 실행(진단 시나리오·과거
+  // run.json)만 k6.all로 폴백하고, 그 사실을 라벨로 밝힌다(조용히 같은 것처럼 안 보인다).
+  const measure = record.k6.phases && record.k6.phases.measure;
+  const k = measure || record.k6.all;
+  const prevPhases = previous && previous.k6.phases && previous.k6.phases.measure;
+  const p = previous ? (prevPhases || previous.k6.all) : null;
   const cmp = (key, dir) => {
     if (!p || !fmt.nz(p[key]) || !fmt.nz(k[key]) || p[key] === 0) return '';
     const pctChange = ((k[key] - p[key]) / Math.abs(p[key])) * 100;
@@ -309,7 +316,7 @@ function sectionSummary(record, previous) {
     return `<span class="${cls}">${arrow} ${fmt.delta(pctChange)}</span><span class="d-flat">직전 대비</span>`;
   };
 
-  return `<section><h2>Performance Summary</h2><div class="kpis">
+  return `<section><h2>Performance Summary (${measure ? 'measure 구간' : '전체 구간 — 측정 구간 미분리'})</h2><div class="kpis">
     ${kpi('평균 응답시간', fmt.ms(k.avg), cmp('avg', 'lower'))}
     ${kpi('P95', fmt.ms(k.p95), cmp('p95', 'lower'))}
     ${kpi('P99', fmt.ms(k.p99), cmp('p99', 'lower'))}
@@ -335,14 +342,14 @@ function sectionSummary(record, previous) {
     <tbody>
       <tr><td>총 HTTP 요청</td><td class="num">${fmt.num(k.httpReqs, 0)}</td>
           <td>완료 Iteration</td><td class="num">${fmt.num(k.iterations, 0)}</td></tr>
-      <tr><td>실패 요청</td><td class="num">${fmt.num(k.failedRequests, 0)}</td>
+      <tr><td>실패 요청 (전체 구간)</td><td class="num">${fmt.num(record.k6.all.failedRequests, 0)}</td>
           <td>Check 성공률</td><td class="num">${fmt.pct(k.checkRate * 100, 2)}</td></tr>
-      <tr><td>서버 대기(waiting) 평균</td><td class="num">${fmt.ms(k.waitingAvgMs)}</td>
-          <td>서버 대기 P95</td><td class="num">${fmt.ms(k.waitingP95Ms)}</td></tr>
-      <tr><td>Iteration 평균 소요</td><td class="num">${fmt.ms(k.iterationDurationAvgMs)}</td>
-          <td>연결(blocked) 평균</td><td class="num">${fmt.ms(k.blockedAvgMs)}</td></tr>
-      <tr><td>수신 데이터</td><td class="num">${fmt.bytes(k.dataReceivedBytes)}</td>
-          <td>송신 데이터</td><td class="num">${fmt.bytes(k.dataSentBytes)}</td></tr>
+      <tr><td>서버 대기(waiting) 평균 (전체 구간)</td><td class="num">${fmt.ms(record.k6.all.waitingAvgMs)}</td>
+          <td>서버 대기 P95 (전체 구간)</td><td class="num">${fmt.ms(record.k6.all.waitingP95Ms)}</td></tr>
+      <tr><td>Iteration 평균 소요 (전체 구간)</td><td class="num">${fmt.ms(record.k6.all.iterationDurationAvgMs)}</td>
+          <td>연결(blocked) 평균 (전체 구간)</td><td class="num">${fmt.ms(record.k6.all.blockedAvgMs)}</td></tr>
+      <tr><td>수신 데이터 (전체 구간)</td><td class="num">${fmt.bytes(record.k6.all.dataReceivedBytes)}</td>
+          <td>송신 데이터 (전체 구간)</td><td class="num">${fmt.bytes(record.k6.all.dataSentBytes)}</td></tr>
     </tbody>
   </table></div>
   </section>`;
@@ -439,8 +446,17 @@ function sectionInfra(record) {
     : '';
 
   const w = infra.window || {};
+  const windowModeLabel = { measure: 'measure 구간', 'diagnostic-full-run': '전체 구간(진단 시나리오)', 'legacy-no-phase-plan': '전체 구간(phasePlan 없음 — 과거 실행)' }[w.mode] || w.mode || '?';
+  const incompleteWarn = w.incomplete
+    ? `<div class="hint"><div class="n">!</div><div>
+        <div class="t">measure 구간을 다 채우지 못했다 (조기 종료)</div>
+        <div class="d">계획된 measure 구간이 끝나기 전에 실행이 종료됐다 — 실제로 수집 가능했던 구간만으로
+        잘라 집계했다. 이 실행을 정상 완료된 실행과 비교하면 안 된다.</div>
+      </div></div>`
+    : '';
   return `<section><h2>Infrastructure Summary</h2>
-    <h3>자원 포화도 (테스트 구간 최대)</h3>
+    <h3>자원 포화도 (${esc(windowModeLabel)} 최대)</h3>
+    ${incompleteWarn}
     <div class="card scroll"><table><tbody>${sat}</tbody></table>
       <div class="note">포화도는 한계 대비 사용량이다. 70% 넘으면 주황, 85% 넘으면 진주황, 95% 넘으면 빨강으로 표시된다.
       절대값과 달리 환경이 바뀌어도 그대로 비교되므로 병목 판단의 1차 기준으로 쓴다.</div>
@@ -448,9 +464,29 @@ function sectionInfra(record) {
     ${errBlock}
     ${groups}
     <div class="note">집계 구간 ${fmt.localTime(w.from)} ~ ${fmt.localTime(w.to)}
-      (${fmt.duration(w.durationSec)}${w.warmupExcludedSec ? `, 워밍업 ${w.warmupExcludedSec}초 제외` : ''})
+      (${fmt.duration(w.durationSec)}, ${esc(windowModeLabel)}${w.incomplete ? ' · 불완전' : ''})
+      · 이 구간은 k6.phases.measure와 같은 시간대다(T-03/S-08) — 더 이상 별도 계산이 아니다.
       · 쿼리 ${infra.queryStats ? infra.queryStats.queries : '?'}건${errs.length ? ` · 실패 ${errs.length}건` : ''}</div>
   </section>`;
+}
+
+/**
+ * loadProfile과 measurementProfile 불일치가 동시에 뜨면 원래 두 줄로 따로 표시된다.
+ * stagesFor()가 phase-plan 초 수로 stages를 생성하므로 이 둘은 실제로 자주 같이
+ * 바뀐다(하나의 시나리오 변경이 두 조건 모두에 반영됨) — 그때는 중복처럼 보이지 않게
+ * 한 줄로 합쳐 보여준다("부하 프로파일 + 측정 구간 변경").
+ */
+function combineMismatchDescs(mismatches) {
+  const byKey = new Map(mismatches.map((m) => [m.key, m]));
+  const load = byKey.get('loadProfile');
+  const measure = byKey.get('measurementProfile');
+  const out = [];
+  for (const m of mismatches) {
+    if (m.key === 'loadProfile' && measure) out.push(`${m.desc} · ${measure.desc}`);
+    else if (m.key === 'measurementProfile' && load) continue; // 위에서 이미 합쳤다
+    else out.push(m.desc);
+  }
+  return out;
 }
 
 function sectionRegression(record) {
@@ -462,7 +498,7 @@ function sectionRegression(record) {
     if (reg.baselineStatus === 'incomparable') {
       const rows = rejected.map((rej) => `<tr>
         <td><code>${esc(rej.id)}</code></td>
-        <td>${rej.mismatches.filter((m) => m.materiality === 'blocking').map((m) => esc(m.desc)).join('<br>')}</td>
+        <td>${combineMismatchDescs(rej.mismatches.filter((m) => m.materiality === 'blocking')).map(esc).join('<br>')}</td>
       </tr>`).join('');
       return `<section><h2>Regression</h2><div class="card scroll">
         <div class="hint">
@@ -596,8 +632,10 @@ function sectionTrend(record, trend) {
 
 function sectionThresholds(record) {
   const th = record.k6.thresholds || [];
-  // 분해축 생성용 느슨한 임계값은 판정 의미가 없으므로 보고서에서 제외한다.
-  const real = th.filter((t) => !/p\(99\)<600000/.test(t.expression));
+  // 분해축/phase 서브메트릭 생성용 느슨한 임계값은 판정 의미가 없으므로 보고서에서 제외한다.
+  // (config.js의 BREAKDOWN_THRESHOLDS·PHASE_DIAGNOSTIC_THRESHOLDS가 같은 목적으로 건 값들)
+  const LOOSE = /p\(99\)<600000|^rate<1$|^rate>=0$|^count>=0$/;
+  const real = th.filter((t) => !LOOSE.test(t.expression));
   if (!real.length) return '';
   const rows = real.map((t) => `<tr>
     <td><code>${esc(t.metric)}</code></td><td><code>${esc(t.expression)}</code></td>
@@ -612,16 +650,26 @@ function sectionThresholds(record) {
 }
 
 function sectionLinks(record) {
-  const l = record.links || {};
-  if (!l.dashboard) return '';
-  return `<section><h2>Grafana</h2><div class="card">
+  const links = record.links || {};
+  const full = links.full || {};
+  const measured = links.measured;
+  if (!full.dashboard && !(measured && measured.dashboard)) return '';
+
+  // 전체 실행 링크와 measure 구간 링크의 의미가 섞이면 안 된다(S-08) — 별도 블록으로 나눈다.
+  const block = (title, l) => !l || !l.dashboard ? '' : `
+    <h3>${esc(title)}</h3>
     <div class="links">
-      <a class="primary" href="${esc(l.dashboard)}" target="_blank" rel="noopener">전체 대시보드 열기</a>
+      <a class="primary" href="${esc(l.dashboard)}" target="_blank" rel="noopener">대시보드 열기</a>
       ${l.kiosk ? `<a href="${esc(l.kiosk)}" target="_blank" rel="noopener">Kiosk 모드</a>` : ''}
       ${(l.panels || []).map((p) => `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.label)}</a>`).join('')}
-    </div>
-    <div class="note">링크에는 이 테스트의 시간 구간이 앞뒤 2분 여유와 함께 이미 박혀 있다.
-    여유를 두는 이유는 "부하 직전 상태"와 비교해야 이번 부하로 올라간 값인지 원래 높았던 값인지 구분되기 때문이다.</div>
+    </div>`;
+
+  return `<section><h2>Grafana</h2><div class="card">
+    ${block('measure 구간 (게이트가 본 구간)', measured)}
+    ${block('전체 실행 (ramp-up/rampdown 포함)', full)}
+    <div class="note">링크에는 각 구간이 앞뒤 2분 여유와 함께 이미 박혀 있다.
+    여유를 두는 이유는 "부하 직전 상태"와 비교해야 이번 부하로 올라간 값인지 원래 높았던 값인지 구분되기 때문이다.
+    ${measured ? '두 링크는 서로 다른 시간 범위를 가리킨다 — measure 링크가 실제 판정에 쓰인 구간이다.' : '이 실행은 measure 구간이 따로 없어(진단 시나리오) 전체 실행 링크만 있다.'}</div>
   </div></section>`;
 }
 

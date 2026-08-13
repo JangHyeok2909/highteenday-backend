@@ -10,7 +10,18 @@
  */
 import { DEFAULT_THRESHOLDS } from '../scripts/lib/config.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
+import { buildPhasePlan } from '../scripts/lib/phases.js';
 import { mixedIteration, PROFILE_NORMAL } from './lib/workload.js';
+
+// 평시→폭증→회복의 형태 자체가 관찰 대상이라 warmup/measure/rampdown 구분이 없다.
+// phase 태깅은 켜지 않는다(진단 전용, gatePhase:null) — 기존 부하 형태·threshold 불변.
+const PLAN = buildPhasePlan({
+  mode: 'diagnostic',
+  warmupSec: 0,
+  measureSec: 650, // 1m+2m+10s+2m+10s+5m+30s
+  rampdownSec: 0,
+  gatePhase: null,
+});
 
 export const options = {
   scenarios: {
@@ -39,4 +50,4 @@ export default function () {
   mixedIteration(PROFILE_NORMAL);
 }
 
-export const handleSummary = makeHandleSummary('spike');
+export const handleSummary = makeHandleSummary('spike', PLAN);

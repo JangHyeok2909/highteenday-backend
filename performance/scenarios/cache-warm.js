@@ -6,38 +6,63 @@
  *
  * 사전조건:
  *   1. 워밍업 페이즈가 먼저 5분 실행되어 캐시를 채운다 (본 파일에 내장)
- *   2. 측정 페이즈는 워밍업 종료 후 시작 — 결과 분석 시 measurement 시나리오 태그만 사용
+ *   2. 측정 페이즈는 워밍업 종료 후 시작 — k6.phases.measure만 판정에 쓰인다(S-17)
  *
  * 사용자   : 워밍업 50 VU 5분 → 측정 100 VU 10분 (cold-start와 동일 강도)
  * 비율     : PROFILE_READ_HEAVY
  * 종료조건 : 시간 만료
+ *
+ * phase 태깅 방식이 다른 시나리오와 다르다 — 왜:
+ *   여기는 이미 k6 네이티브 scenarios.<name>.tags로 warmup/measure를 완전히 분리된 두
+ *   executor로 나눠 두었다. 이 정적 태그는 checks·iterations를 포함한 모든 메트릭에
+ *   자동으로 붙으므로, config.js의 동적 currentPhase()(요청 시점 경과 시간 계산)를
+ *   덧붙이면 오히려 두 메커니즘이 충돌한다(setActivePhasePlan 미호출).
+ *   phasePlan은 기록·비교 목적으로만 선언하고, 실제 태깅은 k6 executor tags가 전담한다.
+ *
+ * S-17: 예전에는 이 두 executor의 데이터가 하나의 overall로 섞였다. 이제
+ *   summary.js가 phase 태그로 k6.phases.warmup / k6.phases.measure를 분리 추출하므로
+ *   "캐시 데우는 구간"과 "측정 구간"이 리포트에서 완전히 갈라진다.
  */
-import { DEFAULT_THRESHOLDS } from '../scripts/lib/config.js';
+import { PHASED_THRESHOLDS } from '../scripts/lib/config.js';
+import { buildPhasePlan, buildSelector, toSeconds } from '../scripts/lib/phases.js';
 import { makeHandleSummary } from '../scripts/lib/summary.js';
 import { mixedIteration, PROFILE_READ_HEAVY } from './lib/workload.js';
+
+const MEASURE_RAMP_SEC = 30;
+const VUS = Number(__ENV.VUS || 100);
+const WARMUP_SEC = toSeconds(__ENV.WARMUP, 300);
+const MEASURE_HOLD_SEC = toSeconds(__ENV.HOLD, 600);
+
+const PLAN = buildPhasePlan({
+  mode: 'cache-warm',
+  warmupSec: WARMUP_SEC,
+  measureSec: MEASURE_RAMP_SEC + MEASURE_HOLD_SEC,
+  rampdownSec: 0,
+});
 
 export const options = {
   scenarios: {
     warmup: {
       executor: 'constant-vus',
       vus: 50,
-      duration: '5m',
+      duration: `${WARMUP_SEC}s`,
       tags: { phase: 'warmup' },
     },
     measurement: {
       executor: 'ramping-vus',
-      startTime: '5m',
+      startTime: `${WARMUP_SEC}s`,
       startVUs: 0,
       stages: [
-        { duration: '30s', target: Number(__ENV.VUS || 100) },
-        { duration: __ENV.HOLD || '10m', target: Number(__ENV.VUS || 100) },
+        { duration: `${MEASURE_RAMP_SEC}s`, target: VUS },
+        { duration: `${MEASURE_HOLD_SEC}s`, target: VUS },
       ],
-      tags: { phase: 'measurement' },
+      tags: { phase: 'measure' },
     },
   },
-  thresholds: Object.assign({}, DEFAULT_THRESHOLDS, {
-    // 웜 캐시라면 읽기 P95는 콜드 대비 큰 폭으로 낮아야 한다
-    'http_req_duration{phase:measurement,op:read}': ['p(95)<200'],
+  thresholds: Object.assign({}, PHASED_THRESHOLDS, {
+    // 웜 캐시라면 읽기 P95는 콜드 대비 큰 폭으로 낮아야 한다 — measure phase 게이트를
+    // PHASED_THRESHOLDS의 기본 op:read 기준보다 더 엄격하게 덮어쓴다.
+    [buildSelector('http_req_duration', { op: 'read', phase: 'measure' })]: ['p(95)<200'],
   }),
 };
 
@@ -45,4 +70,4 @@ export default function () {
   mixedIteration(PROFILE_READ_HEAVY);
 }
 
-export const handleSummary = makeHandleSummary('cache-warm');
+export const handleSummary = makeHandleSummary('cache-warm', PLAN);

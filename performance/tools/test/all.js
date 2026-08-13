@@ -10,3 +10,4 @@ require('./regression.test.js');
 require('./repository.test.js');
 require('./summary-parsing.test.js');
 require('./phases.test.js');
+require('./collect-window.test.js');

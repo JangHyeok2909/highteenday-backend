@@ -218,7 +218,7 @@ async function main() {
 
     const id = newIds[0];
     const rec = repo.loadRun(id);
-    const k = rec.k6.overall;
+    const k = rec.k6.all;
     const row = {
       index: i, ok: true, id, exitCode,
       startedAt: rec.run.startedAt, endedAt: rec.run.endedAt,

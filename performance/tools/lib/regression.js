@@ -28,7 +28,7 @@ const cmp = require('./comparability');
 const RULES_FILE = path.join(__dirname, '..', '..', 'regression', 'rules.json');
 
 /**
- * 'k6.overall.p95' 같은 점 경로로 값을 꺼낸다.
+ * 'k6.phases.measure.p95' 같은 점 경로로 값을 꺼낸다.
  *
  * 주의: infra.flat 은 **키 자체에 점이 들어간 평면 맵**이다('saturation.cpuPct').
  * 순수 중첩 탐색만 하면 infra.flat.* 규칙 전체가 undefined → SKIP 으로 빠진다
@@ -297,7 +297,10 @@ function analyze(record, prevRun, opts = {}) {
  */
 function bottleneckHints(record) {
   const f = (record.infra && record.infra.flat) || {};
-  const k6 = (record.k6 && record.k6.overall) || {};
+  // measure 구간(k6.phases.measure)을 우선한다 — 병목은 정상 상태에서 진단해야 의미가
+  // 있고, warmup/rampdown이 섞인 전체 구간은 왜곡될 수 있다. measure가 없는 실행
+  // (진단 시나리오·과거 run.json)만 k6.all로 폴백한다.
+  const k6 = (record.k6 && ((record.k6.phases && record.k6.phases.measure) || record.k6.all)) || {};
   const hints = [];
   const push = (score, title, detail) => hints.push({ score, title, detail });
 
@@ -349,15 +352,15 @@ function bottleneckHints(record) {
     push(65, 'Tomcat 워커 스레드 포화',
       `busy/max = ${f['saturation.tomcatPct'].toFixed(0)}%. 여기 닿으면 요청이 수락 큐에서 대기한다.`);
   }
-  if (f['mysql.slowQueries'] > 0 && record.k6 && record.k6.overall.httpReqs) {
-    const per1k = (f['mysql.slowQueries'] / record.k6.overall.httpReqs) * 1000;
+  if (f['mysql.slowQueries'] > 0 && k6.httpReqs) {
+    const per1k = (f['mysql.slowQueries'] / k6.httpReqs) * 1000;
     if (per1k > 1) {
       push(60, 'Slow Query 다발',
         `요청 1000건당 ${per1k.toFixed(1)}건의 slow query(>100ms). 인덱스 또는 쿼리 계획 점검 대상.`);
     }
   }
   // RPS 대비 QPS 비율 — N+1의 직접 신호
-  const rps = record.k6 && record.k6.overall.rps;
+  const rps = k6.rps;
   if (rps > 0 && f['mysql.qps'] > 0) {
     const qpr = f['mysql.qps'] / rps;
     if (qpr > 10) {

@@ -6,15 +6,15 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { pick, evaluateRule, analyze, validateRules, loadRules } = require('../lib/regression');
+const { pick, evaluateRule, analyze, validateRules, loadRules, bottleneckHints } = require('../lib/regression');
 
 // ---------------------------------------------------------------------------
 // pick — T-01 회귀 테스트. infra.flat 은 키에 점이 든 평면 맵이다.
 // 이 테스트가 있었다면 infra 규칙 25개가 한 번도 평가되지 않는 버그는 첫날 잡혔다.
 // ---------------------------------------------------------------------------
-test('pick: 중첩 경로(k6.overall.p95)를 꺼낸다', () => {
-  const rec = { k6: { overall: { p95: 123 } } };
-  assert.equal(pick(rec, 'k6.overall.p95'), 123);
+test('pick: 중첩 경로(k6.phases.measure.p95)를 꺼낸다', () => {
+  const rec = { k6: { phases: { measure: { p95: 123 } } } };
+  assert.equal(pick(rec, 'k6.phases.measure.p95'), 123);
 });
 
 test('pick: 평면 맵의 점 포함 키(infra.flat["saturation.cpuPct"])를 꺼낸다', () => {
@@ -114,10 +114,10 @@ test('analyze: infra.flat 게이트 규칙이 실제로 평가된다 (T-01 회�
 test('analyze: 값이 수집 안 된 규칙은 skipped, 노이즈 억제는 suppressed 로 분리 집계', () => {
   const rulesFile = tmpRules([
     { key: 'infra.flat.mysql.slowQueries', direction: 'lower_is_better', gate: true }, // 값 없음 → skipped
-    { key: 'k6.overall.p95', direction: 'lower_is_better', fail: { changePct: 20 }, noiseFloor: 100 }, // 억제 → suppressed
+    { key: 'k6.phases.measure.p95', direction: 'lower_is_better', fail: { changePct: 20 }, noiseFloor: 100 }, // 억제 → suppressed
   ]);
-  const record = { run: conds(), k6: { overall: { p95: 110 } }, infra: { flat: {} } };
-  const prev = { run: { ...conds(), id: 'prev', startedAt: 't' }, k6: { overall: { p95: 100 } } };
+  const record = { run: conds(), k6: { phases: { measure: { p95: 110 } } }, infra: { flat: {} } };
+  const prev = { run: { ...conds(), id: 'prev', startedAt: 't' }, k6: { phases: { measure: { p95: 100 } } } };
   const res = analyze(record, prev, { rulesFile });
   assert.equal(res.counts.skipped, 1);
   assert.equal(res.counts.suppressed, 1);
@@ -125,9 +125,9 @@ test('analyze: 값이 수집 안 된 규칙은 skipped, 노이즈 억제는 supp
 
 test('analyze: 기준선 없으면 상대 비교 없이 절대 판정만 수행', () => {
   const rulesFile = tmpRules([
-    { key: 'k6.overall.p95', direction: 'lower_is_better', fail: { changePct: 20 }, absolute: { fail: { gt: 500 } }, gate: true },
+    { key: 'k6.phases.measure.p95', direction: 'lower_is_better', fail: { changePct: 20 }, absolute: { fail: { gt: 500 } }, gate: true },
   ]);
-  const record = { run: conds(), k6: { overall: { p95: 100 } } };
+  const record = { run: conds(), k6: { phases: { measure: { p95: 100 } } } };
   const res = analyze(record, null, { rulesFile });
   assert.equal(res.hasBaseline, false);
   assert.equal(res.verdict, 'PASS');
@@ -165,13 +165,13 @@ test('실제 rules.json 이 검증을 통과한다', () => {
 // ---------------------------------------------------------------------------
 test('analyze: 조건이 다른 기준선은 상대 비교에서 배제된다 (T-02 회귀 테스트)', () => {
   const rulesFile = tmpRules([
-    { key: 'k6.overall.p95', direction: 'lower_is_better', fail: { changePct: 20 }, gate: true },
+    { key: 'k6.phases.measure.p95', direction: 'lower_is_better', fail: { changePct: 20 }, gate: true },
   ]);
   // large/200VU 실행이 small/15VU 실행을 기준선으로 받았던 그 상황.
-  const record = { run: conds(), k6: { overall: { p95: 60001 } } };
+  const record = { run: conds(), k6: { phases: { measure: { p95: 60001 } } } };
   const prev = {
     run: { ...conds({ dataset: 'small', loadProfile: { s: { executor: 'ramping-vus', stages: [{ duration: '5m', target: 15 }] } } }), id: 'prev', startedAt: 't' },
-    k6: { overall: { p95: 101 } },
+    k6: { phases: { measure: { p95: 101 } } },
   };
 
   const res = analyze(record, prev, { rulesFile });
@@ -186,10 +186,10 @@ test('analyze: 조건이 다른 기준선은 상대 비교에서 배제된다 (T
 
 test('analyze: 상대 비교가 꺼져도 절대 게이트는 계속 돈다 (조용한 통과 방지)', () => {
   const rulesFile = tmpRules([
-    { key: 'k6.overall.p95', direction: 'lower_is_better', absolute: { fail: { gt: 500 } }, gate: true },
+    { key: 'k6.phases.measure.p95', direction: 'lower_is_better', absolute: { fail: { gt: 500 } }, gate: true },
   ]);
-  const record = { run: conds(), k6: { overall: { p95: 60001 } } };
-  const prev = { run: { ...conds({ dataset: 'small' }), id: 'prev', startedAt: 't' }, k6: { overall: { p95: 101 } } };
+  const record = { run: conds(), k6: { phases: { measure: { p95: 60001 } } } };
+  const prev = { run: { ...conds({ dataset: 'small' }), id: 'prev', startedAt: 't' }, k6: { phases: { measure: { p95: 101 } } } };
 
   const res = analyze(record, prev, { rulesFile });
   assert.equal(res.hasBaseline, false);
@@ -199,10 +199,10 @@ test('analyze: 상대 비교가 꺼져도 절대 게이트는 계속 돈다 (조
 
 test('analyze: 조건이 같으면 정상 비교하고 baselineStatus 가 compared', () => {
   const rulesFile = tmpRules([
-    { key: 'k6.overall.p95', direction: 'lower_is_better', fail: { changePct: 20 }, gate: true },
+    { key: 'k6.phases.measure.p95', direction: 'lower_is_better', fail: { changePct: 20 }, gate: true },
   ]);
-  const record = { run: conds(), k6: { overall: { p95: 200 } } };
-  const prev = { run: { ...conds(), id: 'prev', startedAt: 't', commitShort: 'deadbeef' }, k6: { overall: { p95: 100 } } };
+  const record = { run: conds(), k6: { phases: { measure: { p95: 200 } } } };
+  const prev = { run: { ...conds(), id: 'prev', startedAt: 't', commitShort: 'deadbeef' }, k6: { phases: { measure: { p95: 100 } } } };
 
   const res = analyze(record, prev, { rulesFile });
   assert.equal(res.baselineStatus, 'compared');
@@ -213,10 +213,10 @@ test('analyze: 조건이 같으면 정상 비교하고 baselineStatus 가 compar
 
 test('analyze: 스크립트 지문만 다르면 비교는 하되 게이트를 연다 (degraded)', () => {
   const rulesFile = tmpRules([
-    { key: 'k6.overall.p95', direction: 'lower_is_better', fail: { changePct: 20 }, gate: true },
+    { key: 'k6.phases.measure.p95', direction: 'lower_is_better', fail: { changePct: 20 }, gate: true },
   ]);
-  const record = { run: conds(), k6: { overall: { p95: 200 } } };
-  const prev = { run: { ...conds({ scriptVersion: 'zzz999' }), id: 'prev', startedAt: 't' }, k6: { overall: { p95: 100 } } };
+  const record = { run: conds(), k6: { phases: { measure: { p95: 200 } } } };
+  const prev = { run: { ...conds({ scriptVersion: 'zzz999' }), id: 'prev', startedAt: 't' }, k6: { phases: { measure: { p95: 100 } } } };
 
   const res = analyze(record, prev, { rulesFile });
   assert.equal(res.hasBaseline, true);
@@ -227,8 +227,33 @@ test('analyze: 스크립트 지문만 다르면 비교는 하되 게이트를 �
 });
 
 test('analyze: 기준선이 아예 없으면 first-run', () => {
-  const rulesFile = tmpRules([{ key: 'k6.overall.p95', direction: 'lower_is_better' }]);
-  const res = analyze({ run: conds(), k6: { overall: { p95: 100 } } }, null, { rulesFile });
+  const rulesFile = tmpRules([{ key: 'k6.phases.measure.p95', direction: 'lower_is_better' }]);
+  const res = analyze({ run: conds(), k6: { phases: { measure: { p95: 100 } } } }, null, { rulesFile });
   assert.equal(res.baselineStatus, 'first-run');
   assert.ok(res.seriesHash, '계열 해시는 기준선 없이도 계산된다');
+});
+
+// ---------------------------------------------------------------------------
+// bottleneckHints — T-03/S-08: 병목 진단은 measure 구간을 우선 봐야 한다.
+// warmup/rampdown이 섞인 전체 구간(k6.all)으로 진단하면 왜곡될 수 있다.
+// ---------------------------------------------------------------------------
+test('bottleneckHints: k6.phases.measure가 있으면 그걸로 진단한다 (slow query 비율)', () => {
+  const record = {
+    infra: { flat: { 'mysql.slowQueries': 20 } },
+    k6: {
+      all: { httpReqs: 100000 }, // measure 대비 훨씬 커서, all을 썼다면 비율이 희석돼 힌트가 안 뜬다
+      phases: { measure: { httpReqs: 1000 } }, // 20/1000*1000 = 20건/1000 요청 → 힌트 발생
+    },
+  };
+  const hints = bottleneckHints(record);
+  assert.ok(hints.some((h) => h.title.includes('Slow Query')), 'measure 구간 기준으로 slow query 비율 힌트가 떠야 한다');
+});
+
+test('bottleneckHints: k6.phases.measure가 없으면(진단 시나리오) k6.all로 폴백한다', () => {
+  const record = {
+    infra: { flat: { 'mysql.slowQueries': 20 } },
+    k6: { all: { httpReqs: 1000 }, phases: {} },
+  };
+  const hints = bottleneckHints(record);
+  assert.ok(hints.some((h) => h.title.includes('Slow Query')), 'phases가 비어 있으면 k6.all로 폴백해야 한다');
 });
