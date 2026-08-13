@@ -282,6 +282,8 @@ function sectionHeader(record) {
     // 측정 구간 설계(T-03/S-08) — k6와 Prometheus가 같은 구간을 봤는지는 이 값으로 판단한다.
     ['측정 구간', cmp.formatMeasurementProfile(r.phasePlan)],
     ['스크립트 버전', r.scriptVersion],
+    // 판정과 별개의 축(T-08) — 이 실행이 판정을 내릴 데이터를 실제로 가졌는지.
+    ['측정 상태', reg.measurementStatus || '—'],
     ['조건 계열', reg.seriesHash || '—'],
     ['Run ID', r.id],
   ];
@@ -297,6 +299,57 @@ function sectionHeader(record) {
     ${r.note ? `<div class="note">${esc(r.note)}</div>` : ''}
     <dl class="meta">${meta.map(([k, val]) => `<div><dt>${esc(k)}</dt><dd>${esc(val == null ? '—' : val)}</dd></div>`).join('')}</dl>
   </div></div>`;
+}
+
+/**
+ * 측정 상태 배너 — 성능 판정보다 먼저 읽혀야 하는 정보다(T-08).
+ *
+ * 리포트를 여는 사람은 상단의 통과/실패 배지부터 본다. 그 배지가 "잰 결과"인지 "재지 못한
+ * 결과"인지 모르면 판정을 잘못 읽는다. 그래서 요약 지표보다 위에, 판정과 별도의 블록으로
+ * 놓는다. 정상 측정이면 아무것도 그리지 않는다 — 항상 뜨는 배너는 곧 안 읽히는 배너다.
+ */
+function sectionMeasurement(record) {
+  const reg = record.regression;
+  const status = reg.measurementStatus;
+  if (!status || status === 'MEASURED') return '';
+
+  const missing = reg.missingRequired || [];
+  const optional = reg.missingOptional || [];
+
+  if (status === 'UNMEASURED') {
+    return `<section><div class="card">
+      <div class="hint">
+        <div class="n">!</div>
+        <div>
+          <div class="t">측정 불가 — 이 실행의 성능 판정은 신뢰할 수 없다</div>
+          <div class="d">
+            판정에 반드시 필요한 지표 ${missing.length}건을 수집하지 못했다.
+            <b>서버가 느리다는 뜻이 아니라, 채점할 답안지가 없다는 뜻이다.</b>
+            아래 지표를 공급하는 쪽(Prometheus·익스포터·k6 실행)을 먼저 확인해야 한다.
+            ${missing.map((k) => `<div><code>${esc(k)}</code></div>`).join('')}
+            ${reg.windowIncomplete ? '<div>측정 구간이 계획보다 짧게 끝났다(조기 종료).</div>' : ''}
+          </div>
+        </div>
+      </div>
+    </div></section>`;
+  }
+
+  const why = [];
+  if (optional.length) why.push(`참고 지표 ${optional.length}건이 비어 있다`);
+  if (reg.windowIncomplete) why.push('측정 구간이 계획보다 짧게 끝났다');
+  return `<section><div class="card">
+    <div class="hint">
+      <div class="n">!</div>
+      <div>
+        <div class="t">부분 측정 — 판정은 유효하지만 일부 지표가 비어 있다</div>
+        <div class="d">
+          ${esc(why.join('. '))}. 게이트 지표는 모두 수집됐으므로 위 판정 자체는 그대로 읽어도 된다.
+          다만 익스포터 하나가 조용히 죽으면 이 상태로 나타난다 — 반복되면 수집 설정을 확인할 것.
+          ${optional.length ? `<div style="margin-top:6px">${optional.map((k) => `<code>${esc(k)}</code>`).join(' · ')}</div>` : ''}
+        </div>
+      </div>
+    </div>
+  </div></section>`;
 }
 
 function sectionSummary(record, previous) {
@@ -543,6 +596,13 @@ function sectionRegression(record) {
     </tr>`).join('');
 
   const unmeasured = reg.counts.skipped || 0;
+  // 평가 불가를 세 갈래로 쪼개 보여준다(T-08) — 필수 결측은 판정 자체를 무효로 만들고,
+  // 참고 결측은 그렇지 않으며, 해당 없음은 애초에 이 실행에 없는 지표다(진단 시나리오의
+  // measure 규칙 등). 셋을 한 숫자로 합치면 어느 쪽인지 알 수 없다.
+  const missingRequired = (reg.missingRequired || []).length;
+  const unmeasuredBreakdown = reg.measurementStatus
+    ? ` (필수 ${missingRequired}건 / 참고 ${(reg.missingOptional || []).length}건 / 해당 없음 ${(reg.notApplicable || []).length}건)`
+    : '';
   const suppressed = reg.counts.suppressed != null
     ? reg.counts.suppressed
     : reg.comparisons.filter((c) => c.verdict !== 'SKIP' && c.skipped).length;
@@ -580,7 +640,7 @@ function sectionRegression(record) {
       </table>
       <div class="note">
         기준 실행: <b>${esc(reg.baselineRunId)}</b> (${fmt.localTime(reg.baselineStartedAt)})<br>
-        판정 ${reg.counts.fail}건 실패 / ${reg.counts.warn}건 경고 / ${unmeasured}건 평가 불가 / ${suppressed}건 판정 생략${unmeasured ? ` — <b>평가 불가는 지표가 수집되지 않아 판정할 수 없었던 규칙</b>입니다(노이즈 억제와 다릅니다). 익스포터/Prometheus 상태를 확인하세요.` : ''}${suppressed ? ` 판정 생략은 변화폭이 노이즈 하한 미만이거나 기준값이 너무 작은 경우입니다.` : ''}<br>
+        판정 ${reg.counts.fail}건 실패 / ${reg.counts.warn}건 경고 / ${unmeasured}건 평가 불가${unmeasuredBreakdown} / ${suppressed}건 판정 생략${unmeasured ? ` — <b>평가 불가는 지표가 수집되지 않아 판정할 수 없었던 규칙</b>입니다(노이즈 억제와 다릅니다).${missingRequired ? ' 그중 <b>필수</b> 지표 결측은 이 실행 전체를 측정 불가로 만듭니다.' : ' 전부 참고용 지표라 판정에는 영향이 없습니다.'} 익스포터/Prometheus 상태를 확인하세요.` : ''}${suppressed ? ` 판정 생략은 변화폭이 노이즈 하한 미만이거나 기준값이 너무 작은 경우입니다.` : ''}<br>
         <b>GATE</b> 표시가 붙은 실패만 CI를 중단시킵니다. 규칙은 <code>regression/rules.json</code>에서 조정합니다.
       </div>
     </div></section>`;
@@ -685,6 +745,7 @@ function renderReport(record, opts = {}) {
 </head><body>
 ${sectionHeader(record)}
 <div class="wrap">
+  ${sectionMeasurement(record)}
   ${sectionHints(record)}
   ${sectionSummary(record, opts.previous)}
   ${sectionRegression(record)}
