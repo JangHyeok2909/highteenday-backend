@@ -62,6 +62,9 @@ node datasets/seed.js --profile medium
 
 # 2~3. 스모크 → 기준선  (모든 명령은 performance/ 루트에서)
 node tools/perf-run.js scripts/posts.js --vus 5 --duration 1m --dataset medium
+# --warmup은 k6의 ramp-up 단계 자체를 그 길이로 만든다(300초). 수집기가 사후에 자르는
+# 옵션이 아니다 — k6 threshold와 Prometheus 조회 창이 둘 다 이 값으로 measure 구간을
+# 판정한다(T-03/S-08). 미지정 시 시나리오 기본값(normal-day는 5분)을 그대로 쓴다.
 node tools/perf-run.js scenarios/normal-day.js --dataset medium --warmup 300
 
 # 결과 확인

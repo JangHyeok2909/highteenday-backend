@@ -98,7 +98,10 @@ node tools/perf-run.js scenarios/normal-day.js
 # 옵션
 node tools/perf-run.js scripts/posts.js \
   --vus 50 --duration 5m \
-  --warmup 60 \                 # 앞 60초를 자원 통계에서 제외 (ramp-up 배제)
+  --warmup 60 \                 # k6 ramp-up 단계 자체를 60초로 만든다(T-03/S-08).
+                                 # 수집기가 사후에 자르는 옵션이 아니다 — k6 threshold와
+                                 # Prometheus 조회 창이 둘 다 이 값을 기준으로 measure
+                                 # 구간을 판정한다. 미지정 시 시나리오 기본값 유지.
   --note "게시글 목록 인덱스 추가 후"
 
 # 이력 / 추세
@@ -139,17 +142,36 @@ Test ID · Scenario · Environment · Branch · Commit SHA · Build Number · �
 
 ### 4.2 k6 지표 (`k6`)
 
-`overall`에 avg/min/med/max/P90/P95/P99, RPS, **TPS**, Error Rate, Iterations,
-HTTP Request Count, Check Success Rate, 송수신 바이트, waiting/blocked 분해까지.
+**`all` / `phases` 로 나뉜다(T-03/S-08/S-17).** `all`은 ramp-up + hold + ramp-down을 전부
+합친 전체 구간 집계 — 참고용이지 판정 기준이 아니다. `phases.warmup` / `phases.measure` /
+`phases.rampdown`이 phase 태그로 실제 분리된 구간별 집계이며, **회귀 게이트와 k6 threshold
+판정은 `phases.measure`만 본다.** `all`은 이름 그대로 이전의 `overall`을 대체한 것으로,
+"판정 기준이 아니라 전체 참고용"임을 명확히 하려고 개명했다.
+
+각 구간(`all`, `phases.*`)은 avg/min/med/max/P90/P95/P99, RPS, **TPS**, Error Rate,
+HTTP Request Count, Check Success Rate까지 담는다. Iterations, 송수신 바이트,
+waiting/blocked 분해는 `all`에만 있다 — 이들은 요청 자체보다 실행 환경 진단용이라
+phase별로 쪼갤 실익이 적다.
 
 > **RPS와 TPS를 구분하는 이유**
 > RPS는 초당 HTTP 요청 수, TPS는 초당 완료된 iteration(= 사용자 여정 1회)이다.
 > 용량 산정과 경영 보고에 쓰이는 건 RPS가 아니라 TPS다. "동시 사용자 200명을 받을 수 있나"는
 > 요청 수가 아니라 여정 완료 수로 답해야 한다.
+>
+> **phase별 TPS는 k6 builtin `iterations`가 아니라 커스텀 Counter에서 나온다.** k6의
+> `iterations`는 엔진이 iteration 완료 시점에 직접 기록하므로 요청 시점 기준 동적 phase
+> 태그를 실을 수 없다(그건 스크립트가 아니라 k6가 만든다). 그래서 `workload.js`가 매
+> iteration 끝에 `phase_iterations` Counter를 phase 태그와 함께 직접 증가시키고,
+> `phases.<phase>.tps`는 `phase_iterations{phase:X}.count / plan.<X>Sec`로 계산한다.
 
-`breakdown`은 기능별/오퍼레이션별 분해다. k6는 threshold에 태그 필터가 걸린 항목에만
-서브메트릭을 만들어 주므로, `config.js`의 `DEFAULT_THRESHOLDS`에 판정에 영향 없는
-느슨한 상한(`p(99)<600000`)으로 축을 선언해 둔다.
+`breakdown`은 기능별/오퍼레이션별 분해이며, `all`과 마찬가지로 phase 구분이 없는
+전체 구간 값이다(기능별로 phase까지 쪼개면 threshold 축이 조합 폭발한다 — 의도적 범위
+제한). k6는 threshold에 태그 필터가 걸린 항목에만 서브메트릭을 만들어 주므로,
+`config.js`의 `DEFAULT_THRESHOLDS`에 판정에 영향 없는 느슨한 상한(`p(99)<600000`)으로
+축을 선언해 둔다. `phases.*`도 같은 메커니즘이다 — `PHASE_DIAGNOSTIC_THRESHOLDS`가
+`http_req_duration{phase:X}` 같은 bare per-phase 축을 강제로 만들고,
+`MEASURE_GATED_THRESHOLDS`가 `op:read`/`op:write` 같은 실제 SLO만 `{phase:measure}`로
+스코프해서 게이트로 쓴다.
 
 `rawMetrics`에 k6 원본 전체를 보관한다 — 나중에 새 지표가 필요해져도 과거 실행을
 다시 계산할 수 있어야 하므로.
@@ -158,6 +180,22 @@ HTTP Request Count, Check Success Rate, 송수신 바이트, waiting/blocked 분
 
 Prometheus 원본을 복사하지 않는다. **테스트 시간 구간에 해당하는 값만 PromQL로 집계해
 스칼라로 저장**한다. 원본은 Prometheus에 있고(30일 보관), 여기 필요한 건 "그 구간의 요약"이다.
+
+**그 "구간"이 무엇인지 — k6와 완전히 같은 정의를 쓴다(T-03/S-08).** `collect.js`의
+`measureWindow()`가 `run.phasePlan`(k6가 기록한 계획)만으로 이 구간을 계산한다.
+`from = startedAt + measureStartOffsetSec`, `to = from + measureSec` — `k6.phases.measure`가
+집계된 바로 그 구간이다. `to`는 더 이상 무조건 실행 종료 시각이 아니다 — rampdown/
+`gracefulRampDown` 구간은 여기서도 제외된다. `run.phasePlan`이 없는 과거 실행이나
+`gatePhase`가 없는 진단 시나리오는 전체 구간으로 폴백하고, `infra.window.mode`에
+`'legacy-no-phase-plan'` / `'diagnostic-full-run'`으로 그 사실을 남긴다 — 조용히
+"이것도 measure다"라고 우기지 않는다. 계획된 measure 구간이 끝나기 전에 실행이
+조기 종료됐으면 실제 가용 구간으로 잘라내고 `infra.window.incomplete: true`를 남긴다.
+
+warmup은 `--warmup` CLI 옵션이 `collect.js`에 독립적으로 전달돼 사후에 Prometheus 창만
+미루던 예전 구조(T-03)를 대체한다 — 이제 `--warmup`은 `perf-run.js`가 k6에 `-e WARMUP`으로
+직접 넘겨 **k6 실행 계획 자체**(ramp-up stage 길이)를 바꾸고, k6가 기록한 `phasePlan`을
+`collect.js`가 그대로 읽기만 한다. 두 파이프라인이 서로 다른 계산식으로 "같은 값이길
+바라는" 게 아니라, 애초에 같은 값을 공유한다.
 
 | 그룹 | 저장 항목 |
 |---|---|
@@ -196,7 +234,7 @@ saturation.cpuPct · memoryPct · heapPct · hikariPct · tomcatPct · mysqlConn
 
 ```json
 {
-  "key": "k6.overall.p95",
+  "key": "k6.phases.measure.p95",
   "label": "P95 응답시간",
   "direction": "lower_is_better",
   "warn": { "changePct": 10 },
@@ -237,12 +275,19 @@ saturation.cpuPct · memoryPct · heapPct · hikariPct · tomcatPct · mysqlConn
 | 환경 | blocking | 기준선 자격 박탈 |
 | 데이터셋 | blocking | 기준선 자격 박탈 |
 | 부하 프로파일 | blocking | 기준선 자격 박탈 |
+| 측정 구간 설계 | blocking | 기준선 자격 박탈 |
 | 부하 스크립트 지문 | degrading | 비교하되 경고 + FAIL→WARN 강등 |
 
 - **blocking** — 수치가 *무의미*해진다. 데이터셋이 다른 두 실행의 P95를 나란히 놓는 건
   "믿을 수 없는 비교"가 아니라 애초에 비교가 아니다. 상대 비교를 생략하고 절대 게이트만 남긴다.
 - **degrading** — 수치가 *의심스럽다*. 스크립트 지문 변화는 대개 주석 한 줄이므로 이력을
   끊지 않는다. 비교는 하되 게이트를 열고 리포트에 사유를 띄운다.
+
+**부하 프로파일과 측정 구간 설계는 책임이 다르다(T-03/S-08).** `loadProfile`은 "어떤 부하를
+발생시켰는가"(VU·executor·stage 형태), `measurementProfile`은 "어느 시간대를 판정했는가"
+(warmup/measure/rampdown 초 수·mode·gatePhase)다. `stagesFor()`가 phase-plan 초 수로
+k6 stages를 생성하므로 실제로는 대개 같이 바뀐다 — 그때 리포트에 두 mismatch가 따로
+뜨면 같은 변경이 두 번 보이는 것처럼 읽히므로, `report.js`가 한 줄로 합쳐 보여준다.
 
 조건 값은 전부 **선언된 의도**여야 하고 측정 결과가 섞이면 안 된다. k6 요약의 `vusMax`는
 관측값이라 arrival-rate 시나리오에서 서버가 느려질수록 올라간다 — 조건으로 쓰면 회귀가
@@ -420,8 +465,9 @@ Grafana를 열고 대시보드를 찾고 시간 범위를 맞추는 3단계가 �
 
 ```
 performance/
-├─ scripts/lib/summary.js        1단계: k6 결과 + 메타데이터 기록
-├─ scripts/lib/config.js         SLO + 분해축 threshold 정의
+├─ scripts/lib/summary.js        1단계: k6 결과 + 메타데이터 기록 (all/phases 분리)
+├─ scripts/lib/config.js         SLO + 분해축 threshold 정의 + phase 태깅(tags/check)
+├─ scripts/lib/phases.js         phase plan 순수 로직 — warmup/measure/rampdown 정의는 여기 한 곳
 ├─ tools/
 │  ├─ perf-run.js                단일 진입점 (실행 → 수집 → 판정)
 │  ├─ collect.js                 2단계: 지표 수집 + 회귀 분석 + 리포트 생성
@@ -431,6 +477,8 @@ performance/
 │     ├─ promql.js               Prometheus 클라이언트 (재시도 포함)
 │     ├─ metrics-catalog.js      운영 지표 정의 — 지표 추가는 여기 한 줄
 │     ├─ regression.js           회귀 판정 엔진 + 병목 가설
+│     ├─ comparability.js        비교 가능성 판정 알고리즘
+│     ├─ conditions.js           비교 조건 정의 — 조건 추가는 여기 한 줄
 │     ├─ repository.js           이력 저장/조회
 │     ├─ report.js               HTML 보고서 생성
 │     ├─ grafana.js              딥링크 생성
