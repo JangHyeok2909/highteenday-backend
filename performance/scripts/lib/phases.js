@@ -155,6 +155,32 @@ function phaseDurationSec(plan, phase) {
   return 0;
 }
 
+function counterCount(m, metric, phase) {
+  const sub = m[buildSelector(metric, { phase })];
+  const c = sub && sub.values ? sub.values.count : null;
+  return typeof c === 'number' && c > 0 ? c : null;
+}
+
+/**
+ * 한 phase 안에서 완료된 iteration 수 — 소스가 두 개고, 시나리오가 phase를 어떻게 나눴느냐에
+ * 따라 둘 중 하나만 채워진다. 그래서 우선순위를 두고 폴백한다.
+ *
+ *   1) `phase_iterations{phase:X}` — workload.js가 iteration 끝에 직접 세는 커스텀 Counter.
+ *      요청 시점 경과 시간으로 phase를 계산하는 일반 시나리오(setActivePhasePlan 호출)는
+ *      이 경로로만 값이 잡힌다. k6 builtin `iterations`는 엔진이 기록하므로 스크립트가 요청
+ *      단위로 붙인 동적 태그가 실리지 않는다.
+ *   2) `iterations{phase:X}` — k6 builtin. cache-warm처럼 executor를 phase별로 나누고
+ *      `scenarios.<name>.tags`로 정적 태깅하는 시나리오는 setActivePhasePlan을 부르지 않아
+ *      1)이 항상 0이지만, 정적 태그는 builtin 메트릭에도 붙으므로 이쪽에 값이 남는다.
+ *
+ * 0은 유효한 값으로 보지 않고 다음 소스로 넘어간다. 두 소스 모두 비어 있으면 null —
+ * "0건 처리했다"와 "세지 못했다"는 다른 사실이고, 여기서 0으로 확정하면 리포트의 TPS가
+ * 조용히 0으로 찍힌다(cache-warm에서 실제로 그랬다).
+ */
+function iterationCountFor(m, phase) {
+  return counterCount(m, 'phase_iterations', phase) ?? counterCount(m, 'iterations', phase);
+}
+
 /**
  * plan이 선언한 phase(warmup/measure/rampdown) 각각의 요약 지표를 k6 raw metrics(`m`)에서
  * 뽑는다. `m`은 k6 handleSummary의 `data.metrics`(또는 그와 같은 구조의 값)여야 한다.
@@ -168,6 +194,10 @@ function phaseDurationSec(plan, phase) {
  * phase 태깅이 활성화되지 않은 시나리오(진단 전용, gatePhase:null)라면 해당 서브메트릭이
  * 존재하지 않으므로 버킷 자체를 만들지 않는다 — 빈 값을 0으로 채워 "측정했지만 0이었다"는
  * 거짓 데이터를 만들지 않는다.
+ *
+ * iteration 수(=TPS의 분자)만은 소스가 둘이라 iterationCountFor()로 폴백한다 — 시나리오가
+ * phase를 동적 태그로 나누느냐(커스텀 Counter) 정적 executor 태그로 나누느냐(k6 builtin)에
+ * 따라 값이 실리는 축이 달라진다. 자세한 우선순위는 그 함수 주석 참고.
  */
 export function metricsByPhase(m, plan) {
   if (!plan) return {};
@@ -181,19 +211,20 @@ export function metricsByPhase(m, plan) {
     const failedM = m[buildSelector('http_req_failed', { phase })];
     const checksM = m[buildSelector('checks', { phase })];
     const iterM = m[buildSelector('phase_iterations', { phase })];
-    if (!durM && !reqsM && !failedM && !checksM && !iterM) continue;
+    const builtinIterM = m[buildSelector('iterations', { phase })];
+    if (!durM && !reqsM && !failedM && !checksM && !iterM && !builtinIterM) continue;
 
     const dur = trendStats(durM && durM.values) || {};
-    const iterCount = (iterM && iterM.values && iterM.values.count) || 0;
+    const iterCount = iterationCountFor(m, phase);
 
     out[phase] = {
       ...dur,
       durationSec: phaseSec,
       rps: (reqsM && reqsM.values && reqsM.values.rate != null) ? reqsM.values.rate : null,
-      tps: phaseSec > 0 ? iterCount / phaseSec : null,
+      tps: iterCount != null && phaseSec > 0 ? iterCount / phaseSec : null,
       errorRate: (failedM && failedM.values && failedM.values.rate != null) ? failedM.values.rate : null,
       httpReqs: (reqsM && reqsM.values && reqsM.values.count) || 0,
-      iterations: iterCount,
+      iterations: iterCount,   // null = 두 소스 모두 비어 있음(미집계) — 0으로 확정하지 않는다
       checkRate: (checksM && checksM.values && checksM.values.rate != null) ? checksM.values.rate : null,
       checksPassed: (checksM && checksM.values && checksM.values.passes) || null,
       checksFailed: (checksM && checksM.values && checksM.values.fails) || null,
