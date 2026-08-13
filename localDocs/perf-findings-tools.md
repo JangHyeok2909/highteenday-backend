@@ -224,7 +224,48 @@ large 데이터셋, 200 VU, 1650초로 실행한 normal-day 결과가 다음 실
 
 ## HIGH
 
-### T-03. `--warmup`이 인프라 지표에만 적용됨 — 상태: 미해결
+### T-03. `--warmup`이 인프라 지표에만 적용됨 — 상태: **해결** (2026-08-12, 미커밋)
+
+> warmup/measure/rampdown을 k6 실행 계획의 1급 개념으로 승격했다. 신규
+> `performance/scripts/lib/phases.js`(`buildPhasePlan`/`phaseAt`/`stagesFor`/`scopeThresholds`
+> 등 순수 함수)를 각 시나리오가 가져다 `run.phasePlan`을 구성하고,
+> `scripts/lib/config.js`의 `tags()`/`check()`가 `exec.instance.currentTestRunDuration`
+> 기준으로 요청마다 `phase` 태그를 다시 계산해 붙인다(캐시하지 않음 — iteration이 경계를
+> 넘는 경우 대응). `scripts/lib/summary.js`는 `k6.overall`을 `k6.all`(전체 구간, 진단용)과
+> `k6.phases.{warmup,measure,rampdown}`(phase 태그로 분리 추출, 게이트용)으로 나눠 기록한다.
+> `performance/tools/collect.js`의 `measureWindow()`는 `record.run.phasePlan`
+> (`measureStartOffsetSec`/`measureSec`)만으로 Prometheus 창을 계산한다 — CLI `--warmup`
+> 인자를 더 이상 받지 않는다(`parseArgs`에서 제거). `perf-run.js --warmup <sec>`는 이제
+> collect.js가 아니라 k6에 `-e WARMUP=<sec>`로 직접 전달되어 시나리오의 ramp-up stage
+> 길이 자체를 바꾼다. `regression/rules.json`의 `k6.overall.*` 7개 키를
+> `k6.phases.measure.*`로 옮겨 Node 회귀 게이트도 같은 구간을 보게 했다.
+> `tools/lib/conditions.js`에 `measurementProfile`(mode/warmupSec/measureSec/rampdownSec/
+> gatePhase) blocking 조건을 추가해, 측정 구간 설계가 다른 실행끼리는 기준선으로 못 쓰게 막았다.
+>
+> **고민한 대안과 버린 이유**
+> (a) k6 지표도 collect.js에서 시간 기준으로 재계산 — k6 raw metric은 태그별로만
+> 분리되지 시각 기준 슬라이싱을 지원하지 않아 불가능. (b) 모든 시나리오를 phase별로
+> 별도 k6 scenario로 분리(cache-warm 방식) — 일반 회귀 시나리오는 VU별 쿠키 세션
+> 연속성이 깨져서 기각, cache-warm처럼 애초에 phase 간 세션 연속성이 필요 없는 경우만
+> 예외로 허용했다. (c) k6 builtin `iterations`에 동적 phase 태그를 실어 TPS를 phase별로
+> 내는 방법 — k6가 iteration 완료 시점에 직접 기록하는 값이라 스크립트가 태그를 못
+> 붙인다. 대신 `workload.js`에 `phase_iterations` 커스텀 Counter를 추가해 iteration
+> 끝에서 직접 세는 방식으로 대체했다.
+>
+> **검증**: `cd performance && node --test tools/test/*.test.js` — phases.js 순수 로직
+> 19개, `metricsByPhase`(S-17 회귀 포함) 8개, collect.js `measureWindow` 8개(rampdown
+> 제외·조기 종료 clamp·재수집 재현성 포함), comparability `measurementProfile` 10개 등
+> 총 100개 테스트 통과. k6 바이너리가 이 환경에 없어 실제 부하 실행 검증은 못 했다 —
+> 아래 T-03 관련 후속 작업 참고.
+>
+> **남은 부작용/후속 작업**: 저장된 과거 `run.json`은 `k6.overall`/`infra.window.
+> warmupExcludedSec` 스키마 그대로 남는다(재해석하지 않음) — `k6.phases.measure`가
+> 없으므로 `pick()`이 새 rules.json 키를 못 찾아 SKIP되고, 재수집(`--force`) 해도
+> `run.phasePlan`이 없어 그 사실이 그대로 유지된다(의도된 동작). 실제 k6 실행 환경에서
+> `k6 inspect`/실측 실행으로 phase 태그가 기대대로 붙는지 확인이 아직 안 됐다.
+> op:read/op:write 외 시나리오별 커스텀 threshold(예: `name:login`, `op:write` 단독
+> abortOnFail)는 phase로 스코프하지 않고 전체 구간 기준으로 남겨뒀다 — 조합 폭발을
+> 피하기 위한 의도적 범위 제한.
 
 **문제**
 

@@ -365,7 +365,25 @@ small 데이터셋에는 계정이 100개지만 다음 시나리오는 이를 �
 프로파일별 최대 VU보다 충분히 많은 계정을 만들거나, 실행 전 계정 수가 부족하면 시작을
 거부한다. 계정 공유 자체를 연구하려는 실험은 별도 시나리오로 분리한다.
 
-### S-08. k6와 인프라 지표가 서로 다른 시간 구간을 설명함 — 상태: 미해결
+### S-08. k6와 인프라 지표가 서로 다른 시간 구간을 설명함 — 상태: **해결** (2026-08-12, 미커밋)
+
+> "측정 구간에 phase 태그를 붙여 k6와 Prometheus가 같은 구간만 집계"라는 이 항목의
+> 필요 조치를 그대로 구현했다. 시나리오가 `scripts/lib/phases.js`의 `buildPhasePlan`으로
+> warmup/measure/rampdown을 초 단위로 선언하고 `stagesFor()`가 그 값으로 k6 stages를
+> 생성한다(하드코딩 제거) — normal-day는 기존과 동일하게 5분/20분/2분이 기본값이지만
+> 이제 `-e WARMUP=<sec>`로 실제 stage 길이 자체를 바꿀 수 있다. `config.js`의 `tags()`/
+> `check()`가 매 요청·체크마다 `phase` 태그를 동적으로 붙이고, `summary.js`가
+> `k6.phases.{warmup,measure,rampdown}`으로 분리 집계한다. `collect.js`의
+> `measureWindow()`가 `run.phasePlan.measureStartOffsetSec`/`measureSec`로 Prometheus
+> 창을 계산해 `k6.phases.measure`와 정확히 같은 시간대를 본다 — `to`가 더 이상 무조건
+> 실행 종료 시각이 아니라서 rampdown/`gracefulRampDown`도 인프라 창에서 제외된다.
+> 리포트(`report.js`)는 "측정 구간" 메타 행, `Performance Summary`의 measure/전체 구간
+> 라벨, Grafana 링크의 전체/measure 구간 분리, `infra.window.incomplete`(조기 종료) 경고를
+> 추가해 "전체 실행 시간·warmup·실제 판정 구간"을 함께 보여준다.
+>
+> 상세 설계·대안 검토는 `perf-findings-tools.md`의 T-03에 적었다 — 같은 구현의 다른
+> 관점 기록이라 여기서 반복하지 않는다. 검증도 T-03과 같다(`node --test tools/test/*.test.js`
+> 100건 통과, 실제 k6 실행 미검증).
 
 **쉽게 말하면**
 
@@ -621,7 +639,7 @@ HTTP 200만 오면 내용이 비어 있어도 성공이다. 실행할 데이터�
 - 저니 실행·스킵·실패 Counter 추가
 - 커버리지 표를 코드에서 생성하거나 테스트로 유지
 
-### S-17. cache-warm 실행의 구간 혼합과 다중 태그 파싱 문제 — 상태: 부분 해결
+### S-17. cache-warm 실행의 구간 혼합과 다중 태그 파싱 문제 — 상태: **해결** (2026-08-12, 미커밋)
 
 **쉽게 말하면**
 
@@ -633,11 +651,29 @@ HTTP 200만 오면 내용이 비어 있어도 성공이다. 실행할 데이터�
 `{phase:measurement,op:read}`처럼 태그가 여러 개인 서브메트릭을 단일 축으로 잘못 파싱하던
 문제를 수정했다. summary와 migrate 경로에 같은 규칙과 테스트를 추가했다.
 
-**남은 부분**
+> **"남은 부분"까지 마저 해결.** `performance/scenarios/cache-warm.js`의 두 executor
+> 태그를 `phase:'warmup'` / `phase:'measurement'` → `phase:'warmup'` / `phase:'measure'`로
+> 통일하고(다른 모든 시나리오와 같은 phase 어휘를 쓰게), 관련 threshold 키도
+> `{op:read,phase:measure}`(`buildSelector()`로 생성)로 옮겼다. `scripts/lib/summary.js`가
+> phase 태그를 기준으로 `k6.phases.warmup`/`k6.phases.measure`를 완전히 분리 추출하므로
+> — cache-warm은 이미 k6 네이티브 `scenarios.<name>.tags`로 두 executor를 나눠 뒀던 덕에
+> checks·iterations를 포함한 모든 메트릭이 원래도 정확히 태깅돼 있었다. 이번 수정으로
+> 그 분리가 리포트/게이트까지 실제로 이어지게 된 것이 핵심이다. 다른 일반 시나리오와
+> 달리 이 파일만 `setActivePhasePlan()`(동적 phase 계산)을 호출하지 않는다 — 정적
+> executor 태그와 동적 계산이 섞이면 충돌할 수 있어서, 이미 충분한 정적 태깅 위에
+> 굳이 얹지 않기로 했다(대안 기각 사유).
+>
+> **왜 cold-start와의 비교가 성립하는지**: `measurementProfile` 조건(T-03)이
+> `mode`(`'cache-warm'` vs `'cold-start'`)까지 비교하므로, 서로 다른 측정 설계를 가진
+> 두 시나리오는 Node 회귀 게이트의 자동 기준선 비교 대상이 되지 않는다(의도된 동작 —
+> 이 둘의 비교는 애초에 사람이 실측값을 나란히 놓고 보는 실험이지, 자동 회귀 판정
+> 대상이 아니다).
+>
+> 검증: `tools/test/phases.test.js`의 `metricsByPhase` 테스트가 이 시나리오와 동일한
+> 구조(`{phase:warmup}`/`{phase:measure}`/`{op:read,phase:measure}` 서브메트릭 공존)를
+> 픽스처로 검증한다. 실제 `cache-warm.js` 실행으로 확인은 못 했다(k6 미설치 환경).
 
-warmup과 measurement가 같은 프로세스에서 실행되고 overall은 phase를 구분하지 않는다.
-따라서 cache-warm의 overall과 cold-start 결과는 같은 조건의 비교가 아니다. S-08·T-03의
-측정 구간 설계와 함께 해결해야 한다.
+**남은 부분** — 없음(위 인용블록 참고).
 
 ### S-18. breakpoint가 서버 한계보다 k6의 VU 한계에 먼저 걸릴 수 있음 — 상태: 미해결
 
