@@ -280,3 +280,68 @@ test('metricsByPhase: op 태그가 섞인 게이트용 서브메트릭({op:read,
   assert.ok(opReadKey, 'op:read,phase:measure 조합을 파싱으로 찾을 수 있어야 한다');
   assert.equal(m[opReadKey].values.avg, 40);
 });
+
+// ---------------------------------------------------------------------------
+// iteration 수 소스 폴백 — cache-warm처럼 executor 태그로 phase를 나누는 시나리오는
+// setActivePhasePlan()을 부르지 않아 workload.js의 phase_iterations Counter가 한 번도
+// 증가하지 않는다. 그때 k6 builtin iterations{phase:X}로 폴백하지 않으면 TPS가 0으로 찍힌다.
+// ---------------------------------------------------------------------------
+
+/** cache-warm 형태: 정적 executor 태그라 커스텀 Counter는 0, builtin iterations에 값이 있다. */
+function staticTaggedMetrics() {
+  return {
+    'http_req_duration{phase:warmup}': { values: { avg: 500, 'p(95)': 900 } },
+    'http_req_duration{phase:measure}': { values: { avg: 50, 'p(95)': 100 } },
+    'phase_iterations{phase:warmup}': { values: { count: 0 } },
+    'phase_iterations{phase:measure}': { values: { count: 0 } },
+    'iterations{phase:warmup}': { values: { count: 300 } },
+    'iterations{phase:measure}': { values: { count: 1800 } },
+  };
+}
+
+test('metricsByPhase: phase_iterations가 0이면 builtin iterations{phase:X}로 TPS를 계산한다 (cache-warm)', async () => {
+  const { buildPhasePlan, metricsByPhase } = await loadPhases();
+  const plan = buildPhasePlan({ mode: 'cache-warm', warmupSec: 300, measureSec: 600, rampdownSec: 0 });
+  const out = metricsByPhase(staticTaggedMetrics(), plan);
+
+  assert.equal(out.warmup.iterations, 300);
+  assert.equal(out.warmup.tps, 300 / 300);
+  assert.equal(out.measure.iterations, 1800);
+  assert.equal(out.measure.tps, 1800 / 600);
+});
+
+test('metricsByPhase: phase_iterations에 값이 있으면 builtin iterations보다 우선한다', async () => {
+  const { buildPhasePlan, metricsByPhase } = await loadPhases();
+  const m = fakeK6Metrics();
+  // 동적 태깅 시나리오에서도 builtin 축은 선언돼 있다(보통 0이지만 값이 들어와도 져야 한다).
+  m['iterations{phase:measure}'] = { values: { count: 9999 } };
+  const plan = buildPhasePlan({ warmupSec: 300, measureSec: 500, rampdownSec: 0 });
+  const out = metricsByPhase(m, plan);
+
+  assert.equal(out.measure.iterations, 2000);       // phase_iterations 쪽 값
+  assert.equal(out.measure.tps, 2000 / 500);
+});
+
+test('metricsByPhase: 두 소스 모두 비어 있으면 tps/iterations는 0이 아니라 null이다', async () => {
+  const { buildPhasePlan, metricsByPhase } = await loadPhases();
+  const m = {
+    'http_req_duration{phase:measure}': { values: { avg: 50, 'p(95)': 100 } },
+    'phase_iterations{phase:measure}': { values: { count: 0 } },
+    'iterations{phase:measure}': { values: { count: 0 } },
+  };
+  const plan = buildPhasePlan({ warmupSec: 0, measureSec: 600, rampdownSec: 0 });
+  const out = metricsByPhase(m, plan);
+
+  assert.equal(out.measure.tps, null);
+  assert.equal(out.measure.iterations, null);
+  assert.equal(out.measure.p95, 100); // 나머지 지표는 정상적으로 남는다
+});
+
+test('metricsByPhase: builtin iterations{phase:X} 축만 있어도 그 phase 버킷을 만든다', async () => {
+  const { buildPhasePlan, metricsByPhase } = await loadPhases();
+  const plan = buildPhasePlan({ warmupSec: 0, measureSec: 600, rampdownSec: 0 });
+  const out = metricsByPhase({ 'iterations{phase:measure}': { values: { count: 1200 } } }, plan);
+
+  assert.ok(out.measure, 'iterations 축만 존재해도 버킷이 있어야 한다');
+  assert.equal(out.measure.tps, 1200 / 600);
+});
