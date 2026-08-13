@@ -152,6 +152,8 @@ function toIndexEntry(record) {
     iterations: k.iterations,
     httpReqs: k.httpReqs,
     checkRate: k.checkRate,
+    // 기준선 자격 조건이 **아니다**(S-10). 이력 표와 리포트가 "그 실행의 당시 성능 상태"를
+    // 보여주기 위한 값이다 — 느렸다는 사실과 측정이 무효라는 사실은 다른 축이다.
     thresholdsPassed: record.k6 ? record.k6.thresholdsPassed : null,
     cpuMaxPct: flat['saturation.cpuPct'],
     cpuCoresMax: flat['cpu.cores.max'],
@@ -169,9 +171,16 @@ function toIndexEntry(record) {
     hikariPendingMax: flat['pool.hikariPending.max'],
     verdict: reg.verdict || null,
     // 기준선 탐색이 run.json 을 열지 않고 "제대로 측정된 실행인가"를 걸러낼 수 있어야 한다.
-    // 이 필드가 없는 과거 엔트리는 undefined 라 아래 findBaseline 필터를 그대로 통과한다
+    // 이 필드가 없는 과거 엔트리는 null 이라 eligibilityOf 를 그대로 통과한다
     // (기존 이력을 소급 탈락시키지 않는다).
     measurementStatus: reg.measurementStatus || null,
+    // PARTIAL 은 성격이 다른 두 상황을 한 값으로 묶는다 — 참고 지표 몇 개가 빠진 실행과
+    // measure 구간을 다 채우지 못하고 끊긴 실행. 전자는 p95 대조군으로 여전히 쓸 수 있고
+    // 후자는 시간 조건 자체가 달라 쓸 수 없다(S-10). 인덱스만 보고 둘을 가르려면 이 값이
+    // 필요하다. regression 이 계산한 값을 우선하고, 없으면 수집기가 남긴 원본을 본다.
+    windowIncomplete: reg.windowIncomplete != null
+      ? !!reg.windowIncomplete
+      : i.window && i.window.incomplete != null ? !!i.window.incomplete : null,
     infraAvailable: !!(i.flat && Object.keys(i.flat).length),
   };
 }
@@ -221,20 +230,83 @@ function saveRun(record) {
 }
 
 /**
+ * 기준선 자격 — "이 실행을 대조군으로 써도 되는가"만 판정한다(S-10).
+ *
+ * 여기서 보는 것은 **측정 무결성** 하나다. 성능이 좋았는지 나빴는지(thresholdsPassed,
+ * regression.verdict)는 자격 조건이 아니다. 느린 실행은 나쁜 결과지 잘못된 측정이 아니고,
+ * 개선 전후를 비교하려면 바로 그 느린 실행이 기준선이어야 한다. 예전에는
+ * `thresholdsPassed !== false` 로 걸렀는데, 그러면 개선 전이 SLO를 넘긴 순간 개선 후와
+ * 영원히 비교할 수 없었다(EXP-000: 같은 조건 12회 실행, 기준선 선택 0회).
+ *
+ * 판정 규칙
+ *   UNMEASURED                  → 제외. 필수 지표가 없어 그 실행의 수치 자체가 무의미하다
+ *   PARTIAL + measure 구간 미완 → 제외. 계획한 구간을 다 못 채운 실행은 시간 조건이 다르다
+ *   PARTIAL (참고 지표만 결측)  → 허용. k6 지연·오류율은 온전하므로 핵심 비교는 성립한다
+ *   MEASURED                    → 허용
+ *   measurementStatus 미기록    → 허용. 과거 실행을 소급 탈락시키지 않는다(T-08 정책 유지).
+ *                                 조건이 부족하면 어차피 아래 comparability 에서 정확한
+ *                                 사유와 함께 탈락한다
+ *
+ * @returns {{eligible:boolean, reasonCode?:string, details?:object}}
+ */
+function eligibilityOf(entry) {
+  if (entry.measurementStatus === 'UNMEASURED') {
+    return {
+      eligible: false,
+      reasonCode: 'unmeasured',
+      details: { measurementStatus: 'UNMEASURED' },
+    };
+  }
+  // windowIncomplete 만 단독으로 본다 — 이 값이 true 면 regression 은 (UNMEASURED 가
+  // 아닌 한) 반드시 PARTIAL 을 매기므로, 상태값과 중복해서 검사할 필요가 없다.
+  if (entry.windowIncomplete === true) {
+    return {
+      eligible: false,
+      reasonCode: 'window-incomplete',
+      details: { measurementStatus: entry.measurementStatus || null, windowIncomplete: true },
+    };
+  }
+  return { eligible: true };
+}
+
+/** reasonCode → 사람이 읽는 한 문장. 콘솔과 HTML 리포트가 같은 문장을 쓰도록 한 곳에 둔다. */
+const REJECTION_TEXT = {
+  unmeasured: '필수 지표가 없어(측정 불가) 기준선에서 제외',
+  'window-incomplete': 'measure 구간이 계획보다 짧게 끝나 기준선에서 제외',
+  conditions: '실행 조건이 달라 비교하지 않음',
+};
+
+/**
+ * 탈락 사유 한 줄. 조건 불일치는 무엇이 달랐는지까지 말해야 쓸모가 있으므로 mismatch 설명을
+ * 이어 붙인다("데이터셋: small → large").
+ */
+function describeRejection(rej) {
+  if (!rej) return '';
+  if (rej.reasonCode === 'conditions') {
+    const blocking = (rej.mismatches || []).filter((m) => m.materiality === 'blocking');
+    if (blocking.length) return blocking.map((m) => m.desc).join('; ');
+    return REJECTION_TEXT.conditions;
+  }
+  return REJECTION_TEXT[rej.reasonCode] || '기준선으로 쓸 수 없음';
+}
+
+/**
  * 비교 기준이 될 실행을 찾는다.
  *
- * "직전 실행"이 아니라 "비교 가능한 가장 최근 실행"이다. 시간축에서 바로 앞이라는 것과
- * 대조군으로 유효하다는 것은 다른 조건이고, 후자를 판정하는 책임은 comparability.js 에 있다.
- * 여기서는 시간순으로 거슬러 올라가며 첫 번째 유효 대조군을 고른다.
+ * "직전 실행"이 아니라 "기준선으로 쓸 수 있는 가장 최근 실행"이다. 시간축에서 바로 앞이라는
+ * 것과 대조군으로 유효하다는 것은 다른 조건이고, 후자는 두 질문으로 갈린다.
+ *   1) 제대로 측정된 실행인가        → eligibilityOf (측정 무결성)
+ *   2) 같은 것을 잰 실행인가          → comparability.js (실행 조건)
+ * 둘 다 "성능이 좋았는가"와는 무관하다(S-10).
  *
- * 실패한 실행(threshold 미달)은 기준에서 제외한다 — 망가진 실행을 기준으로 삼으면
- * 그 다음 실행이 "개선"으로 보이는 착시가 생긴다.
+ * 두 판정을 사전 필터로 분리하지 않고 한 루프에서 처리하는 이유: 사전 필터로 지운 후보는
+ * rejected 에 남지 않아 리포트가 "이 조건의 첫 실행입니다"라고 말해 버린다. 실제로 저장된
+ * posts-2026-08-11T12-05-00 런은 1분 전에 같은 조건의 실행이 있었는데도 first-run 으로
+ * 기록됐다 — 그 실행이 thresholdsPassed=false 라 사전 필터에서 사라졌기 때문이다.
+ * 침묵은 조용한 통과와 구분되지 않는다.
  *
- * 탈락한 후보를 함께 돌려주는 이유: 조건이 엄격해질수록 "기준선 없음"이 흔해지는데,
- * 그때 사람에게 필요한 건 침묵이 아니라 "8월 4일 실행이 있었지만 데이터셋이 small→large 로
- * 바뀌어 비교하지 않았다"는 문장이다. 이유를 못 대면 조용한 통과와 구분되지 않는다.
- *
- * @returns {{baseline:object|null, comparability:object|null, seriesHash:string|null, rejected:Array}}
+ * @returns {{baseline:object|null, comparability:object|null, seriesHash:string|null,
+ *            rejected:Array, hadPriorCandidates:boolean}}
  */
 function findBaseline(record, opts = {}) {
   const { scenario, id, startedAt } = record.run;
@@ -244,35 +316,55 @@ function findBaseline(record, opts = {}) {
 
   // 시나리오는 계열의 정체성이자 항상 기록되는 값이라 먼저 자른다. 이걸 안 하면
   // rejected 목록이 다른 시나리오 실행으로 가득 차 사람에게 아무 도움이 안 된다.
+  // 여기까지가 "후보였는가"의 정의다 — 자격·조건 판정은 아래 루프에서만 한다.
   const earlier = idx.runs
     .filter((r) => r.id !== id)
     .filter((r) => r.scenario === scenario)
-    .filter((r) => String(r.startedAt) < String(startedAt))
-    .filter((r) => (opts.includeFailed ? true : r.thresholdsPassed !== false))
-    // 측정 불가 실행은 기준선이 될 수 없다. thresholdsPassed 만으로는 걸러지지 않는다 —
-    // k6는 표본이 0건인 서브메트릭의 threshold 를 통과 처리하므로(v2.1.0 실측), 아무것도
-    // 재지 못한 실행도 thresholdsPassed:true 로 남는다. 그런 실행을 기준선으로 삼으면
-    // 다음 실행의 모든 증감률이 무의미해진다.
-    .filter((r) => r.measurementStatus !== 'UNMEASURED');
+    .filter((r) => String(r.startedAt) < String(startedAt));
 
+  const hadPriorCandidates = earlier.length > 0;
   const rejected = [];
+  // 전부 쌓으면 리포트가 이력 전체를 뱉는다. 최근 것 몇 개면 사유는 충분히 전달된다.
+  const reject = (cand, info) => {
+    if (rejected.length >= REJECTED_LIMIT) return;
+    rejected.push({
+      id: cand.id,
+      startedAt: cand.startedAt,
+      reasonCode: info.reasonCode,
+      mismatches: info.mismatches || [],
+      details: info.details || {},
+    });
+  };
+
   for (let i = earlier.length - 1; i >= 0; i--) {
     const cand = earlier[i];
+
+    const eligibility = eligibilityOf(cand);
+    if (!eligibility.eligible) {
+      reject(cand, eligibility);
+      continue;
+    }
+
     const result = cmp.compare(current, cmp.conditionsOf(cand));
     if (result.comparable) {
-      return { baseline: cand, comparability: result, seriesHash: series, rejected };
+      return {
+        baseline: cand,
+        comparability: result,
+        seriesHash: series,
+        rejected,
+        hadPriorCandidates,
+      };
     }
-    // 전부 쌓으면 리포트가 이력 전체를 뱉는다. 최근 것 몇 개면 사유는 충분히 전달된다.
-    if (rejected.length < REJECTED_LIMIT) {
-      rejected.push({
-        id: cand.id,
-        startedAt: cand.startedAt,
-        mismatches: result.mismatches,
-      });
-    }
+    reject(cand, { reasonCode: 'conditions', mismatches: result.mismatches });
   }
 
-  return { baseline: null, comparability: null, seriesHash: series, rejected };
+  return {
+    baseline: null,
+    comparability: null,
+    seriesHash: series,
+    rejected,
+    hadPriorCandidates,
+  };
 }
 
 const REJECTED_LIMIT = 5;
@@ -315,4 +407,5 @@ module.exports = {
   listRunIds, listPendingRunIds, loadRun, loadK6, saveRun,
   loadIndex, saveIndex, rebuildIndex,
   nextRunNumber, findBaseline, recentRuns, toIndexEntry,
+  eligibilityOf, describeRejection,
 };
