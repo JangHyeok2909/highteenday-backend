@@ -112,6 +112,7 @@ test('findBaseline: 비교 가능한 후보가 없으면 null + 탈락 사유', 
   const res = repo.findBaseline(current(), { indexFile });
   assert.equal(res.baseline, null);
   assert.equal(res.rejected.length, 1);
+  assert.equal(res.rejected[0].reasonCode, 'conditions');
   assert.ok(res.rejected[0].mismatches.some((m) => m.key === 'dataset' && m.materiality === 'blocking'));
 });
 
@@ -124,6 +125,9 @@ test('findBaseline: 측정 불가(UNMEASURED) 실행은 기준선이 될 수 없
   ]);
   const res = repo.findBaseline(current(), { indexFile });
   assert.equal(res.baseline.id, 'measured', '시간상 직전이어도 측정 불가 실행은 건너뛴다');
+  const rej = res.rejected.find((x) => x.id === 'unmeasured');
+  assert.equal(rej.reasonCode, 'unmeasured', '사전 필터로 지우지 말고 탈락 사유를 남겨야 한다 (S-10)');
+  assert.ok(repo.describeRejection(rej).length > 0);
 });
 
 test('findBaseline: measurementStatus 가 없는 과거 엔트리는 소급 탈락시키지 않는다', () => {
@@ -136,18 +140,101 @@ test('findBaseline: 조건이 기록되지 않은 과거 실행은 기준선이 
   const indexFile = indexWith([{ id: 'legacy', startedAt: '2026-08-01T00:00:00Z', scenario: 'normal-day', thresholdsPassed: true }]);
   const res = repo.findBaseline(current(), { indexFile });
   assert.equal(res.baseline, null);
+  assert.equal(res.rejected[0].reasonCode, 'conditions');
   assert.equal(res.rejected[0].mismatches[0].reason, 'unrecorded');
 });
 
-test('findBaseline: threshold 미달 실행은 기준선에서 제외된다', () => {
-  const bad = { ...entry('bad', '2026-08-03T00:00:00Z'), thresholdsPassed: false };
-  const indexFile = indexWith([entry('good', '2026-08-01T00:00:00Z'), bad]);
-  assert.equal(repo.findBaseline(current(), { indexFile }).baseline.id, 'good');
+// ---------------------------------------------------------------------------
+// S-10 — 기준선 자격(측정 무결성 + 비교 가능성)과 성능 통과 여부(threshold)의 분리.
+// "느렸다"는 나쁜 결과지 잘못된 측정이 아니다. 개선 전후를 비교하려면 느린 Before가
+// 기준선이어야 한다.
+// ---------------------------------------------------------------------------
+test('findBaseline: threshold 미달이어도 정상 측정된 실행은 기준선이 될 수 있다 (S-10)', () => {
+  const slowButValid = {
+    ...entry('slow-before', '2026-08-03T00:00:00Z'),
+    thresholdsPassed: false,
+    measurementStatus: 'MEASURED',
+  };
+  const indexFile = indexWith([entry('older-pass', '2026-08-01T00:00:00Z'), slowButValid]);
+  const res = repo.findBaseline(current(), { indexFile });
+  assert.equal(res.baseline.id, 'slow-before',
+    'threshold 실패는 기준선 자격 조건이 아니다 — 더 오래된 통과 실행이 아니라 최신 후보를 골라야 한다');
+  assert.equal(res.rejected.length, 0);
+});
+
+test('findBaseline: PARTIAL 이라도 참고 지표만 빠졌으면 기준선이 될 수 있다 (S-10)', () => {
+  const partial = {
+    ...entry('partial', '2026-08-03T00:00:00Z'),
+    measurementStatus: 'PARTIAL',
+    windowIncomplete: false,
+  };
+  const indexFile = indexWith([entry('older', '2026-08-01T00:00:00Z'), partial]);
+  assert.equal(repo.findBaseline(current(), { indexFile }).baseline.id, 'partial',
+    'k6 지연·오류율이 온전하면 Redis 같은 참고 지표 결측은 대조군 자격을 깨지 않는다');
+});
+
+test('findBaseline: measure 구간을 다 못 채운 실행은 기준선에서 제외된다 (S-10)', () => {
+  const cut = {
+    ...entry('cut-short', '2026-08-03T00:00:00Z'),
+    measurementStatus: 'PARTIAL',
+    windowIncomplete: true,
+  };
+  const indexFile = indexWith([entry('complete', '2026-08-01T00:00:00Z'), cut]);
+  const res = repo.findBaseline(current(), { indexFile });
+  assert.equal(res.baseline.id, 'complete');
+  const rej = res.rejected.find((x) => x.id === 'cut-short');
+  assert.equal(rej.reasonCode, 'window-incomplete');
+  assert.equal(rej.details.windowIncomplete, true);
+});
+
+test('findBaseline: 후보가 전부 탈락해도 first-run 이 아니다 — hadPriorCandidates 로 구분 (S-10)', () => {
+  const indexFile = indexWith([
+    { ...entry('unmeasured', '2026-08-01T00:00:00Z'), measurementStatus: 'UNMEASURED' },
+    entry('wrong-dataset', '2026-08-02T00:00:00Z', { dataset: 'small' }),
+  ]);
+  const res = repo.findBaseline(current(), { indexFile });
+  assert.equal(res.baseline, null);
+  assert.equal(res.hadPriorCandidates, true, '과거 후보는 분명히 있었다');
+  assert.deepEqual(res.rejected.map((r) => r.reasonCode).sort(), ['conditions', 'unmeasured']);
+});
+
+test('findBaseline: 과거 실행이 정말 없으면 hadPriorCandidates=false', () => {
+  const indexFile = indexWith([entry('other-scenario', '2026-08-01T00:00:00Z', {}) ].map((e) => ({ ...e, scenario: 'school' })));
+  const res = repo.findBaseline(current(), { indexFile });
+  assert.equal(res.baseline, null);
+  assert.equal(res.hadPriorCandidates, false);
+  assert.equal(res.rejected.length, 0);
 });
 
 test('findBaseline: 미래 실행은 기준선이 되지 않는다', () => {
   const indexFile = indexWith([entry('later', '2026-08-09T00:00:00Z')]);
-  assert.equal(repo.findBaseline(current(), { indexFile }).baseline, null);
+  const res = repo.findBaseline(current(), { indexFile });
+  assert.equal(res.baseline, null);
+  assert.equal(res.hadPriorCandidates, false, '미래 실행은 후보로 세지도 않는다');
+});
+
+test('eligibilityOf: 성능 결과(thresholdsPassed·verdict)는 자격 판정에 영향을 주지 않는다 (S-10)', () => {
+  assert.equal(repo.eligibilityOf({ thresholdsPassed: false, verdict: 'FAIL', measurementStatus: 'MEASURED' }).eligible, true);
+  assert.equal(repo.eligibilityOf({ measurementStatus: 'UNMEASURED', thresholdsPassed: true }).eligible, false);
+  assert.equal(repo.eligibilityOf({ measurementStatus: 'PARTIAL', windowIncomplete: true }).eligible, false);
+  assert.equal(repo.eligibilityOf({ measurementStatus: 'PARTIAL', windowIncomplete: false }).eligible, true);
+  assert.equal(repo.eligibilityOf({}).eligible, true, '과거 레코드(값 없음)는 소급 탈락시키지 않는다');
+});
+
+test('describeRejection: 세 가지 사유 모두 사람이 읽을 문장을 만든다 (빈 칸 금지)', () => {
+  const texts = [
+    repo.describeRejection({ reasonCode: 'unmeasured' }),
+    repo.describeRejection({ reasonCode: 'window-incomplete' }),
+    repo.describeRejection({ reasonCode: 'conditions', mismatches: [] }),
+    repo.describeRejection({
+      reasonCode: 'conditions',
+      mismatches: [{ materiality: 'blocking', desc: '데이터셋: small → large' }],
+    }),
+  ];
+  for (const t of texts) assert.ok(t && t.trim().length > 0);
+  assert.match(texts[0], /필수 지표/);
+  assert.match(texts[1], /measure 구간/);
+  assert.match(texts[3], /small → large/);
 });
 
 test('recentRuns: seriesHash 로 추세 계열을 가른다', () => {
@@ -156,4 +243,45 @@ test('recentRuns: seriesHash 로 추세 계열을 가른다', () => {
   const indexFile = indexWith([small, big]);
   const rows = repo.recentRuns({ scenario: 'normal-day', seriesHash: big.seriesHash, indexFile });
   assert.deepEqual(rows.map((r) => r.id), ['big']);
+});
+
+// ---------------------------------------------------------------------------
+// toIndexEntry — 기준선 자격을 인덱스만 보고 판정하려면 windowIncomplete 가 있어야 한다(S-10).
+// ---------------------------------------------------------------------------
+const recordFor = (over = {}) => ({
+  run: { id: 'r1', number: 1, scenario: 'normal-day', startedAt: '2026-08-05T00:00:00Z' },
+  k6: { all: { vusMax: 200 }, phases: { measure: { p95: 100 } }, thresholdsPassed: false },
+  infra: { flat: {}, window: {} },
+  regression: { verdict: 'PASS', measurementStatus: 'MEASURED' },
+  ...over,
+});
+
+test('toIndexEntry: regression.windowIncomplete 를 boolean 으로 저장한다', () => {
+  const e = repo.toIndexEntry(recordFor({
+    regression: { verdict: 'PASS', measurementStatus: 'PARTIAL', windowIncomplete: true },
+  }));
+  assert.equal(e.windowIncomplete, true);
+  assert.equal(e.measurementStatus, 'PARTIAL');
+  assert.equal(e.thresholdsPassed, false, 'threshold 결과는 지우지 않는다 — 표시용으로 남는다');
+});
+
+test('toIndexEntry: regression 에 값이 없으면 infra.window.incomplete 로 폴백한다', () => {
+  const e = repo.toIndexEntry(recordFor({
+    infra: { flat: {}, window: { incomplete: true } },
+    regression: { verdict: 'PASS' },
+  }));
+  assert.equal(e.windowIncomplete, true);
+});
+
+test('toIndexEntry: 양쪽 모두 없는 과거 레코드는 null (소급 탈락 금지)', () => {
+  const e = repo.toIndexEntry(recordFor({ infra: {}, regression: {} }));
+  assert.equal(e.windowIncomplete, null);
+  assert.equal(repo.eligibilityOf(e).eligible, true);
+});
+
+test('toIndexEntry: 정상 실행은 명시적 false 가 저장된다', () => {
+  const e = repo.toIndexEntry(recordFor({
+    regression: { verdict: 'PASS', measurementStatus: 'MEASURED', windowIncomplete: false },
+  }));
+  assert.equal(e.windowIncomplete, false);
 });
