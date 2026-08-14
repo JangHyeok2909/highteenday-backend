@@ -13,7 +13,8 @@ import { sleep } from 'k6';
 import { Counter } from 'k6/metrics';
 import { thinkTime, currentPhase } from '../../scripts/lib/config.js';
 import { ensureSession } from '../../scripts/lib/session.js';
-import { myUser, hotPost, randomBoard, zipfIndex } from '../../scripts/lib/data.js';
+import { myUser, hotPost, randomBoard } from '../../scripts/lib/data.js';
+import { pageIndex } from '../../scripts/lib/sampling.js';
 
 import { listPosts, readPost, searchPosts, writeCycle, createPost } from '../../scripts/posts.js';
 import { listComments, createComment, pickCommentId } from '../../scripts/comments.js';
@@ -37,7 +38,7 @@ export function journeyBrowse() {
   sleep(thinkTime());
   dailyHotPosts();
   sleep(thinkTime());
-  listPosts(randomBoard().id, zipfIndex(5));
+  listPosts(randomBoard().id, pageIndex());
   sleep(thinkTime());
   const n = 2 + Math.floor(Math.random() * 3);
   for (let i = 0; i < n; i++) {

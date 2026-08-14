@@ -85,6 +85,10 @@ function metadata(scenario, state, phasePlan) {
     executor: __ENV.PERF_EXECUTOR || 'unknown',
     scriptVersion: __ENV.PERF_SCRIPT_VERSION || 'unknown',
     dataset: __ENV.DATASET || 'small',
+    // 시드 데이터의 지문 — 프로파일 이름이 같아도 생성 규칙이 바뀌면 다른 값이 된다.
+    // perf-run.js 가 datasets/generated/<name>/meta.json 에서 읽어 넘긴다. 이 변경 이전에
+    // 만든 데이터셋에는 meta.json 이 없어 null 이 된다.
+    datasetFingerprint: __ENV.PERF_DATASET_FINGERPRINT || null,
     baseUrl: __ENV.BASE_URL || 'http://localhost:18080',
     note: __ENV.PERF_NOTE || '',
     startedAt: startedAt.toISOString(),
@@ -112,28 +116,52 @@ function metadata(scenario, state, phasePlan) {
  *
  * k6는 threshold에 태그 필터를 써야만 서브메트릭을 만들어 준다.
  * config.js의 BREAKDOWN_THRESHOLDS가 그 목적으로 느슨한 임계값을 걸어 둔다.
+ *
+ * **지연과 요청 수는 서로 다른 메트릭에서 온다.** Trend(`http_req_duration`)의 values 에는
+ * 이 k6 빌드에서 count 가 없어(v2.1.0 실측), 지연 축만 읽으면 요청 수 칸이 항상 빈다.
+ * 실제로 그래서 S-04가 "선언한 페이지 비율대로 요청됐는가"에 답하지 못했다 — 페이지별
+ * 지연은 다 나오는데 요청 수가 전부 `—` 였다. Counter(`http_reqs`) 서브메트릭을 같은
+ * 축으로 합쳐야 그 질문에 답할 수 있다.
  */
 function breakdown(metrics) {
   const out = {};
-  for (const [key, m] of Object.entries(metrics)) {
-    const match = /^([a-z_]+)\{(.+)\}$/.exec(key);
-    if (!match || match[1] !== 'http_req_duration') continue;
 
+  /** `http_req_duration{feature:post}` → {axis:'feature', value:'post'}. 아니면 null. */
+  const axisOf = (key, metricName) => {
+    const match = /^([a-z_]+)\{(.+)\}$/.exec(key);
+    if (!match || match[1] !== metricName) return null;
     // 태그가 2개 이상인 서브메트릭({phase:...,op:...})은 단일 축 분해가 아니므로 제외한다.
     // 통짜 정규식으로 자르면 첫 콜론까지를 태그 키로 오인해 엉뚱한 축이 생긴다.
     const tags = match[2].split(',');
-    if (tags.length !== 1) continue;
+    if (tags.length !== 1) return null;
     const sep = tags[0].indexOf(':');
-    if (sep < 0) continue;
-    const tagKey = tags[0].slice(0, sep);
-    const tagVal = tags[0].slice(sep + 1);
+    if (sep < 0) return null;
+    return { axis: tags[0].slice(0, sep), value: tags[0].slice(sep + 1) };
+  };
 
-    out[tagKey] = out[tagKey] || {};
-    out[tagKey][tagVal] = {
-      ...trendStats(m.values),
-      count: m.values && m.values.count != null ? m.values.count : null,
-    };
+  const cell = (axis, value) => {
+    out[axis] = out[axis] || {};
+    out[axis][value] = out[axis][value] || { count: null };
+    return out[axis][value];
+  };
+
+  for (const [key, m] of Object.entries(metrics)) {
+    const at = axisOf(key, 'http_req_duration');
+    if (!at) continue;
+    const c = cell(at.axis, at.value);
+    Object.assign(c, trendStats(m.values));
+    if (m.values && m.values.count != null) c.count = m.values.count;
   }
+
+  // 요청 수를 덧입힌다. 지연 축이 없는 값에도 행을 만든다 — 요청이 실제로 갔다는 사실
+  // 자체가 정보이고, 지연 축 선언을 빠뜨린 경우를 빈 축으로 감추면 안 된다.
+  for (const [key, m] of Object.entries(metrics)) {
+    const at = axisOf(key, 'http_reqs');
+    if (!at) continue;
+    const n = m.values && m.values.count;
+    if (n != null) cell(at.axis, at.value).count = n;
+  }
+
   return out;
 }
 
