@@ -63,6 +63,11 @@
 성능 테스트·병목 분석 체계는 별도 트리로 관리된다 — [../performance/README.md](../performance/README.md)에서 시작
 (실측된 병목 기록은 `performance/bottlenecks/`, 측정 시스템 설계는 `performance/PERFORMANCE-MANAGEMENT.md`).
 
+> `performance/bottlenecks/`는 **느려서 문제인 것**만 담는다. 부하 테스트로 발견하더라도
+> **틀려서 문제인 것**은 [KNOWN-ISSUES.md](KNOWN-ISSUES.md)로 간다 (예: KI-53 댓글 카운터
+> 유실, KI-54 토글 비멱등성). BTL-008~012는 이 구분이 정해지기 전에 등록된 것이라
+> 번호를 유지한 채 그쪽 README에서 별도 표로 분리해 두었다.
+
 프론트엔드 문서는 `highteenday-frontend/docs/INDEX.md`에서 시작한다.
 
 ## 문서 체계 규칙
@@ -70,7 +75,8 @@
 - 번호(00~08)가 붙은 문서는 읽기 순서를 나타낸다. 폴더(domains/, crosscutting/, operations/, adr/)는 필요할 때 찾아 읽는 레퍼런스다.
 - 모든 기술 서술에는 코드 좌표(`파일경로 · 클래스/메서드명`)가 붙는다. 행 번호는 코드 변경으로 금방 어긋나므로 쓰지 않는다.
 - 같은 사실은 한 문서에만 있다. 다른 문서에서는 링크한다.
-- 결함·불일치는 [KNOWN-ISSUES.md](KNOWN-ISSUES.md)가 단일 출처다 (KI-01~52). 본문은 결함을 정상 동작처럼 서술하지 않는다.
+- 결함·불일치는 [KNOWN-ISSUES.md](KNOWN-ISSUES.md)가 단일 출처다 (KI-01~54). 본문은 결함을 정상 동작처럼 서술하지 않는다.
+  본문 몇 줄로 설명되지 않는 항목만 [defects/](defects/)에 상세 문서를 두고, 파일명에 그 KI 번호를 쓴다 — 별도 ID 체계를 만들지 않는다.
 - 각 문서 하단의 "마지막 검증일"은 그 문서의 서술을 실제 코드와 대조한 날짜다.
 
 ## 기존 문서와의 관계
