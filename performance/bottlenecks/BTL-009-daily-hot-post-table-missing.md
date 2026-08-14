@@ -1,5 +1,20 @@
 # BTL-009: `DailyHotPost` 엔티티가 실제로 쿼리하는 테이블이 생성되지 않음
 
+> **해소된 애플리케이션 결함 — 참조 보존용으로 남긴다.**
+>
+> 이건 병목(느려서 문제)이 아니라 결함(틀려서 문제)이다. 앞으로 발견되는 애플리케이션
+> 결함의 단일 출처는 [`docs/KNOWN-ISSUES.md`](../../docs/KNOWN-ISSUES.md)이며, 이 문서는
+> 그 구분이 정해지기 전에 등록됐다. 자세한 배경은
+> [`bottlenecks/README.md`](README.md)의 "여기 없는 것 — 애플리케이션 결함" 절을 볼 것.
+>
+> **해소됐는데도 삭제하지 않는 이유:** 적용이 끝난 Flyway 마이그레이션 주석이 이 번호를
+> 가리키고 있고, 적용된 마이그레이션은 체크섬 때문에 수정할 수 없다.
+>
+> - `src/main/resources/db/migration/V6__create_daily_hot_post.sql:1`
+> - `src/main/resources/ddl/V_daily_hot_post.sql:9`
+>
+> 이 문서를 지우면 저 주석들이 존재하지 않는 문서를 가리키게 된다.
+
 > 유형: DB / Correctness (성능이 아니라 가용성 버그 — 성능 테스트 중 실측으로 발견)
 > 상태: **해소** — V6 마이그레이션(`V6__create_daily_hot_post.sql`)으로 `daily_hot_post` 정식 생성 (커밋 `519d331`). 결함 있던 수동 스크립트 `ddl/V_daily_hot_post.sql`은 경고 주석을 달아 기록용으로 보존
 > 관련: BTL-008과 유사한 계열의 스키마/엔티티 불일치 문제. `GET /api/hotposts/daily` 전면 장애
