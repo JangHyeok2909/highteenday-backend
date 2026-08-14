@@ -49,8 +49,20 @@ node datasets/seed.js --profile medium --base http://localhost:18080 --concurren
 datasets/generated/<profile>/
 ├── users.json    # [{email, nickname}]  — 비밀번호는 전 계정 공통 PerfTest123!
 ├── posts.json    # [{id, boardId}]      — 인기순 정렬 (index 0 = 최고 인기글)
-└── boards.json   # [{id, name}]
+├── boards.json   # [{id, name}]
+└── meta.json     # 생성 지문 — "같은 규칙과 같은 규모로 만든 데이터인가"
 ```
+
+`meta.json`의 `fingerprint`는 **생성기 코드(`seed.js` + `sampling.js`) · 프로파일 파라미터 ·
+실제 생성 개수**를 해싱한 값이다. `perf-run.js`가 이 값을 읽어 실행 레코드에 싣고, 비교
+조건에서 프로파일 이름과 **함께** 판정한다(blocking). 이름만 조건이던 시절에는 샘플러를
+고쳐 데이터를 다시 만들어도 값이 그대로 `large`라, 인기 분포가 완전히 달라진 데이터셋이
+옛 실행과 같은 조건으로 비교됐다.
+
+생성 시각은 지문에 넣지 않는다. 같은 생성기·같은 프로파일로 다시 시드하면 LCG 시드가
+고정이라 통계적으로 동일한 데이터셋이 나오고, 그걸 매번 다른 것으로 취급하면 재시드할
+때마다 기준선이 전부 무효가 되어 정작 막으려던 것과 무관하게 비교가 끊긴다. 반면 시드가
+부분 실패하면 생성 개수가 달라져 지문이 바뀐다 — 그건 실제로 다른 데이터셋이 맞다.
 
 k6에서 `-e DATASET=<profile>` 로 선택한다. `generated/`는 `.gitignore` 대상
 (데이터가 아니라 **생성기와 프로파일**이 버전 관리 대상이다).
@@ -82,6 +94,25 @@ BTL-003(핫 로우 경합), BTL-004(캐시 스탬피드)가 재현되지 않는�
 > 일부는 `Could not open JPA EntityManager`(커넥션 풀 고갈, BTL-002). 시드 단계의
 > 낮은 동시성에서도 재현된다는 점 자체가 관측 결과다.
 
+## 인기 편중 샘플러는 `scripts/lib/sampling.js` 하나만 쓴다
+
+`seed.js`는 예전에 자체 `zipf()`를 갖고 있었고, 부하 스크립트(`scripts/lib/data.js`)에도
+**글자까지 같은 식**이 복제돼 있었다. 그 식 `floor(n^(u^1.7)) % n`은 `u < 1`이라 결과가
+항상 1 이상이어서 **index 0을 구조적으로 뽑지 못했다**(S-03).
+
+결과가 이랬다. `posts.json`은 인기순으로 정렬되므로 위 산출물 표대로 index 0이 최고
+인기글이어야 하는데, 실제로는 **댓글·반응·스크랩이 하나도 붙지 않은 글**이 그 자리에
+있었다. 진짜 최고 인기글은 index 1이었고, 그 한 글에 전체 참여의 19~27%가 몰렸다
+(정상 분포에서 1위의 몫은 8~13%다). 즉 핫 로우 경합 실험의 대상과 강도가 모두 틀려 있었다.
+
+이제 규칙은 `scripts/lib/sampling.js`에만 있고 `seed.js`와 `data.js`가 함께 가져다 쓴다.
+한쪽만 고치면 "가장 인기 있는 글을 조회했는데 댓글이 0건"인 모순이 생기기 때문이다.
+`tools/test/sampling.test.js`가 이 단일 출처를 구조적으로 강제한다.
+
+> **이 변경 이후 생성한 데이터셋만 위 산출물 표의 설명("index 0 = 최고 인기글")과 일치한다.**
+> 이전에 만들어 둔 `generated/<profile>/`은 index 0이 여전히 비어 있는 글이다.
+> 재생성 전에는 인기 편중을 전제한 실험(BTL-003 등)의 결과를 그대로 믿으면 안 된다.
+
 ### small 프로파일의 한계: 반응 편중은 사용자 수에 갇힌다
 
 반응은 (사용자, 게시글) 쌍이 유일하고 재요청은 토글이라, **한 글의 최대 반응 수 = 사용자 수**다.
@@ -102,3 +133,25 @@ FROM (
   FROM post_reaction GROUP BY PST_id
 ) t;
 ```
+
+### index 0이 정말 최고 인기글인지 (S-03 회귀 확인)
+
+재생성한 데이터셋에서 반드시 확인한다. 예전에는 이 자리가 참여 데이터가 하나도 없는
+글이었고, 그 사실이 어디에도 드러나지 않았다.
+
+```bash
+# posts.json 앞쪽 3건의 게시글 ID를 뽑는다 (index 0 이 최고 인기글이어야 한다)
+node -e "console.log(require('./generated/medium/posts.json').slice(0,3).map(p=>p.id).join(', '))"
+```
+
+```sql
+-- 반응이 가장 많은 게시글 상위 5건. 1위의 PST_id가 위에서 얻은 index 0의 ID와 같아야 한다.
+SELECT PST_id, COUNT(*) AS reactions
+FROM post_reaction
+GROUP BY PST_id
+ORDER BY reactions DESC
+LIMIT 5;
+```
+
+두 값이 어긋나면 `posts.json`의 정렬 전제가 깨진 것이므로, 인기 편중을 전제한 실험
+결과를 신뢰할 수 없다.

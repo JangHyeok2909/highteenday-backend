@@ -28,9 +28,15 @@
 
 ```bash
 node datasets/seed.js --profile large
-# 뒤 페이지 강제 조회 부하 (posts.js의 zipfIndex(5)를 page=500 고정으로 바꾼 실행)
-k6 run scripts/posts.js -e VUS=50 -e DURATION=3m -e DATASET=large
+# 0/10/50/100/500 페이지를 같은 횟수씩 순환 요청해 깊이별 비용 곡선을 만든다.
+# 예전에는 posts.js의 페이지 선택 코드를 page=500 고정으로 직접 고쳐서 돌렸는데,
+# 그러면 실행할 때마다 스크립트를 손대야 하고 그 실행의 스크립트 지문도 달라진다.
+k6 run scenarios/deep-paging.js -e DATASET=large
 ```
+
+결과는 리포트 Breakdown의 **"목록 페이지별"** 표에 페이지별 요청 수와 P95로 남는다.
+OFFSET에 비례해 P95가 오르면 이 병목이 확정된다. 일반 트래픽(0~4페이지)에서는 OFFSET이
+최대 40이라 이 현상이 나타나지 않으므로, 반드시 이 전용 시나리오로 측정한다.
 
 관찰 지표: `post_list` P95, MySQL `Handler_read_next`(스캔량),
 slow.log의 해당 쿼리 `Rows_examined` vs `Rows_sent` 비율.
