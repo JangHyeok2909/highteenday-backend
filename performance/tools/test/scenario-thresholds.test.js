@@ -90,7 +90,10 @@ test('phase 시나리오의 abortOnFail 지연은 measure 시작 기준으로 �
 
 test('진단 전용 시나리오의 abort 정책은 손대지 않는다 (전체 구간 유지)', () => {
   const names = diagnosticScenarios().map((f) => path.basename(f, '.js')).sort();
-  assert.deepEqual(names, ['breakpoint', 'chaos', 'failover', 'spike', 'stress']);
+  // 목록을 못 박아 두는 이유: 새 시나리오가 phase 게이트를 **실수로** 빠뜨리면 여기서 걸린다.
+  // 그러므로 이 배열을 늘리는 것은 "이 시나리오는 판정 대상이 아니다"라는 의도적 선언이다.
+  // deep-paging: 산출물이 합격/불합격이 아니라 OFFSET 깊이별 비용 곡선이라 SLO 게이트가 없다.
+  assert.deepEqual(names, ['breakpoint', 'chaos', 'deep-paging', 'failover', 'spike', 'stress']);
   for (const file of diagnosticScenarios()) {
     const src = read(file);
     const name = path.basename(file);
