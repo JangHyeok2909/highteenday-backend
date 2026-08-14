@@ -26,6 +26,13 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
 2. 관심 영역의 `perf-findings-*.md`
 3. 원자료가 필요하면 `performance/reports/`와 `performance/experiments/` 확인
 
+### 성능 개선(최적화) 작업을 시작하려 할 때
+
+1. [perf-trust-levels.md](perf-trust-levels.md) — 지금 결과로 무엇을 주장할 수 있는지,
+   개선 작업 전에 어디까지 고쳐야 하는지
+2. [NEXT-DAY-PERF-TASKS.md](NEXT-DAY-PERF-TASKS.md)에서 해당 항목의 실제 작업 내용
+3. 개선 후에는 `performance/experiments/`에 개선 폭과 MDE를 함께 기록
+
 ### 성능 테스트 환경을 직접 다루고 싶을 때
 
 1. [perf-environment-essentials.md](perf-environment-essentials.md)
@@ -43,10 +50,13 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
 | 문서 | 답하는 질문 | 언제 읽나 |
 |---|---|---|
 | [perf-review-summary.md](perf-review-summary.md) | 현재 무엇을 믿을 수 있고 무엇부터 고쳐야 하는가? | 항상 가장 먼저 |
+| [NEXT-DAY-PERF-TASKS.md](NEXT-DAY-PERF-TASKS.md) | 아직 남은 문제를 어떤 우선순위와 순서로 고칠 것인가? | 다음 작업을 시작할 때 |
+| [perf-trust-levels.md](perf-trust-levels.md) | 성능 개선을 이어가려면 **어디까지** 고쳐야 하고, 어디서 멈춰도 되는가? | 어디까지 할지 정할 때, 개선 작업을 시작하기 전 |
 | [perf-findings-tools.md](perf-findings-tools.md) | 수집·기준선·회귀 판정·리포트 도구에 어떤 문제가 있는가? | PASS/FAIL이나 비교 결과를 점검할 때 |
 | [perf-findings-scripts.md](perf-findings-scripts.md) | k6가 실제 사용자를 제대로 흉내 내고 있는가? | 부하 모델과 SLO를 점검할 때 |
 | [perf-findings-environment.md](perf-findings-environment.md) | 환경·데이터셋·Prometheus·CI가 결과를 왜곡하지 않는가? | 재현성과 운영 절차를 점검할 때 |
 | [perf-environment-essentials.md](perf-environment-essentials.md) | 스택을 어떻게 띄우고 왜 그렇게 구성했는가? | 환경을 직접 실행하거나 설명할 때 |
+| [perf-dataset-generation-problems.md](perf-dataset-generation-problems.md) | 현재 데이터셋 생성과 실제 DB 상태가 왜 성능 결과를 왜곡하는가? | 데이터셋 문제를 처음부터 쉽게 이해할 때 |
 | [perf-mastery-checklist.md](perf-mastery-checklist.md) | 내가 시스템 전체를 실제로 이해했는가? | 단계별 학습과 인수인계 때 |
 
 ## 문서들의 관계
@@ -57,14 +67,26 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
 실제 코드와 실행 결과
         │
         ├─ 발견 장부: 무엇이 잘못됐는가
-        │    ├─ tools
-        │    ├─ scripts
-        │    └─ environment
+        │    ├─ tools        측정 도구가 잘못 판정한다
+        │    ├─ scripts      부하가 실제 사용자와 다르다
+        │    └─ environment  환경·데이터셋이 결과를 왜곡한다
         │
         ├─ 총평: 무엇을 먼저 고칠 것인가
         │
         └─ 학습 장부: 내가 이것을 설명하고 판단할 수 있는가
 ```
+
+**이 장부는 측정 시스템의 결함만 다룬다.** 성능 작업 중 발견하는 문제는 세 종류이고
+기록 위치가 다르다.
+
+| 문제 | 한마디로 | 어디에 |
+|---|---|---|
+| 측정 시스템의 결함 | **잘못 잰다** | 이 장부 (`perf-findings-*.md`) |
+| 성능 병목 | **느리다** | `performance/bottlenecks/` (BTL-nnn) |
+| 애플리케이션 결함 | **틀렸다** | `docs/KNOWN-ISSUES.md` (KI-nn), 상세는 `docs/defects/` |
+
+측정을 아무리 정확하게 만들어도 뒤의 둘은 사라지지 않는다. 반대로 서버를 아무리 빠르게
+만들어도 "틀린 것"은 사라지지 않는다.
 
 - **발견 장부**는 증거와 결함 상태를 보관한다.
 - **총평**은 여러 결함을 우선순위와 실행 계획으로 묶는다.
