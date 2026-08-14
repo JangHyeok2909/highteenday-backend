@@ -100,13 +100,14 @@ public class Post extends BaseEntity {
         this.dislikeCount = dislikeCount;
     }
 
-    public void incrementCommentCount() {
-        this.commentCount++;
-    }
-
-    public void decrementCommentCount() {
-        if (this.commentCount > 0) this.commentCount--;
-    }
+    /*
+     * 댓글 수 증감 메서드는 여기 없다 — `PostRepository.incrementCommentCount()` 를 쓴다.
+     *
+     * 예전에는 `this.commentCount++` 였는데, 읽고-더하고-쓰기라 같은 게시글에 동시에 댓글이
+     * 달리면 나중 트랜잭션이 앞선 증가분을 덮어썼다. `@Version` 이 없어 충돌이 예외로도
+     * 드러나지 않았다. large 실측에서 70개 게시글의 카운터가 실제보다 적었고(전부 과소)
+     * 합계 13,284건이 비었다. 다시 이 자리에 증감 메서드를 만들지 말 것.
+     */
 
     /** 스크랩 카운트 동기화 — Service가 DB count 결과를 전달 */
     public void syncScrapCount(int scrapCount) {
