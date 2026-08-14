@@ -15,12 +15,55 @@
  *   node datasets/seed.js --profile small [--base http://localhost:18080] [--concurrency 10]
  *   프로파일: smoke(20명) | small(100명) | medium(1,000명) | large(10,000명) | xlarge(100,000명)
  *
- * 산출물: datasets/generated/<profile>/{users,posts,boards}.json  ← k6가 로드
+ * 산출물: datasets/generated/<profile>/{users,posts,boards,meta}.json  ← k6가 로드
  * 요구사항: Node 18+ (내장 fetch)
+ *
+ * ── 실패 정책 ────────────────────────────────────────────────────────────────
+ * 서로 다른 두 축을 각각 설정한다. **무엇을 실패로 볼 것인가**(`--tolerance`)와
+ * **실패했을 때 어디서 멈출 것인가**(`--on-failure`)는 다른 질문이다.
+ *
+ * `--tolerance <pct>`  단계별 허용 실패율. 기본 **0**.
+ *
+ *   기본값이 0인 이유: 데이터셋이 명세에 미달하면 그 위에서 잰 모든 성능 수치가 근거를
+ *   잃는다. 그리고 미달을 허용하면 "그 1%가 어느 리소스인가"를 추적할 방법이 없어,
+ *   결국 "대충 맞는 데이터셋"으로 돌아간다. 올릴 때는 그 대가를 알고 올려야 한다.
+ *
+ *   그래도 여는 이유: BTL-003 인기글 카운터 데드락처럼 **서버가 실제로 갖고 있는 병목**
+ *   때문에 large 규모에서 소수의 손실이 반복적으로 발생한다. 그걸 0으로 강제하면
+ *   재시도를 아무리 늘려도 생성이 끝나지 않는 상황이 생긴다. 병목을 고치기 전까지의
+ *   현실적인 타협점을 사람이 명시적으로 고를 수 있어야 한다.
+ *
+ *   허용치는 **단계마다 따로** 적용된다. 전체 합으로 보면 "반응 단계만 100% 실패"가
+ *   다른 단계의 성공에 묻힌다. 허용치가 실제로 단계를 살렸다면 그 사실을 로그와
+ *   meta.json 양쪽에 남긴다 — 조용히 넘어가면 0%로 만든 데이터셋과 구별되지 않는다.
+ *
+ * `--on-failure <mode>`  허용치를 넘겼을 때 어디서 멈출지. 기본 `stage`.
+ *
+ *   stage      (기본) 진행 중인 단계는 끝까지 돌리고, 다음 단계로 넘어가기 전에 멈춘다.
+ *              그 단계의 실패 건수를 전부 보고 나서 멈추므로 원인 파악에 가장 유리하다.
+ *   immediate  허용치를 넘는 순간 그 단계도 중단한다. large 처럼 오래 걸리는 생성에서
+ *              설정 오류를 빨리 잡을 때 쓴다. 실패 건수는 부분값이 된다.
+ *   continue   멈추지 않고 끝까지 돌린 뒤 요약만 보고한다. "무엇이 얼마나 실패하는가"를
+ *              한 번에 조사할 때 쓴다. 종료 코드는 여전히 1이고 산출물도 쓰지 않는다.
+ *
+ * 허용치를 **넘긴** 경우 어느 모드든 JSON 산출물을 쓰지 않는다. 반쪽짜리 데이터셋이
+ * 파일로 남으면 다음 실행이 그걸 정상으로 착각한다.
+ *
+ * 예:
+ *   node datasets/seed.js --profile large --tolerance 0.1 --on-failure immediate
+ *
+ * 종료 코드
+ *   0  모든 단계가 허용치 안 (허용치를 썼다면 meta.json에 기록된다)
+ *   1  단계 미달 (허용치 초과)
+ *   2  실행 오류 / 잘못된 인자
  */
 'use strict';
 const fs = require('fs');
 const path = require('path');
+// buildMeta()의 데이터셋 지문 계산에 쓴다. 없으면 전 단계를 다 돌린 **마지막**에
+// `crypto.createHash is not a function`으로 죽어, 생성한 데이터는 DB에 남았는데
+// 산출물 JSON은 하나도 안 써진 상태가 된다(실측).
+const crypto = require('crypto');
 
 // Node 18 미만에는 전역 fetch가 없다. 가드가 없으면 수백 건의
 // "fetch is not defined"가 개별 요청 실패로 찍히다가 마지막에 엉뚱한
@@ -48,7 +91,46 @@ const CONCURRENCY = Number(arg('concurrency', 10));
 const P = PROFILES[PROFILE_NAME];
 if (!P) {
   console.error(`unknown profile: ${PROFILE_NAME} (available: ${Object.keys(PROFILES).join(', ')})`);
-  process.exit(1);
+  process.exit(2);
+}
+
+/**
+ * 실패 시 어디서 멈출지. 허용 실패율(0%)과는 다른 축이다 — 이 값이 무엇이든 미달이면
+ * 종료 코드는 1이고 산출물도 쓰지 않는다. 오타를 조용히 기본값으로 흡수하면 fail-fast를
+ * 켰다고 믿은 채 안 켜진 상태로 20분짜리 생성을 돌리게 되므로 즉시 멈춘다.
+ */
+const ON_FAILURE_MODES = ['stage', 'immediate', 'continue'];
+const ON_FAILURE = arg('on-failure', 'stage');
+if (!ON_FAILURE_MODES.includes(ON_FAILURE)) {
+  console.error(`unknown --on-failure: ${ON_FAILURE} (available: ${ON_FAILURE_MODES.join(', ')})`);
+  process.exit(2);
+}
+
+/**
+ * 단계별 허용 실패율(%). `--tolerance 0.5` 또는 `--tolerance 0.5%` 둘 다 받는다.
+ *
+ * 잘못된 값을 0으로 흡수하지 않는 이유는 --on-failure 와 같다 — 다만 방향이 반대라 더
+ * 위험하다. 오타가 0으로 떨어지면 "1% 허용"이라 믿고 돌린 large 생성이 첫 데드락에서
+ * 멈춰 몇십 분을 버린다.
+ */
+const TOLERANCE_PCT = (() => {
+  const raw = String(arg('tolerance', '0')).trim().replace(/%$/, '');
+  const v = Number(raw);
+  if (!Number.isFinite(v) || v < 0 || v > 100) {
+    console.error(`invalid --tolerance: ${arg('tolerance', '0')} (0 이상 100 이하의 백분율)`);
+    process.exit(2);
+  }
+  return v;
+})();
+
+/**
+ * 이 단계에서 몇 건까지 실패를 눈감아 줄 것인가.
+ *
+ * 내림(floor)한다 — 목표 50건에 1% 면 0건이다. 반올림해서 1건을 허용하면 "1%를 줬는데
+ * 2%가 통과"하는 상황이 생긴다. 사람이 준 수치보다 관대해지는 쪽으로 어긋나면 안 된다.
+ */
+function allowedFailures(target) {
+  return Math.floor((target * TOLERANCE_PCT) / 100);
 }
 
 const PASSWORD = 'PerfTest123!'; // scripts/lib/config.js SEED_PASSWORD와 일치해야 함
@@ -195,11 +277,102 @@ function isRetryable(err) {
     || /ECONNRESET|ECONNREFUSED|EPIPE|socket hang up|fetch failed|other side closed/i.test(m);
 }
 
+/**
+ * **적용 여부를 알 수 없는** 실패인가 (KI-54).
+ *
+ * isRetryable 이 참인 실패는 두 종류가 섞여 있고, 멱등하지 않은 API에서는 그 차이가
+ * 데이터 손실을 가른다.
+ *
+ *   확실히 적용 안 됨  데드락(롤백됨)·커넥션 고갈(트랜잭션 미개시)·ECONNREFUSED(연결 실패)
+ *                      → 응답을 **받았거나** 요청이 서버에 닿지 않았다. 다시 보내도 안전하다.
+ *   알 수 없음         ECONNRESET·EPIPE·socket hang up·fetch failed·other side closed
+ *                      → 응답만 못 받았을 뿐 서버는 처리를 끝냈을 수 있다.
+ *
+ * 반응·스크랩은 토글이라 두 번째 경우에 그냥 재시도하면 **서버가 이미 만든 상태를 되돌린다**.
+ * 재시도할수록 데이터가 사라지는, 상식과 반대로 작동하는 구간이다.
+ * 그래서 여기서 갈라내고 `ensureToggled()`가 상태를 조회해 판정한다.
+ */
+function isAmbiguous(err) {
+  const m = String(err && err.message);
+  // ECONNREFUSED 는 연결 자체가 거부된 것이라 요청이 닿지 않았다 — 모호하지 않다.
+  return /ECONNRESET|EPIPE|socket hang up|fetch failed|other side closed/i.test(m);
+}
+
+/**
+ * 토글 API를 "목표 상태로 만든다"는 의미로 호출한다 (KI-54 대응).
+ *
+ * 반응·스크랩 엔드포인트는 "현재 상태를 뒤집어라"로 동작해서 멱등하지 않다. 응답을 못 받은
+ * 요청을 그냥 재시도하면 서버가 이미 적용한 것을 취소해 버린다.
+ *
+ * 그래서 응답이 없을 때 **다시 보내지 않고 현재 상태를 조회**한다. 조회 결과가:
+ *   목표 상태다      → 첫 요청이 적용된 것이다. 성공으로 처리한다.
+ *   목표 상태가 아니다 → 적용되지 않은 것이 확인됐다. 이제 재시도가 안전하므로
+ *                       pooled 가 다시 부르도록 재시도 가능한 오류를 던진다.
+ *   조회도 실패      → 아무것도 단정할 수 없다. 재시도하지 않고 실패로 남긴다.
+ *
+ * 상태는 게시글 상세(`GET /api/posts/{id}`)가 이미 내려준다 — PostDetailService 가
+ * 요청자 기준으로 `likeState`·`scrapped` 를 채우므로 새 API가 필요 없다.
+ *
+ * @param {Session} s        요청 주체(= 상태를 확인할 사용자)의 세션
+ * @param {number}  postId
+ * @param {Function} send    토글 요청을 보내는 함수
+ * @param {Function} read    상세 응답에서 현재 상태(boolean)를 꺼내는 함수
+ * @param {string}  label    오류 메시지용
+ */
+async function ensureToggled(s, postId, send, read, label) {
+  let r;
+  try {
+    r = await send();
+  } catch (e) {
+    if (!isAmbiguous(e)) throw e;          // 확실히 적용 안 됨 → pooled 가 재시도한다
+    return verifyToggle(s, postId, read, label, e.message);
+  }
+  if (r.status < 200 || r.status >= 300) {
+    throw new Error(`${label} ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
+  }
+}
+
+async function verifyToggle(s, postId, read, label, why) {
+  let cur;
+  try {
+    cur = await s.json('GET', `/api/posts/${postId}`);
+  } catch (e) {
+    // 조회마저 실패하면 적용 여부를 모른 채로 남는다. 재시도하면 되돌릴 위험이 있으므로
+    // 재시도 대상이 아닌 메시지로 던진다(isRetryable 패턴에 걸리지 않는 문구여야 한다).
+    throw new Error(`${label} 상태 확인 불가 (post ${postId}) — 재요청하지 않는다. 원인: ${why}`);
+  }
+  if (cur.status === 200 && read(cur.data) === true) return;   // 첫 요청이 적용됐다
+  if (cur.status === 200) {
+    // 적용되지 않은 것이 확인됐다 — 이제 다시 보내도 되돌릴 것이 없다.
+    // isRetryable 이 잡는 문구를 써서 pooled 의 재시도 경로를 태운다.
+    throw new Error(`${label} 미적용 확인 — 재시도 가능 (fetch failed 계열: ${why})`);
+  }
+  throw new Error(`${label} 상태 확인 실패 ${cur.status} (post ${postId}) — 재요청하지 않는다`);
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function pooled(items, worker, concurrency = CONCURRENCY, label = '') {
+/**
+ * 작업 목록을 동시에 처리하고 **결과를 돌려준다**.
+ *
+ * 예전에는 계수를 콘솔에만 찍고 버렸다. 그래서 호출자가 "이 단계가 목표를 채웠는가"를
+ * 알 방법이 없었고, 1단계가 통째로 실패해도 2단계가 그대로 시작됐다. 실측 사례: 닉네임
+ * 길이 제한 때문에 10,000명 중 100명만 가입했는데 이후 단계 전부가 그 100명 위에서 돌아
+ * 데이터셋이 무너졌다. 판단에 필요한 값은 판단하는 쪽으로 돌려줘야 한다.
+ *
+ * @returns {{label,target,processed,ok,failed,skipped,retried,aborted,firstErrors}}
+ */
+async function pooled(items, worker, concurrency = CONCURRENCY, label = '', declaredTarget = null) {
   let processed = 0, ok = 0, failed = 0, skipped = 0, retried = 0;
+  let aborted = false;
+  const firstErrors = [];
   const queue = [...items.entries()];
+  // 검문 기준은 **프로파일이 선언한 목표**다. 작업 목록이 목표보다 짧을 수 있는데
+  // (uniquePairs 가 유일 조합을 다 못 찾은 경우), 그때 items.length 를 목표로 삼으면
+  // "200개만 만들기로 했으니 200개 성공 = 완료"가 되어 미달이 검문을 통과한다.
+  // 계획 단계의 부족과 실행 단계의 실패는 원인이 다르지만 결과는 같다 — 명세 미달이다.
+  const target = declaredTarget == null ? items.length : declaredTarget;
+  const allowed = allowedFailures(target);
 
   const tally = (r) => { if (r === SKIP) skipped++; else ok++; };
 
@@ -209,7 +382,9 @@ async function pooled(items, worker, concurrency = CONCURRENCY, label = '') {
   const MAX_ATTEMPTS = 6;
 
   async function lane() {
-    while (queue.length) {
+    // aborted 를 매 반복 확인한다 — immediate 모드에서 한 레인이 실패를 만나면 나머지
+    // 레인도 남은 큐를 버리고 빠져나와야 "즉시"라는 말이 성립한다.
+    while (queue.length && !aborted) {
       const [i, item] = queue.shift();
       let lastErr = null;
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -229,7 +404,14 @@ async function pooled(items, worker, concurrency = CONCURRENCY, label = '') {
       }
       if (lastErr) {
         failed++;
+        // 콘솔에는 앞의 몇 건만 찍되(수천 건이면 로그가 쓸모없어진다) 요약 보고용으로는
+        // 따로 모아 둔다 — 멈춘 이유를 마지막에 한 번 더 보여줘야 하기 때문이다.
+        if (firstErrors.length < 5) firstErrors.push(`${label}[${i}]: ${lastErr.message}`);
         if (failed <= 5) console.error(`  ! ${label}[${i}]: ${lastErr.message}`);
+        // 허용치 안이면 immediate 여도 멈추지 않는다 — "첫 실패에서 중단"이 아니라
+        // "허용치를 넘는 순간 중단"이다. 이걸 구분하지 않으면 --tolerance 를 준 의미가
+        // immediate 모드에서만 사라진다.
+        if (ON_FAILURE === 'immediate' && failed > allowed) aborted = true;
       }
       if (++processed % 200 === 0) process.stdout.write(`  ${label}: ${processed}/${items.length}\r`);
     }
@@ -247,9 +429,76 @@ async function pooled(items, worker, concurrency = CONCURRENCY, label = '') {
   // 맞지 않는다는 신호이므로 다음 실행에서 조정할 근거가 된다.
   if (retried) parts.push(`재시도 ${retried}`);
   console.log(`  ${label}: ${processed}/${items.length} 처리 (${parts.join(', ')})`);
-  if (ok < items.length) {
-    console.log(`    ⚠ 목표 ${items.length}건 중 ${items.length - ok}건 미생성 — 데이터셋이 명세에 미달한다.`);
+  if (aborted) {
+    console.log(`    ⚠ 허용치(${allowed}건)를 넘겨 중단했다(--on-failure immediate) — 위 수치는 부분값이다.`);
   }
+  const missing = target - ok;
+  if (missing > 0) {
+    const planShort = target - items.length;
+    console.log(`    ⚠ 목표 ${target}건 중 ${missing}건 미생성 — 데이터셋이 명세에 미달한다.` +
+      (planShort > 0 ? ` (그중 ${planShort}건은 작업 계획 단계에서 이미 부족했다)` : ''));
+    // 허용치가 이 단계를 살렸다면 반드시 드러낸다. 조용히 통과시키면 0%로 만든
+    // 데이터셋과 구별되지 않고, 나중에 "이 수치가 왜 이상하지"의 원인을 못 찾는다.
+    if (missing <= allowed) {
+      console.log(`    ↳ 허용치 ${TOLERANCE_PCT}%(${allowed}건) 안이라 통과시킨다 — 이 데이터셋은 명세보다 ${missing}건 적다.`);
+    }
+  }
+
+  return {
+    label, target, planned: items.length, processed, ok, failed, skipped, retried, aborted,
+    firstErrors, allowed, missing, tolerated: missing > 0 && missing <= allowed,
+  };
+}
+
+/**
+ * 단계 결과를 검문한다 — 미달분이 허용치 안인가.
+ *
+ * `missing = target - ok`으로 판정하는 이유: `failed`만 보면 SKIP 이 빠져나간다. SKIP 은
+ * "앞 단계가 못 만든 리소스라 이번 단계도 못 했다"는 뜻이라 그 자체로 미달의 증거다.
+ * 목표 수량을 채웠는가 하나로 보는 편이 빠뜨림이 없다.
+ *
+ * `--on-failure continue` 에서는 기록만 하고 진행한다. 다만 종료 코드와 산출물 정책은
+ * 동일하다 — 계속 돌린다고 결과가 유효해지지는 않는다.
+ */
+const stageFailures = [];
+/** 허용치 덕분에 통과한 단계들 — meta.json 과 최종 보고에 남긴다. */
+const toleratedStages = [];
+
+function requireComplete(result) {
+  if (result.tolerated) toleratedStages.push(result);
+  if (result.missing <= result.allowed) return result;
+  stageFailures.push(result);
+  if (ON_FAILURE === 'continue') {
+    console.error(`  ✗ ${result.label} 허용치 초과 — 계속 진행한다(--on-failure continue). 산출물은 쓰지 않는다.`);
+    return result;
+  }
+  abortWithFailures();
+}
+
+/** 미달 요약을 출력하고 종료 코드 1로 끝낸다. 산출물은 쓰지 않는다. */
+function abortWithFailures() {
+  console.error('');
+  console.error('═'.repeat(70));
+  console.error(`  데이터셋 생성 실패 — 허용치(${TOLERANCE_PCT}%)를 넘겨 미달한 단계가 있다`);
+  console.error('═'.repeat(70));
+  for (const f of stageFailures) {
+    console.error(`  ${f.label}: 목표 ${f.target} / 성공 ${f.ok} / 부족 ${f.missing} (허용 ${f.allowed})` +
+      `${f.failed ? ` / 실패 ${f.failed}` : ''}${f.skipped ? ` / 건너뜀 ${f.skipped}` : ''}` +
+      `${f.aborted ? ' — 허용치 초과 시점에 중단' : ''}`);
+    for (const e of f.firstErrors) console.error(`      ! ${e}`);
+  }
+  if (TOLERANCE_PCT === 0) {
+    console.error('');
+    console.error('  서버 병목(BTL-003 데드락 등)으로 소수 손실이 반복된다면');
+    console.error('  --tolerance 0.1 처럼 허용치를 명시해 다시 시도할 수 있다.');
+    console.error('  그 경우 만들어진 데이터셋은 명세보다 적고, meta.json에 그 사실이 남는다.');
+  }
+  console.error('');
+  console.error('  산출물(JSON)을 쓰지 않았다 — 반쪽짜리 데이터셋이 파일로 남으면');
+  console.error('  다음 실행이 그걸 정상으로 착각한다.');
+  console.error('  원인을 고친 뒤 깨끗한 DB에서 다시 생성할 것.');
+  console.error('═'.repeat(70));
+  process.exit(1);
 }
 
 // ---------- 생성 단계 ----------
@@ -280,7 +529,7 @@ function buildUsers() {
 
 async function registerUsers(users) {
   console.log(`[1/6] 회원가입 ${users.length}명`);
-  await pooled(users, async (u) => {
+  return pooled(users, async (u) => {
     const s = new Session();
     const r = await s.json('POST', '/api/user/register', {
       name: u.name, nickname: u.nickname, phone: u.phone, email: u.email,
@@ -297,7 +546,7 @@ async function registerUsers(users) {
 async function loginAll(users) {
   console.log(`[2/6] 로그인 세션 확보`);
   const sessions = new Array(users.length);
-  await pooled(users, async (u, i) => {
+  const result = await pooled(users, async (u, i) => {
     const s = new Session();
     const r = await s.json('POST', '/api/user/login', { email: u.email, password: u.password });
     if (r.status !== 200) throw new Error(`login ${r.status}`);
@@ -312,7 +561,7 @@ async function loginAll(users) {
     s.userId = info.data.id;
     sessions[i] = s;
   }, CONCURRENCY, 'login');
-  return sessions;
+  return { sessions, result };
 }
 
 /**
@@ -329,7 +578,7 @@ async function loginAll(users) {
  */
 async function assignSchools(users, sessions) {
   console.log('  학교/학년/반 배정');
-  await pooled(users, async (u, i) => {
+  return pooled(users, async (u, i) => {
     const s = sessions[i];
     if (!s) return SKIP;                       // 세션 없는 계정은 배정 불가 — 건너뜀으로 집계
     const r = await s.json('PATCH', '/api/user/school', {
@@ -372,6 +621,11 @@ function liveAuthors(sessions) {
 
 async function fetchBoards(sessions) {
   const s = sessions.find(Boolean);
+  // 세션이 하나도 없으면 `s`가 undefined다. 가드가 없으면 다음 줄이
+  // "Cannot read properties of undefined (reading 'json')"으로 터져서, 실제 원인(로그인
+  // 단계가 통째로 실패했다는 것)이 스택 트레이스에 묻힌다. liveAuthors()가 같은 상황에서
+  // 이미 이렇게 하고 있다 — 여기만 빠져 있었다.
+  if (!s) throw new Error('사용 가능한 세션이 없다 — 회원가입/로그인 단계를 먼저 확인할 것');
   const r = await s.json('GET', '/api/boards');
   const boards = (Array.isArray(r.data) ? r.data : []).map((b) => ({
     id: b.id ?? b.boardId, name: b.name ?? b.boardName ?? '',
@@ -386,7 +640,7 @@ async function createPosts(users, sessions, boards) {
   const live = liveAuthors(sessions);
   const posts = [];
   const jobs = Array.from({ length: P.posts }, (_, i) => i);
-  await pooled(jobs, async (i) => {
+  const result = await pooled(jobs, async (i) => {
     const authorIdx = live[zipf(live.length)];     // 살아있는 세션 위에서 헤비 유저 편중
     const s = sessions[authorIdx];
     const board = boards[randInt(boards.length)];
@@ -411,7 +665,7 @@ async function createPosts(users, sessions, boards) {
   }, CONCURRENCY, 'posts');
   // rank 낮은 글 = 먼저 생성된 글 = 인기글로 사용 (posts.json은 인기순 정렬 상태)
   posts.sort((a, b) => a.rank - b.rank);
-  return posts;
+  return { posts, result };
 }
 
 async function createEngagement(users, sessions, posts) {
@@ -423,7 +677,10 @@ async function createEngagement(users, sessions, posts) {
     post: posts[zipf(posts.length)],
     author: live[zipf(live.length)],
   }));
-  await pooled(commentJobs, async (j) => {
+  // 세 하위 단계(댓글·반응·스크랩)를 각각 검문한다. 하나로 합쳐 보고하면 "반응만
+  // 전부 실패"가 "대체로 성공"에 묻힌다.
+  const results = [];
+  results.push(requireComplete(await pooled(commentJobs, async (j) => {
     const s = sessions[j.author];
     const r = await s.json('POST', `/api/posts/${j.post.id}/comments`, {
       parentId: null, content: pick(COMMENTS_POOL), anonymous: rand() < 0.6, url: null,
@@ -432,7 +689,7 @@ async function createEngagement(users, sessions, posts) {
     if (r.status < 200 || r.status >= 300) {
       throw new Error(`comment ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
     }
-  }, CONCURRENCY, 'comments');
+  }, CONCURRENCY, 'comments')));
 
   // 반응과 스크랩은 (사용자, 게시글) 조합이 유일해야 한다 — DB에도 유니크 제약이 있다
   // (uk_posts_reactions_pst_usr / uk_scraps_usr_pst). 예전처럼 무작위로 뽑으면 같은 조합이
@@ -461,24 +718,36 @@ async function createEngagement(users, sessions, posts) {
     return jobs;
   };
 
+  // 반응·스크랩은 토글이라 응답 유실 시 그냥 재시도하면 서버가 이미 만든 상태를
+  // 되돌린다(KI-54). ensureToggled 가 그 경우에만 상태를 조회해 판정한다.
+  // 데드락·커넥션 고갈은 확실히 롤백된 것이므로 예전처럼 pooled 가 재시도한다.
   const reactionJobs = uniquePairs(P.reactions, '반응');
-  await pooled(reactionJobs, async (j) => {
+  results.push(requireComplete(await pooled(reactionJobs, async (j) => {
     const s = sessions[j.user];
     const type = rand() < 0.85 ? 'LIKE' : 'DISLIKE';
-    const r = await s.json('POST', `/api/posts/${j.post.id}/reaction?type=${type}`);
-    if (r.status < 200 || r.status >= 300) {
-      throw new Error(`reaction ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
-    }
-  }, CONCURRENCY, 'reactions');
+    await ensureToggled(
+      s, j.post.id,
+      () => s.json('POST', `/api/posts/${j.post.id}/reaction?type=${type}`),
+      // 상세 응답은 요청자 기준의 `liked`/`disliked`/`scrapped` 를 평면으로 내려준다
+      // (PostDetailService.applyUserContext, 실제 응답으로 키 확인함 — `likeState` 로
+      // 중첩돼 있지 않다). 어느 쪽 반응이든 "이 사용자가 이 글에 반응을 남겼다"가 목표다.
+      (d) => !!(d && (d.liked || d.disliked)),
+      'reaction',
+    );
+  }, CONCURRENCY, 'reactions', P.reactions)));
 
   const scrapJobs = uniquePairs(P.scraps, '스크랩');
-  await pooled(scrapJobs, async (j) => {
+  results.push(requireComplete(await pooled(scrapJobs, async (j) => {
     const s = sessions[j.user];
-    const r = await s.json('POST', `/api/posts/${j.post.id}/scraps`);
-    if (r.status < 200 || r.status >= 300) {
-      throw new Error(`scrap ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
-    }
-  }, CONCURRENCY, 'scraps');
+    await ensureToggled(
+      s, j.post.id,
+      () => s.json('POST', `/api/posts/${j.post.id}/scraps`),
+      (d) => !!(d && d.scrapped),
+      'scrap',
+    );
+  }, CONCURRENCY, 'scraps', P.scraps)));
+
+  return results;
 }
 
 async function createFriendships(users, sessions) {
@@ -508,12 +777,17 @@ async function createFriendships(users, sessions) {
     pairs.push([a, b]);
   }
 
-  await pooled(pairs, async ([a, b]) => {
+  const result = await pooled(pairs, async ([a, b]) => {
     const sa = sessions[a], sb = sessions[b];
     if (!sa || !sb) return SKIP;   // 세션 없는 계정 — 성공으로 세지 않는다
     // 닉네임이 아니라 대상 사용자 id로 보낸다. 닉네임에는 유니크 제약이 없고 변경도
     // 가능해서 API가 id 기반으로 바뀌었다(RequestFriendDto.targetUserId).
     const r1 = await sa.json('POST', '/api/friends/request', { targetUserId: sb.userId });
+    // 409 ALREADY_FRIENDS 는 "목표 상태가 이미 성립한다"는 뜻이라 실패가 아니다 —
+    // 1단계가 중복 가입(409)을 성공으로 세는 것과 같은 판단이다. 시더가 만들려는 것은
+    // "요청을 한 번 보냈다"가 아니라 "두 사람이 친구다"라는 상태이기 때문이다.
+    // 이 처리가 없으면 같은 DB에 시더를 두 번 돌릴 때 이 단계가 통째로 실패한다(실측).
+    if (r1.status === 409) return;
     if (r1.status < 200 || r1.status >= 300) {
       throw new Error(`friend request ${r1.status}: ${JSON.stringify(r1.data).slice(0, 150)}`);
     }
@@ -531,14 +805,14 @@ async function createFriendships(users, sessions) {
       throw new Error(`friend respond ${r3.status}: ${JSON.stringify(r3.data).slice(0, 150)}`);
     }
   }, Math.min(CONCURRENCY, 5), 'friendships');
-  return pairs;
+  return { pairs, result };
 }
 
 async function createChat(users, sessions, pairs) {
   console.log(`[6/6] 채팅방 + 메시지`);
   const roomPairs = pairs.slice(0, Math.floor(pairs.length * P.chatRoomRatio));
   const rooms = [];
-  await pooled(roomPairs, async ([a, b]) => {
+  const result = await pooled(roomPairs, async ([a, b]) => {
     const sa = sessions[a], sb = sessions[b];
     if (!sa || !sb) return SKIP;
     // 상대 userId 는 세션이 이미 들고 있다. 예전에는 쌍마다 /friends/list 를 조회해
@@ -556,7 +830,7 @@ async function createChat(users, sessions, pairs) {
   // 방마다 히스토리 메시지 (REST가 아닌 WS 전용이므로 여기서는 read 상태만 갱신)
   // 메시지 히스토리는 chat-ws.js 첫 실행이 자연스럽게 쌓는다.
   console.log(`  1:1 채팅방 ${rooms.length}개 생성`);
-  return rooms;
+  return { rooms, result };
 }
 
 // ---------- 데이터셋 지문 ----------
@@ -577,7 +851,7 @@ async function createChat(users, sessions, pairs) {
  * 실제 생성 개수를 넣는 이유: 시드가 부분 실패하면(과거 실측: 500건 목표에 187건) 규칙이
  * 같아도 데이터가 다르다. 그 실행을 정상 데이터셋과 비교하면 안 된다.
  */
-function buildMeta(users, posts, boards) {
+function buildMeta(users, posts, boards, stageResults) {
   const hashOf = (rel) => {
     const buf = fs.readFileSync(path.join(__dirname, rel));
     return crypto.createHash('sha256').update(buf).digest('hex').slice(0, 12);
@@ -588,24 +862,46 @@ function buildMeta(users, posts, boards) {
     .update(hashOf('../scripts/lib/sampling.js'))
     .digest('hex').slice(0, 12);
 
+  // 단계별 실제 생성 수. **허용치를 열면 이 값이 지문의 핵심이 된다** — 댓글이 5% 모자란
+  // 데이터셋과 온전한 데이터셋은 성능이 다른데, 예전 identity 에는 users·posts·boards 만
+  // 들어가 있어 두 지문이 같았다. 그러면 회귀 판정이 두 실행을 같은 조건으로 비교한다.
+  const stageCounts = {};
+  for (const r of stageResults) stageCounts[r.label] = r.ok;
+
   const identity = {
-    schemaVersion: 1,
+    schemaVersion: 2,   // stageCounts 추가로 구성이 바뀌었다 — 옛 지문과 섞이면 안 된다
     profile: PROFILE_NAME,
     generatorVersion,
     params: P,
     counts: { users: users.length, posts: posts.length, boards: boards.length },
+    stageCounts,
   };
   const fingerprint = 'sha256:' + crypto.createHash('sha256')
     .update(JSON.stringify(identity))
     .digest('hex').slice(0, 12);
 
-  return { ...identity, fingerprint, generatedAt: new Date().toISOString() };
+  // 허용 정책 자체는 identity 에 넣지 않는다. 지문이 답해야 하는 질문은 "이 데이터가
+  // 무엇인가"이지 "어떤 설정으로 만들었나"가 아니다 — 허용치 1%로 돌려서 손실이 0이었다면
+  // 0%로 돌린 것과 같은 데이터이므로 같은 지문이어야 한다. 사람이 읽을 기록으로는 남긴다.
+  const tolerance = {
+    pct: TOLERANCE_PCT,
+    toleratedStages: toleratedStages.map((t) => ({
+      stage: t.label, target: t.target, created: t.ok, missing: t.missing, allowed: t.allowed,
+    })),
+  };
+
+  return { ...identity, tolerance, fingerprint, generatedAt: new Date().toISOString() };
 }
 
 // ---------- 메인 ----------
 
 (async function main() {
   console.log(`프로파일: ${PROFILE_NAME}`, P, `→ ${BASE}`);
+  console.log(`실패 정책: 단계별 허용 ${TOLERANCE_PCT}% · 중단 시점 ${ON_FAILURE}`);
+  if (TOLERANCE_PCT > 0) {
+    console.log('  ⚠ 허용치가 0이 아니다 — 만들어진 데이터셋은 명세보다 적을 수 있고,');
+    console.log('    그 경우 지문이 달라져 온전한 데이터셋으로 잰 실행과 비교되지 않는다.');
+  }
   const t0 = Date.now();
 
   // sampling.js는 k6가 요구하는 ESM이라 require()로 못 읽는다. 데이터를 만들기 전에
@@ -614,29 +910,89 @@ function buildMeta(users, posts, boards) {
     require('url').pathToFileURL(path.join(__dirname, '..', 'scripts', 'lib', 'sampling.js')).href
   ));
 
-  const users = buildUsers();
-  await registerUsers(users);
-  const sessions = await loginAll(users);
-  await assignSchools(users, sessions);
-  const boards = await fetchBoards(sessions);
-  const posts = await createPosts(users, sessions, boards);
-  await createEngagement(users, sessions, posts);
-  const pairs = await createFriendships(users, sessions);
-  await createChat(users, sessions, pairs);
+  // 각 단계 뒤에 검문을 건다. 예전에는 1단계가 통째로 실패해도 2단계가 그대로 시작돼
+  // 오류가 단계마다 증폭됐다 — 존재하지 않는 계정으로 로그인하고, 그 실패가 또 로그에만
+  // 남는 식이다. 미달을 발견한 자리에서 멈추는 것이 가장 싸다.
+  // 단계 결과를 모은다 — meta.json 의 stageCounts 가 여기서 나온다. 실제 생성 수가
+  // 지문에 들어가야 "댓글이 조금 모자란 데이터셋"이 온전한 것과 구별된다.
+  const stageResults = [];
+  const check = (r) => { stageResults.push(requireComplete(r)); return r; };
+
+  const plan = buildUsers();
+  check(await registerUsers(plan));
+
+  const { sessions, result: loginResult } = await loginAll(plan);
+  check(loginResult);
+  check(await assignSchools(plan, sessions));
+
+  const boards = await fetchBoards(sessions);          // 실패 시 자체적으로 throw
+  const { posts, result: postResult } = await createPosts(plan, sessions, boards);
+  check(postResult);
+
+  // 하위 3단계(댓글·반응·스크랩)를 내부에서 검문하고 결과를 돌려준다
+  stageResults.push(...await createEngagement(plan, sessions, posts));
+
+  const { pairs, result: friendResult } = await createFriendships(plan, sessions);
+  check(friendResult);
+  const { result: chatResult } = await createChat(plan, sessions, pairs);
+  check(chatResult);
+
+  // --on-failure continue 로 여기까지 왔더라도 미달이면 산출물을 쓰지 않는다.
+  // 반쪽짜리 JSON 이 파일로 남으면 다음 실행이 그걸 정상 데이터셋으로 착각한다.
+  if (stageFailures.length) abortWithFailures();
+
+  // 산출물에는 **실제로 존재가 확인된 사용자만** 담는다. 예전에는 계획 목록(buildUsers의
+  // 반환값)을 그대로 썼기 때문에, 가입에 실패한 계정이 users.json 에 남아 k6가 존재하지
+  // 않는 계정으로 로그인을 시도했다. 세션이 잡힌 계정만이 "가입 + 로그인 + 학교 배정"을
+  // 전부 통과했다는 증거다.
+  const confirmedUsers = plan.filter((_, i) => sessions[i]);
+  const userShortfall = plan.length - confirmedUsers.length;
+  if (userShortfall > allowedFailures(plan.length)) {
+    // 위 검문을 통과했다면 도달할 수 없다. 도달했다면 검문에 구멍이 있다는 뜻이므로
+    // 조용히 줄어든 파일을 쓰지 않고 멈춘다.
+    console.error(`  ✗ 확인된 사용자 ${confirmedUsers.length}/${plan.length} — 검문을 통과했는데 수가 맞지 않는다.`);
+    process.exit(1);
+  }
+  if (userShortfall > 0) {
+    console.log(`  ↳ users.json 에는 세션이 확인된 ${confirmedUsers.length}명만 담는다 (계획 ${plan.length}명).`);
+  }
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
   fs.writeFileSync(path.join(OUT_DIR, 'users.json'),
-    JSON.stringify(users.map((u) => ({ email: u.email, nickname: u.nickname })), null, 1));
+    JSON.stringify(confirmedUsers.map((u) => ({ email: u.email, nickname: u.nickname })), null, 1));
   fs.writeFileSync(path.join(OUT_DIR, 'posts.json'),
     JSON.stringify(posts.map((p) => ({ id: p.id, boardId: p.boardId })), null, 1));
   fs.writeFileSync(path.join(OUT_DIR, 'boards.json'), JSON.stringify(boards, null, 1));
 
-  const meta = buildMeta(users, posts, boards);
+  const meta = buildMeta(confirmedUsers, posts, boards, stageResults);
   fs.writeFileSync(path.join(OUT_DIR, 'meta.json'), JSON.stringify(meta, null, 1));
 
-  console.log(`\n완료: ${((Date.now() - t0) / 1000 / 60).toFixed(1)}분`);
+  const verdict = toleratedStages.length
+    ? `허용치 ${TOLERANCE_PCT}% 안에서 완료 — ${toleratedStages.length}개 단계가 명세 미달`
+    : '전 단계 목표 수량 달성';
+  console.log(`\n완료: ${((Date.now() - t0) / 1000 / 60).toFixed(1)}분 — ${verdict}`);
+  if (toleratedStages.length) {
+    // 마지막에 한 번 더 모아 보여준다. 단계별 로그는 긴 생성에서 스크롤 위로 사라진다.
+    for (const t of toleratedStages) {
+      console.log(`  · ${t.label}: 목표 ${t.target} / 생성 ${t.ok} (부족 ${t.missing}, 허용 ${t.allowed})`);
+    }
+    console.log('  이 데이터셋은 명세보다 적다. meta.json 의 tolerance 항목에 기록돼 있고,');
+    console.log('  stageCounts 가 지문에 반영되므로 온전한 데이터셋과 비교되지 않는다.');
+  }
   console.log(`산출물: ${OUT_DIR}/{users,posts,boards,meta}.json`);
   console.log(`데이터셋 지문: ${meta.fingerprint} (생성기 ${meta.generatorVersion})`);
   console.log(`k6 실행 시 -e DATASET=${PROFILE_NAME} 로 사용`);
   console.log('지문이 다른 데이터셋으로 잰 과거 실행과는 비교되지 않습니다 — 새 기준선이 필요합니다.');
-})().catch((e) => { console.error(e); process.exit(1); });
+})().catch((e) => {
+  // 이미 미달한 단계가 쌓여 있다면, 뒤에서 터진 오류는 **결과이지 원인이 아니다.**
+  // `--on-failure continue`는 미달을 안고 끝까지 진행하므로, 뒤 단계가 앞 단계의 산출물을
+  // 못 찾아 실패하는 것이 정상 경로다. 그때 스택 트레이스를 뱉고 종료 코드 2로 끝나면
+  // "실행 오류"로 오독되고, 정작 사람이 봐야 할 단계별 미달 요약이 나오지 않는다.
+  // 선언한 정책대로 요약을 내고 종료 코드 1로 끝낸다.
+  if (stageFailures.length) {
+    console.error(`\n  ↳ 이후 단계를 진행할 수 없어 중단: ${e.message}`);
+    abortWithFailures();
+  }
+  console.error(e);
+  process.exit(2);
+});
