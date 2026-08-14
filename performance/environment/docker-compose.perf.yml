@@ -41,7 +41,10 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-highteenday}
       TZ: Asia/Seoul
     ports:
-      - "${MYSQL_HOST_PORT:-13316}:3306"   # 로컬 MySQL(3306)과 충돌 방지용 기본 포트
+      # 루프백 전용(E-14). root 비밀번호 기본값이 `perfroot`이라 0.0.0.0 에 붙으면 같은
+      # 네트워크의 누구나 시드 데이터 전체를 읽고 쓸 수 있다. 호스트에서 돌리는 도구
+      # (seed.js·SQL 검증)는 127.0.0.1 로 그대로 접속된다.
+      - "127.0.0.1:${MYSQL_HOST_PORT:-13316}:3306"   # 로컬 MySQL(3306)과 충돌 방지용 기본 포트
     volumes:
       - perf-mysql-data:/var/lib/mysql
     deploy:
@@ -59,7 +62,9 @@ services:
     restart: unless-stopped
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - "${REDIS_HOST_PORT:-16389}:6379"   # 로컬 Redis(6379)와 충돌 방지용 기본 포트
+      # 루프백 전용(E-14). 이 Redis 는 인증이 없어(redis-perf.conf 에 requirepass 없음)
+      # 0.0.0.0 에 붙으면 누구나 FLUSHALL 로 캐시를 날리거나 세션을 읽을 수 있다.
+      - "127.0.0.1:${REDIS_HOST_PORT:-16389}:6379"   # 로컬 Redis(6379)와 충돌 방지용 기본 포트
     volumes:
       - ./redis/redis-perf.conf:/usr/local/etc/redis/redis.conf:ro
     deploy:
@@ -89,15 +94,26 @@ services:
       mysql: { condition: service_healthy }
       redis: { condition: service_healthy }
     ports:
-      - "${APP_HOST_PORT:-18080}:8080"   # 로컬에서 이미 8080을 쓰는 프로세스와 충돌 방지
+      # 기본은 루프백이다(E-14). 다만 부하 발생기를 다른 호스트로 분리하면(E-01) 원격
+      # k6 가 이 포트에 붙어야 하므로, 그때만 APP_BIND_ADDR=0.0.0.0 으로 **명시적으로**
+      # 연다. 기본값이 열려 있는 것과 필요할 때 여는 것은 다르다.
+      - "${APP_BIND_ADDR:-127.0.0.1}:${APP_HOST_PORT:-18080}:8080"   # 로컬에서 이미 8080을 쓰는 프로세스와 충돌 방지
     environment:
       DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-highteenday}
       DB_USERNAME: root
       DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-perfroot}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      # HS512는 최소 64바이트 키가 필요하다 (짧으면 로그인/회원가입이 500으로 실패 — 실측 확인됨)
-      JWT_KEY: ${JWT_KEY:-Mwll69ylpZY1WBYuIkKEH1/ibvg9xq+QaeBVy1J/YEa7Jq8SaPLJrLyOHbiabv1kdiB8DpcefJOyXszvHiucig==}
+      # HS512는 최소 64바이트 키가 필요하다 (짧으면 로그인/회원가입이 500으로 실패 — 실측 확인됨).
+      #
+      # 기본값을 두지 않는다(E-34). 예전에는 실행 가능한 실제 키가 `:-` 기본값으로 커밋돼
+      # 있었다. 저장소를 읽을 수 있는 사람은 누구나 그 키로 토큰을 위조할 수 있고, 운영이
+      # 같은 키를 쓰고 있었다면 그대로 운영 토큰 위조가 된다. 편의를 위한 기본값 하나가
+      # 저장소 접근 권한을 인증 우회 권한으로 바꾼다.
+      #
+      # 값이 없으면 컨테이너가 뜨지 않는다 — 조용히 약한 키로 뜨는 것보다 낫다.
+      # 생성: openssl rand -base64 64   (환경 변수 또는 .env.perf 에 넣는다)
+      JWT_KEY: ${JWT_KEY:?JWT_KEY 를 지정해야 한다 - openssl rand -base64 64 로 생성해 .env.perf 에 넣을 것}
       # OAuth2/NEIS 자리표시자 — 기본값이 없는 프로퍼티라 값이 없으면 컨텍스트 로딩 자체가
       # 실패한다(PlaceholderResolutionException). 부하 테스트 경로(로그인/회원가입/글쓰기 등)는
       # 이 값들을 실제로 쓰지 않으므로 더미로 충분하다.
@@ -137,7 +153,12 @@ services:
       - --storage.tsdb.retention.time=30d
       - --web.enable-remote-write-receiver   # k6 experimental-prometheus-rw 수신
     ports:
-      - "9090:9090"
+      # 루프백에만 바인딩한다(E-14). `"9090:9090"` 은 0.0.0.0 에 붙어 같은 네트워크의
+      # 누구나 접근할 수 있는데, 위 remote-write 수신기에는 **인증이 없다**. 즉 외부에서
+      # 임의 지표를 써 넣어 측정을 오염시키거나, 질의 API로 전체 지표를 읽어 갈 수 있다.
+      # 카페·회사 공용 와이파이에서 부하 테스트를 돌리면 그대로 노출된다.
+      # 원격 접근이 필요하면 SSH 터널을 쓴다: ssh -L 9090:localhost:9090 <host>
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - perf-prom-data:/prometheus
@@ -147,9 +168,14 @@ services:
     container_name: perf-grafana
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      # Prometheus와 같은 이유로 루프백에만 바인딩한다(E-14). 여기는 익명 접근이 켜져
+      # 있고(GF_AUTH_ANONYMOUS_ENABLED) 관리자 비밀번호 기본값도 약해서, 0.0.0.0 에
+      # 붙으면 같은 네트워크의 누구나 대시보드를 열람할 수 있다.
+      - "127.0.0.1:3001:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-perf}
+      # 익명 열람 허용은 로컬 전용 편의 설정이다. 위 포트 바인딩이 루프백이라는 전제에서만
+      # 안전하다 — 바인딩을 바꾸려면 이 설정도 함께 재검토할 것.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
     volumes:
