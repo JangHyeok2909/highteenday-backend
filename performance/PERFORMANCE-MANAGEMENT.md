@@ -136,9 +136,30 @@ k6를 직접 치면 사람이 매번 세 가지를 챙겨야 한다.
 Test ID · Scenario · Environment · Branch · Commit SHA · Build Number · 실행자 ·
 시작/종료 시각 · Duration · VU · Ramp-up · **Script Version** · Dataset · Note
 
-`scriptVersion`은 스크립트 파일 내용의 SHA-256 앞 12자다. "같은 스크립트로 잰 결과인가"를
-나중에 판별하기 위한 지문 — 스크립트가 바뀌었는데 수치만 비교하면 잘못된 결론이 난다.
-커밋에 uncommitted 변경이 있으면 `+dirty`가 붙는다.
+`scriptVersion`은 **진입 스크립트 + 부하의 성격을 결정하는 공용 모듈들**의 SHA-256 앞 12자다.
+"같은 성격의 부하로 잰 결과인가"를 나중에 판별하기 위한 지문이다. 대상 목록은
+`tools/perf-run.js`의 `TRAFFIC_SHAPING_FILES`에 있다 — 현재 `scenarios/lib/workload.js`(여정
+구성과 가중치), `scripts/lib/data.js`(대상 선택), `scripts/lib/sampling.js`(인기·페이지 분포).
+
+> 예전에는 진입 파일 **하나만** 해싱했다. 그래서 `sampling.js`의 인기 분포를 완전히 바꿔도
+> `scenarios/normal-day.js`는 한 글자도 안 바뀌어 지문이 그대로였고, 트래픽 형태가 달라진
+> 실행이 옛 실행과 `exact` 비교 가능으로 판정됐다.
+>
+> `scripts/lib/` 전체를 넣지 않는 이유: `config.js`·`session.js`·`summary.js`처럼 부하 형태와
+> 무관한 이유로 자주 바뀌는 파일이 섞여 있다. 전부 넣으면 거의 모든 실행이 `degraded`가 되어
+> 경고가 상시 켜지고, 결국 아무도 안 본다. 지문이 답할 질문은 "코드가 바뀌었나"가 아니라
+> **"부하의 성격이 바뀌었나"**다. 목록이 실제 파일과 어긋나면
+> `tools/test/fingerprint.test.js`가 실패한다.
+
+`datasetFingerprint`는 시드 데이터의 지문이다. `datasets/seed.js`가 생성 시점에
+`generated/<profile>/meta.json`으로 남기고, `perf-run.js`가 읽어 레코드에 싣는다.
+생성기 코드(`seed.js` + `sampling.js`) · 프로파일 파라미터 · **실제 생성 개수**를 해싱한다.
+생성 시각은 넣지 않는다 — 같은 생성기·같은 프로파일로 다시 시드하면 LCG 시드가 고정이라
+통계적으로 동일한 데이터셋이 나오고, 그걸 매번 다른 데이터셋으로 취급하면 재시드할 때마다
+기준선이 전부 무효가 되기 때문이다. 이 장치가 없던 시절의 데이터셋에는 `meta.json`이 없어
+값이 `null`이 되며, 지문이 있는 실행과는 비교되지 않는다.
+
+커밋에 uncommitted 변경이 있으면 `commit`에 `+dirty`가 붙는다.
 
 ### 4.2 k6 지표 (`k6`)
 
@@ -336,7 +357,7 @@ saturation.cpuPct · memoryPct · heapPct · hikariPct · tomcatPct · mysqlConn
 |---|---|---|
 | 시나리오 | blocking | 기준선 자격 박탈 |
 | 환경 | blocking | 기준선 자격 박탈 |
-| 데이터셋 | blocking | 기준선 자격 박탈 |
+| 데이터셋 (프로파일 이름 + 생성 지문) | blocking | 기준선 자격 박탈 |
 | 부하 프로파일 | blocking | 기준선 자격 박탈 |
 | 측정 구간 설계 | blocking | 기준선 자격 박탈 |
 | 부하 스크립트 지문 | degrading | 비교하되 경고 + FAIL→WARN 강등 |
@@ -345,6 +366,18 @@ saturation.cpuPct · memoryPct · heapPct · hikariPct · tomcatPct · mysqlConn
   "믿을 수 없는 비교"가 아니라 애초에 비교가 아니다. 상대 비교를 생략하고 절대 게이트만 남긴다.
 - **degrading** — 수치가 *의심스럽다*. 스크립트 지문 변화는 대개 주석 한 줄이므로 이력을
   끊지 않는다. 비교는 하되 게이트를 열고 리포트에 사유를 띄운다.
+
+**데이터셋 조건은 이름이 아니라 `{프로파일, 생성 지문}` 쌍이다.** 이름만 보면 생성기의 인기
+편중 샘플러를 고쳐 데이터를 다시 만들어도 값이 그대로 `large`라, 인기 분포가 완전히 달라진
+데이터셋으로 잰 결과가 옛 실행과 같은 조건으로 비교된다. 시드를 재생성하면 지문이 바뀌고,
+그러면 재생성 이전 실행이 전부 후보에서 탈락한다. 이때 `hadPriorCandidates`가 `true`이므로
+리포트는 "첫 실행입니다"가 아니라 **`incomparable`과 탈락 사유**를 보여준다(S-10).
+
+두 지문의 역할은 서로 다르다. 데이터셋 지문(blocking)은 **시드를 재생성하는 순간**에만
+작동해 비교를 끊고, 스크립트 지문(degrading)은 **그 이후의 일상적인 부하 코드 변경**을
+계속 감시하며 경고만 붙인다. 둘 다 어긋나면 `compare()`가 blocking을 우선해
+`incomparable`로 판정하되, 사유 목록에는 두 불일치가 모두 기록된다 — 나중에 그 실행을
+다시 볼 때 무엇이 바뀐 시점인지 재구성할 수 있어야 하기 때문이다.
 
 **부하 프로파일과 측정 구간 설계는 책임이 다르다(T-03/S-08).** `loadProfile`은 "어떤 부하를
 발생시켰는가"(VU·executor·stage 형태), `measurementProfile`은 "어느 시간대를 판정했는가"
