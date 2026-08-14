@@ -32,7 +32,10 @@
 
 /** 조건 스키마 버전 — 필드 구성이 바뀌면 올린다. seriesHash()가 해시에 섞어 과거
  *  계열과 섞이지 않게 한다(comparability.js). */
-const SCHEMA_VERSION = 1;
+// v2 (2026-08-13): dataset 조건이 프로파일 이름 문자열에서 {profile, fingerprint} 객체가
+//   됐다. 이 조건은 blocking 이라 seriesHash 에 들어가므로 값 형태가 바뀌면 과거 계열과
+//   섞이면 안 된다 — 추세 그래프에서 데이터셋 지문 도입 시점이 성능 변화로 보이게 된다.
+const SCHEMA_VERSION = 2;
 
 /**
  * 비교 가능성을 이루는 조건들.
@@ -57,7 +60,19 @@ const CONDITIONS = [
     key: 'dataset',
     label: '데이터셋',
     materiality: 'blocking',
-    read: (r) => r.run && r.run.dataset,
+    // 프로파일 이름만으로는 부족하다. 생성기의 인기 편중 샘플러를 고쳐 데이터를 다시
+    // 만들어도 이름은 그대로 `large`라서, 인기 분포가 완전히 달라진 데이터셋이 옛 실행과
+    // 같은 조건으로 비교된다. 실제로 S-03 수정 때 그 상황이 발생할 뻔했다.
+    //
+    // 지문은 datasets/seed.js 가 생성 시점에 meta.json 으로 남기고, perf-run.js 가 읽어
+    // 레코드에 싣는다. 지문이 없는 값(이 변경 이전에 만든 데이터셋)은 null 로 남겨 둔다 —
+    // 임의의 기본값을 채우면 지문이 있는 실행과 조용히 같아져서 장치가 무력화된다.
+    // blocking 이므로 `null vs 지문` 은 불일치로 잡혀 상대 비교가 생략된다.
+    read: (r) => {
+      if (!r.run || !r.run.dataset) return null;
+      return { profile: r.run.dataset, fingerprint: r.run.datasetFingerprint || null };
+    },
+    format: formatDataset,
   },
   {
     key: 'loadProfile',
@@ -103,6 +118,16 @@ const CONDITIONS = [
     format: formatMeasurementProfile,
   },
 ];
+
+/**
+ * 데이터셋 조건 표시. 지문이 없으면 그 사실을 그대로 말한다 — 리포트가 `large → large`
+ * 라고만 쓰면 사람은 "같은데 왜 비교를 안 하지?"라고 읽는다.
+ */
+function formatDataset(v) {
+  if (!v) return '—';
+  if (typeof v === 'string') return `${v} (지문 없음)`; // 이 변경 이전 형식의 저장값
+  return `${v.profile}${v.fingerprint ? ` (${v.fingerprint})` : ' (지문 없음)'}`;
+}
 
 /** 사람이 읽는 한 줄 요약 — 리포트가 "해시가 다릅니다"밖에 못 말하면 쓸모가 없다. */
 function formatLoadProfile(profile) {

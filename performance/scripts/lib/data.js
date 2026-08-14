@@ -7,6 +7,7 @@
 import { SharedArray } from 'k6/data';
 import exec from 'k6/execution';
 import { DATASET } from './config.js';
+import { hotIndex } from './sampling.js';
 
 // open()의 상대 경로는 이 파일(scripts/lib/) 기준으로 해석된다.
 // k6 버전에 따라 메인 스크립트 기준으로 해석되는 경우 -e DATA_ROOT=<절대경로> 로 우회.
@@ -30,21 +31,14 @@ export function myUser() {
 }
 
 /**
- * Zipf(s=1.07) 샘플러 — 실제 커뮤니티 트래픽은 소수 인기글에 집중된다.
- * (전체 조회의 ~80%가 상위 ~10% 글에 몰리는 Hot Data 패턴 재현)
+ * 인기글 편중 샘플링 — posts.json은 생성 시점에 인기순으로 정렬되어 있다(index 0 = 1위).
  *
- * 역변환 샘플링의 단순 근사: rank = floor(N^(u^skew))
- * skew가 클수록 상위 랭크 집중도가 커진다.
+ * 분포 규칙 자체는 `./sampling.js`에 있다. 예전에는 이 파일이 `zipfIndex()`를 직접 갖고
+ * 있었고 같은 식이 `datasets/seed.js`에도 복제돼 있어서, index 0을 못 뽑는 버그가 부하와
+ * 시드 양쪽에 동시에 존재했다(S-03).
  */
-export function zipfIndex(n, skew = 0.7) {
-  const u = Math.random();
-  const idx = Math.floor(Math.pow(n, Math.pow(u, 1 + skew))) % n;
-  return idx;
-}
-
-/** 인기글 편중 샘플링 — posts.json은 생성 시점에 인기순으로 정렬되어 있다. */
 export function hotPost() {
-  return posts[zipfIndex(posts.length)];
+  return posts[hotIndex(posts.length)];
 }
 
 /** 완전 균등 샘플링 (콜드 데이터 접근 재현: 검색, 옛글 조회) */

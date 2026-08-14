@@ -12,7 +12,8 @@ import { sleep } from 'k6';
 import { BASE_URL, DEFAULT_THRESHOLDS, check, tags, thinkTime } from './lib/config.js';
 import { buildPhasePlan, toSeconds } from './lib/phases.js';
 import { ensureSession, withAuth } from './lib/session.js';
-import { myUser, hotPost, randomBoard, zipfIndex } from './lib/data.js';
+import { myUser, hotPost, randomBoard } from './lib/data.js';
+import { pageIndex } from './lib/sampling.js';
 import { makeHandleSummary } from './lib/summary.js';
 
 const JSON_HEADERS = { headers: { 'Content-Type': 'application/json' } };
@@ -21,10 +22,17 @@ const SEARCH_TERMS = ['시험', '급식', '수행평가', '내신', '동아리',
 
 // ---------- 재사용 가능한 액션 ----------
 
+/**
+ * 게시판 목록 조회.
+ *
+ * `page` 태그를 함께 실어 "어느 페이지에 요청이 얼마나 갔는가"를 리포트에서 확인할 수 있게
+ * 한다(S-04). 선언한 목표 비율과 실제 요청 수가 어긋나면 그 자리에서 드러나야 한다.
+ * 태그 값이 문자열이어야 k6 서브메트릭 selector(`{page:0}`)와 정확히 맞는다.
+ */
 export function listPosts(boardId, page = 0, sortType = 'RECENT') {
   const res = http.get(
     `${BASE_URL}/api/boards/${boardId}/posts?page=${page}&sortType=${sortType}&size=10`,
-    tags('post', 'read', 'post_list'),
+    tags('post', 'read', 'post_list', { page: String(page) }),
   );
   check(res, { 'post list 200': (r) => r.status === 200 });
   return res;
@@ -118,7 +126,7 @@ export default function () {
   const board = randomBoard();
 
   // 목록 → 상세 2~3개 → 가끔 검색/작성 (실제 열람 패턴)
-  listPosts(board.id, zipfIndex(5)); // 앞 페이지에 편중
+  listPosts(board.id, pageIndex()); // 앞 페이지에 편중 (0페이지 포함 — sampling.js의 PAGE_WEIGHTS)
   sleep(thinkTime());
 
   const reads = 2 + Math.floor(Math.random() * 2);
