@@ -79,9 +79,21 @@ function rand() {
 function randInt(n) { return Math.floor(rand() * n); }
 function pick(arr) { return arr[randInt(arr.length)]; }
 
-/** Zipf 근사 샘플러: 0..n-1, 낮은 인덱스일수록 자주 뽑힌다 */
-function zipf(n, skew = 0.7) {
-  return Math.floor(Math.pow(n, Math.pow(rand(), 1 + skew))) % n;
+/**
+ * 인기 편중 샘플러: 0..n-1, 낮은 인덱스일수록 자주 뽑힌다.
+ *
+ * 규칙 본체는 `scripts/lib/sampling.js`에 있다 — 부하 스크립트(`scripts/lib/data.js`)와
+ * **같은 분포**를 써야 하기 때문이다. 예전에는 이 파일이 같은 식을 복사해 갖고 있었고,
+ * 그 식이 index 0을 못 뽑아서(S-03) `posts.json`의 index 0에는 댓글·반응·스크랩이 하나도
+ * 붙지 않았다. 그런데 `datasets/README.md`는 그 자리를 "최고 인기글"이라고 선언한다.
+ * 규칙을 한 곳에 두지 않으면 이런 모순이 조용히 유지된다.
+ *
+ * 난수원으로 이 파일의 고정 시드 `rand()`를 넘긴다 — 시드 데이터의 재현성을 지키려면
+ * 샘플러가 Math.random을 쓰면 안 된다.
+ */
+let hotIndex = null; // main()이 동적 import로 채운다 (ESM ↔ CJS 경계)
+function zipf(n) {
+  return hotIndex(n, undefined, rand);
 }
 
 const TITLES = ['오늘 급식 어땠음?', '수행평가 팁 공유', '내신 공부법', '동아리 추천좀', '모의고사 등급컷',
@@ -547,11 +559,60 @@ async function createChat(users, sessions, pairs) {
   return rooms;
 }
 
+// ---------- 데이터셋 지문 ----------
+
+/**
+ * 이 데이터셋이 "어떤 규칙으로 만들어진 무엇인가"를 요약한 지문을 만든다.
+ *
+ * 왜 필요한가: 비교 조건에서 데이터셋은 그동안 프로파일 이름(`large`)뿐이었다. 그런데
+ * 인기 편중 샘플러를 고쳐 데이터를 다시 만들어도 이름은 그대로 `large`다. 그러면 인기
+ * 분포가 완전히 달라진 데이터셋으로 잰 결과가 옛 실행과 같은 조건으로 비교된다.
+ * 실제로 S-03(index 0을 못 뽑던 버그) 수정 때 그 상황이 발생할 뻔했다.
+ *
+ * **`generatedAt`은 지문에 넣지 않는다.** 같은 생성기·같은 프로파일로 다시 시드하면 통계적
+ * 성질이 동일한 데이터셋이 나온다(LCG 시드가 고정이다). 그걸 매번 다른 데이터셋으로 취급하면
+ * 재시드할 때마다 기준선이 전부 무효가 되어, 정작 막으려던 것과 무관하게 비교가 끊긴다.
+ * 지문이 답해야 하는 질문은 "언제 만들었나"가 아니라 **"같은 규칙과 같은 규모인가"**다.
+ *
+ * 실제 생성 개수를 넣는 이유: 시드가 부분 실패하면(과거 실측: 500건 목표에 187건) 규칙이
+ * 같아도 데이터가 다르다. 그 실행을 정상 데이터셋과 비교하면 안 된다.
+ */
+function buildMeta(users, posts, boards) {
+  const hashOf = (rel) => {
+    const buf = fs.readFileSync(path.join(__dirname, rel));
+    return crypto.createHash('sha256').update(buf).digest('hex').slice(0, 12);
+  };
+  // 생성 규칙을 이루는 것: 이 생성기 자체 + 공용 샘플러(인기 편중 분포).
+  const generatorVersion = crypto.createHash('sha256')
+    .update(hashOf('seed.js'))
+    .update(hashOf('../scripts/lib/sampling.js'))
+    .digest('hex').slice(0, 12);
+
+  const identity = {
+    schemaVersion: 1,
+    profile: PROFILE_NAME,
+    generatorVersion,
+    params: P,
+    counts: { users: users.length, posts: posts.length, boards: boards.length },
+  };
+  const fingerprint = 'sha256:' + crypto.createHash('sha256')
+    .update(JSON.stringify(identity))
+    .digest('hex').slice(0, 12);
+
+  return { ...identity, fingerprint, generatedAt: new Date().toISOString() };
+}
+
 // ---------- 메인 ----------
 
 (async function main() {
   console.log(`프로파일: ${PROFILE_NAME}`, P, `→ ${BASE}`);
   const t0 = Date.now();
+
+  // sampling.js는 k6가 요구하는 ESM이라 require()로 못 읽는다. 데이터를 만들기 전에
+  // 받아 둔다 — zipf()를 쓰는 단계보다 반드시 먼저 실행되는 자리다.
+  ({ hotIndex } = await import(
+    require('url').pathToFileURL(path.join(__dirname, '..', 'scripts', 'lib', 'sampling.js')).href
+  ));
 
   const users = buildUsers();
   await registerUsers(users);
@@ -570,7 +631,12 @@ async function createChat(users, sessions, pairs) {
     JSON.stringify(posts.map((p) => ({ id: p.id, boardId: p.boardId })), null, 1));
   fs.writeFileSync(path.join(OUT_DIR, 'boards.json'), JSON.stringify(boards, null, 1));
 
+  const meta = buildMeta(users, posts, boards);
+  fs.writeFileSync(path.join(OUT_DIR, 'meta.json'), JSON.stringify(meta, null, 1));
+
   console.log(`\n완료: ${((Date.now() - t0) / 1000 / 60).toFixed(1)}분`);
-  console.log(`산출물: ${OUT_DIR}/{users,posts,boards}.json`);
+  console.log(`산출물: ${OUT_DIR}/{users,posts,boards,meta}.json`);
+  console.log(`데이터셋 지문: ${meta.fingerprint} (생성기 ${meta.generatorVersion})`);
   console.log(`k6 실행 시 -e DATASET=${PROFILE_NAME} 로 사용`);
+  console.log('지문이 다른 데이터셋으로 잰 과거 실행과는 비교되지 않습니다 — 새 기준선이 필요합니다.');
 })().catch((e) => { console.error(e); process.exit(1); });

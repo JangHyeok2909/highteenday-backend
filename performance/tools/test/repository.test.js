@@ -73,6 +73,12 @@ function entry(id, startedAt, over = {}) {
     measurementProfile: MP_STEADY,
     ...over,
   };
+  // 인덱스 엔트리는 평탄화된 conditions 를 그대로 들고 있고, dataset 조건은
+  // {profile, fingerprint} 객체다. 픽스처는 프로파일 이름만 짧게 쓰므로 여기서 편다 —
+  // 안 그러면 current() 쪽(run 레코드를 conditionsOf 로 변환)과 형태가 달라 전부 불일치가 된다.
+  if (typeof conditions.dataset === 'string') {
+    conditions.dataset = { profile: conditions.dataset, fingerprint: null };
+  }
   return {
     id, startedAt, scenario: 'normal-day', thresholdsPassed: true,
     conditions, seriesHash: cmp.seriesHash(conditions),
