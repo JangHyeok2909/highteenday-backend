@@ -308,6 +308,7 @@
 - 결과: 같은 게시글에 동시에 댓글이 달리면 증가분이 유실된다. `large` 실측에서 활성 게시글 70건의 카운터가 실제보다 적었고(전부 과소, 과다 0건), 합계로 13,284건이 비었다. 목록의 댓글 수와 `HotScoreCalculator`의 인기 점수가 함께 낮아진다.
 - 확인 방법: `SELECT SUM(PST_comment_count) FROM posts WHERE is_valid=1`과 활성 댓글 실제 개수를 비교. 스크랩·좋아요 카운터는 DB 재계산 방식이라 같은 조건에서 불일치 0건·3건으로 대조된다.
 - 상세: [defects/KI-53](defects/KI-53-comment-counter-lost-update.md) — 원인·대조 근거·해결 후보 4가지. [BTL-003](../performance/bottlenecks/BTL-003-hot-row-counter.md)과 같은 코드지만 다른 문제다(저쪽은 락 대기로 느려지는 것, 이쪽은 값이 틀리는 것).
+- → 갱신 (2026-08-14): **해소** — `Post` 엔티티의 `commentCount++`를 `PostRepository`의 원자 UPDATE(`set p.commentCount = p.commentCount + 1`)로 교체. 감소 하한도 `where p.commentCount > 0`으로 DB가 보장한다. 동시 요청 30건 재현으로 원인을 확정한 뒤 고쳤다. **이미 어긋난 기존 데이터는 복구되지 않는다** — 성능 데이터셋 재생성으로 해소한다.
 
 ### KI-54. 반응·스크랩 토글 API가 멱등하지 않음
 - 위치: `services/domain/PostReactionService · likeReact()`, `services/domain/ScrapService · toggleScrap()` — 같은 요청을 두 번 보내면 상태가 원래대로 돌아온다. 클라이언트가 "좋아요 상태로 만들어달라"고 표현할 방법이 없다.
@@ -316,5 +317,11 @@
 - → 부분 완화 (2026-08-14): **서버는 그대로**이고, 성능 데이터 생성기만 자기 데이터를 지키도록 막았다 (`performance/datasets/seed.js`의 `ensureToggled()` — 응답을 못 받은 경우 재요청 대신 상태를 조회해 판정). 실사용자와 프론트엔드는 여전히 노출돼 있다.
 - 상세: [defects/KI-54](defects/KI-54-toggle-non-idempotent.md) — `PUT`/`DELETE` 분리 권고와, 병목 재측정이 끝날 때까지 미루는 이유. [BTL-012](../performance/bottlenecks/BTL-012-scrap-toggle-race-duplicate.md)(해소된 경쟁 상태)와 다른 문제다 — 동시성이 아니라 단일 클라이언트의 재시도로 발생한다.
 
+### KI-55. 반응·스크랩 카운터가 동시 쓰기에서 드물게 1씩 어긋난다
+- 위치: `services/domain/ScrapService · toggleScrap()`, `services/domain/PostReactionService · syncCounts()` — 카운터를 `COUNT(*)` 로 다시 세어 대입한다. 세는 시점이 자기 트랜잭션 안이라, 동시에 커밋 중인 다른 트랜잭션의 행이 REPEATABLE READ 격리에서 보이지 않는다.
+- 결과: 같은 게시글에 동시에 반응·스크랩이 몰리면 카운터가 실제보다 **1 작아진다**. 재계산 방식이라 다음 쓰기가 바로잡으므로 오차가 누적되지 않는다 — [KI-53](defects/KI-53-comment-counter-lost-update.md)의 증감 방식이 무한히 쌓이던 것과 다른 점이다.
+- 확인 방법: 깨끗한 DB에 `small` 시드 생성 후 `posts.PST_scrap_count` 합과 활성 `scraps` 행 수 비교. 실측(2026-08-14): 게시글 500건 중 스크랩 2건·좋아요 1건이 각각 1씩 부족(스크랩 합계 498 vs 실제 500, 0.4%).
+- 판단: **당장 고치지 않는다.** 오차가 1로 제한되고 자가 치유되며, 인기글 정렬(`HotScoreCalculator`)에 영향을 줄 규모가 아니다. 근본 해결은 KI-53처럼 원자 증감으로 바꾸는 것인데, 토글이라 "켜기/끄기"를 구분해 증감해야 해서 KI-54(멱등성)와 함께 다루는 편이 낫다.
+
 마지막 검증일: 2026-08-11 (최초 작성 2026-07-30, 이후 해소분은 각 항목의 "→ 갱신" 줄 참고)
-KI-53·54는 2026-08-14 추가 — 부하 테스트 중 발견분.
+KI-53·54는 2026-08-14 추가 — 부하 테스트 중 발견분. KI-55는 같은 날 데이터셋 재생성 검증 중 발견.

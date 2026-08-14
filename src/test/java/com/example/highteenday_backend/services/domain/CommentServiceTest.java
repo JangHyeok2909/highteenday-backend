@@ -3,6 +3,7 @@ package com.example.highteenday_backend.services.domain;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.comments.CommentRepository;
 import com.example.highteenday_backend.domain.posts.Post;
+import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.domain.users.vo.Email;
 import com.example.highteenday_backend.domain.users.vo.Nickname;
@@ -48,6 +49,10 @@ import static org.mockito.Mockito.when;
 class CommentServiceTest {
 
     @Mock private CommentRepository commentRepository;
+    // 댓글 수는 엔티티가 아니라 DB에서 원자적으로 증감한다(KI-53). 그래서 이 테스트들은
+    // post.getCommentCount() 가 아니라 **리포지토리 호출**을 검증한다 — 엔티티 값을 보면
+    // 갱신 유실을 못 잡고, 실제로 그래서 large 데이터셋의 카운터가 13,284건 어긋났다.
+    @Mock private PostRepository postRepository;
     @Mock private MediaProcessingService mediaProcessingService;
     @Mock private ApplicationEventPublisher eventPublisher;
 
@@ -123,8 +128,8 @@ class CommentServiceTest {
             assertThat(result.getUser()).isSameAs(author);
             assertThat(result.getPost()).isSameAs(post);
             assertThat(result.isAnonymous()).isTrue();
-            assertThat(post.getCommentCount()).isEqualTo(1);
             verify(commentRepository).save(any(Comment.class));
+            verify(postRepository).incrementCommentCount(100L);
         }
 
         @Test
@@ -148,7 +153,7 @@ class CommentServiceTest {
                     .isInstanceOf(ResourceNotFoundException.class);
 
             verify(commentRepository, never()).save(any());
-            assertThat(post.getCommentCount()).isZero();
+            verify(postRepository, never()).incrementCommentCount(anyLong());
         }
 
         @Test
@@ -284,26 +289,27 @@ class CommentServiceTest {
         void softDeletesAndDecrementsCount() {
             Comment comment = Comment.create(author, post, "내용", true, null);
             ReflectionTestUtils.setField(comment, "id", 500L);
-            post.incrementCommentCount();
             when(commentRepository.findById(500L)).thenReturn(Optional.of(comment));
 
             commentService.deleteComment(500L, 1L);
 
             assertThat(comment.getIsValid()).isFalse();
             assertThat(comment.getUpdatedBy()).isEqualTo(1L);
-            assertThat(post.getCommentCount()).isZero();
+            verify(postRepository).decrementCommentCount(100L);
         }
 
         @Test
-        @DisplayName("댓글 수가 0이면 더 내리지 않는다")
+        @DisplayName("0 미만으로 내려가지 않는 것은 쿼리 조건이 보장한다")
         void doesNotGoBelowZero() {
+            // `where p.commentCount > 0` 이 감소를 막으므로 서비스는 조건 없이 호출한다.
+            // 애플리케이션에서 읽고-판단하던 예전 방식은 그 자체가 갱신 유실의 원인이었다.
             Comment comment = Comment.create(author, post, "내용", true, null);
             ReflectionTestUtils.setField(comment, "id", 500L);
             when(commentRepository.findById(500L)).thenReturn(Optional.of(comment));
 
             commentService.deleteComment(500L, 1L);
 
-            assertThat(post.getCommentCount()).isZero();
+            verify(postRepository).decrementCommentCount(100L);
         }
 
         @Test
