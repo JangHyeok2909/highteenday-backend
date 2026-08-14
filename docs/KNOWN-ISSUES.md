@@ -297,4 +297,24 @@
 - 위치: `build.gradle` — `spring-security-test` 의존성이 없고, `@WebMvcTest` 사용이 0건이다.
 - 결과: 인가 규칙(KI-04, KI-05)과 요청 매핑·검증·직렬화가 테스트로 고정될 수 없는 상태다 (KI-12와 결합해 회귀 방지 공백).
 
+## 부하 테스트에서 확인분 (2026-08)
+
+> 이 절의 항목은 코드를 읽어서가 아니라 **성능 테스트를 실제로 돌리다 발견**했다.
+> 동시 요청이 없으면 재현되지 않아 정적 리뷰로는 잡히지 않는 종류다.
+> 원인 분석과 해결 후보 비교는 [defects/](defects/)의 상세 문서에 있다.
+
+### KI-53. 댓글 수 카운터가 동시 쓰기에서 유실됨
+- 위치: `domain/posts/Post.java · incrementCommentCount()` — `this.commentCount++`로 JVM 메모리에서 읽고-더하고-쓴다. `Post`에 `@Version`이 없어 충돌이 예외로도 드러나지 않는다.
+- 결과: 같은 게시글에 동시에 댓글이 달리면 증가분이 유실된다. `large` 실측에서 활성 게시글 70건의 카운터가 실제보다 적었고(전부 과소, 과다 0건), 합계로 13,284건이 비었다. 목록의 댓글 수와 `HotScoreCalculator`의 인기 점수가 함께 낮아진다.
+- 확인 방법: `SELECT SUM(PST_comment_count) FROM posts WHERE is_valid=1`과 활성 댓글 실제 개수를 비교. 스크랩·좋아요 카운터는 DB 재계산 방식이라 같은 조건에서 불일치 0건·3건으로 대조된다.
+- 상세: [defects/KI-53](defects/KI-53-comment-counter-lost-update.md) — 원인·대조 근거·해결 후보 4가지. [BTL-003](../performance/bottlenecks/BTL-003-hot-row-counter.md)과 같은 코드지만 다른 문제다(저쪽은 락 대기로 느려지는 것, 이쪽은 값이 틀리는 것).
+
+### KI-54. 반응·스크랩 토글 API가 멱등하지 않음
+- 위치: `services/domain/PostReactionService · likeReact()`, `services/domain/ScrapService · toggleScrap()` — 같은 요청을 두 번 보내면 상태가 원래대로 돌아온다. 클라이언트가 "좋아요 상태로 만들어달라"고 표현할 방법이 없다.
+- 결과: 응답을 받지 못한 요청을 재시도하면 서버가 이미 처리한 작업이 취소된다. 네트워크가 불안정할 때 사용자가 누른 좋아요·스크랩이 저절로 풀린다. 재시도할수록 의도에서 멀어진다.
+- 확인 방법: 같은 반응 요청을 두 번 연속 보내고 `GET /api/posts/{id}` 응답의 `liked`/`scrapped` 확인.
+- → 부분 완화 (2026-08-14): **서버는 그대로**이고, 성능 데이터 생성기만 자기 데이터를 지키도록 막았다 (`performance/datasets/seed.js`의 `ensureToggled()` — 응답을 못 받은 경우 재요청 대신 상태를 조회해 판정). 실사용자와 프론트엔드는 여전히 노출돼 있다.
+- 상세: [defects/KI-54](defects/KI-54-toggle-non-idempotent.md) — `PUT`/`DELETE` 분리 권고와, 병목 재측정이 끝날 때까지 미루는 이유. [BTL-012](../performance/bottlenecks/BTL-012-scrap-toggle-race-duplicate.md)(해소된 경쟁 상태)와 다른 문제다 — 동시성이 아니라 단일 클라이언트의 재시도로 발생한다.
+
 마지막 검증일: 2026-08-11 (최초 작성 2026-07-30, 이후 해소분은 각 항목의 "→ 갱신" 줄 참고)
+KI-53·54는 2026-08-14 추가 — 부하 테스트 중 발견분.
