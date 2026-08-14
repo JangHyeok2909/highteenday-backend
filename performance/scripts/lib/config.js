@@ -80,9 +80,15 @@ export function currentPhase() {
  * 표준 태그 — 모든 요청은 feature / op / (활성화됐다면) phase 태그를 갖는다. Grafana 필터 축.
  * 세션 저장소도 여기서 함께 실어 보낸다 — 모든 요청이 이 함수를 파라미터로 쓰므로
  * 호출부를 고치지 않고 전 요청에 같은 저장소를 적용할 수 있다.
+ *
+ * `extra`는 특정 요청에만 필요한 분해축을 더한다(예: 게시판 목록의 `page`).
+ * **값의 가짓수가 적은 축에만 쓸 것.** k6는 태그 조합마다 시계열을 만들므로 게시글 ID처럼
+ * 값이 수만 개인 축을 넣으면 메모리와 리포트가 함께 무너진다. 많아야 수십 개로 묶은
+ * 버킷을 쓴다. 그리고 여기서 태그를 실어도 `thresholds.js`에 해당 selector를 선언하지
+ * 않으면 서브메트릭이 생기지 않아 리포트에는 나타나지 않는다 — 둘은 같이 가야 한다.
  */
-export function tags(feature, op, name) {
-  const t = { feature, op, name: name || feature };
+export function tags(feature, op, name, extra) {
+  const t = { feature, op, name: name || feature, ...extra };
   const phase = currentPhase();
   if (phase) t.phase = phase;
   return { tags: t, jar: vuJar };

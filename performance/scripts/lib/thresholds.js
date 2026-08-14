@@ -38,9 +38,49 @@ const BREAKDOWN_FEATURES = [
   'notification', 'friend', 'mypage', 'school', 'timetable', 'chat', 'hot',
 ];
 
+/**
+ * 게시판 목록의 페이지 축 — 선언한 페이지 비율(sampling.js의 `PAGE_WEIGHTS`)이 실제
+ * 요청으로 나타났는지 리포트에서 확인하기 위한 것이다(S-04).
+ *
+ * 예전에는 0페이지가 한 번도 요청되지 않았는데도 리포트만 봐서는 알 방법이 없었다. 축을
+ * 선언해 두면 Breakdown 표에 페이지별 요청 수가 찍히므로, 0이면 즉시 눈에 띈다.
+ * 값이 5개뿐이라 태그 카디널리티 부담도 없다.
+ *
+ * **응답시간 축만으로는 부족하다** — 실측으로 확인했다(Run #38). `http_req_duration`만
+ * 선언하면 페이지별 지연은 나오지만 **요청 수 칸이 전부 비고**, 그래서 정작 검증하려던
+ * "선언한 비율대로 요청됐는가"에 답할 수 없다. k6는 threshold가 참조한 (메트릭, 태그)
+ * 조합에만 서브메트릭을 만들기 때문에 `http_reqs` 축을 따로 선언해야 한다.
+ *
+ * 깊은 페이지(OFFSET 비용)는 여기 넣지 않는다 — 일반 트래픽과 목적이 다른 측정이라
+ * `scenarios/deep-paging.js`가 자기 축을 따로 선언한다.
+ */
+const BREAKDOWN_PAGES = [0, 1, 2, 3, 4];
+
+/**
+ * 오퍼레이션 축 — 요청을 "무엇을 하는 요청인가"로 가른다(`tags()`의 두 번째 인자).
+ *
+ * `read`/`write`는 SLO 기준이 서로 다르고(300ms vs 500ms) COMMON_SLO_THRESHOLDS 가 이미
+ * 지연 축을 만든다. `auth`는 S-02에서 도메인 쓰기 SLO와 분리한 축이라 판정 대상이 아니다.
+ * 여기서 셋을 다시 선언하는 목적은 **요청 수**다 — 지연 축만으로는 "이 실행에서 로그인이
+ * 몇 번 일어났는가"에 답할 수 없다. S-01/S-02가 정확히 그 질문이었다.
+ */
+const BREAKDOWN_OPS = ['read', 'write', 'auth'];
+
 export const BREAKDOWN_THRESHOLDS = {
   ...BREAKDOWN_FEATURES.reduce((acc, f) => {
     acc[buildSelector('http_req_duration', { feature: f })] = ['p(99)<600000'];
+    acc[buildSelector('http_reqs', { feature: f })] = ['count>=0'];
+    return acc;
+  }, {}),
+  ...BREAKDOWN_PAGES.reduce((acc, p) => {
+    acc[buildSelector('http_req_duration', { page: p })] = ['p(99)<600000'];
+    // 요청 수 축. `count>=0`은 항상 참이라 판정에 영향이 없고, report.js의 LOOSE 필터가
+    // SLO 목록에서 걸러낸다 — 목적은 통과/실패가 아니라 서브메트릭 생성이다.
+    acc[buildSelector('http_reqs', { page: p })] = ['count>=0'];
+    return acc;
+  }, {}),
+  ...BREAKDOWN_OPS.reduce((acc, o) => {
+    acc[buildSelector('http_reqs', { op: o })] = ['count>=0'];
     return acc;
   }, {}),
   // 인증은 도메인 쓰기 SLO에서 분리하되 별도 응답시간 분포는 리포트에 남긴다(S-02).
