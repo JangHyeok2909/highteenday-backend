@@ -14,3 +14,6 @@ require('./collect-window.test.js');
 require('./thresholds.test.js');
 require('./scenario-thresholds.test.js');
 require('./baseline-report.test.js');
+require('./sampling.test.js');
+require('./fingerprint.test.js');
+require('./sanitize-reports.test.js');

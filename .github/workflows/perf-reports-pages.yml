@@ -68,6 +68,23 @@ jobs:
           echo "게시 대상:"
           find _site -maxdepth 1 -mindepth 1 -printf "  %f\n" | sort
 
+      # 내부 실행 메타데이터를 지운다(E-29). **비공개 저장소라도 Pages 사이트는 기본적으로
+      # 공개**다 — 비공개 Pages 는 Enterprise Cloud 기능이다. 그래서 실행자(사용자명@호스트명),
+      # 내부 접속 주소, 커밋 해시, 브랜치, 실행 메모를 게시본에서만 제거한다.
+      # 저장소의 원본(performance/reports/)은 그대로 두어 로컬 분석에는 영향이 없다.
+      #
+      # 이 단계가 실패하면 배포도 멈춘다. 정화되지 않은 보고서를 올리는 것보다 게시가
+      # 안 되는 편이 낫다 — sanitize-reports.js 는 지울 값을 못 찾으면 스스로 실패한다.
+      - name: Redact internal metadata before publishing
+        working-directory: performance
+        run: node tools/sanitize-reports.js ../_site
+
+      # 정화가 실제로 됐는지 게시 직전에 결과물만 보고 다시 판정한다. 위 단계의 성공
+      # 여부와 별개로 산출물을 검사하므로, 단계 순서가 어긋나거나 도구가 바뀌어도 잡힌다.
+      - name: Verify no internal metadata remains
+        working-directory: performance
+        run: node tools/sanitize-reports.js ../_site --verify
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
