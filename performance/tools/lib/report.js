@@ -415,7 +415,7 @@ function sectionBreakdown(record) {
   const axes = Object.keys(bd).filter((a) => Object.keys(bd[a] || {}).length);
   if (!axes.length) return '';
 
-  const labels = { feature: '기능별', op: '오퍼레이션별', name: '엔드포인트별' };
+  const labels = { feature: '기능별', op: '오퍼레이션별', name: '엔드포인트별', page: '목록 페이지별' };
   const blocks = axes.map((axis) => {
     // 이 시나리오에서 호출되지 않은 기능은 서브메트릭이 0으로 생성된다 — 표에서 제외한다.
     // (모든 기능 축을 미리 선언해 두기 때문에 생기는 빈 행이다.)
