@@ -3,6 +3,7 @@ package com.example.highteenday_backend.services.domain;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.comments.CommentRepository;
 import com.example.highteenday_backend.domain.posts.Post;
+import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.enums.SortType;
@@ -25,6 +26,7 @@ import java.util.List;
 @Service
 public class CommentService {
     private final CommentRepository commentRepository;
+    private final PostRepository postRepository;
     private final MediaProcessingService mediaProcessingService;
     private final ApplicationEventPublisher eventPublisher ;
 
@@ -52,7 +54,6 @@ public class CommentService {
 
         Comment comment = Comment.create(user, post, dto.getContent(), dto.isAnonymous(), dto.getUrl());
         if (dto.getParentId() != null) comment.assignParent(findCommentById(dto.getParentId()));
-        post.incrementCommentCount();
 
         comment = commentRepository.save(comment);
         Long userId = user.getId();
@@ -71,6 +72,12 @@ public class CommentService {
                         .content(comment.getContent())
                         .build()
         );
+
+        // 카운터 증가는 **메서드 맨 끝**에서 한다. 이 쿼리는 clearAutomatically 라 영속성
+        // 컨텍스트를 비우는데, 중간에서 부르면 위의 post·comment 가 준영속이 되어 지연 로딩
+        // (post.getUser())이 깨진다. 엔티티의 commentCount 는 건드리지 않는다 — 값을 같이
+        // 맞추면 더티 체킹이 낡은 값으로 UPDATE 를 한 번 더 날려 원자 증감을 덮어쓴다.
+        postRepository.incrementCommentCount(post.getId());
         return comment;
     }
 
@@ -87,10 +94,12 @@ public class CommentService {
     @Transactional
     public void deleteComment(Long commentId,Long userId){
         Comment comment = findCommentById(commentId);
-        Post post = comment.getPost();
+        Long postId = comment.getPost().getId();
         comment.delete();
         comment.setUpdatedBy(userId);
-        post.decrementCommentCount();
+        // 증가와 같은 이유로 DB에서 원자적으로 감소시킨다. postId 를 먼저 꺼내 두는 것은
+        // 이 쿼리가 컨텍스트를 비운 뒤 comment.getPost() 를 다시 타지 않기 위해서다.
+        postRepository.decrementCommentCount(postId);
         log.info("comment deleted. commentId={}, deletedBy={}",commentId,userId);
     }
 }
