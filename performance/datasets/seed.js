@@ -247,8 +247,8 @@ class Session {
 
     let res = await send();
     if (res.status === 401 && url !== '/api/token/refresh') {
-      const refreshed = await this.fetch('/api/token/refresh', { method: 'POST' });
-      if (refreshed.status >= 200 && refreshed.status < 300) res = await send();
+      const ok = await this.refreshOnce();
+      if (ok) res = await send();
     }
 
     let data = null;
@@ -257,6 +257,33 @@ class Session {
     // 글/댓글 생성은 201 + 빈 바디 + Location 헤더로 ID를 준다 (PostController/CommentController).
     return { status: res.status, data, location: res.headers.get('location') };
   }
+  /**
+   * 이 세션의 토큰을 한 번만 갱신한다 — **동시 요청이 각자 갱신하지 않게 합친다**.
+   *
+   * 인기 작성자 한 명이 여러 댓글 작업의 작성자로 동시에 뽑히면 같은 세션으로 여러 요청이
+   * 병렬로 나간다. 토큰이 만료되는 순간 그 요청들이 **동시에 401을 받고 각자 refresh를
+   * 호출**하는데, 서버가 refresh token 회전을 하므로 먼저 성공한 하나가 나머지의 토큰을
+   * 무효화한다. 뒤늦은 갱신은 401로 실패하고, 그 작업은 그대로 손실된다.
+   *
+   * 실측(2026-08-14 large 생성): 댓글 400,000건 중 **23건이 401로 실패**해 시드가 중단됐다.
+   * 앞선 단계(회원가입·로그인·학교·게시글 100,000)는 전부 성공한 뒤였다 — 액세스 토큰
+   * 수명 30분을 넘긴 시점부터 나타난다.
+   *
+   * 진행 중인 갱신이 있으면 그 Promise 를 함께 기다린다. 갱신은 한 번만 일어나고, 기다린
+   * 요청들은 새 토큰으로 재시도한다. 쿠키는 `this.cookies` 한 곳에 모이므로 누가 갱신했든
+   * 결과는 공유된다.
+   */
+  async refreshOnce() {
+    if (!this._refreshing) {
+      this._refreshing = this.fetch('/api/token/refresh', { method: 'POST' })
+        .then((r) => r.status >= 200 && r.status < 300)
+        .catch(() => false)
+        // 다음 만료 때 다시 갱신할 수 있어야 하므로 성공/실패와 무관하게 비운다.
+        .finally(() => { this._refreshing = null; });
+    }
+    return this._refreshing;
+  }
+
   /** Location 헤더(`/api/posts/{id}` 등)의 마지막 path segment를 숫자 ID로 뽑는다. */
   static idFromLocation(location) {
     if (!location) return null;
@@ -800,6 +827,7 @@ async function createFriendships(users, sessions) {
     pairs.push([a, b]);
   }
 
+  const accepted = [];
   const result = await pooled(pairs, async ([a, b]) => {
     const sa = sessions[a], sb = sessions[b];
     if (!sa || !sb) return SKIP;   // 세션 없는 계정 — 성공으로 세지 않는다
@@ -810,7 +838,8 @@ async function createFriendships(users, sessions) {
     // 1단계가 중복 가입(409)을 성공으로 세는 것과 같은 판단이다. 시더가 만들려는 것은
     // "요청을 한 번 보냈다"가 아니라 "두 사람이 친구다"라는 상태이기 때문이다.
     // 이 처리가 없으면 같은 DB에 시더를 두 번 돌릴 때 이 단계가 통째로 실패한다(실측).
-    if (r1.status === 409) return;
+    // 이미 친구인 쌍도 "친구다"라는 목표 상태를 만족하므로 채팅 대상에 포함한다.
+    if (r1.status === 409) { accepted.push([a, b]); return; }
     if (r1.status < 200 || r1.status >= 300) {
       throw new Error(`friend request ${r1.status}: ${JSON.stringify(r1.data).slice(0, 150)}`);
     }
@@ -821,14 +850,26 @@ async function createFriendships(users, sessions) {
     if (r2.status !== 200 || !Array.isArray(r2.data)) {
       throw new Error(`received ${r2.status}`);
     }
-    const req = r2.data.find((q) => q.userId === sa.userId) || r2.data[r2.data.length - 1];
-    if (!req || req.requestId == null) throw new Error('받은 신청 목록에서 방금 보낸 신청을 못 찾음');
+    // **폴백 없이** 방금 보낸 신청만 수락한다. 예전에는 못 찾으면 목록의 마지막 항목을
+    // 수락했는데(`|| r2.data[r2.data.length - 1]`), 신청이 몰린 사용자는 그 순간 **엉뚱한
+    // 사람의 신청**을 수락한다. 그렇게 생긴 친구 관계 위에 채팅방이 만들어지므로,
+    // 데이터셋이 "같은 학교 클러스터"라는 전제와 어긋난 채로 완성된다.
+    // 못 찾으면 조용히 다른 것을 고르지 말고 실패로 남긴다.
+    const req = r2.data.find((q) => q.userId === sa.userId);
+    if (!req || req.requestId == null) {
+      throw new Error(`받은 신청 목록에서 보낸 신청(userId=${sa.userId})을 못 찾음 — 폴백하지 않는다`);
+    }
     const r3 = await sb.json('POST', '/api/friends/respond', { id: req.requestId, status: 'ACCEPTED' });
     if (r3.status < 200 || r3.status >= 300) {
       throw new Error(`friend respond ${r3.status}: ${JSON.stringify(r3.data).slice(0, 150)}`);
     }
+    accepted.push([a, b]);   // 실제로 친구가 된 쌍만 채팅 단계로 넘긴다
   }, Math.min(CONCURRENCY, 5), 'friendships');
-  return { pairs, result };
+
+  // 채팅방은 **성공한 친구 쌍** 위에만 만든다. 예전에는 시도 대상인 `pairs` 전체를
+  // 넘겨서, 친구 생성이 실패한 쌍으로 방 생성을 시도했다 — 서버가 거절하므로 수 시간짜리
+  // large 실행이 마지막 단계에서 무너진다.
+  return { pairs: accepted, result };
 }
 
 async function createChat(users, sessions, pairs) {
