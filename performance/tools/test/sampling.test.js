@@ -173,6 +173,53 @@ test('weightedIndex: 범위를 벗어나지 않고 마지막 항목으로 안전
 });
 
 // ---------------------------------------------------------------------------
+// 두 축의 분리 — 게시글 인기도와 작성 활동량은 다른 분포다.
+// ---------------------------------------------------------------------------
+
+test('AUTHOR_SKEW 와 HOT_SKEW 는 서로 다른 값이다', async () => {
+  const { HOT_SKEW, AUTHOR_SKEW } = await loadSampling();
+  // 한동안 둘 다 1.07 이었고, 그건 datasets/README.md 가 선언한 작성자 s≈1.7 과 어긋난
+  // 상태였다. 두 값을 다시 하나로 합치면 이 테스트가 막는다.
+  assert.notEqual(AUTHOR_SKEW, HOT_SKEW, '작성 활동과 게시글 인기가 같은 지수를 쓰면 안 된다');
+  assert.equal(HOT_SKEW, 1.07);
+  // 1.3은 옛 DB의 실제 작성 분포에 맞춘 값이다. 문서에 오래 적혀 있던 1.7은 옛 버그
+  // 수식의 상수를 잘못 읽은 것이라 채택하지 않았다 — sampling.js 주석의 표 참고.
+  assert.equal(AUTHOR_SKEW, 1.3);
+});
+
+test('작성자 편중이 극단으로 가지 않는다 — 소수가 전부를 쓰면 작성자 조회를 못 잰다', async () => {
+  const { headShare, AUTHOR_SKEW } = await loadSampling();
+  // s=1.7 이면 상위 1%가 96%를 가져가 10,000명 중 8,600여 명의 글이 0건이 된다.
+  // 그러면 마이페이지·작성글 목록이 사실상 몇백 명만 대상이 되어 측정 대상이 달라진다.
+  const top1Pct = headShare(10000, 100, AUTHOR_SKEW);
+  assert.ok(top1Pct < 0.9,
+    `상위 1% 작성 비중이 ${(top1Pct * 100).toFixed(1)}% — 90% 이상이면 작성자 다양성이 사라진다`);
+  assert.ok(top1Pct > 0.5,
+    `상위 1% 작성 비중이 ${(top1Pct * 100).toFixed(1)}% — 헤비 유저 편중이 너무 약하다`);
+});
+
+test('작성 활동이 게시글 인기보다 더 강하게 쏠린다 — 1% 법칙', async () => {
+  const { headShare, HOT_SKEW, AUTHOR_SKEW } = await loadSampling();
+  // 같은 모집단에서 상위 1% 가 가져가는 비중을 비교한다. 지수가 클수록 집중도가 높다.
+  for (const n of [10000, 100000]) {
+    const top = Math.floor(n / 100);
+    const author = headShare(n, top, AUTHOR_SKEW);
+    const hot = headShare(n, top, HOT_SKEW);
+    assert.ok(author > hot,
+      `n=${n}: 작성 활동(${(author * 100).toFixed(1)}%)이 게시글 인기(${(hot * 100).toFixed(1)}%)보다 쏠려야 한다`);
+  }
+});
+
+test('seed.js 가 작성자와 게시글에 서로 다른 샘플러를 쓴다', () => {
+  // 호출부가 하나로 합쳐지면(예전의 zipf() 하나) 상수를 분리해 둔 의미가 사라진다.
+  const src = fs.readFileSync(path.join(PERF_ROOT, 'datasets', 'seed.js'), 'utf8');
+  assert.ok(/function hotAuthor\(/.test(src), 'seed.js 에 hotAuthor() 가 없다');
+  assert.ok(/function hotPost\(/.test(src), 'seed.js 에 hotPost() 가 없다');
+  assert.ok(!/\bzipf\s*\(/.test(src.replace(/\/\/.*$/gm, '')),
+    'seed.js 에 합쳐진 zipf() 호출이 남아 있다 — 작성자와 게시글은 다른 분포다');
+});
+
+// ---------------------------------------------------------------------------
 // 구조 — 같은 버그가 다시 복제되지 않게 막는다.
 // ---------------------------------------------------------------------------
 
