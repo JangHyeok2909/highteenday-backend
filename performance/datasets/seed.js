@@ -324,7 +324,13 @@ function isRetryable(err) {
   const m = String(err && err.message);
   return /[Dd]eadlock/.test(m)
     || /Could not open JPA EntityManager|Connection is not available|HikariPool|connection timeout/i.test(m)
-    || /ECONNRESET|ECONNREFUSED|EPIPE|socket hang up|fetch failed|other side closed/i.test(m);
+    || /ECONNRESET|ECONNREFUSED|EPIPE|socket hang up|fetch failed|other side closed/i.test(m)
+    // 401 — 인증 거절이므로 서버가 **일을 하지 않은 것이 확실하다**. 재시도해도 중복이
+    // 생기지 않고, `refreshOnce()`가 그사이 토큰을 갱신해 두므로 다음 시도는 성공한다.
+    // 세션이 영구히 죽은 경우라면 MAX_ATTEMPTS 만큼 시도한 뒤 정상적으로 실패로 잡힌다.
+    // 근거: large 생성이 댓글 400,000건 중 401 23건으로 중단됐다(2026-08-14) — 앞의
+    // 갱신 경쟁을 고쳐도 남을 수 있는 잔여 경로라 재시도로 한 겹 더 덮는다.
+    || /\b401\b/.test(m);
 }
 
 /**
@@ -982,6 +988,22 @@ function buildMeta(users, posts, boards, stageResults) {
   // 지문에 들어가야 "댓글이 조금 모자란 데이터셋"이 온전한 것과 구별된다.
   const stageResults = [];
   const check = (r) => { stageResults.push(requireComplete(r)); return r; };
+
+  /*
+   * 기존 산출물을 **먼저 지운다.**
+   *
+   * 이 시점부터 디스크의 JSON은 지금 만들고 있는 DB와 맞지 않는다. 성공하면 새로 쓰고,
+   * 실패하면 남지 않는다 — 어느 쪽이든 "파일이 있으면 현재 DB를 설명한다"가 유지된다.
+   *
+   * 안 지우면 이렇게 된다(2026-08-14 실측): 볼륨을 폐기하고 재생성했는데 댓글 단계에서
+   * 중단됐다. 산출물은 정책대로 쓰지 않았지만, **폐기 이전 세대의 users/posts/boards.json이
+   * 그대로 남아** 있었다. 그 파일의 게시글 ID는 새 DB에 존재하지 않는다. meta.json이 없어
+   * 지문 비교는 막히지만, k6는 posts.json을 직접 읽으므로 없는 ID로 요청을 보내게 된다.
+   */
+  if (fs.existsSync(OUT_DIR)) {
+    fs.rmSync(OUT_DIR, { recursive: true, force: true });
+    console.log(`  이전 산출물 제거: ${OUT_DIR} (지금 만드는 DB와 맞지 않는다)`);
+  }
 
   const plan = buildUsers();
   check(await registerUsers(plan));
