@@ -173,9 +173,32 @@ function pick(arr) { return arr[randInt(arr.length)]; }
  * 난수원으로 이 파일의 고정 시드 `rand()`를 넘긴다 — 시드 데이터의 재현성을 지키려면
  * 샘플러가 Math.random을 쓰면 안 된다.
  */
-let hotIndex = null; // main()이 동적 import로 채운다 (ESM ↔ CJS 경계)
-function zipf(n) {
-  return hotIndex(n, undefined, rand);
+let hotIndex = null;    // main()이 동적 import로 채운다 (ESM ↔ CJS 경계)
+let HOT_SKEW = null;
+let AUTHOR_SKEW = null;
+
+/**
+ * 어느 **글**이 뽑히는가 — 읽기 트래픽의 인기 편중(`s=1.07`).
+ * 댓글·반응·스크랩이 몰릴 대상을 고를 때 쓴다.
+ */
+function hotPost(n) {
+  return hotIndex(n, HOT_SKEW, rand);
+}
+
+/**
+ * 어느 **사람**이 쓰는가 — 쓰기 활동의 헤비 유저 편중(`AUTHOR_SKEW`, 현재 1.3).
+ *
+ * 게시글 인기도와 **다른 지수**를 쓴다. 두 분포는 답하는 질문이 다르고 같아야 할 근거가
+ * 없다. 공용 샘플러로 규칙을 합치는 과정에서 한동안 둘 다 1.07을 썼는데, 쓰기 활동은
+ * 읽기 인기보다 심하게 쏠리므로 그 상태로는 헤비 유저가 재현되지 않았다.
+ *
+ * 값을 여기 적지 않고 상수를 그대로 부르는 이유: 숫자를 주석에 복사하면 값이 바뀔 때
+ * 한쪽만 남는다. 실제로 이 자리에 `s=1.7`이 적혀 있었는데, 그건 채택되지 **않은** 값이다
+ * (옛 버그 수식 `floor(n^(u^1.7))`의 상수를 Zipf 지수로 잘못 읽은 것). 선택 근거와
+ * 시뮬레이션 비교는 `scripts/lib/sampling.js`의 `AUTHOR_SKEW` 주석에 있다.
+ */
+function hotAuthor(n) {
+  return hotIndex(n, AUTHOR_SKEW, rand);
 }
 
 const TITLES = ['오늘 급식 어땠음?', '수행평가 팁 공유', '내신 공부법', '동아리 추천좀', '모의고사 등급컷',
@@ -595,7 +618,7 @@ async function assignSchools(users, sessions) {
 /**
  * 세션이 확보된 사용자 인덱스만 추린다.
  *
- * 가입/로그인이 실패한 계정을 남겨둔 채 zipf(users.length)로 작성자를 뽑으면, 그 계정이
+ * 가입/로그인이 실패한 계정을 남겨둔 채 hotAuthor(users.length)로 작성자를 뽑으면, 그 계정이
  * 뽑힐 때마다 작업이 조용히 버려진다. 게다가 Zipf는 낮은 인덱스(헤비 유저)를 압도적으로
  * 자주 뽑으므로 상위 몇 명만 실패해도 손실이 증폭된다.
  *
@@ -641,7 +664,7 @@ async function createPosts(users, sessions, boards) {
   const posts = [];
   const jobs = Array.from({ length: P.posts }, (_, i) => i);
   const result = await pooled(jobs, async (i) => {
-    const authorIdx = live[zipf(live.length)];     // 살아있는 세션 위에서 헤비 유저 편중
+    const authorIdx = live[hotAuthor(live.length)];   // 살아있는 세션 위에서 헤비 유저 편중
     const s = sessions[authorIdx];
     const board = boards[randInt(boards.length)];
     const r = await s.json('POST', '/api/posts', {
@@ -674,8 +697,8 @@ async function createEngagement(users, sessions, posts) {
   if (posts.length === 0) throw new Error('게시글이 없다 — 3단계(게시글 생성)를 먼저 확인할 것');
 
   const commentJobs = Array.from({ length: P.comments }, () => ({
-    post: posts[zipf(posts.length)],
-    author: live[zipf(live.length)],
+    post: posts[hotPost(posts.length)],
+    author: live[hotAuthor(live.length)],
   }));
   // 세 하위 단계(댓글·반응·스크랩)를 각각 검문한다. 하나로 합쳐 보고하면 "반응만
   // 전부 실패"가 "대체로 성공"에 묻힌다.
@@ -704,7 +727,7 @@ async function createEngagement(users, sessions, posts) {
     const seen = new Set();
     let guard = count * 20;
     while (jobs.length < count && guard-- > 0) {
-      const post = posts[zipf(posts.length)];
+      const post = posts[hotPost(posts.length)];
       const user = live[randInt(live.length)];
       const key = `${user}:${post.id}`;
       if (seen.has(key)) continue;
@@ -905,10 +928,11 @@ function buildMeta(users, posts, boards, stageResults) {
   const t0 = Date.now();
 
   // sampling.js는 k6가 요구하는 ESM이라 require()로 못 읽는다. 데이터를 만들기 전에
-  // 받아 둔다 — zipf()를 쓰는 단계보다 반드시 먼저 실행되는 자리다.
-  ({ hotIndex } = await import(
+  // 받아 둔다 — hotPost()·hotAuthor()를 쓰는 단계보다 반드시 먼저 실행되는 자리다.
+  ({ hotIndex, HOT_SKEW, AUTHOR_SKEW } = await import(
     require('url').pathToFileURL(path.join(__dirname, '..', 'scripts', 'lib', 'sampling.js')).href
   ));
+  console.log(`분포: 게시글 인기 s=${HOT_SKEW} · 작성 활동 s=${AUTHOR_SKEW}`);
 
   // 각 단계 뒤에 검문을 건다. 예전에는 1단계가 통째로 실패해도 2단계가 그대로 시작돼
   // 오류가 단계마다 증폭됐다 — 존재하지 않는 계정으로 로그인하고, 그 실패가 또 로그에만
