@@ -7,14 +7,47 @@
 
 | 축 | 분포 | 근거 |
 |----|------|------|
-| 작성 활동량 | 사용자별 Zipf(s≈1.7) | 커뮤니티의 1% 법칙 — 소수 헤비 유저가 콘텐츠 대부분 생산 |
-| 게시글 인기도 | 게시글별 Zipf | 조회/반응의 ~80%가 상위 ~10% 글에 집중 (Hot Data) |
+| 작성 활동량 | 사용자별 Zipf(`AUTHOR_SKEW = 1.3`) | 커뮤니티의 1% 법칙 — 소수 헤비 유저가 콘텐츠 대부분 생산. 값의 근거는 아래 참고 |
+| 게시글 인기도 | 게시글별 Zipf(`HOT_SKEW = 1.07`) | 조회/반응이 상위 글에 집중 (Hot Data). 크기와 무관하게 고정 — 규칙과 규모를 동시에 바꾸지 않기 위해서다 |
 | 친구 관계 | 학교 내 80% 클러스터링 | 실제 서비스는 같은 학교끼리 연결됨 → 채팅/알림 팬아웃도 클러스터 안에서 발생 |
 | 반응 종류 | LIKE 85% : DISLIKE 15% | 일반 커뮤니티 비율 |
 | 익명 여부 | 글 50%, 댓글 60% | 익명 커뮤니티 특성 |
 
 k6 스크립트도 같은 분포로 **접근**한다: `scripts/lib/data.js`의 `hotPost()`가
 Zipf 샘플링으로 인기글을 편중 조회하므로, 생성 분포와 접근 분포가 함께 Hot Data를 만든다.
+
+### 작성 활동과 게시글 인기는 다른 분포다
+
+두 축은 답하는 질문이 다르다 — "어느 **사람**이 많이 쓰는가"와 "어느 **글**에 몰리는가".
+같은 지수를 써야 할 근거가 없어 `sampling.js`가 두 상수를 따로 선언한다.
+
+**`AUTHOR_SKEW`는 1.3이다. 이 문서가 오래 적어 온 `s≈1.7`이 아니다.** 그 1.7은 검증된
+모델링 값이 아니라 옛 버그 수식(`floor(n^(u^1.7)) % n`)의 상수를 Zipf 지수로 잘못 읽은
+것이었다. 진짜 Zipf에 그대로 넣으면 옛 코드가 실제로 만들던 것보다 훨씬 극단적이 된다.
+
+large(사용자 10,000 / 게시글 100,000) 시뮬레이션:
+
+| s | 글 쓴 사용자 | 최다 작성자 비중 | 상위 100명 비중 |
+|---:|---:|---:|---:|
+| 1.07 | 7,996 | 9.9% | 58.0% |
+| **1.3 (채택)** | **4,893** | **19.9%** | **79.9%** |
+| 1.7 | 1,361 | 38.4% | 96.2% |
+| *옛 DB(버그 수식 실측)* | *7,438* | *21.8%* | *66.7%* |
+
+1.7이면 한 사람이 전체 게시글의 38%를 쓰고 10,000명 중 8,639명은 글이 0건이다. 작성자
+기반 조회(마이페이지·작성글 목록)가 사실상 1,361명만 대상이 되고, 단일 사용자 행의
+핫로우가 정작 재려던 인기글 경합(BTL-003)을 가린다.
+
+1.3은 **최다 작성자 비중이 옛 DB에 가장 가깝다**(19.9% vs 21.8%). 다만 옛 분포는 순수
+Zipf가 아니라 모든 지표가 맞지는 않는다 — 작성자 수는 더 적고(4,893 vs 7,438) 상위 100명
+비중은 더 높다(79.9% vs 66.7%). 머리는 더 무겁고 꼬리는 더 얇은 셈이다.
+
+이번 재생성의 목적은 "옛 규칙 세대 데이터를 **올바른 수식으로** 교체"하는 것이지 부하 모델
+자체를 바꾸는 것이 아니다. 모델까지 같이 바꾸면 재생성 후 성능 차이를 수식 교정 탓인지
+모델 변경 탓인지 분리할 수 없다.
+
+운영 액세스 로그가 쌓이면 실측 작성 분포로 교체할 것. 그때까지 이 값은 **옛 데이터와의
+연속성**을 근거로 한 잠정값이다.
 
 ## 스케일 프로파일 (`profiles.json`)
 
@@ -201,37 +234,83 @@ small(100명)에서는 최고 인기글이 100개를 넘길 수 없어 상위 10
 
 ## 검증
 
-생성 후 분포가 의도대로인지 확인:
+**재생성한 데이터셋은 아래를 전부 통과해야 쓸 수 있다.** 시더가 "성공"으로 끝나는 것과
+데이터가 명세대로인 것은 다른 문제다 — 시더는 자기가 보낸 요청만 알고, DB 안의 정합성은
+모른다. 아래는 2026-08-14 재생성에서 실제로 돌린 쿼리다(테이블명 확인 완료).
+
+> MySQL 8에서 `stored` 는 예약어다(생성 컬럼의 `STORED`). 별칭에 쓰면 문법 오류가 나므로
+> 아래처럼 `a`·`b` 같은 다른 이름을 쓴다.
+
+### ① 비정규화 카운터가 실제 행 수와 일치하는가 — 가장 중요
 
 ```sql
--- 상위 10% 게시글이 전체 반응의 몇 %를 가져갔는가 (~80% 기대)
-SELECT SUM(CASE WHEN rk <= total/10 THEN cnt ELSE 0 END) / SUM(cnt) AS hot_ratio
-FROM (
-  SELECT PST_id, COUNT(*) cnt,
-         RANK() OVER (ORDER BY COUNT(*) DESC) rk,
-         COUNT(*) OVER () total
-  FROM post_reaction GROUP BY PST_id
-) t;
+SELECT
+  (SELECT SUM(PST_comment_count) FROM posts WHERE is_valid=1) AS stored_comments,
+  (SELECT COUNT(*) FROM comments c JOIN posts p ON c.PST_id=p.PST_id
+   WHERE c.is_valid=1 AND p.is_valid=1) AS actual_comments,
+  (SELECT COUNT(*) FROM (
+     SELECT p.PST_id FROM posts p LEFT JOIN comments c ON c.PST_id=p.PST_id AND c.is_valid=1
+     WHERE p.is_valid=1 GROUP BY p.PST_id, p.PST_comment_count
+     HAVING p.PST_comment_count <> COUNT(c.CMT_id)) x) AS mismatched_posts;
 ```
 
-### index 0이 정말 최고 인기글인지 (S-03 회귀 확인)
+**댓글은 불일치 0건이어야 한다.** 예전에는 large에서 13,284건이 부족했다(KI-53, 원자 증감
+으로 해결). 반응·스크랩은 재계산 방식의 좁은 경쟁 창 때문에 게시글 몇 건이 1씩 어긋날 수
+있다(KI-55) — 오차가 1을 넘거나 건수가 많으면 다른 문제다.
 
-재생성한 데이터셋에서 반드시 확인한다. 예전에는 이 자리가 참여 데이터가 하나도 없는
-글이었고, 그 사실이 어디에도 드러나지 않았다.
+### ② 참조 무결성과 중복
+
+```sql
+SELECT 'orphan comments' AS chk, COUNT(*) AS cnt
+  FROM comments c LEFT JOIN posts p ON c.PST_id=p.PST_id WHERE p.PST_id IS NULL
+UNION ALL SELECT 'orphan reactions', COUNT(*)
+  FROM posts_reactions r LEFT JOIN posts p ON r.PST_id=p.PST_id WHERE p.PST_id IS NULL
+UNION ALL SELECT 'orphan scraps', COUNT(*)
+  FROM scraps s LEFT JOIN posts p ON s.PST_id=p.PST_id WHERE p.PST_id IS NULL
+UNION ALL SELECT 'dup reaction pairs', (SELECT COUNT(*) FROM (
+  SELECT USR_id,PST_id FROM posts_reactions WHERE is_valid=1
+  GROUP BY USR_id,PST_id HAVING COUNT(*)>1) d)
+UNION ALL SELECT 'dup scrap pairs', (SELECT COUNT(*) FROM (
+  SELECT USR_id,PST_id FROM scraps WHERE is_valid=1
+  GROUP BY USR_id,PST_id HAVING COUNT(*)>1) d)
+UNION ALL SELECT 'users without school', COUNT(*) FROM users WHERE SCH_id IS NULL;
+```
+
+전부 **0이어야 한다.** 중복 쌍이 나오면 유니크 제약(V7)이 빠졌거나 토글 재시도가 상태를
+되돌린 것이다.
+
+### ③ index 0이 정말 최고 인기글인가 (S-03 회귀 확인)
+
+재생성할 때마다 확인한다. 예전에는 이 자리가 참여 데이터가 하나도 없는 글이었고,
+`datasets/README.md`가 그 자리를 "최고 인기글"이라 선언한 것과 어긋난 채로 유지됐다.
 
 ```bash
-# posts.json 앞쪽 3건의 게시글 ID를 뽑는다 (index 0 이 최고 인기글이어야 한다)
-node -e "console.log(require('./generated/medium/posts.json').slice(0,3).map(p=>p.id).join(', '))"
+node -e "console.log(require('./generated/small/posts.json').slice(0,3).map(p=>p.id).join(', '))"
 ```
 
 ```sql
--- 반응이 가장 많은 게시글 상위 5건. 1위의 PST_id가 위에서 얻은 index 0의 ID와 같아야 한다.
-SELECT PST_id, COUNT(*) AS reactions
-FROM post_reaction
-GROUP BY PST_id
-ORDER BY reactions DESC
-LIMIT 5;
+-- 참여도 상위 5건. 1위 PST_id가 위 index 0 과 같아야 하고, 순서도 대체로 일치해야 한다.
+SELECT p.PST_id, p.PST_comment_count AS comments,
+       (p.PST_like_count + p.PST_dislike_count) AS reactions,
+       p.PST_scrap_count AS scraps,
+       (p.PST_comment_count + p.PST_like_count + p.PST_dislike_count + p.PST_scrap_count) AS engagement
+FROM posts p WHERE p.is_valid=1 ORDER BY engagement DESC LIMIT 5;
 ```
 
-두 값이 어긋나면 `posts.json`의 정렬 전제가 깨진 것이므로, 인기 편중을 전제한 실험
-결과를 신뢰할 수 없다.
+2026-08-14 small 실측: `posts.json` 앞 3건이 `[10, 4, 9]`, 참여도 순위도 `10(447) → 4(267)
+→ 9(229)`로 일치. 반응만으로 보지 않고 **참여도 합**으로 보는 이유는, 한 글의 활성 반응
+상한이 사용자 수라 인기글끼리 반응 수가 금방 포화되기 때문이다(small에서 상위 글이 전부
+100 = 사용자 수).
+
+### ④ 작성 활동 분포
+
+```sql
+SELECT COUNT(*) AS authors_with_posts FROM (
+  SELECT USR_id FROM posts WHERE is_valid=1 GROUP BY USR_id) a;
+
+SELECT USR_id, COUNT(*) AS posts FROM posts WHERE is_valid=1
+GROUP BY USR_id ORDER BY posts DESC LIMIT 5;
+```
+
+`AUTHOR_SKEW = 1.3` 기준 large 예상: 작성자 약 4,900명, 최다 작성자가 전체의 약 20%.
+최다 작성자가 30%를 넘으면 편중이 과하다 — 작성자 기반 조회를 측정할 수 없게 된다.
