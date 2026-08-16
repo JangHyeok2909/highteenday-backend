@@ -11,7 +11,7 @@
 |----|------|------|------|------|--------|
 | [BTL-001](BTL-001-random-pagination.md) | 게시글 목록 랜덤/OFFSET 페이징 | DB/Query | 의심 | — | — |
 | [BTL-002](BTL-002-pool-mismatch.md) | Tomcat 400 vs HikariCP 10 불균형 | Connection Pool | 의심 | EXP-002 | — |
-| [BTL-003](BTL-003-hot-row-counter.md) | 인기글 비정규화 카운터 락 경합 (실측 데드락 재현됨) | Lock | **확정** | EXP-003 | — |
+| [BTL-003](BTL-003-hot-row-counter.md) | 인기글 비정규화 카운터 락 경합 (2026-08-16 large 생성에서 재시도 9,437회·실패 1건으로 규모 계측) | Lock | **확정** | EXP-003 | — |
 | [BTL-004](BTL-004-cache-stampede.md) | 캐시 스탬피드/애벌랜치 무방비 | Cache | 의심 | EXP-004 | — |
 | [BTL-005](BTL-005-comment-nplus1.md) | 댓글 목록 N+1 | JPA/Query | 의심 | EXP-005 | — |
 | [BTL-006](BTL-006-simplebroker-scale.md) | SimpleBroker 인메모리 브로커 한계 | WebSocket | 의심 | — | — |
