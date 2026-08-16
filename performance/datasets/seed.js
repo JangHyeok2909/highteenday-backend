@@ -99,6 +99,20 @@ if (!P) {
  * 종료 코드는 1이고 산출물도 쓰지 않는다. 오타를 조용히 기본값으로 흡수하면 fail-fast를
  * 켰다고 믿은 채 안 켜진 상태로 20분짜리 생성을 돌리게 되므로 즉시 멈춘다.
  */
+/**
+ * 중단된 생성을 이어서 한다 — 이미 목표를 채운 단계는 건너뛴다.
+ *
+ * 안전 장치 두 가지가 붙는다.
+ *   1. 생성기 지문이 다르면 거부한다. 규칙이 바뀌었으면 앞 단계 데이터도 새 규칙이 아니다.
+ *   2. 프로파일이 다르면 거부한다. 체크포인트 파일이 프로파일별로 갈려 있다.
+ *
+ * **재개한 데이터셋은 한 번에 만든 것과 난수 소비 순서가 다르다.** 건너뛴 단계가 쓰지 않은
+ * 난수만큼 뒤 단계의 선택이 달라진다. 분포는 같은 규칙에서 나오므로 통계적으로는 같지만,
+ * 바이트 단위 동일 재현은 애초에 보장하지 않는다(생성 문제 9). meta.json 에 재개 사실을
+ * 기록해 두므로 나중에 "왜 이 데이터셋만 다른가"를 추적할 수 있다.
+ */
+const RESUME = args.includes('--resume');
+
 const ON_FAILURE_MODES = ['stage', 'immediate', 'continue'];
 const ON_FAILURE = arg('on-failure', 'stage');
 if (!ON_FAILURE_MODES.includes(ON_FAILURE)) {
@@ -135,6 +149,19 @@ function allowedFailures(target) {
 
 const PASSWORD = 'PerfTest123!'; // scripts/lib/config.js SEED_PASSWORD와 일치해야 함
 const OUT_DIR = path.join(__dirname, 'generated', PROFILE_NAME);
+
+/**
+ * 체크포인트 — 중단된 생성을 **빈 단계부터** 이어서 하기 위한 내부 상태.
+ *
+ * large 생성은 20시간이 넘는데, 마지막 단계에서 데드락 1건으로 죽으면 그때까지 만든
+ * 게시글 10만·댓글 40만·반응 100만이 DB에 그대로 있는데도 처음부터 다시 해야 했다.
+ * 누적을 피하려면 볼륨을 지워야 하고, 그러면 멀쩡한 데이터까지 버린다.
+ *
+ * 산출물(`generated/<profile>/`)과는 다른 것이다. 산출물은 "완성된 데이터셋을 k6가 읽는
+ * 색인"이라 실패 시 남기면 안 되지만, 체크포인트는 "어디까지 했는지"를 적은 작업 메모라
+ * 실패해도 남아야 쓸모가 있다. 그래서 위치도 분리한다.
+ */
+const CHECKPOINT_FILE = path.join(__dirname, `.checkpoint-${PROFILE_NAME}.json`);
 
 // ---------- 유틸 ----------
 
@@ -435,7 +462,12 @@ async function pooled(items, worker, concurrency = CONCURRENCY, label = '', decl
   // 인기글 카운터(BTL-003)의 데드락은 시드 내내 꾸준히 발생한다. 이건 앱에서 없앨 대상이
   // 아니라 EXP-003 이 측정할 병목이므로, 시더 쪽에서 재시도로 흡수해 데이터셋만 온전히 만든다.
   // 3회로는 부족했다(smoke 실측: 댓글 2.7%, 스크랩 5% 손실).
-  const MAX_ATTEMPTS = 6;
+  //
+  // 6회도 부족했다(large 실측 2026-08-16): 반응 100만 건에서 재시도 5,949회가 발생했고
+  // **1건이 6회를 모두 소진해** 시드가 중단됐다. 그 1건 때문에 21시간이 날아갔다.
+  // 백오프 상한이 800ms 라 12회로 늘려도 최악의 작업 하나에 몇 초가 더 붙을 뿐이고,
+  // 정상 작업의 소요 시간에는 영향이 없다(재시도는 실패한 작업만 한다).
+  const MAX_ATTEMPTS = 12;
 
   async function lane() {
     // aborted 를 매 반복 확인한다 — immediate 모드에서 한 레인이 실패를 만나면 나머지
@@ -529,6 +561,81 @@ function requireComplete(result) {
     return result;
   }
   abortWithFailures();
+}
+
+/* ---------- 체크포인트 ---------- */
+
+/** 이번 실행에서 확정된 단계와, 뒤 단계가 필요로 하는 상태. */
+const checkpoint = { profile: PROFILE_NAME, generatorVersion: null, stages: {}, posts: null };
+
+/**
+ * 단계 하나가 목표를 채우면 즉시 기록한다.
+ *
+ * 매 단계마다 쓰는 이유: 다음 단계에서 죽어도 여기까지는 이어받을 수 있어야 한다.
+ * 파일이 작아 쓰기 비용은 무시할 수 있다(posts 10만 건 기준 약 2MB, 한 번만 쓴다).
+ */
+function saveCheckpoint(stage, count, extra = {}) {
+  checkpoint.stages[stage] = count;
+  Object.assign(checkpoint, extra);
+  try {
+    fs.writeFileSync(CHECKPOINT_FILE, JSON.stringify(checkpoint));
+  } catch (e) {
+    // 체크포인트 실패가 생성을 막지는 않는다 — 재개 편의를 잃을 뿐이다.
+    console.warn(`  ⚠ 체크포인트 기록 실패(${e.message}) — 이 실행은 재개할 수 없다`);
+  }
+}
+
+/**
+ * 재개할 체크포인트를 읽는다. 조건이 맞지 않으면 null 을 돌려 처음부터 하게 한다.
+ *
+ * 생성기 지문을 대조하는 이유: 샘플러나 시더를 고친 뒤 재개하면 앞 단계는 옛 규칙,
+ * 뒤 단계는 새 규칙으로 만들어진 **잡종 데이터셋**이 된다. 그건 어느 쪽 규칙으로도
+ * 설명할 수 없어서 지문의 의미가 사라진다.
+ */
+function loadCheckpoint(generatorVersion) {
+  if (!RESUME) return null;
+  if (!fs.existsSync(CHECKPOINT_FILE)) {
+    console.log('  --resume 을 줬지만 체크포인트가 없다 — 처음부터 생성한다.');
+    return null;
+  }
+  let cp;
+  try {
+    cp = JSON.parse(fs.readFileSync(CHECKPOINT_FILE, 'utf8'));
+  } catch (e) {
+    console.error(`체크포인트를 읽을 수 없다: ${e.message}`);
+    process.exit(2);
+  }
+  if (cp.profile !== PROFILE_NAME) {
+    console.error(`체크포인트 프로파일 불일치: ${cp.profile} ≠ ${PROFILE_NAME}`);
+    process.exit(2);
+  }
+  if (cp.generatorVersion && cp.generatorVersion !== generatorVersion) {
+    console.error(
+      `생성기가 바뀌었다 (체크포인트 ${cp.generatorVersion} ≠ 현재 ${generatorVersion}).\n` +
+      `  앞 단계는 옛 규칙, 뒤 단계는 새 규칙으로 만들어진 잡종 데이터셋이 된다.\n` +
+      `  깨끗한 DB에서 처음부터 생성할 것.`
+    );
+    process.exit(2);
+  }
+  return cp;
+}
+
+/** 이 단계를 건너뛰어도 되는가 — 체크포인트가 이미 목표(허용치 감안)를 채웠는가. */
+function alreadyDone(cp, stage, target) {
+  if (!cp) return false;
+  const done = cp.stages && cp.stages[stage];
+  return typeof done === 'number' && target - done <= allowedFailures(target);
+}
+
+/** 건너뛴 단계를 결과 목록에 그대로 반영한다 — meta.json 의 stageCounts 가 이걸 쓴다. */
+function skipped(stage, target, cp) {
+  const ok = cp.stages[stage];
+  console.log(`  ${stage}: 건너뜀 — 이미 ${ok}/${target} (--resume)`);
+  return {
+    label: stage, target, planned: 0, processed: 0, ok, failed: 0, skipped: 0, retried: 0,
+    aborted: false, firstErrors: [], allowed: allowedFailures(target),
+    missing: target - ok, tolerated: target - ok > 0, resumed: true,
+  };
 }
 
 /** 미달 요약을 출력하고 종료 코드 1로 끝낸다. 산출물은 쓰지 않는다. */
@@ -724,18 +831,22 @@ async function createPosts(users, sessions, boards) {
   return { posts, result };
 }
 
-async function createEngagement(users, sessions, posts) {
+async function createEngagement(users, sessions, posts, cp) {
   console.log(`[4/6] 댓글 ${P.comments} + 반응 ${P.reactions} + 스크랩 ${P.scraps} (게시글 Zipf 편중)`);
   const live = liveAuthors(sessions);
   if (posts.length === 0) throw new Error('게시글이 없다 — 3단계(게시글 생성)를 먼저 확인할 것');
 
+  // 세 하위 단계(댓글·반응·스크랩)를 각각 검문한다. 하나로 합쳐 보고하면 "반응만
+  // 전부 실패"가 "대체로 성공"에 묻힌다.
+  const results = [];
+
+  if (alreadyDone(cp, 'comments', P.comments)) {
+    results.push(skipped('comments', P.comments, cp));
+  } else {
   const commentJobs = Array.from({ length: P.comments }, () => ({
     post: posts[hotPost(posts.length)],
     author: live[hotAuthor(live.length)],
   }));
-  // 세 하위 단계(댓글·반응·스크랩)를 각각 검문한다. 하나로 합쳐 보고하면 "반응만
-  // 전부 실패"가 "대체로 성공"에 묻힌다.
-  const results = [];
   results.push(requireComplete(await pooled(commentJobs, async (j) => {
     const s = sessions[j.author];
     const r = await s.json('POST', `/api/posts/${j.post.id}/comments`, {
@@ -746,6 +857,8 @@ async function createEngagement(users, sessions, posts) {
       throw new Error(`comment ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
     }
   }, CONCURRENCY, 'comments')));
+  saveCheckpoint('comments', results[results.length - 1].ok);
+  }
 
   // 반응과 스크랩은 (사용자, 게시글) 조합이 유일해야 한다 — DB에도 유니크 제약이 있다
   // (uk_posts_reactions_pst_usr / uk_scraps_usr_pst). 예전처럼 무작위로 뽑으면 같은 조합이
@@ -777,31 +890,41 @@ async function createEngagement(users, sessions, posts) {
   // 반응·스크랩은 토글이라 응답 유실 시 그냥 재시도하면 서버가 이미 만든 상태를
   // 되돌린다(KI-54). ensureToggled 가 그 경우에만 상태를 조회해 판정한다.
   // 데드락·커넥션 고갈은 확실히 롤백된 것이므로 예전처럼 pooled 가 재시도한다.
-  const reactionJobs = uniquePairs(P.reactions, '반응');
-  results.push(requireComplete(await pooled(reactionJobs, async (j) => {
-    const s = sessions[j.user];
-    const type = rand() < 0.85 ? 'LIKE' : 'DISLIKE';
-    await ensureToggled(
-      s, j.post.id,
-      () => s.json('POST', `/api/posts/${j.post.id}/reaction?type=${type}`),
-      // 상세 응답은 요청자 기준의 `liked`/`disliked`/`scrapped` 를 평면으로 내려준다
-      // (PostDetailService.applyUserContext, 실제 응답으로 키 확인함 — `likeState` 로
-      // 중첩돼 있지 않다). 어느 쪽 반응이든 "이 사용자가 이 글에 반응을 남겼다"가 목표다.
-      (d) => !!(d && (d.liked || d.disliked)),
-      'reaction',
-    );
-  }, CONCURRENCY, 'reactions', P.reactions)));
+  if (alreadyDone(cp, 'reactions', P.reactions)) {
+    results.push(skipped('reactions', P.reactions, cp));
+  } else {
+    const reactionJobs = uniquePairs(P.reactions, '반응');
+    results.push(requireComplete(await pooled(reactionJobs, async (j) => {
+      const s = sessions[j.user];
+      const type = rand() < 0.85 ? 'LIKE' : 'DISLIKE';
+      await ensureToggled(
+        s, j.post.id,
+        () => s.json('POST', `/api/posts/${j.post.id}/reaction?type=${type}`),
+        // 상세 응답은 요청자 기준의 `liked`/`disliked`/`scrapped` 를 평면으로 내려준다
+        // (PostDetailService.applyUserContext, 실제 응답으로 키 확인함 — `likeState` 로
+        // 중첩돼 있지 않다). 어느 쪽 반응이든 "이 사용자가 이 글에 반응을 남겼다"가 목표다.
+        (d) => !!(d && (d.liked || d.disliked)),
+        'reaction',
+      );
+    }, CONCURRENCY, 'reactions', P.reactions)));
+    saveCheckpoint('reactions', results[results.length - 1].ok);
+  }
 
-  const scrapJobs = uniquePairs(P.scraps, '스크랩');
-  results.push(requireComplete(await pooled(scrapJobs, async (j) => {
-    const s = sessions[j.user];
-    await ensureToggled(
-      s, j.post.id,
-      () => s.json('POST', `/api/posts/${j.post.id}/scraps`),
-      (d) => !!(d && d.scrapped),
-      'scrap',
-    );
-  }, CONCURRENCY, 'scraps', P.scraps)));
+  if (alreadyDone(cp, 'scraps', P.scraps)) {
+    results.push(skipped('scraps', P.scraps, cp));
+  } else {
+    const scrapJobs = uniquePairs(P.scraps, '스크랩');
+    results.push(requireComplete(await pooled(scrapJobs, async (j) => {
+      const s = sessions[j.user];
+      await ensureToggled(
+        s, j.post.id,
+        () => s.json('POST', `/api/posts/${j.post.id}/scraps`),
+        (d) => !!(d && d.scrapped),
+        'scrap',
+      );
+    }, CONCURRENCY, 'scraps', P.scraps)));
+    saveCheckpoint('scraps', results[results.length - 1].ok);
+  }
 
   return results;
 }
@@ -921,16 +1044,25 @@ async function createChat(users, sessions, pairs) {
  * 실제 생성 개수를 넣는 이유: 시드가 부분 실패하면(과거 실측: 500건 목표에 187건) 규칙이
  * 같아도 데이터가 다르다. 그 실행을 정상 데이터셋과 비교하면 안 된다.
  */
-function buildMeta(users, posts, boards, stageResults) {
+/**
+ * 생성 규칙의 지문 — 이 생성기 자체 + 공용 샘플러(인기 편중 분포).
+ *
+ * `buildMeta()` 안에 있던 것을 꺼냈다. 체크포인트를 읽기 **전에** 이 값이 필요하다 —
+ * 규칙이 바뀐 뒤 재개하면 앞 단계는 옛 규칙, 뒤 단계는 새 규칙인 잡종이 되기 때문이다.
+ */
+function computeGeneratorVersion() {
   const hashOf = (rel) => {
     const buf = fs.readFileSync(path.join(__dirname, rel));
     return crypto.createHash('sha256').update(buf).digest('hex').slice(0, 12);
   };
-  // 생성 규칙을 이루는 것: 이 생성기 자체 + 공용 샘플러(인기 편중 분포).
-  const generatorVersion = crypto.createHash('sha256')
+  return crypto.createHash('sha256')
     .update(hashOf('seed.js'))
     .update(hashOf('../scripts/lib/sampling.js'))
     .digest('hex').slice(0, 12);
+}
+
+function buildMeta(users, posts, boards, stageResults) {
+  const generatorVersion = computeGeneratorVersion();
 
   // 단계별 실제 생성 수. **허용치를 열면 이 값이 지문의 핵심이 된다** — 댓글이 5% 모자란
   // 데이터셋과 온전한 데이터셋은 성능이 다른데, 예전 identity 에는 users·posts·boards 만
@@ -960,7 +1092,16 @@ function buildMeta(users, posts, boards, stageResults) {
     })),
   };
 
-  return { ...identity, tolerance, fingerprint, generatedAt: new Date().toISOString() };
+  // 재개해서 만든 데이터셋인지 남긴다. 지문에는 넣지 않는다 — 결과 데이터가 같으면 한 번에
+  // 만들었든 이어서 만들었든 같은 데이터셋이다. 다만 난수 소비 순서가 달라 "왜 이것만
+  // 분포가 미묘하게 다른가"를 나중에 추적할 수 있어야 하므로 기록은 남긴다.
+  const resumedStages = stageResults.filter((r) => r.resumed).map((r) => r.label);
+
+  return {
+    ...identity, tolerance, fingerprint,
+    resumed: resumedStages.length ? resumedStages : undefined,
+    generatedAt: new Date().toISOString(),
+  };
 }
 
 // ---------- 메인 ----------
@@ -980,6 +1121,17 @@ function buildMeta(users, posts, boards, stageResults) {
     require('url').pathToFileURL(path.join(__dirname, '..', 'scripts', 'lib', 'sampling.js')).href
   ));
   console.log(`분포: 게시글 인기 s=${HOT_SKEW} · 작성 활동 s=${AUTHOR_SKEW}`);
+
+  // 생성기 지문을 먼저 구해 체크포인트와 대조한다 — 규칙이 바뀌었으면 재개하면 안 된다.
+  const generatorVersion = computeGeneratorVersion();
+  checkpoint.generatorVersion = generatorVersion;
+  const cp = loadCheckpoint(generatorVersion);
+  if (cp) {
+    const done = Object.entries(cp.stages || {}).map(([k, v]) => `${k}=${v}`).join(' · ');
+    console.log(`  재개: 완료된 단계를 건너뛴다 — ${done || '(없음)'}`);
+    checkpoint.stages = { ...cp.stages };
+    checkpoint.posts = cp.posts;
+  }
 
   // 각 단계 뒤에 검문을 건다. 예전에는 1단계가 통째로 실패해도 2단계가 그대로 시작돼
   // 오류가 단계마다 증폭됐다 — 존재하지 않는 계정으로 로그인하고, 그 실패가 또 로그에만
@@ -1006,6 +1158,9 @@ function buildMeta(users, posts, boards, stageResults) {
   }
 
   const plan = buildUsers();
+
+  // 회원가입·로그인·학교 배정은 재개해도 다시 한다 — 세션이 있어야 뒤 단계가 돌아가고,
+  // 중복 가입은 409 로 성공 처리되므로 비용은 로그인 시간뿐이다(large 기준 수 분).
   check(await registerUsers(plan));
 
   const { sessions, result: loginResult } = await loginAll(plan);
@@ -1013,16 +1168,45 @@ function buildMeta(users, posts, boards, stageResults) {
   check(await assignSchools(plan, sessions));
 
   const boards = await fetchBoards(sessions);          // 실패 시 자체적으로 throw
-  const { posts, result: postResult } = await createPosts(plan, sessions, boards);
-  check(postResult);
+
+  let posts;
+  if (alreadyDone(cp, 'posts', P.posts)) {
+    // 게시글 목록은 체크포인트가 들고 있다. auto-increment ID 라 생성 순서 = ID 순서이고,
+    // posts.json 의 "인기순 정렬" 전제가 그대로 유지된다.
+    posts = cp.posts;
+    stageResults.push(skipped('posts', P.posts, cp));
+  } else {
+    const r = await createPosts(plan, sessions, boards);
+    posts = r.posts;
+    check(r.result);
+    saveCheckpoint('posts', r.result.ok, { posts });
+  }
 
   // 하위 3단계(댓글·반응·스크랩)를 내부에서 검문하고 결과를 돌려준다
-  stageResults.push(...await createEngagement(plan, sessions, posts));
+  stageResults.push(...await createEngagement(plan, sessions, posts, cp));
 
-  const { pairs, result: friendResult } = await createFriendships(plan, sessions);
-  check(friendResult);
-  const { result: chatResult } = await createChat(plan, sessions, pairs);
-  check(chatResult);
+  if (alreadyDone(cp, 'friendships', P.friendships)) {
+    stageResults.push(skipped('friendships', P.friendships, cp));
+    // 채팅은 친구 쌍이 필요하다. 건너뛰면 그 목록이 없으므로 채팅도 함께 건너뛴다 —
+    // 둘은 한 덩어리다.
+    if (alreadyDone(cp, 'chat-rooms', Math.floor(P.friendships * P.chatRoomRatio))) {
+      stageResults.push(skipped('chat-rooms', Math.floor(P.friendships * P.chatRoomRatio), cp));
+    } else {
+      console.log('  ⚠ 친구는 완료됐는데 채팅방이 미완이다 — 친구 단계를 다시 돌려 쌍을 얻는다.');
+      const f = await createFriendships(plan, sessions);
+      check(f.result);
+      const c = await createChat(plan, sessions, f.pairs);
+      check(c.result);
+      saveCheckpoint('chat-rooms', c.result.ok);
+    }
+  } else {
+    const f = await createFriendships(plan, sessions);
+    check(f.result);
+    saveCheckpoint('friendships', f.result.ok);
+    const c = await createChat(plan, sessions, f.pairs);
+    check(c.result);
+    saveCheckpoint('chat-rooms', c.result.ok);
+  }
 
   // --on-failure continue 로 여기까지 왔더라도 미달이면 산출물을 쓰지 않는다.
   // 반쪽짜리 JSON 이 파일로 남으면 다음 실행이 그걸 정상 데이터셋으로 착각한다.
