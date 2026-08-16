@@ -15,6 +15,11 @@
  *   node environment/bootstrap.js --profile small
  *   node environment/bootstrap.js --profile small --force     # 이미 적재돼 있어도 재시드
  *   node environment/bootstrap.js --profile small --skip-seed # 스키마/캐시만 정리
+ *   node environment/bootstrap.js --profile large --resume    # 중단된 생성을 빈 단계부터
+ *
+ * 시드 정책 옵션(`--tolerance`, `--on-failure`, `--resume`)은 seed.js 로 그대로 전달된다.
+ * 예전에는 인자가 하드코딩돼 있어, 허용치를 주려면 부트스트랩을 건너뛰고 seed.js 를 직접
+ * 불러야 했다 — 그러면 아래 준비 작업을 사람이 다시 챙겨야 한다.
  *
  * 선행 조건: 스택이 떠 있어야 한다.
  *   DATASET_PROFILE=small docker compose -f environment/docker-compose.perf.yml \
@@ -45,6 +50,9 @@ const arg = (n, d) => {
 const PROFILE = arg('profile', process.env.DATASET_PROFILE || 'medium');
 const BASE = arg('base', 'http://localhost:18080');
 const CONCURRENCY = arg('concurrency', '10');
+// 중단된 생성을 이어서 한다. `--force`(이미 적재돼 있어도 재시드)와 다르다 — 이쪽은
+// 완료된 단계를 **건너뛰고** 빈 단계부터 채운다. 중복 적재 경고도 이때는 통과시킨다.
+const RESUME = args.includes('--resume');
 const DB = process.env.MYSQL_DATABASE || 'highteenday';
 const DB_PASS = process.env.MYSQL_ROOT_PASSWORD || 'perfroot';
 const MYSQL_CT = 'perf-mysql';
@@ -153,22 +161,30 @@ function step(n, msg) { console.log(`\n[${n}] ${msg}`); }
 
   if (flag('skip-seed')) {
     console.log(`  --skip-seed 지정됨 — 건너뜀 (현재 posts=${postCount})`);
-  } else if (postCount > 0 && !flag('force')) {
+  } else if (postCount > 0 && !flag('force') && !RESUME) {
     console.log(
       `  ✗ 이미 데이터가 있다 (posts=${postCount}, 명세=${spec.posts}).\n` +
       `    seed.js는 계정만 건너뛰고 글/댓글은 매번 새로 만들기 때문에 지금 재실행하면\n` +
       `    데이터셋이 명세를 초과해 재현성이 깨진다.\n` +
+      `    - 중단된 생성을 이어서: --resume  (완료된 단계를 건너뛴다)\n` +
       `    - 깨끗한 상태에서 다시 시작: down -v 후 up → 이 스크립트 재실행\n` +
       `    - 의도한 추가 적재라면: --force`
     );
     process.exit(2);
   } else {
     const seedPath = path.join(__dirname, '..', 'datasets', 'seed.js');
-    execFileSync(
-      process.execPath,
-      [seedPath, '--profile', PROFILE, '--base', BASE, '--concurrency', CONCURRENCY],
-      { stdio: 'inherit' }
-    );
+    // 시드 정책 옵션을 그대로 넘긴다. 예전에는 인자를 하드코딩해서, 부트스트랩을 거치면
+    // `--tolerance`·`--on-failure`·`--resume` 을 줄 방법이 아예 없었다. large 생성이
+    // 데드락 1건으로 죽었을 때 허용치를 주려면 seed.js 를 직접 호출하는 수밖에 없었고,
+    // 그러면 부트스트랩이 대신 해 주던 것들(게시판 선삽입·Redis flush·중복 적재 방지)을
+    // 사람이 다시 챙겨야 한다.
+    const seedArgs = [seedPath, '--profile', PROFILE, '--base', BASE, '--concurrency', CONCURRENCY];
+    for (const name of ['tolerance', 'on-failure']) {
+      const v = arg(name, null);
+      if (v != null) seedArgs.push(`--${name}`, v);
+    }
+    if (RESUME) seedArgs.push('--resume');
+    execFileSync(process.execPath, seedArgs, { stdio: 'inherit' });
   }
 
   // ---- 6. 최종 상태 ----
