@@ -10,9 +10,17 @@
 
 > **브랜치 정책**
 >
-> `localDocs/` 변경은 개인 문서 브랜치에만 보관한다. 커밋 제목은
-> `docs(local): ...` 형식을 사용하고, `develop`에는 체리픽하지 않는다.
-> `performance/experiments/`처럼 저장소의 공식 실험 기록은 이 규칙의 대상이 아니다.
+> 이 개인 브랜치는 `localDocs/`와 `performance/` 작업을 **함께** 담는다. 둘은 같은
+> 작업의 양면이라 브랜치를 나누면 오히려 앞뒤가 끊긴다. 이 정책이 지키려는 것은
+> 하나뿐이다 — **`localDocs/`가 `develop`으로 넘어가지 않는 것.**
+>
+> - `localDocs/` 변경은 **항상 단독 커밋**으로 만든다. 코드나 저장소 문서와 한 커밋에
+>   섞으면 그 커밋 전체가 `develop`에 갈 수 없게 되어, 같이 묶인 `performance/` 작업까지
+>   발이 묶인다. 단독 커밋이어야 나머지를 골라 올릴 수 있다.
+> - `localDocs/` 커밋 제목은 `docs(localdocs): ...` 형식을 쓰고 `develop`에 병합하거나
+>   체리픽하지 않는다.
+> - `performance/`(도구 코드, 스냅샷 기록, `experiments/` 등)는 저장소의 공식 산출물이다.
+>   여기서 작업하되 `develop`으로 올려보낸다.
 
 Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음의 범위와 수정 정책에서는 제외한다.
 
@@ -167,5 +175,5 @@ SKIP으로 처리했다. 그래서 **원자료와 자동 PASS/FAIL을 구분해�
 1. 관련 `perf-findings-*.md`에 근거와 상태를 기록한다.
 2. 우선순위가 바뀌면 `perf-review-summary.md`를 갱신한다.
 3. 학습 흐름이나 결정 안건이 달라지면 `perf-mastery-checklist.md`를 갱신한다.
-4. 로컬 문서 커밋에는 `docs(local):` scope를 사용한다.
+4. 로컬 문서 커밋에는 `docs(localdocs):` scope를 사용하고, 다른 변경과 섞지 않는다.
 5. Toss 관련 문서는 이 흐름에 포함하지 않는다.
