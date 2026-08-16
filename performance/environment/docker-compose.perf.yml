@@ -215,6 +215,37 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
 
+  # 호스트 전체의 포화도(E-09). cAdvisor는 컨테이너 **하나하나**를 보지만, 그것들이
+  # 합쳐서 머신을 얼마나 먹었는지는 보지 못한다. 컨테이너 CPU가 전부 한가해 보여도
+  # 호스트의 run queue가 길면 응답시간은 늘어난다 — 그 경우를 설명할 지표가 없었다.
+  #
+  # **무엇을 보는지 정확히 알아야 한다.** Docker Desktop은 WSL2 백엔드이므로 이 컨테이너가
+  # 보는 "호스트"는 Windows가 아니라 **WSL2 VM**이다(커널 6.18-microsoft-standard-WSL2,
+  # CPU 20, 메모리 16.5GB). 앱·MySQL·Redis는 그 안에 있으므로 정확히 측정되지만,
+  # Windows에서 직접 실행하는 k6.exe는 **이 지표에 잡히지 않는다.** 부하 발생기까지 보려면
+  # k6를 컨테이너로 돌려야 한다(`perf-run.js --loadgen docker`).
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: perf-node-exporter
+    restart: unless-stopped
+    # pid: host 는 프로세스 단위 지표(hwmon/processes collector)에 필요하다.
+    pid: host
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host/root
+      # 컨테이너 오버레이 파일시스템을 빼지 않으면 디스크 지표가 수십 개로 불어나
+      # 정작 봐야 할 실제 볼륨이 묻힌다.
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|host/root/var/lib/docker/.+)($$|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      # 보통 예제는 `:ro,rslave` 를 쓰지만 WSL2 의 `/` 는 shared/slave 마운트가 아니라
+      # 데몬이 거부한다("path / is mounted on / but it is not a shared or slave mount").
+      # rslave 는 실행 중 새로 붙는 마운트를 따라가기 위한 것이고, 여기서 필요한 CPU·
+      # 메모리·load 지표는 전부 /proc 와 /sys 에서 나오므로 없어도 된다.
+      - /:/host/root:ro
+
 volumes:
   # 데이터셋 프로파일마다 MySQL 볼륨을 분리한다.
   #
