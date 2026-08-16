@@ -194,7 +194,7 @@
 - [꼬리] "재발 방지는?" → 부하 테스트가 회귀 게이트를 겸함 + 발견 장부 운영.
 
 ### Q34. 모니터링은 뭘 보나요? 알람 기준은?
-- [뼈대] Prometheus + Grafana. 애플리케이션(요청 p95/p99, 오류율), JVM(heap, GC pause/오버헤드), 풀(HikariCP active/pending — **pending > 0 자체가 경보**), DB(slow query, QPS, buffer pool hit), Redis(hit ratio, eviction), 컨테이너(CPU throttling — p99 급등의 최대 원인). "무엇을 보는가"보다 "**임계값을 왜 그렇게 정했나**"가 나오면 강함(예: 게이트를 4개만 남긴 이유 — 전부 게이트로 만들면 상시 빨간불이 되고, 그러면 아무도 안 본다).
+- [뼈대] Prometheus + Grafana. 애플리케이션(요청 p95/p99, 오류율), JVM(heap, GC pause/오버헤드), 풀(HikariCP active/pending — **pending > 0 자체가 경보**), DB(slow query, QPS, buffer pool hit), Redis(hit ratio, eviction), 컨테이너(CPU throttling — p99 급등의 최대 원인). "무엇을 보는가"보다 "**임계값을 왜 그렇게 정했나**"가 나오면 강함(예: 32개 규칙 중 게이트를 10개만 남긴 이유 — 전부 게이트로 만들면 상시 빨간불이 되고, 그러면 아무도 안 본다).
 
 ---
 
@@ -241,5 +241,5 @@
 | 519,288건 | upsert 전환 전 반응 API가 뱉은 409 수 |
 | 좋아요 5 · 댓글 3 · 스크랩 2 · 조회 1 · 싫어요 -2 | 인기글 가중치, 감쇠 `(시간+2)^1.5` |
 | 30분 / 7일 | access / refresh 토큰 수명 |
-| 32규칙 · 게이트 7+4 · 오탐장치 5 | 회귀 판정 시스템 규모 |
+| 32규칙 · 게이트 7+3 · 오탐장치 5 | 회귀 판정 시스템 규모 (k6 7개 + 인프라 3개) |
 | 데이터셋 1만 유저 / 10만 글 / 반응 100만 | 대규모 시드 프로파일 |
