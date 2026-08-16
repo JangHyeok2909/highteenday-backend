@@ -432,10 +432,10 @@ node tools/perf-run.js scripts/boards.js --vus 5 --duration 30s --no-collect --n
       인증 때문에 발생하던 거짓 FAIL 제거 (2026-08-11, `cad1cbc`)
 - [x] **S-03** zipfIndex가 index 0을 못 뽑고 index 1에 20~28% 집중 — 공용 샘플러
       `scripts/lib/sampling.js`로 교체(s=1.07 고정). **같은 식이 `datasets/seed.js`에도
-      복제돼 있던 것이 본질**이었다. 코드·테스트 완료, 시드 재생성 대기 (2026-08-13, 미커밋)
+      복제돼 있던 것이 본질**이었다. 코드·테스트 완료, 시드 재생성 대기 (2026-08-13)
 - [x] **S-04** 게시판 0페이지가 전 시나리오에서 미조회 — 페이지 샘플러를 분리하고
       `[55/20/12/8/5]` 명시 가중치 적용. `page` 태그 축으로 리포트에서 확인 가능.
-      깊은 페이지는 `scenarios/deep-paging.js`로 분리 (2026-08-13, 미커밋)
+      깊은 페이지는 `scenarios/deep-paging.js`로 분리 (2026-08-13)
 - [ ] **S-06** stress/spike/soak이 closed 모델 → coordinated omission
 - [ ] **S-07** VU 수 > 시드 계정 수 → 계정 공유
 - [ ] **S-09** 한계탐색 시나리오에 breakdown·check 게이트 없음
@@ -926,7 +926,7 @@ for(const id of ['normal-day-2026-08-05T09-39-43','friends-2026-08-05T09-00-06']
 - [ ] **T-01** pick 평면 키 (해결)
 - [ ] **T-26** rules.json 무검증 (해결)
 - [x] **T-02** 기준선이 dataset/VU를 무시 (해결 — 2026-08-09)
-- [x] **T-08** 결측 = SKIP = 사실상 PASS (해결 — 2026-08-13, 미커밋)
+- [x] **T-08** 결측 = SKIP = 사실상 PASS (해결 — 2026-08-13)
 - [ ] **T-04** N=1 비교, 타임아웃 검열 미감지 (미해결)
 - [ ] **T-07** scriptVersion 범위 + 게이트 전면 해제 (미해결)
 - [ ] **T-22** 시나리오 무관 단일 규칙 (미해결)
