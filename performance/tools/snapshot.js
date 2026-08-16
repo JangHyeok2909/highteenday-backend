@@ -63,6 +63,30 @@ const volumeName = (profile) => `perf-mysql-data-${profile}`;
 
 const volumeExists = (name) => spawnSync('docker', ['volume', 'inspect', name]).status === 0;
 
+/**
+ * MySQL 컨테이너에 실제로 붙어 있는 볼륨 이름.
+ *
+ * 프로파일마다 볼륨이 분리돼 있고(`perf-mysql-data-<profile>`) 컨테이너는 한 번에 하나만
+ * 마운트한다. 이 확인이 없으면 다음이 조용히 성립한다: `create large` 를 small 이 마운트된
+ * 상태에서 부르면 **상태 지문은 돌아가는 small DB 에서 읽고 아카이브는 large 볼륨을 뜬다.**
+ * 서로 다른 두 데이터셋이 한 스냅샷에 묶이는데, 파일만 봐서는 알 수 없다.
+ */
+function mountedVolume() {
+  return run('docker', ['inspect', MYSQL_CT,
+    '--format', '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{.Name}}{{end}}{{end}}'],
+  { allowFail: true });
+}
+
+function assertMounted(profile, vol, verb) {
+  const mounted = mountedVolume();
+  if (mounted === vol) return;
+  throw new Error(
+    `프로파일 '${profile}' 을(를) ${verb} 하려는데 MySQL 이 다른 볼륨을 쓰고 있습니다.\n` +
+    `  기대: ${vol}\n  실제: ${mounted || '(확인 불가)'}\n` +
+    `  전환: DATASET_PROFILE=${profile} docker compose -f environment/docker-compose.perf.yml ` +
+    '--env-file environment/.env.perf up -d');
+}
+
 /** 동기 sleep. 이 스크립트는 순서가 곧 안전성이라 전부 동기로 쓴다. */
 function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -120,6 +144,9 @@ function startStack() {
 function create(profile, opts) {
   const vol = volumeName(profile);
   if (!volumeExists(vol)) throw new Error(`볼륨이 없습니다: ${vol}`);
+  // 지문은 돌아가는 MySQL 에서 읽고 아카이브는 볼륨에서 뜬다. 둘이 다른 데이터셋이면
+  // 스냅샷 자체가 거짓말이 된다.
+  assertMounted(profile, vol, '스냅샷');
 
   const gen = generationOf(profile);
   console.log(`▶ 스냅샷 생성 — 프로파일 ${profile} · 볼륨 ${vol}`);
@@ -225,6 +252,9 @@ function restore(snap) {
   const dir = path.join(SNAP_ROOT, snap.snapshotId);
   const archivePath = path.join(dir, snap.archive);
   if (!fs.existsSync(archivePath)) throw new Error(`아카이브가 없습니다: ${archivePath}`);
+  // 마운트되지 않은 볼륨에 풀면 파일은 바뀌는데 돌아가는 DB 는 그대로다. 복원 후 지문
+  // 검사가 실패해 결국 멈추지만, 그때는 이미 남의 볼륨을 덮어쓴 뒤다.
+  assertMounted(snap.profile, snap.volume, '복원');
 
   console.log(`▶ 복원 — ${snap.snapshotId} → ${snap.volume}`);
   const untar = snap.compressed
