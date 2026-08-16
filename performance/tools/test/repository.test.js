@@ -71,6 +71,10 @@ function entry(id, startedAt, over = {}) {
     loadProfile: LOAD(200),
     scriptVersion: 'abc123',
     measurementProfile: MP_STEADY,
+    // 부하 발생기 실행 방식. current() 쪽은 run 레코드를 conditionsOf 로 변환하는데,
+    // 그 read()가 미기록을 'local'로 채운다(컨테이너 옵션이 생기기 전에는 그것뿐이었다).
+    // 픽스처도 같은 값을 들고 있어야 실제 인덱스 엔트리와 형태가 같아진다.
+    loadgen: 'local',
     ...over,
   };
   // 인덱스 엔트리는 평탄화된 conditions 를 그대로 들고 있고, dataset 조건은

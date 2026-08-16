@@ -133,6 +133,28 @@
       "comment": "throttling 은 컨테이너 환경에서 p99 급등의 최대 원인이라 gate 대상으로 둔다."
     },
     {
+      "key": "infra.flat.loadgen.throttledPct",
+      "label": "부하 발생기 throttling 비율",
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "absolute": { "warn": { "gt": 1 }, "fail": { "gt": 5 } },
+      "noiseFloor": 0.5,
+      "gate": false,
+      "comment": [
+        "0 이 아니면 그 실행의 지연은 서버가 아니라 **부하 발생기**가 만든 것일 수 있다.",
+        "발생기가 먼저 한계에 걸리면 요청을 제때 못 보내고, 그 지연이 서버 응답시간으로",
+        "기록된다 — 서버를 아무리 개선해도 사라지지 않는 가짜 병목이다.",
+        "",
+        "임계가 앱(warn 1 / fail 10)보다 낮은 이유: 앱의 throttling 은 '측정된 사실'이지만",
+        "발생기의 throttling 은 '측정이 오염됐다는 신호'라 훨씬 적은 양에도 반응해야 한다.",
+        "",
+        "gate:false 인 이유가 두 가지다. ① gate:true 는 동시에 '필수 지표' 선언이라(T-08)",
+        "`--loadgen local` 로 돌린 실행이 전부 UNMEASURED 가 되어 판정 자체가 막힌다.",
+        "② 이 값은 서버 성능에 대한 판정이 아니라 측정 유효성에 대한 경고라, 배포를 막는",
+        "축과는 성격이 다르다. 경고로 띄우고 사람이 다시 재도록 하는 것이 맞다."
+      ]
+    },
+    {
       "key": "infra.flat.memory.workingSet.max",
       "label": "메모리 최대 사용량",
       "unit": "bytes",
