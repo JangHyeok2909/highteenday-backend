@@ -12,6 +12,7 @@ flowchart LR
     MEX[mysqld-exporter] --> P
     REX[redis-exporter] --> P
     CAD[cAdvisor] --> P
+    NEX[node-exporter<br/>호스트 = WSL2 VM] --> P
     P --> G[Grafana<br/>perf-overview 대시보드]
     K6 -->|handleSummary| R[reports/raw/*.json/csv/html]
     MY[(MySQL slow.log<br/>performance_schema)] -.->|사후 분석| A[병목 분석]
@@ -82,6 +83,50 @@ k6 run -o experimental-prometheus-rw scenarios/normal-day.js
 | 메모리 | `container_memory_working_set_bytes{name=~"perf-.*"}` |
 | 네트워크 | `rate(container_network_transmit_bytes_total[1m])` |
 | CPU 스로틀링 | `rate(container_cpu_cfs_throttled_seconds_total[1m])` — 리소스 상한 도달 신호 |
+
+## 6. 호스트 (node-exporter)
+
+cAdvisor는 컨테이너를 **하나하나** 본다. 그것들이 합쳐서 머신을 얼마나 밀었는지는 보지
+못한다. 컨테이너별 CPU가 전부 한가해 보여도 호스트 run queue가 길면 응답시간은 늘어난다.
+
+| 지표 | PromQL | 왜 보나 |
+|------|--------|---------|
+| CPU 사용률 | `100*(1-avg(rate(node_cpu_seconds_total{mode="idle"}[1m])))` | 머신 전체 포화 |
+| 코어당 run queue | `avg(node_load1)/scalar(count(count by (cpu)(node_cpu_seconds_total)))` | 1 초과면 실행 대기가 코어보다 많다 |
+| iowait | `100*avg(rate(node_cpu_seconds_total{mode="iowait"}[$RANGE]))` | 병목이 CPU가 아니라 I/O인지 |
+| steal | `100*avg(rate(node_cpu_seconds_total{mode="steal"}[$RANGE]))` | VM 밖 부하의 간접 증거 |
+| 가용 메모리 | `min_over_time(node_memory_MemAvailable_bytes[$RANGE:])` | 페이지 캐시 압박 |
+
+> **여기서 "호스트"는 WSL2 VM이다.** Docker Desktop이 WSL2 백엔드로 돌므로 이 컨테이너가
+> 보는 것은 Windows가 아니라 그 안의 VM이다(커널 `6.18-microsoft-standard-WSL2`, 코어 20,
+> 메모리 16.5GB). Windows에서 직접 실행하는 `k6.exe`는 이 VM 밖이라 **잡히지 않는다.**
+>
+> `node_load1 / count(...)`를 그대로 쓰면 안 된다. 왼쪽에는 `instance`·`job` 레이블이 있고
+> 오른쪽 집계에는 없어서 벡터 매칭이 실패해 **빈 결과**가 된다(실측). `scalar()`로 접는다.
+
+## 7. 부하 발생기 (cAdvisor, `perf-k6` 컨테이너)
+
+부하 발생기가 측정 대상과 같은 머신을 쓰면 서로 자원을 뺏는다(E-01). 물리적 분리가
+최선이지만, 분리하지 못했다면 **최소한 얼마나 먹었는지는 기록해야** "이 결과는 로컬 상대
+비교로만 유효하다"고 말할 근거가 생긴다.
+
+이 지표들은 `perf-run.js --loadgen docker`로 돌릴 때만 값이 있다. 로컬 `k6.exe`는 cAdvisor도
+node-exporter도 보지 못하므로 전부 결측이 되는데, **그 결측 자체가 "부하 발생기를 측정하지
+않았다"는 정확한 기록이다.**
+
+| 지표 | PromQL | 왜 보나 |
+|------|--------|---------|
+| CPU | `rate(container_cpu_usage_seconds_total{name="perf-k6"}[1m])` | 측정 대상에서 뺏은 양 |
+| throttling | `rate(container_cpu_cfs_throttled_periods_total{name="perf-k6"}[$RANGE])` | **0이 아니면 지연이 서버가 아니라 발생기 탓일 수 있다** |
+| 메모리 | `container_memory_working_set_bytes{name="perf-k6"}` | VU가 많으면 여기가 먼저 터진다 |
+
+throttling 임계가 앱(warn 1% / fail 10%)보다 낮은 warn 1% / fail 5%인 이유가 있다. 앱의
+throttling은 *측정된 사실*이지만 발생기의 throttling은 *측정이 오염됐다는 신호*라 훨씬 적은
+양에도 반응해야 한다. 다만 `gate:false`다 — `--loadgen local` 실행이 전부 `UNMEASURED`가
+되어 판정 자체가 막히면 안 되고(T-08), 이 값은 배포를 막는 축이 아니라 다시 재라는 경고다.
+
+실측(large, 10 VU · 45초): 부하 발생기 CPU 최대 **0.026 코어** · throttled **0.194%** ·
+메모리 **145.5MB**. 같은 구간 앱은 **1.239 코어**를 썼다 — 발생기가 앱의 1/48이다.
 
 ## 대시보드
 

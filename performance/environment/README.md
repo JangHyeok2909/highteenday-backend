@@ -7,10 +7,11 @@ Before/After 비교는 무효이며, 실험 문서에는 항상 이 파일의 �
 
 ```mermaid
 flowchart LR
-    subgraph Load Generator
-        K6[k6\n별도 머신 권장]
+    subgraph Windows["Windows 호스트"]
+        K6L[k6.exe\n--loadgen local\n계측 불가]
     end
-    subgraph Docker Host
+    subgraph VM["WSL2 VM = node-exporter가 보는 '호스트'"]
+        K6D[perf-k6\n--loadgen docker\ncAdvisor가 계측]
         APP[Spring Boot :8080\n2 vCPU / 2.5GB]
         MY[MySQL 8.0.36 :3306\n2 vCPU / 2GB]
         RD[Redis 7.2 :6379\n1 vCPU / 512MB]
@@ -19,13 +20,23 @@ flowchart LR
         EX1[mysqld-exporter]
         EX2[redis-exporter]
         CA[cAdvisor]
+        NE[node-exporter]
     end
-    K6 -->|HTTP/WS| APP
-    K6 -->|remote write| PR
+    K6L -->|localhost:18080| APP
+    K6D -->|app:8080| APP
     APP --> MY & RD
-    PR --> APP & EX1 & EX2 & CA
+    PR --> APP & EX1 & EX2 & CA & NE
     GF --> PR
 ```
+
+**부하 발생기를 어디서 돌리는지가 실행 조건이다.** 두 경로는 왕복이 다르다 — `local`은
+Windows 프로세스가 포트 포워딩을 거쳐 `localhost:18080`에, `docker`는 VM 안 컨테이너가
+컨테이너 네트워크로 `app:8080`에 붙는다. `conditions.js`가 이를 blocking 조건으로 보므로
+**두 방식으로 잰 값은 서로 비교되지 않는다.**
+
+`local`에서는 **부하 발생기를 아무도 측정하지 못한다.** cAdvisor는 컨테이너만 보고,
+node-exporter가 보는 "호스트"는 WSL2 VM이라 그 밖의 `k6.exe`가 잡히지 않는다. 발생기의
+자원 사용을 기록하려면 `--loadgen docker`로 돌려야 한다.
 
 ## 하드웨어 / OS 기준 명세
 
@@ -54,7 +65,13 @@ flowchart LR
 | Redis | 7.2 | docker-compose.perf.yml |
 | Prometheus | 2.51.0 | docker-compose.perf.yml |
 | Grafana | 10.4.0 | docker-compose.perf.yml |
-| k6 | ≥ 0.50 (`k6 version` 기입) | 로컬 설치 |
+| node-exporter | 1.8.2 | docker-compose.perf.yml |
+| k6 (로컬) | 2.1.0 | 로컬 설치 (`k6 version`) |
+| k6 (컨테이너) | `grafana/k6:2.1.0` | `perf-run.js`의 `K6_IMAGE` |
+
+> **두 k6 버전은 반드시 같아야 한다.** k6 버전은 실행 조건이라 다르면 비교가 무효가 되고,
+> 그 전에 문법 자체가 안 맞는다 — `grafana/k6:0.49.0`으로 돌려 보니 `scripts/lib/config.js`의
+> 객체 스프레드(`...extra`)에서 SyntaxError로 죽었다(실측).
 
 ## JVM 설정 (docker-compose.perf.yml의 JAVA_TOOL_OPTIONS)
 
