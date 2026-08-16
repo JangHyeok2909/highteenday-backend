@@ -150,7 +150,7 @@ function scriptVersion(scriptPath) {
     }
     // 구분자를 넣어 "파일 A의 끝 + 파일 B의 시작"이 다른 조합과 같은 바이트열이 되는
     // 경계 모호성을 없앤다.
-    parts.push(`${rel} `, content, ' ');
+    parts.push(`${rel}\0`, content, '\0');
   }
 
   // 진입 스크립트 자체를 못 읽으면 예전처럼 'unknown'을 준다 — conditions.js 의
