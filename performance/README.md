@@ -115,9 +115,18 @@ performance/
 
 ## 6. 사용 도구
 
-부하: **k6** · 관측: **Prometheus + Grafana**(+ mysqld/redis-exporter, cAdvisor) ·
+부하: **k6** · 관측: **Prometheus + Grafana**(+ mysqld/redis-exporter, cAdvisor, node-exporter) ·
 JVM: **JFR, GC 로그**(상시 기록), async-profiler, Arthas ·
 DB: slow log(100ms), performance_schema, p6spy, EXPLAIN · 상세: `tools/README.md`
+
+> **부하 발생기를 계측하려면 컨테이너로 돌려야 한다.**
+> `node tools/perf-run.js <script> --loadgen docker` 로 실행하면 k6가 `perf-k6` 컨테이너로
+> 뜨고 cAdvisor가 그 CPU·메모리를 따로 잰다. 기본값 `local`(Windows 네이티브 `k6.exe`)은
+> **아무도 측정하지 못한다** — cAdvisor는 컨테이너만 보고, node-exporter가 보는 "호스트"는
+> WSL2 VM이라 그 밖의 프로세스가 잡히지 않는다.
+>
+> 두 방식은 서버로 가는 경로가 달라(`localhost:18080` vs `app:8080`) **비교 조건이 다르다.**
+> 섞어서 비교하지 말 것. 자세한 내용: [`metrics/README.md`](metrics/README.md)의 6·7절
 
 ## 7. 측정 지표 (요약)
 

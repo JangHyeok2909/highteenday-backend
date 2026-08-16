@@ -160,6 +160,29 @@ PERF_DATASET_GUARD=warn node tools/perf-run.js ...                # 이 셸에�
 무엇을 세고 무엇을 빼는지, 왜 그렇게 정했는지, 어떻게 판정에 반영되는지는 별도 문서에
 정리했다: **[`DATASET-STATE.md`](DATASET-STATE.md)**
 
+### 부하 발생기 계측 (`--loadgen`)
+
+```bash
+node tools/perf-run.js scenarios/normal-day.js --loadgen docker   # k6를 perf-k6 컨테이너로
+node tools/perf-run.js scenarios/normal-day.js                    # 기본값 local
+```
+
+`local`(기본)은 Windows 네이티브 `k6.exe`다. **아무도 그것을 측정하지 못한다** — cAdvisor는
+컨테이너만 보고, node-exporter가 보는 "호스트"는 WSL2 VM이라 그 밖의 프로세스가 잡히지
+않는다. 그래서 "이 실행의 지연이 서버 탓인지 부하 발생기가 CPU를 뺏은 탓인지" 판별할 수
+없다.
+
+`docker`면 k6가 `perf-k6` 컨테이너로 뜨고 cAdvisor가 CPU·throttling·메모리를 따로 잰다
+(`loadgen` 지표 그룹). `K6_CPUS`(기본 4)로 상한도 걸린다. **`loadgen.throttledPct`가 0이
+아니면 그 실행의 지연은 발생기가 만든 것일 수 있다** — 회귀 규칙에 경고로 걸려 있다
+(warn 1% / fail 5%, `gate:false`).
+
+컨테이너 k6 버전(`K6_IMAGE`, 기본 `grafana/k6:2.1.0`)은 **로컬 바이너리와 같아야 한다.**
+다르면 비교가 무효가 되고, 낮은 버전은 스크립트 문법 자체를 못 읽는다.
+
+실측(large, 10 VU · 45초): 발생기 CPU 최대 **0.026코어** · throttled **0.194%** · 메모리
+**145.5MB**. 같은 구간 앱은 **1.239코어** — 발생기가 앱의 1/48이다.
+
 ### 왜 `perf-run.js` 래퍼가 필요한가
 
 k6를 직접 치면 사람이 매번 세 가지를 챙겨야 한다.
@@ -419,6 +442,7 @@ saturation.cpuPct · memoryPct · heapPct · hikariPct · tomcatPct · mysqlConn
 | 시나리오 | blocking | 기준선 자격 박탈 |
 | 환경 | blocking | 기준선 자격 박탈 |
 | 데이터셋 (프로파일 이름 + 생성 지문 + **실행 시작 시점의 DB 상태**) | blocking | 기준선 자격 박탈 |
+| **부하 발생기** (`local` \| `docker`) | blocking | 기준선 자격 박탈 |
 | 부하 프로파일 | blocking | 기준선 자격 박탈 |
 | 측정 구간 설계 | blocking | 기준선 자격 박탈 |
 | 부하 스크립트 지문 | degrading | 비교하되 경고 + FAIL→WARN 강등 |
@@ -439,6 +463,13 @@ saturation.cpuPct · memoryPct · heapPct · hikariPct · tomcatPct · mysqlConn
 추가했다(`SCHEMA_VERSION` v3). `guard`가 `off`인 실행에는 이 축이 들어가지 않으며, 그 사실이
 리포트에 `상태 미판정(guard off)`으로 표시된다 — 아무 말도 안 하면 사람은 상태까지 확인된
 실행으로 읽는다. 설계와 실측: [`DATASET-STATE.md`](DATASET-STATE.md)
+
+**부하 발생기 실행 방식도 조건이다.** k6 를 `local`(Windows 네이티브 프로세스 → 포트 포워딩
+→ `localhost:18080`)로 돌린 것과 `docker`(WSL2 VM 안 컨테이너 → 컨테이너 네트워크 →
+`app:8080`)로 돌린 것은 **왕복 경로가 다르다.** 실측된 경로 오버헤드가 전체 평균 200ms 중
+179ms(서버측은 21ms)나 되므로, 경로가 바뀐 두 실행을 비교하면 그 차이가 성능 변화로 읽힌다.
+값이 없는 과거 실행은 `local` 로 본다 — 추측이 아니라 사실이다. 컨테이너 옵션이 생기기
+전에는 다른 방식이 존재하지 않았다.
 
 기준선 자격 사유에도 `dataset-state-drift`가 추가됐다. `warn` 모드에서 데이터셋이 스냅샷
 상태가 아닌 채로 잰 실행이다. **성능이 나빴다는 뜻이 아니라 무엇을 잰 것인지 확정할 수
