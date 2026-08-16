@@ -38,7 +38,11 @@
 // v3 (2026-08-16): dataset 조건에 **실행 시작 시점의 DB 상태 지문**이 들어갔다.
 //   생성 지문(generation)은 "어떻게 만들었나"에만 답하므로, 쓰기 시나리오가 데이터를
 //   바꿔 놓아도 이름과 생성 지문이 같아 비교 가능으로 판정되던 구멍이 있었다.
-const SCHEMA_VERSION = 3;
+// v4 (2026-08-16): 부하 발생기 실행 방식(loadgen)이 조건이 됐다. k6 를 컨테이너로 돌리면
+//   네트워크 경로가 바뀐다 — local 은 Windows 에서 포트 포워딩으로 localhost:18080 에,
+//   docker 는 VM 안에서 컨테이너 네트워크로 app:8080 에 붙는다. 왕복 경로가 다른 두 값을
+//   나란히 놓으면 경로 차이가 성능 변화로 보인다.
+const SCHEMA_VERSION = 4;
 
 /**
  * 비교 가능성을 이루는 조건들.
@@ -93,6 +97,21 @@ const CONDITIONS = [
     materiality: 'blocking',
     read: (r) => r.run && r.run.loadProfile,
     format: formatLoadProfile,
+  },
+  {
+    key: 'loadgen',
+    label: '부하 발생기',
+    materiality: 'blocking',
+    // k6 를 어디서 돌렸는가. `local` 은 Windows 네이티브 프로세스가 포트 포워딩을 거쳐
+    // localhost:18080 에 붙고, `docker` 는 WSL2 VM 안의 컨테이너가 컨테이너 네트워크로
+    // app:8080 에 붙는다. **왕복 경로가 다르다.** 실측된 경로 오버헤드가 179ms(전체 평균
+    // 200ms 중 서버측은 21ms)나 되므로, 경로가 바뀐 두 실행을 비교하면 그 차이가 성능
+    // 변화로 읽힌다.
+    //
+    // 값이 없는 과거 실행은 `local` 로 본다. 추측이 아니라 **사실**이다 — 컨테이너 실행
+    // 옵션이 생기기 전이라 다른 방식이 존재하지 않았다. null 로 두면 오늘 만든 기준선
+    // 계열까지 통째로 비교 불가가 되는데, 그건 알 수 없어서가 아니라 기록을 안 했을 뿐이다.
+    read: (r) => (r.run ? (r.run.loadgen || 'local') : null),
   },
   {
     key: 'scriptVersion',
