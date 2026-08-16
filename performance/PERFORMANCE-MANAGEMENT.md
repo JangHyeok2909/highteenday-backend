@@ -114,7 +114,51 @@ node tools/collect.js <runId> --force --no-wait
 
 # 과거 raw 리포트 이관
 node tools/migrate-raw.js && node tools/collect.js --all --no-wait
+
+# 데이터셋 스냅샷
+node tools/snapshot.js create large    # 검증 직후 상태를 불변 사본으로 보존
+node tools/snapshot.js list
+node tools/snapshot.js verify large    # 지금 DB 가 스냅샷과 같은가
+node tools/snapshot.js restore large   # 되돌린다 (Redis FLUSHALL 포함)
 ```
+
+### 데이터셋 상태 강제 (`--guard`)
+
+실행마다 **시작 시점의 DB 상태를 지문으로 남긴다.** 프로파일 이름(`large`)과 생성
+지문(`meta.json`)은 "어떻게 만들었나"에만 답하므로, write-heavy 가 데이터를 바꿔 놓아도
+값이 그대로여서 다음 실행이 비교 가능으로 판정되던 구멍이 있었다.
+
+| 모드 | 동작 |
+|---|---|
+| `off` | 상태 지문을 **기록만** 한다. 판정·복원 없음 |
+| `warn` | 스냅샷과 다르면 경고하고 그 실행의 기준선 자격을 뺏는다. 복원은 안 함 |
+| `strict` | 다르면 **볼륨을 복원**하고 재확인한다. 그래도 다르면 실행을 거부 |
+
+우선순위는 **`--guard` > `PERF_DATASET_GUARD` > `perf.config.json` > 기본값 `off`** 다.
+이 저장소는 `perf.config.json` 으로 `strict` 를 쓴다 — large 는 재현이 안 되는 일회성
+자산이라(시더의 난수 소비 순서) 오염되면 되돌릴 방법이 스냅샷뿐이기 때문이다.
+
+```bash
+node tools/perf-run.js scenarios/write-heavy.js --dataset large   # perf.config.json → strict
+node tools/perf-run.js scenarios/deep-paging.js --guard off       # 이번만 끈다
+PERF_DATASET_GUARD=warn node tools/perf-run.js ...                # 이 셸에서만
+```
+
+**측정은 항상, 판정만 스위치다.** `off` 여도 지문은 계산해 `run.json` 에 남긴다(실측
+0.4초). 안 재 두면 나중에 켰을 때 과거 실행 전부가 비교 불가가 되지만, 항상 재 두면
+모드를 바꿔도 `history.js --rebuild` 로 소급 적용된다 — **모드 변경이 재실행이 아니라
+재계산으로 복구된다.**
+
+지문에서 **제외**하는 값이 있다. `tokens`(VU 가 로그인할 때마다 회전),
+`posts.view_count` 합(Redis 버퍼를 스케줄러가 flush), hot post 테이블(스케줄러가 씀).
+넣으면 아무 일도 안 했는데 매번 불일치가 나서 복원이 무한히 반복된다. 버리지 않고
+`volatile` 로 따로 기록해 "쓰기가 있었나"와 "조회수만 올랐나"를 구분한다.
+
+실측(large, 2.72GB 볼륨): 지문 계산 **0.41~0.44초**, 스냅샷 생성 **0.50GB / 109.5초**,
+복원 **26~30초**(압축 해제) · 앱 부팅까지 **82초**.
+
+무엇을 세고 무엇을 빼는지, 왜 그렇게 정했는지, 어떻게 판정에 반영되는지는 별도 문서에
+정리했다: **[`DATASET-STATE.md`](DATASET-STATE.md)**
 
 ### 왜 `perf-run.js` 래퍼가 필요한가
 
@@ -158,6 +202,23 @@ Test ID · Scenario · Environment · Branch · Commit SHA · Build Number · �
 통계적으로 동일한 데이터셋이 나오고, 그걸 매번 다른 데이터셋으로 취급하면 재시드할 때마다
 기준선이 전부 무효가 되기 때문이다. 이 장치가 없던 시절의 데이터셋에는 `meta.json`이 없어
 값이 `null`이 되며, 지문이 있는 실행과는 비교되지 않는다.
+
+`datasetFingerprint`가 "어떻게 만들었나"에 답한다면, **아래 필드들은 "실행이 시작될 때
+실제로 무엇이 들어 있었나"에 답한다.** `perf-run.js`가 실행 전후로 DB를 세어
+`reports/runs/<runId>.dbstate.json`에 쓰고 `collect.js`가 `run`에 합친다.
+
+| 필드 | 뜻 |
+|---|---|
+| `datasetGuard` · `datasetGuardSource` | `off`\|`warn`\|`strict` 와 그 값이 어디서 왔는지 |
+| `stateBefore` · `stateAfter` | 실행 전후의 상태 지문 (`sha256:` 앞 12자) |
+| `stateCoreBefore/After` · `stateVolatileBefore/After` | 지문을 만든 원자료 |
+| `stateChanged` · `stateDelta` | core 가 변했는가, 무엇이 얼마나 |
+| `snapshotId` · `stateMatchedSnapshot` | 어느 스냅샷을 기준으로 삼았고 일치했는가 |
+| `restored` · `restoreMs` · `cacheState` | 복원했는가, 얼마나 걸렸는가, 캐시 상태 |
+
+`stateBefore`는 **`guard`가 `off`가 아닐 때만 비교 조건에 들어간다.** 값 자체는 모드와
+무관하게 항상 기록되므로, 나중에 모드를 켜고 `history.js --rebuild`를 돌리면 소급 적용된다.
+자세한 설계와 실측값: **[`DATASET-STATE.md`](DATASET-STATE.md)**
 
 커밋에 uncommitted 변경이 있으면 `commit`에 `+dirty`가 붙는다.
 
@@ -357,7 +418,7 @@ saturation.cpuPct · memoryPct · heapPct · hikariPct · tomcatPct · mysqlConn
 |---|---|---|
 | 시나리오 | blocking | 기준선 자격 박탈 |
 | 환경 | blocking | 기준선 자격 박탈 |
-| 데이터셋 (프로파일 이름 + 생성 지문) | blocking | 기준선 자격 박탈 |
+| 데이터셋 (프로파일 이름 + 생성 지문 + **실행 시작 시점의 DB 상태**) | blocking | 기준선 자격 박탈 |
 | 부하 프로파일 | blocking | 기준선 자격 박탈 |
 | 측정 구간 설계 | blocking | 기준선 자격 박탈 |
 | 부하 스크립트 지문 | degrading | 비교하되 경고 + FAIL→WARN 강등 |
@@ -367,11 +428,21 @@ saturation.cpuPct · memoryPct · heapPct · hikariPct · tomcatPct · mysqlConn
 - **degrading** — 수치가 *의심스럽다*. 스크립트 지문 변화는 대개 주석 한 줄이므로 이력을
   끊지 않는다. 비교는 하되 게이트를 열고 리포트에 사유를 띄운다.
 
-**데이터셋 조건은 이름이 아니라 `{프로파일, 생성 지문}` 쌍이다.** 이름만 보면 생성기의 인기
-편중 샘플러를 고쳐 데이터를 다시 만들어도 값이 그대로 `large`라, 인기 분포가 완전히 달라진
-데이터셋으로 잰 결과가 옛 실행과 같은 조건으로 비교된다. 시드를 재생성하면 지문이 바뀌고,
-그러면 재생성 이전 실행이 전부 후보에서 탈락한다. 이때 `hadPriorCandidates`가 `true`이므로
-리포트는 "첫 실행입니다"가 아니라 **`incomparable`과 탈락 사유**를 보여준다(S-10).
+**데이터셋 조건은 이름이 아니라 `{프로파일, 생성 지문, 상태 지문}` 이다.** 이름만 보면
+생성기의 인기 편중 샘플러를 고쳐 데이터를 다시 만들어도 값이 그대로 `large`라, 인기 분포가
+완전히 달라진 데이터셋으로 잰 결과가 옛 실행과 같은 조건으로 비교된다. 시드를 재생성하면
+지문이 바뀌고, 그러면 재생성 이전 실행이 전부 후보에서 탈락한다. 이때 `hadPriorCandidates`가
+`true`이므로 리포트는 "첫 실행입니다"가 아니라 **`incomparable`과 탈락 사유**를 보여준다(S-10).
+
+**생성 지문만으로는 부족하다.** 그 값은 생성 시점에 고정되므로, write-heavy 가 게시글을
+수만 건 더 만들어 놓아도 그대로다. 그래서 실행 직전에 DB 를 직접 세는 **상태 지문**을 축으로
+추가했다(`SCHEMA_VERSION` v3). `guard`가 `off`인 실행에는 이 축이 들어가지 않으며, 그 사실이
+리포트에 `상태 미판정(guard off)`으로 표시된다 — 아무 말도 안 하면 사람은 상태까지 확인된
+실행으로 읽는다. 설계와 실측: [`DATASET-STATE.md`](DATASET-STATE.md)
+
+기준선 자격 사유에도 `dataset-state-drift`가 추가됐다. `warn` 모드에서 데이터셋이 스냅샷
+상태가 아닌 채로 잰 실행이다. **성능이 나빴다는 뜻이 아니라 무엇을 잰 것인지 확정할 수
+없다는 뜻**이라, 기준선으로 쓰면 뒤따르는 모든 비교가 오염된다.
 
 두 지문의 역할은 서로 다르다. 데이터셋 지문(blocking)은 **시드를 재생성하는 순간**에만
 작동해 비교를 끊고, 스크립트 지문(degrading)은 **그 이후의 일상적인 부하 코드 변경**을

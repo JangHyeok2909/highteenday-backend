@@ -57,8 +57,10 @@ flowchart TD
 cp environment/.env.perf.example environment/.env.perf
 docker compose -f environment/docker-compose.perf.yml --env-file environment/.env.perf up -d --build
 
-# 1. 시드
+# 1. 시드 → 검증 → 스냅샷
 node datasets/seed.js --profile medium
+bash datasets/verify.sh medium          # 수량·카운터·참조 무결성·인기 분포 판정
+node tools/snapshot.js create medium    # 검증을 통과한 상태를 불변 사본으로 보존
 
 # 2~3. 스모크 → 기준선  (모든 명령은 performance/ 루트에서)
 node tools/perf-run.js scripts/posts.js --vus 5 --duration 1m --dataset medium
@@ -80,6 +82,11 @@ node tools/history.js          # reports/history.html — 이력과 추세
 > 그 사유를 리포트에 남긴다 (`tools/lib/comparability.js`, `repository.js`의 `eligibilityOf()`).
 > 구조와 설계 근거: [`PERFORMANCE-MANAGEMENT.md`](PERFORMANCE-MANAGEMENT.md)
 
+> **데이터셋 상태도 실행 조건이다.** 이름이 같은 `large`라도 앞선 쓰기 테스트가 데이터를
+> 바꿔 놓았으면 다른 데이터셋이다. 그래서 실행마다 시작 시점의 DB를 세어 **상태 지문**을
+> 남기고, 스냅샷과 다르면 되돌린 뒤 실행한다(이 저장소 기본값 `strict`).
+> 끄려면 `--guard off`. 설계·실측값: [`DATASET-STATE.md`](DATASET-STATE.md)
+
 ## 5. 디렉터리 구조
 
 ```
@@ -89,6 +96,8 @@ performance/
 │   └── lib/           # 설정·세션·Zipf 샘플러·summary 공통 모듈
 ├── scenarios/         # 워크로드 시나리오 16종 (가중치 프로파일 기반)
 ├── datasets/          # Zipf 분포 시드 생성기 + 스케일 프로파일 (100~100,000명)
+│   ├── verify.sh      # 생성된 데이터셋을 DB와 대조해 판정
+│   └── snapshots/     # 검증 통과 상태의 볼륨 사본 (아카이브는 gitignore, snapshot.json만 커밋)
 ├── environment/       # 컴포즈 스택 + MySQL/Redis/JVM 고정 설정 + 환경 명세
 ├── metrics/           # 지표 정의(PromQL) + Grafana 대시보드
 ├── experiments/       # 가설 기반 실험 대장 (EXP-001~) + 템플릿
@@ -96,11 +105,13 @@ performance/
 ├── bottlenecks/       # 병목 카탈로그 (BTL-001~012) — 원인/영향/재현/해결
 ├── optimizations/     # 개선 기록 (Before/After 수치 필수)
 ├── regression/        # rules.json(회귀 판정 규칙) + CI 워크플로
-└── tools/             # perf-run/collect/history/repeatability + lib/(수집·분석·리포트 엔진) + test/(도구 단위 테스트)
+├── perf.config.json   # 도구 기본 설정 (datasetGuard 등)
+└── tools/             # perf-run/collect/history/repeatability/snapshot + lib/(수집·분석·리포트 엔진) + test/(도구 단위 테스트)
 ```
 
 성능 관리 파이프라인의 구조와 설계 근거는 별도 문서로 분리했다:
 **[`PERFORMANCE-MANAGEMENT.md`](PERFORMANCE-MANAGEMENT.md)**
+데이터셋 상태 고정(스냅샷·상태 지문·`--guard`)은 **[`DATASET-STATE.md`](DATASET-STATE.md)**
 
 ## 6. 사용 도구
 
