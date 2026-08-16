@@ -293,6 +293,12 @@ async function processRun(runId, opts) {
   record.run.id = runId;
   record.collectedAt = new Date().toISOString();
 
+  // 데이터셋 상태 블록을 합친다. 비교 조건(conditions.js)이 run.stateBefore 를 읽으므로
+  // saveRun 보다 먼저 합쳐야 한다. 재수집 시에는 이미 승격된 파일에서 다시 읽는다 —
+  // 그러지 않으면 --all 재수집이 상태 축을 통째로 날린다.
+  const dbstateFile = repo.loadDbState(runId);
+  if (dbstateFile) Object.assign(record.run, dbstateFile);
+
   // 실행 번호는 최초 수집 때만 부여한다(재생성해도 번호가 안 바뀌어야 한다).
   const existing = repo.loadRun(runId);
   record.run.number = (existing && existing.run && existing.run.number) || repo.nextRunNumber();

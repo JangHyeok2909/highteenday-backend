@@ -35,7 +35,10 @@
 // v2 (2026-08-13): dataset 조건이 프로파일 이름 문자열에서 {profile, fingerprint} 객체가
 //   됐다. 이 조건은 blocking 이라 seriesHash 에 들어가므로 값 형태가 바뀌면 과거 계열과
 //   섞이면 안 된다 — 추세 그래프에서 데이터셋 지문 도입 시점이 성능 변화로 보이게 된다.
-const SCHEMA_VERSION = 2;
+// v3 (2026-08-16): dataset 조건에 **실행 시작 시점의 DB 상태 지문**이 들어갔다.
+//   생성 지문(generation)은 "어떻게 만들었나"에만 답하므로, 쓰기 시나리오가 데이터를
+//   바꿔 놓아도 이름과 생성 지문이 같아 비교 가능으로 판정되던 구멍이 있었다.
+const SCHEMA_VERSION = 3;
 
 /**
  * 비교 가능성을 이루는 조건들.
@@ -68,9 +71,19 @@ const CONDITIONS = [
     // 레코드에 싣는다. 지문이 없는 값(이 변경 이전에 만든 데이터셋)은 null 로 남겨 둔다 —
     // 임의의 기본값을 채우면 지문이 있는 실행과 조용히 같아져서 장치가 무력화된다.
     // blocking 이므로 `null vs 지문` 은 불일치로 잡혀 상대 비교가 생략된다.
+    //
+    // v3: 생성 지문 위에 **상태 지문**을 얹는다. 생성 지문은 "어떻게 만들었나"에만 답하므로
+    // write-heavy 가 게시글 3만 건을 더 만들어 놓아도 값이 그대로다. 상태 지문은 실행 직전에
+    // DB 를 직접 세어 "지금 무엇이 들어 있나"에 답한다(tools/lib/dbstate.js).
+    //
+    // guard 가 `off` 인 실행은 상태를 판정에 넣지 않는다. 값 자체는 항상 기록되므로
+    // 나중에 켜고 `history.js --rebuild` 를 돌리면 소급 적용된다 — 모드를 바꿔도
+    // 재실행이 아니라 재계산으로 복구된다.
     read: (r) => {
       if (!r.run || !r.run.dataset) return null;
-      return { profile: r.run.dataset, fingerprint: r.run.datasetFingerprint || null };
+      const base = { profile: r.run.dataset, fingerprint: r.run.datasetFingerprint || null };
+      if (!r.run.datasetGuard || r.run.datasetGuard === 'off') return base;
+      return { ...base, state: r.run.stateBefore || null, snapshot: r.run.snapshotId || null };
     },
     format: formatDataset,
   },
@@ -126,7 +139,13 @@ const CONDITIONS = [
 function formatDataset(v) {
   if (!v) return '—';
   if (typeof v === 'string') return `${v} (지문 없음)`; // 이 변경 이전 형식의 저장값
-  return `${v.profile}${v.fingerprint ? ` (${v.fingerprint})` : ' (지문 없음)'}`;
+  const gen = v.fingerprint ? `생성 ${v.fingerprint}` : '생성 지문 없음';
+  // 상태 축이 없으면 guard 가 꺼진 실행이다. "상태 미판정"이라고 명시한다 — 아무 말도
+  // 안 하면 사람은 상태까지 확인된 실행으로 읽는다.
+  const state = 'state' in v
+    ? (v.state ? `상태 ${v.state}` : '상태 미기록')
+    : '상태 미판정(guard off)';
+  return `${v.profile} (${gen} · ${state})`;
 }
 
 /** 사람이 읽는 한 줄 요약 — 리포트가 "해시가 다릅니다"밖에 못 말하면 쓸모가 없다. */

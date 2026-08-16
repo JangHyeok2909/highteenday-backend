@@ -58,6 +58,8 @@ const reportFile = (runId) => path.join(runDir(runId), 'report.html');
 // 스테이징 — k6가 직접 쓰는 평면 경로
 const stagedK6File = (runId) => path.join(RUNS_DIR, `${runId}.k6.json`);
 const stagedTxtFile = (runId) => path.join(RUNS_DIR, `${runId}.summary.txt`);
+/** perf-run.js 가 실행 전후로 잰 DB 상태. k6 는 자기 실행 후의 DB 를 알 수 없다. */
+const stagedDbStateFile = (runId) => path.join(RUNS_DIR, `${runId}.dbstate.json`);
 
 /** 저장된 모든 runId — 정리된 디렉터리 + 아직 스테이징 상태인 것 모두 */
 function listRunIds() {
@@ -85,6 +87,14 @@ function loadK6(runId) {
 }
 
 /**
+ * DB 상태 블록. loadK6 와 같은 순서로 본다 — 재수집(`--all`)은 이미 승격된 파일에서
+ * 읽어야 하고, 최초 수집은 스테이징에서 읽어야 한다. 없으면 null(이 변경 이전 실행).
+ */
+function loadDbState(runId) {
+  return readJson(path.join(runDir(runId), 'dbstate.json')) || readJson(stagedDbStateFile(runId));
+}
+
+/**
  * 스테이징 평면 파일을 <runId>/ 디렉터리로 옮긴다.
  * 수집이 성공한 뒤에만 호출한다 — 실패 시 스테이징이 남아 재시도할 수 있어야 하므로.
  */
@@ -93,6 +103,7 @@ function promoteStaged(runId) {
   for (const [src, dest] of [
     [stagedK6File(runId), k6File(runId)],
     [stagedTxtFile(runId), path.join(runDir(runId), 'summary.txt')],
+    [stagedDbStateFile(runId), path.join(runDir(runId), 'dbstate.json')],
   ]) {
     if (fs.existsSync(src)) {
       fs.renameSync(src, dest);
@@ -134,6 +145,15 @@ function toIndexEntry(record) {
     // 회귀 판정은 run.json 을 직접 읽으므로 인덱스에 없어도 동작하지만, 그러면 추세
     // 그래프에서 꺾인 지점이 성능 변화인지 스크립트 변경인지 구분할 방법이 없다.
     scriptVersion: r.scriptVersion || null,
+    // 데이터셋 상태 축(v3). 기준선 탐색이 run.json 을 열지 않고 "스냅샷 상태에서 출발한
+    // 실행인가"를 걸러야 하므로 인덱스에 평탄화해 둔다. 이 필드가 없는 과거 엔트리는
+    // undefined 라 eligibilityOf 의 `=== false` 검사를 그대로 통과한다(소급 탈락 금지).
+    datasetGuard: r.datasetGuard || null,
+    stateBefore: r.stateBefore || null,
+    stateAfter: r.stateAfter || null,
+    stateMatchedSnapshot: r.stateMatchedSnapshot != null ? r.stateMatchedSnapshot : null,
+    stateChanged: r.stateChanged != null ? !!r.stateChanged : null,
+    snapshotId: r.snapshotId || null,
     // 실행 조건 전체 + 계열 해시. 기준선 탐색이 run.json 을 열지 않고 인덱스만으로
     // 후보를 거를 수 있어야 하고, 탈락 사유를 사람에게 설명하려면 원본 값도 필요하다
     // (해시만 남기면 "해시가 다릅니다"밖에 말할 수 없다).
@@ -250,6 +270,16 @@ function saveRun(record) {
  * @returns {{eligible:boolean, reasonCode?:string, details?:object}}
  */
 function eligibilityOf(entry) {
+  // 데이터셋이 스냅샷 상태가 아닌 채로 잰 실행(guard=warn 에서만 생긴다. strict 는 복원하고,
+  // off 는 이 값을 남기지 않는다). 성능이 나빴다는 뜻이 아니라 **무엇을 잰 것인지 확정할 수
+  // 없다**는 뜻이라 기준선으로 쓰면 뒤따르는 모든 비교가 오염된다.
+  if (entry.stateMatchedSnapshot === false) {
+    return {
+      eligible: false,
+      reasonCode: 'dataset-state-drift',
+      details: { stateBefore: entry.stateBefore || null, snapshotId: entry.snapshotId || null },
+    };
+  }
   if (entry.measurementStatus === 'UNMEASURED') {
     return {
       eligible: false,
@@ -271,6 +301,7 @@ function eligibilityOf(entry) {
 
 /** reasonCode → 사람이 읽는 한 문장. 콘솔과 HTML 리포트가 같은 문장을 쓰도록 한 곳에 둔다. */
 const REJECTION_TEXT = {
+  'dataset-state-drift': '데이터셋이 스냅샷 상태가 아니어서 기준선에서 제외',
   unmeasured: '필수 지표가 없어(측정 불가) 기준선에서 제외',
   'window-incomplete': 'measure 구간이 계획보다 짧게 끝나 기준선에서 제외',
   conditions: '실행 조건이 달라 비교하지 않음',
@@ -402,9 +433,9 @@ function rebuildIndex() {
 
 module.exports = {
   PERF_ROOT, RUNS_DIR, INDEX_FILE,
-  runDir, runFile, k6File, reportFile, stagedK6File, stagedTxtFile,
+  runDir, runFile, k6File, reportFile, stagedK6File, stagedTxtFile, stagedDbStateFile,
   ensureDir, readJson, writeJson, promoteStaged,
-  listRunIds, listPendingRunIds, loadRun, loadK6, saveRun,
+  listRunIds, listPendingRunIds, loadRun, loadK6, loadDbState, saveRun,
   loadIndex, saveIndex, rebuildIndex,
   nextRunNumber, findBaseline, recentRuns, toIndexEntry,
   eligibilityOf, describeRejection,
