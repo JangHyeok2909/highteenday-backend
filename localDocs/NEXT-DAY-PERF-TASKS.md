@@ -285,7 +285,7 @@
 > **지문에서 뺀 값**: `tokens`(VU가 로그인할 때마다 회전), `posts.view_count` 합(Redis
 > 버퍼를 스케줄러가 flush), hot post 테이블(스케줄러가 씀). 넣었으면 아무 일도 안 했는데
 > 매번 불일치가 나 복원이 무한히 반복된다. 실측이 이를 확인했다 — 읽기만 한 실행 뒤
-> `posts.sumViewCount +23`, `daily_hot_post` 4,996→5,004이 관측됐고 core 지문은 그대로였다.
+> `posts.sumViewCount +47`, `daily_hot_post` 4,996→5,004이 관측됐고 core 지문은 그대로였다.
 > 버리지 않고 `volatile`로 따로 기록해 "쓰기가 있었나"와 "조회수만 올랐나"를 구분한다.
 >
 > **측정은 항상, 판정만 스위치.** `off`여도 지문은 계산해 `run.json`에 남긴다. 안 재 두면

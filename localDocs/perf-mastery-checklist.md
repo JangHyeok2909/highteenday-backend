@@ -336,7 +336,7 @@ curl -s 'http://localhost:9090/api/v1/query?query=container_cpu_usage_seconds_to
 | 같은 파일 `:61` | `DEFAULT_THRESHOLDS` — 진짜 SLO + 더미가 합쳐진 것 |
 | `performance/scripts/lib/session.js:17` | `login()` — 태그가 `op:write`인 것 확인 |
 | 같은 파일 `:51` | `withAuth()` — 401 시 refresh 후 재시도 |
-| 같은 파일 `:71` | `ensureSession()` — **쿠키 자가 iteration마다 리셋된다는 주석을 정독할 것** |
+| 같은 파일 `:71` | `ensureSession()` — **쿠키 jar가 iteration마다 리셋된다는 주석을 정독할 것** |
 | `performance/scripts/lib/data.js:28` | `myUser()` — `vu.idInTest % users.length` |
 | 같은 파일 `:39` | `zipfIndex()` — 수식을 종이에 써볼 것 |
 | 같은 파일 `:46` | `hotPost()` |
@@ -801,7 +801,7 @@ console.log('값이 null 인 지표 수:', Object.values(r.infra.flat).filter(v=
 ### 설계 의도부터
 
 - [ ] `performance/PERFORMANCE-MANAGEMENT.md` **§5 회귀 판정**
-      **볼 것:** 오탐 4장치, 기준선 선택 원칙, gate를 아껴 배분한 이유
+      **볼 것:** 오탐 5장치, 기준선 선택 원칙, gate를 아껴 배분한 이유
 - [ ] `performance/PERFORMANCE-MANAGEMENT.md` **§6 병목 가설 자동 지목**
       **볼 것:** 지목 규칙 표. "가설이지 확정된 원인이 아니다"라고 못박는 이유
 - [ ] `performance/regression/README.md` **전체** — 필드별 의미
@@ -895,7 +895,7 @@ for(const id of ['normal-day-2026-08-05T09-39-43','friends-2026-08-05T09-00-06']
 
 > **A.**
 
-**Q5-2.** 오탐을 줄이는 4가지 장치를 대고, **각각이 없으면 구체적으로 무슨 일이 생기는지** 예를 들어 설명하라.
+**Q5-2.** 오탐을 줄이는 5가지 장치를 대고, **각각이 없으면 구체적으로 무슨 일이 생기는지** 예를 들어 설명하라.
 
 > **A.**
 
@@ -1263,7 +1263,7 @@ console.log(by);
 
 - [ ] `localDocs/`에 **추출 설계 초안** 작성 — 코어/어댑터 경계, v0.1 범위, 제외할 것
 - [ ] `localDocs/perf-review-summary.md`의 P0/P1/P2 우선순위를 학습 결과에 맞게 재조정
-- [ ] 결정 안건 10개가 전부 채워졌는지 확인 (상단 결정 안건 진행표)
+- [ ] 결정 안건 11개가 전부 채워졌는지 확인 (상단 결정 안건 진행표)
 
 ---
 
