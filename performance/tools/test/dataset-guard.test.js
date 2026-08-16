@@ -178,6 +178,20 @@ test('diff 가 core 변화와 volatile 변화를 분리한다', () => {
   assert.equal(dbstate.describeDiff(d), '변화 없음');
 });
 
+// ---------------------------------------------------------------------------
+// 캐시 상태 — 세션 토큰을 캐시로 세면 모든 실행이 warm 이 된다
+// ---------------------------------------------------------------------------
+
+test('인덱스가 cacheState 를 평탄화한다', () => {
+  const e = repo.toIndexEntry({ run: { id: 'x', cacheState: 'cold' }, k6: {}, infra: {} });
+  assert.equal(e.cacheState, 'cold');
+});
+
+test('cacheState 미기록(과거 실행)은 null 로 남는다 — 임의로 warm/cold 를 채우지 않는다', () => {
+  const e = repo.toIndexEntry({ run: { id: 'x' }, k6: {}, infra: {} });
+  assert.equal(e.cacheState, null);
+});
+
 test('describeDiff 가 큰 변화부터 보여준다', () => {
   const d = dbstate.diff(
     { core: { 'posts.count': 100, 'comments.count': 10 }, volatile: {} },

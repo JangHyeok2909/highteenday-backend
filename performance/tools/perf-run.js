@@ -194,6 +194,11 @@ function datasetFingerprint(name) {
  */
 function preflight(profile, g) {
   const before = dbstate.computeState();
+  // 캐시 상태는 복원 여부와 **무관하게** 잰다. 복원할 때만 남기면 복원이 없었던 실행은
+  // warm 이었는지 cold 였는지 알 수 없고, 그러면 두 실행을 나란히 놓을 때 캐시 효과가
+  // 성능 변화로 보인다. EXP-001 이 "warm 에서 잰다"를 전제하므로 그 전제를 검증할
+  // 근거가 실행 기록에 있어야 한다.
+  const cacheBefore = dbstate.computeCacheState();
   const block = {
     datasetGuard: g.mode,
     datasetGuardSource: g.source,
@@ -201,11 +206,14 @@ function preflight(profile, g) {
     stateCoreBefore: before.core,
     stateVolatileBefore: before.volatile,
     stateFingerprintMs: before.elapsedMs,
+    cacheState: cacheBefore.state,
+    cacheKeysBefore: cacheBefore.cacheKeys,
     snapshotId: null,
     stateMatchedSnapshot: null,
     restored: false,
   };
   console.log(`  데이터셋 ${profile} · 상태 ${before.fingerprint} (${before.elapsedMs}ms)`);
+  console.log(`  캐시 ${cacheBefore.state}${cacheBefore.cacheKeys != null ? ` (키 ${cacheBefore.cacheKeys.toLocaleString()}개)` : ''}`);
   console.log(`  guard ${g.mode} — ${guard.describeMode(g.mode)} [${g.source}]`);
 
   if (g.mode === 'off') return block;
@@ -245,9 +253,10 @@ function preflight(profile, g) {
   block.stateCoreBefore = r.state.core;
   block.stateVolatileBefore = r.state.volatile;
   block.stateMatchedSnapshot = true;
-  // 복원은 Redis 를 비우므로 캐시가 반드시 cold 다. 이건 실행 조건이므로 기록해야 한다 —
-  // warm 캐시로 잰 값과 나란히 놓으면 캐시 효과가 성능 변화로 보인다.
-  block.cacheState = 'cold';
+  // 복원은 FLUSHALL 을 포함하므로 여기서부터는 반드시 cold 다. 위에서 잰 값을 덮어쓴다.
+  const cacheAfterRestore = dbstate.computeCacheState();
+  block.cacheState = cacheAfterRestore.state;
+  block.cacheKeysBefore = cacheAfterRestore.cacheKeys;
   return block;
 }
 
