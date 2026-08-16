@@ -28,6 +28,8 @@
 
 const APP = process.env.PERF_APP_CONTAINER || 'perf-app';
 const DB = process.env.PERF_DB_CONTAINER || 'perf-mysql';
+/** k6 를 컨테이너로 돌릴 때의 이름. 이 이름이어야 cAdvisor 가 부하 발생기를 따로 계측한다. */
+const LOADGEN = process.env.PERF_LOADGEN_CONTAINER || 'perf-k6';
 const APP_JOB = 'spring-app';
 
 /**
@@ -435,6 +437,86 @@ const GROUPS = [
       },
     ],
   },
+  {
+    id: 'host',
+    label: '호스트',
+    // cAdvisor 는 컨테이너 **하나하나**를 본다. 그것들이 합쳐서 머신을 얼마나 밀었는지는
+    // 보지 못한다. 컨테이너별 CPU 가 전부 한가해 보여도 호스트 run queue 가 길면 응답시간은
+    // 늘어난다 — 그 경우를 설명할 지표가 없었다(E-09).
+    //
+    // 여기서 "호스트"는 **WSL2 VM** 이다. Windows 자체가 아니다. Windows 에서 직접 실행하는
+    // k6.exe 는 이 VM 밖이라 잡히지 않는다 — 그래서 loadgen 그룹이 따로 있다.
+    metrics: [
+      {
+        key: 'host.cores', label: '호스트 코어 수',
+        query: `count(count by (cpu) (node_cpu_seconds_total))`,
+        reduce: 'max', unit: 'cores',
+        desc: 'VM 에 할당된 논리 코어 수. 아래 사용률의 분모.',
+      },
+      ...gaugeStats('host.cpuPct', `100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[1m])))`, {
+        label: '호스트 CPU 사용률', unit: 'percent', reduce: 'max',
+        desc: 'VM 전체 CPU 사용률. 개별 컨테이너가 한가해도 이 값이 높으면 서로 밀어낸 것이다.',
+      }),
+      // `node_load1 / count(...)` 를 그대로 쓰면 안 된다. 왼쪽에는 instance·job 레이블이
+      // 있고 오른쪽 집계에는 없어서 벡터 매칭이 실패해 **빈 결과**가 된다(실측). 오른쪽을
+      // scalar() 로 접어 레이블 없는 상수로 만든다.
+      ...gaugeStats('host.loadPerCore', `avg(node_load1) / scalar(count(count by (cpu) (node_cpu_seconds_total)))`, {
+        label: '코어당 run queue', unit: 'ratio', reduce: 'max',
+        desc: 'load1 을 코어 수로 나눈 값. 1 을 넘으면 실행 대기가 코어보다 많다는 뜻이다.',
+      }),
+      {
+        key: 'host.iowaitPct', label: 'iowait 비율',
+        query: `100 * avg(rate(node_cpu_seconds_total{mode="iowait"}[$RANGE]))`,
+        reduce: 'max', unit: 'percent',
+        desc: 'CPU 가 디스크를 기다린 비율. 높으면 병목이 CPU 가 아니라 I/O 다.',
+      },
+      {
+        key: 'host.stealPct', label: 'steal 비율',
+        query: `100 * avg(rate(node_cpu_seconds_total{mode="steal"}[$RANGE]))`,
+        reduce: 'max', unit: 'percent',
+        desc: '하이퍼바이저가 CPU 를 가져간 비율. VM 밖(Windows) 부하의 간접 증거다.',
+      },
+      {
+        key: 'host.memAvailableBytes', label: '가용 메모리',
+        query: `min_over_time(node_memory_MemAvailable_bytes[$RANGE:])`,
+        reduce: 'max', unit: 'bytes',
+        desc: '구간 중 최저 가용 메모리. 0 에 가까우면 페이지 캐시가 밀려 디스크 읽기가 는다.',
+      },
+      {
+        key: 'host.contextSwitchesSec', label: '컨텍스트 스위치',
+        query: `rate(node_context_switches_total[$RANGE])`,
+        reduce: 'max', unit: 'per_sec',
+        desc: '초당 컨텍스트 스위치. 급증은 과도한 스레드 경합 신호다.',
+      },
+    ],
+  },
+  {
+    id: 'loadgen',
+    label: '부하 발생기',
+    // E-01 — 부하 발생기와 측정 대상이 같은 머신을 쓴다. 분리가 최선이지만, 분리하지 못하는
+    // 실험이라면 **최소한 얼마나 먹었는지는 기록**해야 "이 결과는 로컬 상대 비교로만 유효"
+    // 라고 말할 근거가 생긴다.
+    //
+    // 이 지표들은 k6 를 컨테이너로 돌릴 때만 값이 있다(`perf-run.js --loadgen docker`).
+    // Windows 네이티브 k6.exe 는 cAdvisor 도 node-exporter 도 보지 못하므로 전부 결측이
+    // 되는데, 그 결측 자체가 "부하 발생기를 측정하지 않았다"는 정확한 기록이다.
+    metrics: [
+      ...gaugeStats('loadgen.cores', one(`rate(container_cpu_usage_seconds_total{name="${LOADGEN}"}[1m])`), {
+        label: '부하 발생기 CPU', unit: 'cores', reduce: 'max',
+        desc: 'k6 컨테이너가 소비한 코어 수. 측정 대상과 같은 머신이면 이만큼 뺏은 것이다.',
+      }),
+      {
+        key: 'loadgen.throttledPct', label: '부하 발생기 throttled',
+        query: one(`100 * rate(container_cpu_cfs_throttled_periods_total{name="${LOADGEN}"}[$RANGE]) / clamp_min(rate(container_cpu_cfs_periods_total{name="${LOADGEN}"}[$RANGE]), 1)`),
+        reduce: 'max', unit: 'percent',
+        desc: '**0 이 아니면 그 실행의 지연은 서버가 아니라 부하 발생기가 만든 것일 수 있다.** 서버 포화와 발생기 포화를 가르는 값.',
+      },
+      ...gaugeStats('loadgen.memBytes', one(`container_memory_working_set_bytes{name="${LOADGEN}"}`), {
+        label: '부하 발생기 메모리', unit: 'bytes', reduce: 'max',
+        desc: 'k6 가 쓴 메모리. VU 가 많으면 여기가 먼저 터진다.',
+      }),
+    ],
+  },
 ];
 
 /**
@@ -491,4 +573,4 @@ function computeDerived(flat) {
   return { derived, issues };
 }
 
-module.exports = { GROUPS, computeDerived, APP, DB, APP_JOB };
+module.exports = { GROUPS, computeDerived, APP, DB, APP_JOB, LOADGEN };

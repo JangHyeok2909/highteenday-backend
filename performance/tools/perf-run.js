@@ -76,6 +76,62 @@ const TREND_STATS = 'avg,min,med,max,p(90),p(95),p(99)';
  */
 const K6_BIN = process.env.K6_BIN || 'k6';
 
+/**
+ * 부하 발생기를 컨테이너로 돌리기 위한 설정(E-01).
+ *
+ * 왜 필요한가: k6 가 Windows 네이티브 프로세스면 **아무도 그것을 측정하지 못한다.**
+ * cAdvisor 는 컨테이너만 보고, node-exporter 가 보는 "호스트"는 WSL2 VM 이라 그 밖에서 도는
+ * k6.exe 가 잡히지 않는다. 그래서 "이 실행의 지연이 서버 탓인지 부하 발생기가 CPU 를
+ * 뺏은 탓인지"를 사후에 판별할 수 없었다.
+ *
+ * 컨테이너로 돌리면 세 가지가 생긴다.
+ *   1) cAdvisor 가 `perf-k6` 를 별도 컨테이너로 계측한다 (loadgen 지표 그룹)
+ *   2) `--cpus` 로 상한을 걸 수 있어 발생기가 서버를 굶기는 정도를 통제할 수 있다
+ *   3) throttled 비율이 0 이 아니면 **그 실행은 발생기가 먼저 한계에 걸린 것**임을 알 수 있다
+ *
+ * 물리적 분리(다른 머신)가 최선이지만 그건 장비 문제다. 이건 그 전 단계 —
+ * "분리하지 못했다면 최소한 얼마나 먹었는지는 기록한다".
+ */
+/**
+ * **로컬 k6 바이너리와 같은 버전이어야 한다.** k6 버전은 실행 조건이라, local 로 잰 실행과
+ * docker 로 잰 실행의 버전이 다르면 두 결과를 나란히 놓을 수 없다. 게다가 낮은 버전은
+ * JS 문법 자체를 못 읽는다 — 0.49.0 으로 돌려 보니 `scripts/lib/config.js` 의 객체 스프레드
+ * (`...extra`)에서 SyntaxError 로 죽었다(실측).
+ */
+const K6_IMAGE = process.env.K6_IMAGE || 'grafana/k6:2.1.0';
+const K6_NETWORK = process.env.K6_NETWORK || 'environment_default';
+const LOADGEN_CT = process.env.PERF_LOADGEN_CONTAINER || 'perf-k6';
+/** 컨테이너 안에서는 호스트 포트가 아니라 compose 서비스 이름으로 붙는다. */
+const K6_DOCKER_BASE_URL = process.env.K6_DOCKER_BASE_URL || 'http://app:8080';
+const K6_CPUS = process.env.K6_CPUS || '4';
+
+/** Docker Desktop 은 `C:/x/y` 는 받지만 Git Bash 스타일 `/c/x/y` 는 못 받는다. */
+const dockerPath = (p) => path.resolve(p).replace(/\\/g, '/');
+
+/**
+ * `docker run` 인자 조립. k6 이미지의 entrypoint 가 `k6` 라 인자는 `run …` 부터 시작한다.
+ * 스크립트·데이터셋·결과 파일이 전부 performance/ 아래에 있으므로 그 디렉터리 하나만 붙인다.
+ */
+function dockerK6Args(k6Args, env) {
+  const passthrough = [
+    'PERF_ENV', 'PERF_BRANCH', 'PERF_COMMIT', 'PERF_BUILD', 'PERF_EXECUTOR',
+    'PERF_SCRIPT_VERSION', 'PERF_NOTE', 'PERF_DATASET_FINGERPRINT', 'DATASET',
+  ];
+  const args = [
+    'run', '--rm', '--name', LOADGEN_CT,
+    '--network', K6_NETWORK,
+    '--cpus', K6_CPUS,
+    '-v', `${dockerPath(PERF_ROOT)}:/perf`,
+    '-w', '/perf',
+    '-e', `BASE_URL=${K6_DOCKER_BASE_URL}`,
+  ];
+  for (const k of passthrough) {
+    if (env[k] != null && env[k] !== '') args.push('-e', `${k}=${env[k]}`);
+  }
+  args.push(K6_IMAGE, ...k6Args);
+  return args;
+}
+
 function sh(cmd, args) {
   const r = spawnSync(cmd, args, { encoding: 'utf8', cwd: PERF_ROOT });
   return r.status === 0 ? (r.stdout || '').trim() : null;
@@ -288,10 +344,13 @@ function parseArgs(argv) {
     note: '', warmup: undefined, wait: 20, collect: true, gate: true, passthrough: [], k6Extra: [],
     // null = 지정 안 함. guard.js 가 환경변수 → perf.config.json → 기본값 순으로 이어받는다.
     guard: null,
+    // local | docker. 기본은 local(현행) — docker 는 부하 발생기를 계측 가능하게 만든다.
+    loadgen: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--guard') o.guard = argv[++i];
+    else if (a === '--loadgen') o.loadgen = argv[++i];
     else if (a === '--vus') o.vus = argv[++i];
     else if (a === '--duration') o.duration = argv[++i];
     else if (a === '--hold') o.hold = argv[++i];
@@ -380,10 +439,29 @@ function main() {
   // 수집 실패 잔여물이 남아 있으면 엉뚱한 실행을 수집하게 된다.
   const stagedBefore = stagedRunIds();
 
-  const k6 = spawnSync(K6_BIN, args, { stdio: 'inherit', env, cwd: PERF_ROOT });
+  // 부하 발생기를 컨테이너로 돌리면 cAdvisor 가 그것을 별도로 계측한다. 그래야 "지연이
+  // 서버 탓인가 발생기 탓인가"를 사후에 가를 수 있다(E-01). 기본은 기존 방식이다.
+  const loadgenMode = (o.loadgen || process.env.PERF_LOADGEN || 'local').toLowerCase();
+  if (!['local', 'docker'].includes(loadgenMode)) {
+    console.error(`--loadgen 은 local | docker 중 하나여야 합니다 (받은 값: ${loadgenMode})`);
+    process.exit(2);
+  }
+  stateBlock.loadgen = loadgenMode;
+  if (loadgenMode === 'docker') {
+    stateBlock.loadgenCpus = K6_CPUS;
+    stateBlock.loadgenImage = K6_IMAGE;
+    console.log(`  부하 발생기: 컨테이너 ${LOADGEN_CT} (${K6_IMAGE}, CPU 상한 ${K6_CPUS})`);
+  } else {
+    // 이 사실을 실행 기록에 남겨야 나중에 "왜 loadgen 지표가 비어 있지"에 답할 수 있다.
+    console.log('  부하 발생기: 로컬 프로세스 — CPU 사용량이 측정되지 않습니다 (--loadgen docker 로 계측 가능)');
+  }
+
+  const k6 = loadgenMode === 'docker'
+    ? spawnSync('docker', dockerK6Args(args, env), { stdio: 'inherit', cwd: PERF_ROOT })
+    : spawnSync(K6_BIN, args, { stdio: 'inherit', env, cwd: PERF_ROOT });
 
   if (k6.error) {
-    console.error(`k6 실행 실패: ${k6.error.message} (실행 파일: ${K6_BIN})`);
+    console.error(`k6 실행 실패: ${k6.error.message} (실행 파일: ${loadgenMode === 'docker' ? 'docker' : K6_BIN})`);
     console.error('k6가 PATH에 있는지 확인하세요. PATH의 k6가 실행 차단된 경우(Windows의');
     console.error('Chocolatey shim 등) K6_BIN 으로 실제 바이너리 경로를 지정할 수 있습니다.');
     process.exit(2);
