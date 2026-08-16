@@ -154,6 +154,9 @@ function toIndexEntry(record) {
     stateMatchedSnapshot: r.stateMatchedSnapshot != null ? r.stateMatchedSnapshot : null,
     stateChanged: r.stateChanged != null ? !!r.stateChanged : null,
     snapshotId: r.snapshotId || null,
+    // warm 에서 잰 값과 cold 에서 잰 값은 같은 실험이 아니다. 이력 표에서 그 사실을
+    // 구분하려면 인덱스에 있어야 한다(run.json 을 열지 않고 걸러야 하므로).
+    cacheState: r.cacheState || null,
     // 실행 조건 전체 + 계열 해시. 기준선 탐색이 run.json 을 열지 않고 인덱스만으로
     // 후보를 거를 수 있어야 하고, 탈락 사유를 사람에게 설명하려면 원본 값도 필요하다
     // (해시만 남기면 "해시가 다릅니다"밖에 말할 수 없다).

@@ -57,6 +57,7 @@ const DB = process.env.MYSQL_DATABASE || 'highteenday';
 const DB_PASS = process.env.MYSQL_ROOT_PASSWORD || 'perfroot';
 const MYSQL_CT = 'perf-mysql';
 const REDIS_CT = 'perf-redis';
+const APP_CT = 'perf-app';
 
 if (!PROFILES[PROFILE]) {
   console.error(`unknown profile: ${PROFILE} (available: ${Object.keys(PROFILES).join(', ')})`);
@@ -119,6 +120,38 @@ function step(n, msg) { console.log(`\n[${n}] ${msg}`); }
     process.exit(1);
   }
   console.log('  UP');
+
+  // ---- 1-b. 스키마가 이 볼륨에 실제로 적용됐는지 ----
+  //
+  // 앱이 UP 이라는 것과 이 볼륨에 마이그레이션이 돌았다는 것은 다르다. 프로파일을 바꿔
+  // `docker compose up -d` 를 하면 **MySQL 컨테이너만 재생성되고 앱은 그대로 살아 있다.**
+  // Flyway 는 기동 시점에만 도므로 새 빈 볼륨에는 테이블이 하나도 없는데, health 는
+  // 200 을 준다. 그 상태로 다음 단계가 `boards` 를 조회하면
+  // `Table 'highteenday.boards' doesn't exist` 로 죽는다 — 프로파일 전환 때마다 겪었다.
+  //
+  // 앱을 무조건 재시작하지 않는 이유: 부팅이 40초 넘게 걸려 평소 실행이 그만큼 느려진다.
+  // 스키마가 없을 때만 재시작한다.
+  const tableCount = () => Number(mysql(
+    `SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='${DB}';`));
+
+  if (tableCount() === 0) {
+    console.log('  스키마 없음 — 앱을 재시작해 Flyway 를 이 볼륨에 적용한다');
+    execFileSync('docker', ['restart', APP_CT], { stdio: 'ignore' });
+    let ready = false;
+    for (let i = 0; i < 60; i++) {
+      try {
+        const r = await fetch(`${BASE}/actuator/health`);
+        if (r.ok && tableCount() > 0) { ready = true; break; }
+      } catch { /* 부팅 중 */ }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    if (!ready) {
+      console.error('✗ 재시작 후에도 스키마가 만들어지지 않았다 — 앱 로그를 확인할 것:');
+      console.error(`    docker logs ${APP_CT} --tail 50`);
+      process.exit(1);
+    }
+    console.log(`  마이그레이션 적용됨 (테이블 ${tableCount()}개)`);
+  }
 
   // ---- 2. 게시판 (seed.js가 /api/boards를 조회하므로 반드시 선행) ----
   step(2, '게시판 확인/삽입');

@@ -46,6 +46,7 @@ const crypto = require('crypto');
 const CONTAINER = process.env.PERF_MYSQL_CONTAINER || 'perf-mysql';
 const DATABASE = process.env.PERF_MYSQL_DATABASE || 'highteenday';
 const PASSWORD = process.env.MYSQL_ROOT_PASSWORD || 'perfroot';
+const REDIS_CONTAINER = process.env.PERF_REDIS_CONTAINER || 'perf-redis';
 
 /**
  * 지문에 들어가는 테이블. `soft:false` 는 `is_valid` 컬럼이 없는 테이블이다
@@ -167,6 +168,38 @@ function computeState() {
 }
 
 /**
+ * 캐시 상태 — warm 으로 잰 값과 cold 로 잰 값은 같은 실험이 아니다.
+ *
+ * 왜 여기 있나: Redis 는 별개 저장소가 아니라 **같은 데이터 계층의 일부**다. 조회수 버퍼가
+ * 아직 DB 로 안 내려간 채 Redis 에 있고, 그래서 스냅샷 복원이 `FLUSHALL` 을 강제한다.
+ * DB 상태를 묻는 자리에서 캐시 상태를 함께 묻는 것이 자연스럽다.
+ *
+ * `RT:` 접두사(세션 리프레시 토큰)는 캐시가 아니므로 뺀다. VU 가 로그인만 해도 쌓이는데
+ * 그걸 warm 이라고 부르면 **모든 실행이 warm 으로 기록되어 이 값이 무의미해진다.**
+ *
+ * warm/cold 는 편의 라벨이고 판단 근거는 `cacheKeys` 숫자다 — 키 3개짜리 캐시를 warm 이라
+ * 부르는 것이 맞는지는 사람이 정할 문제라, 라벨과 원자료를 함께 남긴다.
+ */
+function computeCacheState() {
+  const r = spawnSync('docker', ['exec', REDIS_CONTAINER, 'redis-cli', '--scan', '--count', '1000'],
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  if (r.status !== 0) {
+    // 캐시 상태를 못 읽는 것은 실행을 막을 이유가 아니다. 다만 "cold 였다"고 단정해서도
+    // 안 되므로 unknown 으로 남긴다 — 모르는 것과 비어 있는 것은 다르다.
+    return { state: 'unknown', totalKeys: null, cacheKeys: null };
+  }
+  let total = 0;
+  let cache = 0;
+  for (const line of (r.stdout || '').split('\n')) {
+    const k = line.trim();
+    if (!k) continue;
+    total++;
+    if (!k.startsWith('RT:')) cache++;
+  }
+  return { state: cache === 0 ? 'cold' : 'warm', totalKeys: total, cacheKeys: cache };
+}
+
+/**
  * 두 상태의 차이. 리포트가 "무엇이 얼마나 변했는가"를 한 줄로 말할 수 있어야 한다 —
  * "지문이 다릅니다"만으로는 사람이 다음 행동을 정할 수 없다.
  */
@@ -199,6 +232,6 @@ function describeDiff(d, limit = 3) {
 }
 
 module.exports = {
-  computeState, fingerprintOf, diff, describeDiff,
+  computeState, computeCacheState, fingerprintOf, diff, describeDiff,
   CORE_TABLES, CORE_SUMS, buildSql, CONTAINER, DATABASE,
 };
