@@ -179,6 +179,33 @@ test('diff 가 core 변화와 volatile 변화를 분리한다', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 부하 발생기 실행 방식 — 경로가 다르면 같은 것을 잰 게 아니다
+// ---------------------------------------------------------------------------
+
+test('local 과 docker 는 비교되지 않는다 — 왕복 경로가 다르다', () => {
+  const local = cmp.conditionsOf(run({ loadgen: 'local' }));
+  const docker = cmp.conditionsOf(run({ loadgen: 'docker' }));
+  const res = cmp.compare(local, docker);
+  assert.equal(res.comparable, false);
+  assert.ok(res.mismatches.some((m) => m.key === 'loadgen' && m.materiality === 'blocking'));
+});
+
+test('loadgen 미기록(과거 실행)은 local 로 본다 — 그때는 다른 방식이 없었다', () => {
+  // null 로 두면 오늘 만든 기준선 계열까지 비교 불가가 된다. 알 수 없어서가 아니라
+  // 기록을 안 했을 뿐이므로, 사실에 근거해 local 로 채운다.
+  const old = cmp.conditionsOf(run());
+  const local = cmp.conditionsOf(run({ loadgen: 'local' }));
+  assert.equal(old.loadgen, 'local');
+  assert.equal(cmp.compare(old, local).comparable, true);
+});
+
+test('같은 loadgen 끼리는 비교된다', () => {
+  const a = cmp.conditionsOf(run({ loadgen: 'docker' }));
+  const b = cmp.conditionsOf(run({ loadgen: 'docker' }));
+  assert.equal(cmp.compare(a, b).comparable, true);
+});
+
+// ---------------------------------------------------------------------------
 // 캐시 상태 — 세션 토큰을 캐시로 세면 모든 실행이 warm 이 된다
 // ---------------------------------------------------------------------------
 
