@@ -22,6 +22,14 @@ scrape_configs:
     static_configs:
       - targets: ["cadvisor:8080"]
 
+  # 호스트(= WSL2 VM) 전체 포화. cAdvisor 가 컨테이너별로 보는 것과 달리 이쪽은
+  # "머신이 통째로 얼마나 밀렸나"를 본다 — load average, CPU steal/iowait, 메모리 압박.
+  # Windows 에서 직접 실행하는 k6.exe 는 이 VM 밖이라 여기에 잡히지 않는다.
+  - job_name: host
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels: { role: perf-host }
+
 # k6는 스크레이프가 아니라 remote write로 밀어넣는다:
 #   k6 run -o experimental-prometheus-rw \
 #     -e K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write ...
