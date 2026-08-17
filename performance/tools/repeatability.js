@@ -56,7 +56,7 @@ if (typeof fetch !== 'function') {
 
 function parseArgs(argv) {
   const o = {
-    script: null, runs: 10, vus: null, duration: null, dataset: null,
+    script: null, runs: 10, vus: null, duration: null, dataset: null, loadgen: null,
     env: null, reset: 'restart', wait: 20, settle: 5, note: '', out: null,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -65,6 +65,7 @@ function parseArgs(argv) {
     else if (a === '--vus') o.vus = argv[++i];
     else if (a === '--duration') o.duration = argv[++i];
     else if (a === '--dataset') o.dataset = argv[++i];
+    else if (a === '--loadgen') o.loadgen = argv[++i];
     else if (a === '--env') o.env = argv[++i];
     else if (a === '--reset') o.reset = argv[++i];
     else if (a === '--wait') o.wait = Number(argv[++i]);
@@ -180,6 +181,9 @@ function runOnce(o, index) {
   if (o.vus) args.push('--vus', o.vus);
   if (o.duration) args.push('--duration', o.duration);
   if (o.dataset) args.push('--dataset', o.dataset);
+  // 부하 발생기 모드는 비교 조건이다(conditions v4). 반복 전체가 같은 모드여야 하므로
+  // 환경변수에 기대지 않고 명시적으로 넘긴다.
+  if (o.loadgen) args.push('--loadgen', o.loadgen);
   if (o.env) args.push('--env', o.env);
   args.push('--note', `${o.note ? o.note + ' — ' : ''}repeatability ${index}/${o.runs}`);
 
