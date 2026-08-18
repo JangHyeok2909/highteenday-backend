@@ -263,6 +263,9 @@
 ### KI-44. 외부 API RestTemplate에 타임아웃이 없음
 - 위치: `configs/AppConfig.java · restTemplate()` — `new RestTemplate()` 기본 생성으로 connect/read 타임아웃 미설정.
 - 결과: NEIS 무응답 시 스케줄러·부팅 초기화 스레드가 무기한 대기한다.
+- → 보강 (2026-08-18): **정지가 다른 배치로 전파된다는 사실을 확정했다.** `@EnableScheduling`만 선언돼 있고 `TaskScheduler` 빈도, `spring.task.scheduling.pool.size` 설정도 없어 스케줄러 스레드 풀이 **1개**다(Spring Boot `TaskSchedulingProperties` 기본값). 따라서 `SchoolMealScheduler`가 타임아웃 없는 NEIS 호출에 묶이면 같은 스레드를 쓰는 `ViewCountScheduler`(60초 주기)와 `HotScoreScheduler`(5분 주기)가 **함께 멈춘다**. 조회수는 Redis에 계속 쌓이기만 하고 DB에 반영되지 않는다.
+- 확인 방법: `grep -rn "TaskScheduler" src/main/java`(0건)와 `grep -rn "task.scheduling" src/main/resources`(0건). 재현은 NEIS 호스트를 hosts 파일로 블랙홀 IP에 매핑한 뒤 `SchoolMealScheduler.loadSchoolMeals()`를 수동 호출하고, 이후 `ViewCountSync` 로그가 끊기는지 관찰.
+- 조치 방향: 두 가지가 **모두** 필요하다. `RestTemplate`에 connect/read 타임아웃을 설정해 근본 원인을 막고, `spring.task.scheduling.pool.size`를 4 이상으로 올려 배치 간 격리를 만든다. 풀 크기만 올리면 NEIS 호출 스레드는 여전히 영원히 묶인다.
 
 ### KI-45. 학교·급식 초기화 로직의 중복 실행과 유실 위험
 - 위치: 세 가지가 겹친다.
@@ -323,5 +326,44 @@
 - 확인 방법: 깨끗한 DB에 `small` 시드 생성 후 `posts.PST_scrap_count` 합과 활성 `scraps` 행 수 비교. 실측: `small`(게시글 500) 스크랩 2건·좋아요 1건, `large`(게시글 100,000) **역시 스크랩 2건·좋아요 1건**. 게시글이 200배인데 불일치가 늘지 않는다 — 경쟁 창이 규모에 비례하지 않는다는 뜻이라 실질 영향이 작다.
 - 판단: **당장 고치지 않는다.** 오차가 1로 제한되고 자가 치유되며, 인기글 정렬(`HotScoreCalculator`)에 영향을 줄 규모가 아니다. 근본 해결은 KI-53처럼 원자 증감으로 바꾸는 것인데, 토글이라 "켜기/끄기"를 구분해 증감해야 해서 KI-54(멱등성)와 함께 다루는 편이 낫다.
 
+## 게시글 목록 캐시 (2026-08-18 확인분)
+
+> 아래 둘은 같은 클래스(`services/domain/redisService/RedisPostsCache`)의 결함이지만 서로
+> 독립이다. KI-56은 **총 개수**가 틀리는 문제, KI-57은 **목록 내용**이 비는 문제다.
+>
+> 둘 다 성능 테스트로는 드러나지 않는다. 부하 스크립트(`performance/scripts/posts.js`)가
+> `size=10` 고정에 페이지 0~4만 요청하고, 매 실행 전 `FLUSHALL`로 Redis를 비우기 때문이다.
+
+### KI-56. 게시판 글 개수 캐시가 만료 후 첫 쓰기에서 1로 되살아난다
+- 위치: `services/domain/redisService/RedisPostsCache.java` — `board:{boardId}:count` 키를 다루는 세 경로의 TTL과 생성 방식이 어긋나 있다.
+  - `createCount()`: 캐시 미스 시 DB 집계값을 `set(key, count, Duration.ofMinutes(5))` — **TTL 5분**
+  - `incrementBoardCount()`: `opsForValue().increment(key, 1)`(Redis `INCRBY`) 후 `expire(key, BOARD_TTL)` — **TTL 60분**
+  - `decrementBoardCount()`: 같은 구조의 `DECRBY`
+- 원인: Redis `INCRBY`는 **키가 없으면 0으로 만든 뒤 증가**시킨다. 값 직렬화가 `GenericToStringSerializer<Long>`(평문 십진 문자열)이라 타입 오류로 막히지도 않는다. 그리고 `getCount()`는 캐시 히트 시 TTL을 갱신하지 않으므로, 키는 생성 5분 뒤 조회량과 무관하게 사라진다.
+- 결과: 아래 순서로 총 개수가 최대 60분간 `1`(삭제가 먼저면 `-1`)이 된다.
+  ```text
+  t+0분    목록 조회 → 미스 → createCount() → count = 50,000, TTL 5분
+  t+5분    키 만료
+  t+6분    글 작성 → INCRBY(키 없음) → count = 1, TTL 60분      ← 여기서 망가짐
+  t+6~66분 조회는 전부 히트하므로 createCount()가 불리지 않음 → total = 1 유지
+  ```
+  `GET /api/boards/{boardId}/posts` 응답의 `total`이 그 값이고(`controllers/BoardPostController · getPostsByBoardId()` → `PageResponse(content, page, size, count)`), 클라이언트는 이 값으로 전체 페이지 수를 계산하므로 페이지네이션이 1페이지로 축소된다. **쓰기가 있는 게시판이라면 이 사이클이 반복되므로 카운터가 맞는 시간보다 틀린 시간이 더 길다.**
+- 확인 방법: 게시판 목록을 한 번 조회해 `board:{id}:count`를 만들고(`redis-cli TTL board:1:count` → 300 부근), 6분 기다린 뒤 글을 하나 작성하고 `redis-cli GET board:1:count` 확인 → `1`.
+- 조치 방향: 증감 전에 키 존재를 확인하고 없으면 증감 대신 `createCount()`로 DB 재집계를 하거나, `INCRBY` 반환값이 증가분과 같은지(= 키가 없었다는 신호) 보고 보정한다. 어느 쪽이든 `createCount`의 5분과 증감의 60분을 하나로 통일해야 한다.
+- [KI-53](#ki-53-댓글-수-카운터가-동시-쓰기에서-유실됨)·[KI-55](#ki-55-반응스크랩-카운터가-동시-쓰기에서-드물게-1씩-어긋난다)와 다른 문제다 — 저쪽은 **DB 카운터**의 동시성 문제이고 이쪽은 **Redis 캐시 카운터**의 만료 문제다.
+
+### KI-57. 페이지 크기가 크면 캐시 경로가 빈 목록을 반환한다
+- 위치: `services/domain/PostService.java · getPagedPosts()`가 페이지 **번호**만 보고 캐시 경로를 택한다(`dto.getPage() < CACHE_PAGE_LIMIT && sortType == RECENT`, `CACHE_PAGE_LIMIT = 5`). 그런데 캐시 목록 `board:{id}:posts`는 최대 **50개**(`RedisPostsCache · MAX_SIZE`)만 담고, `size`는 컨트롤러에서 1~50까지 허용된다(`size <= 0 || size > 50`이면 기본값).
+- 결과: `page=3&size=20`이면 조회 범위가 `start=60, end=79`가 되어 50개짜리 리스트를 벗어난다. `getPostPrevs()`의 흐름은 이렇게 된다.
+  1. `range(key, 60, 79)` → 빈 리스트
+  2. "캐시가 비었다"고 판단해 DB에서 RECENT 상위 50건을 읽고 `addPostToBoard` 50회 + `cachePostPrev` 50회로 재적재
+  3. `range(key, 60, 79)` 재실행 → **여전히 빈 리스트**(리스트 길이는 그대로 50)
+  4. 빈 목록을 반환
+
+  즉 `page=3~4 & size=20`은 게시글이 수만 건 있어도 `content`가 빈 배열이고(`total`은 정상값이라 "3페이지가 있다는데 열면 비어 있다"로 보인다), `page=2 & size=20`은 20건 요청에 **10건만** 조용히 반환한다. 성능 측면으로는 그런 요청마다 DB 50행 조회와 Redis 명령 약 150회를 쓰고 아무것도 돌려주지 않는다.
+- 확인 방법: 게시글 60건 이상인 게시판에 `GET /api/boards/{id}/posts?page=3&size=20` 요청 → `content: []`, `total`은 정상. 같은 요청을 `sortType=LIKE`로 바꾸면(캐시 경로를 벗어난다) 정상 응답이 온다.
+- 조치 방향: 캐시 경로 진입 조건을 페이지 번호가 아니라 **끝 인덱스** 기준으로 바꾼다 — `(page + 1) * size <= MAX_SIZE`. 벗어나면 `postRepository.findByBoard(dto)`로 직행한다. 재적재도 `range` 결과가 아니라 `size(key)`로 "리스트가 실제로 비었는지"를 판정해야 한다.
+
 마지막 검증일: 2026-08-11 (최초 작성 2026-07-30, 이후 해소분은 각 항목의 "→ 갱신" 줄 참고)
 KI-53·54는 2026-08-14 추가 — 부하 테스트 중 발견분. KI-55는 같은 날 데이터셋 재생성 검증 중 발견.
+KI-56·57은 2026-08-18 추가 — "이미 아는 문제 말고 새 문제"를 찾는 코드 재독에서 발견. 부하 테스트가 밟지 않는 경로라 실행 결과로는 드러나지 않았다.
