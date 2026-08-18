@@ -299,6 +299,31 @@ async function processRun(runId, opts) {
   const dbstateFile = repo.loadDbState(runId);
   if (dbstateFile) Object.assign(record.run, dbstateFile);
 
+  /*
+   * 구간별 RPS 정규화 — 2026-08-13 ~ 2026-08-18 에 저장된 실행은 분모가 틀렸다(S-26).
+   *
+   * `phases.js` 가 k6 의 `rate` 를 그대로 썼는데, k6 는 카운터 rate 를 **전체 테스트
+   * 시간**으로 나눈다. 그래서 measure 구간 요청 수를 전체 실행 시간으로 나눈 값이 저장됐다.
+   *
+   * 여기서 다시 계산하는 이유: `collect.js` 는 k6.json 을 복사만 하므로 재수집해도 옛 값이
+   * 그대로 남는다. 그러면 **고친 뒤의 실행이 옛 실행을 기준선으로 잡을 때 rps 가 +37%
+   * 좋아진 것처럼 보인다** — rps 는 게이트 대상이라(warn 10% / fail 20%) 가짜 회귀 판정이
+   * 나온다. 원자료(k6.json)는 건드리지 않고 파생 레코드에서만 바로잡는다.
+   *
+   * 새 실행은 이미 옳은 값이라 이 계산이 같은 값을 낸다(멱등).
+   */
+  for (const [name, ph] of Object.entries(record.k6.phases || {})) {
+    if (!ph || !(ph.durationSec > 0) || ph.httpReqs == null) continue;
+    const correct = ph.httpReqs / ph.durationSec;
+    if (ph.rps != null && Math.abs(ph.rps - correct) > 0.01) {
+      if (!opts.quiet) {
+        console.log(`  · ${name} 구간 RPS 보정: ${ph.rps.toFixed(2)} → ${correct.toFixed(2)}` +
+          ` (요청 ${ph.httpReqs} / 구간 ${ph.durationSec}s) — S-26`);
+      }
+      ph.rps = correct;
+    }
+  }
+
   // 실행 번호는 최초 수집 때만 부여한다(재생성해도 번호가 안 바뀌어야 한다).
   const existing = repo.loadRun(runId);
   record.run.number = (existing && existing.run && existing.run.number) || repo.nextRunNumber();
