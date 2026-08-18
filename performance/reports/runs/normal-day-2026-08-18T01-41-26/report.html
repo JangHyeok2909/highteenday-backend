@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>normal-day #47 — Performance Report</title>
+<title>normal-day #57 — Performance Report</title>
 <style>
 :root {
   color-scheme: light dark;
@@ -161,22 +161,22 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     <div class="head-top">
       <div class="head-title">
         <h1>Performance Test Report — normal-day</h1>
-        <div class="sub">Run #47 · perf · 2026-08-16 19:26:52 KST</div>
+        <div class="sub">Run #57 · perf · 2026-08-18 10:14:11 KST</div>
       </div>
       <div class="verdict v-FAIL"><span class="ico">✕</span><span>실패</span></div>
     </div>
-    <div class="note">EXP-001 기준선 세트 — repeatability 5/5</div>
-    <dl class="meta"><div><dt>시나리오</dt><dd>normal-day</dd></div><div><dt>환경</dt><dd>perf</dd></div><div><dt>브랜치</dt><dd>personal/localdocs</dd></div><div><dt>커밋</dt><dd>03b09e85</dd></div><div><dt>빌드</dt><dd>local</dd></div><div><dt>실행자</dt><dd>user@DESKTOP-DJJPASG</dd></div><div><dt>시작</dt><dd>2026-08-16 19:26:52 KST</dd></div><div><dt>종료</dt><dd>2026-08-16 19:54:08 KST</dd></div><div><dt>수행 시간</dt><dd>27m 16s</dd></div><div><dt>VU 최대</dt><dd>200</dd></div><div><dt>Ramp-up</dt><dd>—</dd></div><div><dt>데이터셋</dt><dd>medium</dd></div><div><dt>부하 프로파일</dt><dd>ramping-vus 0→200@5m0s→200@20m0s→0@2m0s</dd></div><div><dt>측정 구간</dt><dd>steady-state · warmup 300s · measure 1200s · rampdown 120s · gate:measure</dd></div><div><dt>스크립트 버전</dt><dd>sha256:7757707b0a2b</dd></div><div><dt>측정 상태</dt><dd>MEASURED</dd></div><div><dt>조건 계열</dt><dd>4307755dd860</dd></div><div><dt>Run ID</dt><dd>normal-day-2026-08-16T10-54-08</dd></div></dl>
+    <div class="note">EXP-001 기준선 재측정 (S-26/T-31 수정 후, D-1) — repeatability 2/5</div>
+    <dl class="meta"><div><dt>시나리오</dt><dd>normal-day</dd></div><div><dt>환경</dt><dd>perf</dd></div><div><dt>브랜치</dt><dd>personal/localdocs</dd></div><div><dt>커밋</dt><dd>dd0f1830</dd></div><div><dt>빌드</dt><dd>local</dd></div><div><dt>실행자</dt><dd>user@DESKTOP-DJJPASG</dd></div><div><dt>시작</dt><dd>2026-08-18 10:14:11 KST</dd></div><div><dt>종료</dt><dd>2026-08-18 10:41:26 KST</dd></div><div><dt>수행 시간</dt><dd>27m 15s</dd></div><div><dt>VU 최대</dt><dd>200</dd></div><div><dt>Ramp-up</dt><dd>—</dd></div><div><dt>데이터셋</dt><dd>medium</dd></div><div><dt>부하 프로파일</dt><dd>ramping-vus 0→200@5m0s→200@20m0s→0@2m0s</dd></div><div><dt>측정 구간</dt><dd>steady-state · warmup 300s · measure 1200s · rampdown 120s · gate:measure</dd></div><div><dt>스크립트 버전</dt><dd>sha256:7757707b0a2b</dd></div><div><dt>측정 상태</dt><dd>MEASURED</dd></div><div><dt>조건 계열</dt><dd>4307755dd860</dd></div><div><dt>Run ID</dt><dd>normal-day-2026-08-18T01-41-26</dd></div></dl>
   </div></div>
 <div class="wrap">
   
   <section><h2>병목 가설</h2><div class="card">
     <div class="hint">
       <div class="n">1</div>
-      <div><div class="t">CPU throttling 발생</div><div class="d">cgroup이 CPU를 강제 회수한 주기가 99.8%다. CPU 한계(2 core)를 올리거나 요청당 CPU 사용을 줄여야 p99가 안정된다.</div></div>
+      <div><div class="t">CPU throttling 발생</div><div class="d">cgroup이 CPU를 강제 회수한 주기가 99.9%다. CPU 한계(2 core)를 올리거나 요청당 CPU 사용을 줄여야 p99가 안정된다.</div></div>
     </div><div class="hint">
       <div class="n">2</div>
-      <div><div class="t">DB 커넥션 풀 대기 발생</div><div class="d">최대 195개 스레드가 커넥션을 기다렸다. 풀 크기(10)가 동시성 대비 부족하거나, 커넥션 보유 시간이 긴 쿼리가 있다.</div></div>
+      <div><div class="t">DB 커넥션 풀 대기 발생</div><div class="d">최대 198개 스레드가 커넥션을 기다렸다. 풀 크기(10)가 동시성 대비 부족하거나, 커넥션 보유 시간이 긴 쿼리가 있다.</div></div>
     </div><div class="hint">
       <div class="n">3</div>
       <div><div class="t">DB 커넥션 풀 포화</div><div class="d">풀 사용률이 100%까지 올라갔다. 여유가 거의 없어 부하가 조금만 늘어도 대기가 생긴다.</div></div>
@@ -185,20 +185,20 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div><div class="t">CPU 포화</div><div class="d">CPU 사용이 한계의 100%에 도달했다.</div></div>
     </div><div class="hint">
       <div class="n">5</div>
-      <div><div class="t">HTTP 요청당 쿼리 수 과다</div><div class="d">요청 1건당 평균 288.1개 쿼리가 실행됐다. N+1 패턴 가능성이 높다.</div></div>
+      <div><div class="t">HTTP 요청당 쿼리 수 과다</div><div class="d">요청 1건당 평균 291.7개 쿼리가 실행됐다. N+1 패턴 가능성이 높다.</div></div>
     </div><div class="hint">
       <div class="n">6</div>
-      <div><div class="t">Slow Query 다발</div><div class="d">요청 1000건당 141.8건의 slow query(&gt;100ms). 인덱스 또는 쿼리 계획 점검 대상.</div></div>
+      <div><div class="t">Slow Query 다발</div><div class="d">요청 1000건당 152.3건의 slow query(&gt;100ms). 인덱스 또는 쿼리 계획 점검 대상.</div></div>
     </div>
     <div class="note">자동 규칙으로 뽑은 <b>가설</b>이지 확정된 원인이 아니다.
     포화도가 높은 자원부터 나열했을 뿐이므로, 실제 원인은 Grafana에서 해당 구간을 직접 확인해 검증해야 한다.</div>
   </div></section>
   <section><h2>Performance Summary (measure 구간)</h2><div class="kpis">
-    <div class="kpi"><div class="label">평균 응답시간</div><div class="value">6.23s</div><div class="foot"><span class="d-bad">▲ +2.2%</span><span class="d-flat">직전 대비</span></div></div>
-    <div class="kpi"><div class="label">P95</div><div class="value">12.92s</div><div class="foot"><span class="d-bad">▲ +6.2%</span><span class="d-flat">직전 대비</span></div></div>
-    <div class="kpi"><div class="label">P99</div><div class="value">17.74s</div><div class="foot"><span class="d-bad">▲ +1.9%</span><span class="d-flat">직전 대비</span></div></div>
-    <div class="kpi"><div class="label">TPS</div><div class="value">5.49</div><div class="foot"><span class="d-bad">▼ -1.3%</span><span class="d-flat">직전 대비</span></div></div>
-    <div class="kpi"><div class="label">RPS</div><div class="value">23.3</div><div class="foot"><span class="d-bad">▼ -2.2%</span><span class="d-flat">직전 대비</span></div></div>
+    <div class="kpi"><div class="label">평균 응답시간</div><div class="value">8.97s</div><div class="foot"><span class="d-bad">▲ +8.8%</span><span class="d-flat">직전 대비</span></div></div>
+    <div class="kpi"><div class="label">P95</div><div class="value">18.37s</div><div class="foot"><span class="d-bad">▲ +3.9%</span><span class="d-flat">직전 대비</span></div></div>
+    <div class="kpi"><div class="label">P99</div><div class="value">23.85s</div><div class="foot"><span class="d-flat">▲ +0.6%</span><span class="d-flat">직전 대비</span></div></div>
+    <div class="kpi"><div class="label">TPS</div><div class="value">4.09</div><div class="foot"><span class="d-bad">▼ -6.8%</span><span class="d-flat">직전 대비</span></div></div>
+    <div class="kpi"><div class="label">RPS</div><div class="value">17.6</div><div class="foot"><span class="d-bad">▼ -6.2%</span><span class="d-flat">직전 대비</span></div></div>
     <div class="kpi"><div class="label">오류율</div><div class="value">0.00%</div></div>
   </div>
 
@@ -208,25 +208,25 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
     <tbody><tr>
       <td>전체 HTTP 요청</td>
-      <td class="num">2.5ms</td><td class="num">6.23s</td><td class="num">5.67s</td>
-      <td class="num">10.78s</td><td class="num">12.92s</td><td class="num">17.74s</td>
-      <td class="num">28.59s</td>
+      <td class="num">2.3ms</td><td class="num">8.97s</td><td class="num">8.03s</td>
+      <td class="num">16.29s</td><td class="num">18.37s</td><td class="num">23.85s</td>
+      <td class="num">41.73s</td>
     </tr></tbody>
   </table></div>
 
   <h3>처리량 · 검증</h3>
   <div class="card scroll"><table>
     <tbody>
-      <tr><td>총 HTTP 요청</td><td class="num">28,016</td>
-          <td>완료 Iteration</td><td class="num">6,582</td></tr>
+      <tr><td>총 HTTP 요청</td><td class="num">21,174</td>
+          <td>완료 Iteration</td><td class="num">4,908</td></tr>
       <tr><td>실패 요청 (전체 구간)</td><td class="num">0</td>
           <td>Check 성공률</td><td class="num">100.00%</td></tr>
-      <tr><td>서버 대기(waiting) 평균 (전체 구간)</td><td class="num">5.69s</td>
-          <td>서버 대기 P95 (전체 구간)</td><td class="num">12.44s</td></tr>
-      <tr><td>Iteration 평균 소요 (전체 구간)</td><td class="num">34.18s</td>
+      <tr><td>서버 대기(waiting) 평균 (전체 구간)</td><td class="num">7.90s</td>
+          <td>서버 대기 P95 (전체 구간)</td><td class="num">17.58s</td></tr>
+      <tr><td>Iteration 평균 소요 (전체 구간)</td><td class="num">44.04s</td>
           <td>연결(blocked) 평균 (전체 구간)</td><td class="num">0.0ms</td></tr>
-      <tr><td>수신 데이터 (전체 구간)</td><td class="num">1.6 GB</td>
-          <td>송신 데이터 (전체 구간)</td><td class="num">14.0 MB</td></tr>
+      <tr><td>수신 데이터 (전체 구간)</td><td class="num">1.2 GB</td>
+          <td>송신 데이터 (전체 구간)</td><td class="num">10.9 MB</td></tr>
     </tbody>
   </table></div>
   </section>
@@ -245,50 +245,50 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       </div>
       
       <table>
-        <thead><tr><th>지표</th><th class="num">직전 (03b09e85)</th>
+        <thead><tr><th>지표</th><th class="num">직전 (dd0f1830)</th>
           <th class="num">현재</th><th class="num">변화</th><th>판정</th><th>사유</th></tr></thead>
         <tbody><tr>
-      <td>P95 응답시간</td>
-      <td class="num">12.16s</td>
-      <td class="num">12.92s</td>
-      <td class="num"><span class="d-bad">▲ +6.2%</span></td>
-      <td><span class="badge b-FAIL">✕ FAIL</span> <span class="badge b-FAIL">GATE</span></td>
-      <td style="color:var(--ink-2);font-size:12px">12922 &gt; 상한 500</td>
-    </tr><tr>
-      <td>P99 응답시간</td>
-      <td class="num">17.41s</td>
-      <td class="num">17.74s</td>
-      <td class="num"><span class="d-bad">▲ +1.9%</span></td>
-      <td><span class="badge b-FAIL">✕ FAIL</span> <span class="badge b-FAIL">GATE</span></td>
-      <td style="color:var(--ink-2);font-size:12px">17745 &gt; 상한 1200</td>
-    </tr><tr>
       <td>커넥션 획득 p95</td>
-      <td class="num">7.04s</td>
-      <td class="num">7.13s</td>
-      <td class="num"><span class="d-bad">▲ +1.3%</span></td>
+      <td class="num">9.94s</td>
+      <td class="num">10.73s</td>
+      <td class="num"><span class="d-bad">▲ +8.0%</span></td>
       <td><span class="badge b-FAIL">✕ FAIL</span></td>
-      <td style="color:var(--ink-2);font-size:12px">7131 &gt; 상한 100</td>
+      <td style="color:var(--ink-2);font-size:12px">10733 &gt; 상한 100</td>
     </tr><tr>
       <td>HikariCP 대기 스레드 최대</td>
-      <td class="num">194</td>
-      <td class="num">195</td>
-      <td class="num"><span class="d-flat">▲ +0.5%</span></td>
+      <td class="num">207</td>
+      <td class="num">198</td>
+      <td class="num"><span class="d-good">▼ -4.3%</span></td>
       <td><span class="badge b-FAIL">✕ FAIL</span></td>
-      <td style="color:var(--ink-2);font-size:12px">195 &gt; 상한 5.00</td>
+      <td style="color:var(--ink-2);font-size:12px">198 &gt; 상한 5.00</td>
+    </tr><tr>
+      <td>P95 응답시간</td>
+      <td class="num">17.68s</td>
+      <td class="num">18.37s</td>
+      <td class="num"><span class="d-bad">▲ +3.9%</span></td>
+      <td><span class="badge b-FAIL">✕ FAIL</span> <span class="badge b-FAIL">GATE</span></td>
+      <td style="color:var(--ink-2);font-size:12px">18370 &gt; 상한 500</td>
+    </tr><tr>
+      <td>P99 응답시간</td>
+      <td class="num">23.71s</td>
+      <td class="num">23.85s</td>
+      <td class="num"><span class="d-flat">▲ +0.6%</span></td>
+      <td><span class="badge b-FAIL">✕ FAIL</span> <span class="badge b-FAIL">GATE</span></td>
+      <td style="color:var(--ink-2);font-size:12px">23848 &gt; 상한 1200</td>
+    </tr><tr>
+      <td>CPU throttling 비율</td>
+      <td class="num">99.8%</td>
+      <td class="num">99.9%</td>
+      <td class="num"><span class="d-flat">▲ +0.1%</span></td>
+      <td><span class="badge b-FAIL">✕ FAIL</span> <span class="badge b-FAIL">GATE</span></td>
+      <td style="color:var(--ink-2);font-size:12px">99.93 &gt; 상한 10.00</td>
     </tr><tr>
       <td>CPU 포화도 (한계 대비 최대)</td>
       <td class="num">100.1%</td>
       <td class="num">100.1%</td>
-      <td class="num"><span class="d-flat">▲ +0.0%</span></td>
+      <td class="num"><span class="d-flat">▼ -0.0%</span></td>
       <td><span class="badge b-FAIL">✕ FAIL</span></td>
       <td style="color:var(--ink-2);font-size:12px">100 &gt; 상한 95.00</td>
-    </tr><tr>
-      <td>CPU throttling 비율</td>
-      <td class="num">99.8%</td>
-      <td class="num">99.8%</td>
-      <td class="num"><span class="d-flat">▼ -0.0%</span></td>
-      <td><span class="badge b-FAIL">✕ FAIL</span> <span class="badge b-FAIL">GATE</span></td>
-      <td style="color:var(--ink-2);font-size:12px">99.79 &gt; 상한 10.00</td>
     </tr><tr>
       <td>HikariCP 포화도</td>
       <td class="num">100.0%</td>
@@ -298,11 +298,18 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <td style="color:var(--ink-2);font-size:12px">100 &gt; 상한 95.00</td>
     </tr><tr>
       <td>GC 최대 정지시간</td>
-      <td class="num">155ms</td>
-      <td class="num">271ms</td>
-      <td class="num"><span class="d-bad">▲ +74.8%</span></td>
+      <td class="num">179ms</td>
+      <td class="num">500ms</td>
+      <td class="num"><span class="d-bad">▲ +179.3%</span></td>
       <td><span class="badge b-WARN">! WARN</span></td>
-      <td style="color:var(--ink-2);font-size:12px">271 &gt; 상한 200<br>직전 대비 +74.8% 악화 (경고 30%)</td>
+      <td style="color:var(--ink-2);font-size:12px">500 &gt; 상한 200<br>직전 대비 +179.3% 악화 (경고 30%)</td>
+    </tr><tr>
+      <td>부하 발생기 throttling 비율</td>
+      <td class="num">0.4%</td>
+      <td class="num">0.0%</td>
+      <td class="num"><span class="d-flat">▼ -100.0%</span></td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+      <td style="color:var(--ink-2);font-size:12px">변화 0.44 &lt; 노이즈 하한 0.50</td>
     </tr><tr>
       <td>MySQL 동시 실행 스레드 최대</td>
       <td class="num">8</td>
@@ -311,124 +318,117 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <td><span class="badge b-PASS">✓ PASS</span></td>
       <td style="color:var(--ink-2);font-size:12px"></td>
     </tr><tr>
-      <td>DB 디스크 쓰기</td>
-      <td class="num">213 KB/s</td>
-      <td class="num">241 KB/s</td>
-      <td class="num"><span class="d-flat">▲ +13.1%</span></td>
-      <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 28697 &lt; 노이즈 하한 1.05e+6</td>
-    </tr><tr>
-      <td>메모리 최대 사용량</td>
-      <td class="num">1.9 GB</td>
-      <td class="num">1.9 GB</td>
-      <td class="num"><span class="d-bad">▲ +3.2%</span></td>
+      <td>Redis Ops/sec</td>
+      <td class="num">116.5/s</td>
+      <td class="num">95.4/s</td>
+      <td class="num"><span class="d-good">▼ -18.2%</span></td>
       <td><span class="badge b-PASS">✓ PASS</span></td>
       <td style="color:var(--ink-2);font-size:12px"></td>
-    </tr><tr>
-      <td>메모리 포화도</td>
-      <td class="num">74.6%</td>
-      <td class="num">77.0%</td>
-      <td class="num"><span class="d-flat">▲ +3.2%</span></td>
-      <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 2.41 &lt; 노이즈 하한 3.00</td>
-    </tr><tr>
-      <td>GC 횟수</td>
-      <td class="num">457</td>
-      <td class="num">445</td>
-      <td class="num"><span class="d-flat">▼ -2.6%</span></td>
-      <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 12.05 &lt; 노이즈 하한 20.00</td>
-    </tr><tr>
-      <td>Heap 최대 사용량</td>
-      <td class="num">803 MB</td>
-      <td class="num">823 MB</td>
-      <td class="num"><span class="d-flat">▲ +2.5%</span></td>
-      <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 2.07e+7 &lt; 노이즈 하한 5.24e+7</td>
-    </tr><tr>
-      <td>MySQL QPS</td>
-      <td class="num">6,882/s</td>
-      <td class="num">6,727/s</td>
-      <td class="num"><span class="d-good">▼ -2.3%</span></td>
-      <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px"></td>
-    </tr><tr>
-      <td>RPS (초당 요청)</td>
-      <td class="num">23.9/s</td>
-      <td class="num">23.3/s</td>
-      <td class="num"><span class="d-flat">▼ -2.2%</span></td>
-      <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 0.53 &lt; 노이즈 하한 1.00</td>
     </tr><tr>
       <td>평균 응답시간</td>
-      <td class="num">6.10s</td>
-      <td class="num">6.23s</td>
-      <td class="num"><span class="d-bad">▲ +2.2%</span></td>
+      <td class="num">8.24s</td>
+      <td class="num">8.97s</td>
+      <td class="num"><span class="d-bad">▲ +8.8%</span></td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+      <td style="color:var(--ink-2);font-size:12px"></td>
+    </tr><tr>
+      <td>MySQL QPS</td>
+      <td class="num">5,624/s</td>
+      <td class="num">5,147/s</td>
+      <td class="num"><span class="d-good">▼ -8.5%</span></td>
       <td><span class="badge b-PASS">✓ PASS</span></td>
       <td style="color:var(--ink-2);font-size:12px"></td>
     </tr><tr>
       <td>송신 대역폭</td>
-      <td class="num">3.1 MB/s</td>
-      <td class="num">3.0 MB/s</td>
-      <td class="num"><span class="d-flat">▼ -2.2%</span></td>
+      <td class="num">2.5 MB/s</td>
+      <td class="num">2.3 MB/s</td>
+      <td class="num"><span class="d-flat">▼ -8.3%</span></td>
       <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 69937 &lt; 노이즈 하한 1.05e+6</td>
+      <td style="color:var(--ink-2);font-size:12px">변화 221016 &lt; 노이즈 하한 1.05e+6</td>
     </tr><tr>
-      <td>MySQL Slow Query 수</td>
-      <td class="num">4,049</td>
-      <td class="num">3,973</td>
-      <td class="num"><span class="d-good">▼ -1.9%</span></td>
+      <td>GC 횟수</td>
+      <td class="num">371</td>
+      <td class="num">342</td>
+      <td class="num"><span class="d-good">▼ -7.7%</span></td>
       <td><span class="badge b-PASS">✓ PASS</span></td>
       <td style="color:var(--ink-2);font-size:12px"></td>
     </tr><tr>
-      <td>Redis Ops/sec</td>
-      <td class="num">134.0/s</td>
-      <td class="num">136.3/s</td>
-      <td class="num"><span class="d-flat">▲ +1.8%</span></td>
-      <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 2.35 &lt; 노이즈 하한 10.00</td>
-    </tr><tr>
-      <td>Redis 메모리 최대</td>
-      <td class="num">3.2 MB</td>
-      <td class="num">3.1 MB</td>
-      <td class="num"><span class="d-flat">▼ -1.4%</span></td>
-      <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 45960 &lt; 노이즈 하한 1.05e+7</td>
-    </tr><tr>
       <td>TPS (초당 트랜잭션)</td>
-      <td class="num">5.6/s</td>
-      <td class="num">5.5/s</td>
-      <td class="num"><span class="d-flat">▼ -1.3%</span></td>
+      <td class="num">4.4/s</td>
+      <td class="num">4.1/s</td>
+      <td class="num"><span class="d-flat">▼ -6.8%</span></td>
       <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 0.07 &lt; 노이즈 하한 0.50</td>
+      <td style="color:var(--ink-2);font-size:12px">변화 0.30 &lt; 노이즈 하한 0.50</td>
     </tr><tr>
-      <td>Tomcat 스레드 포화도</td>
-      <td class="num">49.8%</td>
-      <td class="num">49.3%</td>
-      <td class="num"><span class="d-flat">▼ -1.0%</span></td>
+      <td>RPS (초당 요청)</td>
+      <td class="num">18.8/s</td>
+      <td class="num">17.6/s</td>
+      <td class="num"><span class="d-bad">▼ -6.2%</span></td>
       <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 0.50 &lt; 노이즈 하한 5.00</td>
+      <td style="color:var(--ink-2);font-size:12px"></td>
+    </tr><tr>
+      <td>메모리 최대 사용량</td>
+      <td class="num">1.9 GB</td>
+      <td class="num">1.9 GB</td>
+      <td class="num"><span class="d-bad">▲ +4.8%</span></td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+      <td style="color:var(--ink-2);font-size:12px"></td>
+    </tr><tr>
+      <td>메모리 포화도</td>
+      <td class="num">74.3%</td>
+      <td class="num">77.8%</td>
+      <td class="num"><span class="d-bad">▲ +4.8%</span></td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+      <td style="color:var(--ink-2);font-size:12px"></td>
     </tr><tr>
       <td>GC 오버헤드</td>
       <td class="num">1.1%</td>
       <td class="num">1.1%</td>
-      <td class="num"><span class="d-flat">▲ +0.5%</span></td>
+      <td class="num"><span class="d-flat">▼ -3.9%</span></td>
       <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 6.25e-3 &lt; 노이즈 하한 1.00</td>
+      <td style="color:var(--ink-2);font-size:12px">변화 0.04 &lt; 노이즈 하한 1.00</td>
+    </tr><tr>
+      <td>MySQL Slow Query 수</td>
+      <td class="num">3,294</td>
+      <td class="num">3,225</td>
+      <td class="num"><span class="d-good">▼ -2.1%</span></td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+      <td style="color:var(--ink-2);font-size:12px"></td>
+    </tr><tr>
+      <td>Redis 메모리 최대</td>
+      <td class="num">2.9 MB</td>
+      <td class="num">2.9 MB</td>
+      <td class="num"><span class="d-flat">▼ -1.6%</span></td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+      <td style="color:var(--ink-2);font-size:12px">변화 49024 &lt; 노이즈 하한 1.05e+7</td>
     </tr><tr>
       <td>Redis 캐시 적중률</td>
-      <td class="num">98.5%</td>
-      <td class="num">98.5%</td>
-      <td class="num"><span class="d-flat">▼ -0.1%</span></td>
+      <td class="num">98.3%</td>
+      <td class="num">98.7%</td>
+      <td class="num"><span class="d-flat">▲ +0.3%</span></td>
       <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 0.06 &lt; 노이즈 하한 1.00</td>
+      <td style="color:var(--ink-2);font-size:12px">변화 0.33 &lt; 노이즈 하한 1.00</td>
+    </tr><tr>
+      <td>DB 디스크 쓰기</td>
+      <td class="num">181 KB/s</td>
+      <td class="num">181 KB/s</td>
+      <td class="num"><span class="d-flat">▲ +0.3%</span></td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+      <td style="color:var(--ink-2);font-size:12px">변화 556 &lt; 노이즈 하한 1.05e+6</td>
+    </tr><tr>
+      <td>Heap 최대 사용량</td>
+      <td class="num">815 MB</td>
+      <td class="num">814 MB</td>
+      <td class="num"><span class="d-flat">▼ -0.2%</span></td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+      <td style="color:var(--ink-2);font-size:12px">변화 1.61e+6 &lt; 노이즈 하한 5.24e+7</td>
     </tr><tr>
       <td>InnoDB Buffer Pool 적중률</td>
       <td class="num">100.0%</td>
       <td class="num">100.0%</td>
       <td class="num"><span class="d-flat">▼ -0.0%</span></td>
       <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 6.98e-5 &lt; 노이즈 하한 0.50</td>
+      <td style="color:var(--ink-2);font-size:12px">변화 7.90e-5 &lt; 노이즈 하한 0.50</td>
     </tr><tr>
       <td>오류율</td>
       <td class="num">0.0</td>
@@ -443,13 +443,6 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <td class="num"><span class="d-flat">· 0.0%</span></td>
       <td><span class="badge b-PASS">✓ PASS</span></td>
       <td style="color:var(--ink-2);font-size:12px">변화 0.00 &lt; 노이즈 하한 5.00e-3</td>
-    </tr><tr>
-      <td>부하 발생기 throttling 비율</td>
-      <td class="num">0.0%</td>
-      <td class="num">0.0%</td>
-      <td class="num"><span class="d-flat">—</span></td>
-      <td><span class="badge b-PASS">✓ PASS</span></td>
-      <td style="color:var(--ink-2);font-size:12px">변화 0.03 &lt; 노이즈 하한 0.50</td>
     </tr><tr>
       <td>Live data (누수 지표)</td>
       <td class="num">0 B</td>
@@ -478,15 +471,22 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <td class="num"><span class="d-flat">—</span></td>
       <td><span class="badge b-PASS">✓ PASS</span></td>
       <td style="color:var(--ink-2);font-size:12px">변화 0.00 &lt; 노이즈 하한 1.00</td>
+    </tr><tr>
+      <td>Tomcat 스레드 포화도</td>
+      <td class="num">50.0%</td>
+      <td class="num">50.0%</td>
+      <td class="num"><span class="d-flat">· 0.0%</span></td>
+      <td><span class="badge b-PASS">✓ PASS</span></td>
+      <td style="color:var(--ink-2);font-size:12px">변화 0.00 &lt; 노이즈 하한 5.00</td>
     </tr></tbody>
       </table>
       <div class="note">
-        기준 실행: <b>normal-day-2026-08-16T10-24-54</b> (2026-08-16 18:57:40 KST)
+        기준 실행: <b>normal-day-2026-08-18T01-11-56</b> (2026-08-18 09:44:37 KST)
         · 당시 k6 thresholds <b>FAIL</b>
         · 당시 Node 판정 <b>FAIL</b>
         <span style="color:var(--ink-2)">— 기준선 자격은 측정 무결성과 실행 조건으로만 정해집니다.
         당시 성능이 나빴다는 사실은 기준선을 무효로 만들지 않습니다.</span><br>
-        판정 7건 실패 / 1건 경고 / 0건 평가 불가 (필수 0건 / 참고 0건 / 해당 없음 0건) / 23건 판정 생략 판정 생략은 변화폭이 노이즈 하한 미만이거나 기준값이 너무 작은 경우입니다.<br>
+        판정 7건 실패 / 1건 경고 / 0건 평가 불가 (필수 0건 / 참고 0건 / 해당 없음 0건) / 19건 판정 생략 판정 생략은 변화폭이 노이즈 하한 미만이거나 기준값이 너무 작은 경우입니다.<br>
         <b>GATE</b> 표시가 붙은 실패만 CI를 중단시킵니다. 규칙은 <code>regression/rules.json</code>에서 조정합니다.
       </div>
     </div></section>
@@ -499,20 +499,20 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <td class="num" style="color:var(--ink-2)">2.00 / 2.0 core</td>
     </tr><tr>
       <td>메모리</td>
-      <td style="width:210px"><div class="meter"><div class="track"><div class="fill s-warning" style="width:77.0%"></div></div><span class="pct">77%</span></div></td>
+      <td style="width:210px"><div class="meter"><div class="track"><div class="fill s-warning" style="width:77.8%"></div></div><span class="pct">78%</span></div></td>
       <td class="num" style="color:var(--ink-2)">1.9 GB / 2.5 GB</td>
     </tr><tr>
       <td>JVM Heap</td>
-      <td style="width:210px"><div class="meter"><div class="track"><div class="fill s-warning" style="width:80.4%"></div></div><span class="pct">80%</span></div></td>
-      <td class="num" style="color:var(--ink-2)">823 MB / 1024 MB</td>
+      <td style="width:210px"><div class="meter"><div class="track"><div class="fill s-warning" style="width:79.5%"></div></div><span class="pct">79%</span></div></td>
+      <td class="num" style="color:var(--ink-2)">814 MB / 1024 MB</td>
     </tr><tr>
       <td>HikariCP</td>
       <td style="width:210px"><div class="meter"><div class="track"><div class="fill s-critical" style="width:100.0%"></div></div><span class="pct">100%</span></div></td>
       <td class="num" style="color:var(--ink-2)">10 / 10</td>
     </tr><tr>
       <td>Tomcat 스레드</td>
-      <td style="width:210px"><div class="meter"><div class="track"><div class="fill " style="width:49.3%"></div></div><span class="pct">49%</span></div></td>
-      <td class="num" style="color:var(--ink-2)">197 / 400</td>
+      <td style="width:210px"><div class="meter"><div class="track"><div class="fill " style="width:50.0%"></div></div><span class="pct">50%</span></div></td>
+      <td class="num" style="color:var(--ink-2)">200 / 400</td>
     </tr><tr>
       <td>MySQL 커넥션</td>
       <td style="width:210px"><div class="meter"><div class="track"><div class="fill " style="width:5.5%"></div></div><span class="pct">6%</span></div></td>
@@ -526,7 +526,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
       <tbody><tr>
         <td title="JVM이 사용한 CPU 비율. 호스트 전체 코어 기준.">JVM 프로세스 CPU avg</td>
-        <td class="num">99.8%</td>
+        <td class="num">99.7%</td>
         <td style="color:var(--ink-muted);font-size:12px">JVM이 사용한 CPU 비율. 호스트 전체 코어 기준.</td>
       </tr><tr>
         <td title="JVM이 사용한 CPU 비율. 호스트 전체 코어 기준.">JVM 프로세스 CPU max</td>
@@ -538,7 +538,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">JVM이 사용한 CPU 비율. 호스트 전체 코어 기준.</td>
       </tr><tr>
         <td title="컨테이너가 소비한 CPU 코어 수. cgroup 한계와 직접 비교한다.">컨테이너 CPU avg</td>
-        <td class="num">1.97 core</td>
+        <td class="num">2.00 core</td>
         <td style="color:var(--ink-muted);font-size:12px">컨테이너가 소비한 CPU 코어 수. cgroup 한계와 직접 비교한다.</td>
       </tr><tr>
         <td title="컨테이너가 소비한 CPU 코어 수. cgroup 한계와 직접 비교한다.">컨테이너 CPU max</td>
@@ -554,11 +554,11 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">cgroup에 설정된 CPU 상한. 포화도 계산의 분모.</td>
       </tr><tr>
         <td title="cgroup이 CPU를 강제로 뺏은 주기 비율. &gt;0 이면 CPU 한계가 지연에 직접 영향을 준다.">CPU throttled 비율</td>
-        <td class="num">99.8%</td>
+        <td class="num">99.9%</td>
         <td style="color:var(--ink-muted);font-size:12px">cgroup이 CPU를 강제로 뺏은 주기 비율. &gt;0 이면 CPU 한계가 지연에 직접 영향을 준다.</td>
       </tr><tr>
         <td title="테스트 구간 동안 강제 정지된 총 시간.">CPU throttled 누적(초)</td>
-        <td class="num">1h 33m 40s</td>
+        <td class="num">1h 46m 39s</td>
         <td style="color:var(--ink-muted);font-size:12px">테스트 구간 동안 강제 정지된 총 시간.</td>
       </tr></tbody></table></div><h3>Memory</h3><div class="card scroll"><table>
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
@@ -594,15 +594,15 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
       <tbody><tr>
         <td title="힙 영역 합계 사용량.">Heap 사용 avg</td>
-        <td class="num">493 MB</td>
+        <td class="num">492 MB</td>
         <td style="color:var(--ink-muted);font-size:12px">힙 영역 합계 사용량.</td>
       </tr><tr>
         <td title="힙 영역 합계 사용량.">Heap 사용 max</td>
-        <td class="num">823 MB</td>
+        <td class="num">814 MB</td>
         <td style="color:var(--ink-muted);font-size:12px">힙 영역 합계 사용량.</td>
       </tr><tr>
         <td title="힙 영역 합계 사용량.">Heap 사용 p95</td>
-        <td class="num">795 MB</td>
+        <td class="num">775 MB</td>
         <td style="color:var(--ink-muted);font-size:12px">힙 영역 합계 사용량.</td>
       </tr><tr>
         <td title="-Xmx 로 설정된 힙 상한.">Heap 최대</td>
@@ -622,7 +622,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">Metaspace/CodeCache 등.</td>
       </tr><tr>
         <td title="Metaspace/CodeCache 등.">Non-heap 사용 max</td>
-        <td class="num">243 MB</td>
+        <td class="num">242 MB</td>
         <td style="color:var(--ink-muted);font-size:12px">Metaspace/CodeCache 등.</td>
       </tr><tr>
         <td title="Metaspace/CodeCache 등.">Non-heap 사용 p95</td>
@@ -632,23 +632,23 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
       <tbody><tr>
         <td title="한 번의 GC가 애플리케이션을 멈춘 평균 시간.">GC pause avg</td>
-        <td class="num">35ms</td>
+        <td class="num">42ms</td>
         <td style="color:var(--ink-muted);font-size:12px">한 번의 GC가 애플리케이션을 멈춘 평균 시간.</td>
       </tr><tr>
         <td title="최악의 단일 STW 시간. p99 지연의 주범인지 판단하는 근거.">GC pause max</td>
-        <td class="num">271ms</td>
+        <td class="num">500ms</td>
         <td style="color:var(--ink-muted);font-size:12px">최악의 단일 STW 시간. p99 지연의 주범인지 판단하는 근거.</td>
       </tr><tr>
         <td title="GC pause 분포의 95분위.">GC pause p95</td>
-        <td class="num">89ms</td>
+        <td class="num">103ms</td>
         <td style="color:var(--ink-muted);font-size:12px">GC pause 분포의 95분위.</td>
       </tr><tr>
         <td title="테스트 구간 총 GC 발생 횟수.">GC 횟수</td>
-        <td class="num">445</td>
+        <td class="num">342</td>
         <td style="color:var(--ink-muted);font-size:12px">테스트 구간 총 GC 발생 횟수.</td>
       </tr><tr>
         <td title="구간 내 STW 누적. duration 대비 비율이 GC 오버헤드다.">GC 총 정지시간</td>
-        <td class="num">15.46s</td>
+        <td class="num">14.43s</td>
         <td style="color:var(--ink-muted);font-size:12px">구간 내 STW 누적. duration 대비 비율이 GC 오버헤드다.</td>
       </tr><tr>
         <td title="CPU 시간 중 GC가 차지한 비율. 지속 5% 초과면 튜닝 대상.">GC 오버헤드 avg</td>
@@ -664,11 +664,11 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">CPU 시간 중 GC가 차지한 비율. 지속 5% 초과면 튜닝 대상.</td>
       </tr><tr>
         <td title="초당 힙 할당량. GC 빈도의 선행 지표.">할당률</td>
-        <td class="num">219 MB/s</td>
+        <td class="num">168 MB/s</td>
         <td style="color:var(--ink-muted);font-size:12px">초당 힙 할당량. GC 빈도의 선행 지표.</td>
       </tr><tr>
         <td title="Young에서 Old로 승격된 초당 바이트. 높으면 Full GC가 다가온다.">Old 승격률</td>
-        <td class="num">14.1 KB/s</td>
+        <td class="num">13.8 KB/s</td>
         <td style="color:var(--ink-muted);font-size:12px">Young에서 Old로 승격된 초당 바이트. 높으면 Full GC가 다가온다.</td>
       </tr></tbody></table></div><h3>MySQL</h3><div class="card scroll"><table>
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
@@ -682,7 +682,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">실제로 쿼리를 실행 중인 스레드. DB 동시성의 직접 지표.</td>
       </tr><tr>
         <td title="실제로 쿼리를 실행 중인 스레드. DB 동시성의 직접 지표.">Threads running p95</td>
-        <td class="num">4</td>
+        <td class="num">2</td>
         <td style="color:var(--ink-muted);font-size:12px">실제로 쿼리를 실행 중인 스레드. DB 동시성의 직접 지표.</td>
       </tr><tr>
         <td title="연결된 커넥션 수.">Threads connected avg</td>
@@ -702,15 +702,15 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">서버 커넥션 상한. 포화도 계산 분모.</td>
       </tr><tr>
         <td title="long_query_time(0.1s) 초과 쿼리 수. 인덱스 회귀의 1차 신호.">Slow query 수</td>
-        <td class="num">3,973</td>
+        <td class="num">3,225</td>
         <td style="color:var(--ink-muted);font-size:12px">long_query_time(0.1s) 초과 쿼리 수. 인덱스 회귀의 1차 신호.</td>
       </tr><tr>
         <td title="초당 쿼리 수. RPS 대비 비율이 곧 요청당 쿼리 수 = N+1 탐지기.">Queries/sec</td>
-        <td class="num">6,727/s</td>
+        <td class="num">5,147/s</td>
         <td style="color:var(--ink-muted);font-size:12px">초당 쿼리 수. RPS 대비 비율이 곧 요청당 쿼리 수 = N+1 탐지기.</td>
       </tr><tr>
         <td title="순간 최대 쿼리 처리율.">Queries/sec max</td>
-        <td class="num">7,782/s</td>
+        <td class="num">6,633/s</td>
         <td style="color:var(--ink-muted);font-size:12px">순간 최대 쿼리 처리율.</td>
       </tr><tr>
         <td title="InnoDB 버퍼풀 적중률. 낮으면 디스크에서 읽고 있다는 뜻.">Buffer pool hit ratio</td>
@@ -718,7 +718,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">InnoDB 버퍼풀 적중률. 낮으면 디스크에서 읽고 있다는 뜻.</td>
       </tr><tr>
         <td title="초당 읽은 행 수. 쿼리 수 대비 급증하면 풀스캔 의심.">Rows read/sec</td>
-        <td class="num">6,544/s</td>
+        <td class="num">4,998/s</td>
         <td style="color:var(--ink-muted);font-size:12px">초당 읽은 행 수. 쿼리 수 대비 급증하면 풀스캔 의심.</td>
       </tr><tr>
         <td title="연결 실패 횟수. 커넥션 고갈의 직접 증거.">Aborted connects</td>
@@ -730,7 +730,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">현재 행 잠금 대기 수. 핫 로우 경합 탐지.</td>
       </tr><tr>
         <td title="현재 행 잠금 대기 수. 핫 로우 경합 탐지.">Row lock 대기 max</td>
-        <td class="num">1</td>
+        <td class="num">0</td>
         <td style="color:var(--ink-muted);font-size:12px">현재 행 잠금 대기 수. 핫 로우 경합 탐지.</td>
       </tr><tr>
         <td title="현재 행 잠금 대기 수. 핫 로우 경합 탐지.">Row lock 대기 p95</td>
@@ -740,11 +740,11 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
       <tbody><tr>
         <td title="초당 처리 명령 수.">Ops/sec</td>
-        <td class="num">136.3/s</td>
+        <td class="num">95.4/s</td>
         <td style="color:var(--ink-muted);font-size:12px">초당 처리 명령 수.</td>
       </tr><tr>
         <td title="순간 최대 처리율.">Ops/sec max</td>
-        <td class="num">202.7/s</td>
+        <td class="num">165.9/s</td>
         <td style="color:var(--ink-muted);font-size:12px">순간 최대 처리율.</td>
       </tr><tr>
         <td title="연결된 클라이언트 수. Lettuce 풀 설정과 비교한다.">Connected clients avg</td>
@@ -760,7 +760,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">연결된 클라이언트 수. Lettuce 풀 설정과 비교한다.</td>
       </tr><tr>
         <td title="캐시 적중률. 캐시 기여도 실험(EXP-004)의 핵심 지표.">Hit ratio</td>
-        <td class="num">98.5%</td>
+        <td class="num">98.7%</td>
         <td style="color:var(--ink-muted);font-size:12px">캐시 적중률. 캐시 기여도 실험(EXP-004)의 핵심 지표.</td>
       </tr><tr>
         <td title="메모리 부족으로 쫓겨난 키 수. &gt;0 이면 캐시 효과가 무너지고 있다.">Evicted keys</td>
@@ -772,15 +772,15 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">TTL 만료로 삭제된 키 수.</td>
       </tr><tr>
         <td title="Redis가 사용 중인 메모리.">Redis 메모리 avg</td>
-        <td class="num">2.7 MB</td>
+        <td class="num">2.5 MB</td>
         <td style="color:var(--ink-muted);font-size:12px">Redis가 사용 중인 메모리.</td>
       </tr><tr>
         <td title="Redis가 사용 중인 메모리.">Redis 메모리 max</td>
-        <td class="num">3.1 MB</td>
+        <td class="num">2.9 MB</td>
         <td style="color:var(--ink-muted);font-size:12px">Redis가 사용 중인 메모리.</td>
       </tr><tr>
         <td title="Redis가 사용 중인 메모리.">Redis 메모리 p95</td>
-        <td class="num">3.1 MB</td>
+        <td class="num">2.8 MB</td>
         <td style="color:var(--ink-muted);font-size:12px">Redis가 사용 중인 메모리.</td>
       </tr><tr>
         <td title="Redis 메모리 상한 (0이면 무제한).">maxmemory</td>
@@ -806,15 +806,15 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">사용 중인 DB 커넥션.</td>
       </tr><tr>
         <td title="커넥션을 기다리는 스레드. &gt;0 이 지속되면 풀이 병목이다.">HikariCP pending avg</td>
-        <td class="num">144</td>
+        <td class="num">155</td>
         <td style="color:var(--ink-muted);font-size:12px">커넥션을 기다리는 스레드. &gt;0 이 지속되면 풀이 병목이다.</td>
       </tr><tr>
         <td title="커넥션을 기다리는 스레드. &gt;0 이 지속되면 풀이 병목이다.">HikariCP pending max</td>
-        <td class="num">195</td>
+        <td class="num">198</td>
         <td style="color:var(--ink-muted);font-size:12px">커넥션을 기다리는 스레드. &gt;0 이 지속되면 풀이 병목이다.</td>
       </tr><tr>
         <td title="커넥션을 기다리는 스레드. &gt;0 이 지속되면 풀이 병목이다.">HikariCP pending p95</td>
-        <td class="num">184</td>
+        <td class="num">195</td>
         <td style="color:var(--ink-muted);font-size:12px">커넥션을 기다리는 스레드. &gt;0 이 지속되면 풀이 병목이다.</td>
       </tr><tr>
         <td title="풀 최대 크기. 포화도 분모.">HikariCP max</td>
@@ -822,7 +822,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">풀 최대 크기. 포화도 분모.</td>
       </tr><tr>
         <td title="풀에서 커넥션을 받기까지 걸린 p95. 응답시간에 그대로 더해진다.">커넥션 획득 p95</td>
-        <td class="num">7.13s</td>
+        <td class="num">10.73s</td>
         <td style="color:var(--ink-muted);font-size:12px">풀에서 커넥션을 받기까지 걸린 p95. 응답시간에 그대로 더해진다.</td>
       </tr><tr>
         <td title="커넥션을 못 받고 실패한 횟수. 0이어야 정상.">커넥션 타임아웃</td>
@@ -830,15 +830,15 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">커넥션을 못 받고 실패한 횟수. 0이어야 정상.</td>
       </tr><tr>
         <td title="요청 처리 중인 워커 스레드.">Tomcat busy threads avg</td>
-        <td class="num">149</td>
+        <td class="num">160</td>
         <td style="color:var(--ink-muted);font-size:12px">요청 처리 중인 워커 스레드.</td>
       </tr><tr>
         <td title="요청 처리 중인 워커 스레드.">Tomcat busy threads max</td>
-        <td class="num">197</td>
+        <td class="num">200</td>
         <td style="color:var(--ink-muted);font-size:12px">요청 처리 중인 워커 스레드.</td>
       </tr><tr>
         <td title="요청 처리 중인 워커 스레드.">Tomcat busy threads p95</td>
-        <td class="num">187</td>
+        <td class="num">196</td>
         <td style="color:var(--ink-muted);font-size:12px">요청 처리 중인 워커 스레드.</td>
       </tr><tr>
         <td title="워커 스레드 상한. 여기 닿으면 요청이 큐에서 대기한다.">Tomcat max threads</td>
@@ -848,11 +848,11 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
       <tbody><tr>
         <td title="앱 컨테이너 초당 수신 바이트.">수신 대역폭</td>
-        <td class="num">2.3 MB/s</td>
+        <td class="num">1.8 MB/s</td>
         <td style="color:var(--ink-muted);font-size:12px">앱 컨테이너 초당 수신 바이트.</td>
       </tr><tr>
         <td title="앱 컨테이너 초당 송신 바이트.">송신 대역폭</td>
-        <td class="num">3.0 MB/s</td>
+        <td class="num">2.3 MB/s</td>
         <td style="color:var(--ink-muted);font-size:12px">앱 컨테이너 초당 송신 바이트.</td>
       </tr><tr>
         <td title="네트워크 수신 오류. 0이어야 정상.">수신 에러</td>
@@ -870,7 +870,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">DB 컨테이너 초당 디스크 읽기. 버퍼풀 미스와 연동해서 본다.</td>
       </tr><tr>
         <td title="DB 컨테이너 초당 디스크 쓰기 (redo/binlog 포함).">디스크 쓰기</td>
-        <td class="num">241 KB/s</td>
+        <td class="num">181 KB/s</td>
         <td style="color:var(--ink-muted);font-size:12px">DB 컨테이너 초당 디스크 쓰기 (redo/binlog 포함).</td>
       </tr><tr>
         <td title="디스크가 바빴던 누적 시간. duration 대비 비율이 디스크 이용률.">I/O 시간</td>
@@ -884,31 +884,31 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">VM 에 할당된 논리 코어 수. 아래 사용률의 분모.</td>
       </tr><tr>
         <td title="VM 전체 CPU 사용률. 개별 컨테이너가 한가해도 이 값이 높으면 서로 밀어낸 것이다.">호스트 CPU 사용률 avg</td>
-        <td class="num">19.2%</td>
+        <td class="num">19.1%</td>
         <td style="color:var(--ink-muted);font-size:12px">VM 전체 CPU 사용률. 개별 컨테이너가 한가해도 이 값이 높으면 서로 밀어낸 것이다.</td>
       </tr><tr>
         <td title="VM 전체 CPU 사용률. 개별 컨테이너가 한가해도 이 값이 높으면 서로 밀어낸 것이다.">호스트 CPU 사용률 max</td>
-        <td class="num">19.6%</td>
-        <td style="color:var(--ink-muted);font-size:12px">VM 전체 CPU 사용률. 개별 컨테이너가 한가해도 이 값이 높으면 서로 밀어낸 것이다.</td>
-      </tr><tr>
-        <td title="VM 전체 CPU 사용률. 개별 컨테이너가 한가해도 이 값이 높으면 서로 밀어낸 것이다.">호스트 CPU 사용률 p95</td>
         <td class="num">19.4%</td>
         <td style="color:var(--ink-muted);font-size:12px">VM 전체 CPU 사용률. 개별 컨테이너가 한가해도 이 값이 높으면 서로 밀어낸 것이다.</td>
       </tr><tr>
+        <td title="VM 전체 CPU 사용률. 개별 컨테이너가 한가해도 이 값이 높으면 서로 밀어낸 것이다.">호스트 CPU 사용률 p95</td>
+        <td class="num">19.3%</td>
+        <td style="color:var(--ink-muted);font-size:12px">VM 전체 CPU 사용률. 개별 컨테이너가 한가해도 이 값이 높으면 서로 밀어낸 것이다.</td>
+      </tr><tr>
         <td title="load1 을 코어 수로 나눈 값. 1 을 넘으면 실행 대기가 코어보다 많다는 뜻이다.">코어당 run queue avg</td>
-        <td class="num">0.3</td>
+        <td class="num">0.2</td>
         <td style="color:var(--ink-muted);font-size:12px">load1 을 코어 수로 나눈 값. 1 을 넘으면 실행 대기가 코어보다 많다는 뜻이다.</td>
       </tr><tr>
         <td title="load1 을 코어 수로 나눈 값. 1 을 넘으면 실행 대기가 코어보다 많다는 뜻이다.">코어당 run queue max</td>
-        <td class="num">0.5</td>
+        <td class="num">0.3</td>
         <td style="color:var(--ink-muted);font-size:12px">load1 을 코어 수로 나눈 값. 1 을 넘으면 실행 대기가 코어보다 많다는 뜻이다.</td>
       </tr><tr>
         <td title="load1 을 코어 수로 나눈 값. 1 을 넘으면 실행 대기가 코어보다 많다는 뜻이다.">코어당 run queue p95</td>
-        <td class="num">0.4</td>
+        <td class="num">0.3</td>
         <td style="color:var(--ink-muted);font-size:12px">load1 을 코어 수로 나눈 값. 1 을 넘으면 실행 대기가 코어보다 많다는 뜻이다.</td>
       </tr><tr>
         <td title="CPU 가 디스크를 기다린 비율. 높으면 병목이 CPU 가 아니라 I/O 다.">iowait 비율</td>
-        <td class="num">0.9%</td>
+        <td class="num">0.7%</td>
         <td style="color:var(--ink-muted);font-size:12px">CPU 가 디스크를 기다린 비율. 높으면 병목이 CPU 가 아니라 I/O 다.</td>
       </tr><tr>
         <td title="하이퍼바이저가 CPU 를 가져간 비율. VM 밖(Windows) 부하의 간접 증거다.">steal 비율</td>
@@ -920,13 +920,13 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">구간 중 최저 가용 메모리. 0 에 가까우면 페이지 캐시가 밀려 디스크 읽기가 는다.</td>
       </tr><tr>
         <td title="초당 컨텍스트 스위치. 급증은 과도한 스레드 경합 신호다.">컨텍스트 스위치</td>
-        <td class="num">41,955/s</td>
+        <td class="num">34,046/s</td>
         <td style="color:var(--ink-muted);font-size:12px">초당 컨텍스트 스위치. 급증은 과도한 스레드 경합 신호다.</td>
       </tr></tbody></table></div><h3>부하 발생기</h3><div class="card scroll"><table>
       <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
       <tbody><tr>
         <td title="k6 컨테이너가 소비한 코어 수. 측정 대상과 같은 머신이면 이만큼 뺏은 것이다.">부하 발생기 CPU avg</td>
-        <td class="num">0.06 core</td>
+        <td class="num">0.05 core</td>
         <td style="color:var(--ink-muted);font-size:12px">k6 컨테이너가 소비한 코어 수. 측정 대상과 같은 머신이면 이만큼 뺏은 것이다.</td>
       </tr><tr>
         <td title="k6 컨테이너가 소비한 코어 수. 측정 대상과 같은 머신이면 이만큼 뺏은 것이다.">부하 발생기 CPU max</td>
@@ -934,7 +934,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">k6 컨테이너가 소비한 코어 수. 측정 대상과 같은 머신이면 이만큼 뺏은 것이다.</td>
       </tr><tr>
         <td title="k6 컨테이너가 소비한 코어 수. 측정 대상과 같은 머신이면 이만큼 뺏은 것이다.">부하 발생기 CPU p95</td>
-        <td class="num">0.07 core</td>
+        <td class="num">0.06 core</td>
         <td style="color:var(--ink-muted);font-size:12px">k6 컨테이너가 소비한 코어 수. 측정 대상과 같은 머신이면 이만큼 뺏은 것이다.</td>
       </tr><tr>
         <td title="**0 이 아니면 그 실행의 지연은 서버가 아니라 부하 발생기가 만든 것일 수 있다.** 서버 포화와 발생기 포화를 가르는 값.">부하 발생기 throttled</td>
@@ -942,7 +942,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">**0 이 아니면 그 실행의 지연은 서버가 아니라 부하 발생기가 만든 것일 수 있다.** 서버 포화와 발생기 포화를 가르는 값.</td>
       </tr><tr>
         <td title="k6 가 쓴 메모리. VU 가 많으면 여기가 먼저 터진다.">부하 발생기 메모리 avg</td>
-        <td class="num">383 MB</td>
+        <td class="num">377 MB</td>
         <td style="color:var(--ink-muted);font-size:12px">k6 가 쓴 메모리. VU 가 많으면 여기가 먼저 터진다.</td>
       </tr><tr>
         <td title="k6 가 쓴 메모리. VU 가 많으면 여기가 먼저 터진다.">부하 발생기 메모리 max</td>
@@ -950,261 +950,261 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td style="color:var(--ink-muted);font-size:12px">k6 가 쓴 메모리. VU 가 많으면 여기가 먼저 터진다.</td>
       </tr><tr>
         <td title="k6 가 쓴 메모리. VU 가 많으면 여기가 먼저 터진다.">부하 발생기 메모리 p95</td>
-        <td class="num">399 MB</td>
+        <td class="num">398 MB</td>
         <td style="color:var(--ink-muted);font-size:12px">k6 가 쓴 메모리. VU 가 많으면 여기가 먼저 터진다.</td>
       </tr></tbody></table></div>
-    <div class="note">집계 구간 2026-08-16 19:31:52 KST ~ 2026-08-16 19:51:52 KST
+    <div class="note">집계 구간 2026-08-18 10:19:11 KST ~ 2026-08-18 10:39:11 KST
       (20m 0s, measure 구간)
       · 이 구간은 k6.phases.measure와 같은 시간대다(T-03/S-08) — 더 이상 별도 계산이 아니다.
       · 쿼리 103건</div>
   </section>
-  <section><h2>Breakdown</h2><h3>expected_response 응답시간 (P95 내림차순)</h3>
-      <div class="card scroll"><table>
-        <thead><tr><th>expected_response</th><th class="num">요청 수</th><th class="num">평균</th>
-          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
-        <tbody><tr>
-        <td>true</td>
-        <td class="num">—</td>
-        <td class="num">5.69s</td>
-        <td class="num">10.35s</td>
-        <td class="num">12.45s</td>
-        <td class="num">17.31s</td>
-        <td class="num">36.39s</td>
-      </tr></tbody></table></div><h3>목록 페이지별 응답시간 (P95 내림차순)</h3>
+  <section><h2>Breakdown</h2><h3>목록 페이지별 응답시간 (P95 내림차순)</h3>
       <div class="card scroll"><table>
         <thead><tr><th>page</th><th class="num">요청 수</th><th class="num">평균</th>
           <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
         <tbody><tr>
-        <td>3</td>
-        <td class="num">248</td>
-        <td class="num">4.22s</td>
-        <td class="num">8.02s</td>
-        <td class="num">9.59s</td>
-        <td class="num">12.17s</td>
-        <td class="num">14.36s</td>
-      </tr><tr>
-        <td>0</td>
-        <td class="num">1,802</td>
-        <td class="num">3.97s</td>
-        <td class="num">7.77s</td>
-        <td class="num">9.51s</td>
-        <td class="num">14.08s</td>
-        <td class="num">18.09s</td>
-      </tr><tr>
         <td>1</td>
-        <td class="num">672</td>
-        <td class="num">3.98s</td>
-        <td class="num">7.79s</td>
-        <td class="num">9.34s</td>
-        <td class="num">12.93s</td>
-        <td class="num">18.50s</td>
+        <td class="num">520</td>
+        <td class="num">5.51s</td>
+        <td class="num">10.93s</td>
+        <td class="num">13.54s</td>
+        <td class="num">17.32s</td>
+        <td class="num">21.37s</td>
       </tr><tr>
-        <td>4</td>
-        <td class="num">166</td>
-        <td class="num">3.72s</td>
-        <td class="num">6.71s</td>
-        <td class="num">8.56s</td>
-        <td class="num">10.85s</td>
-        <td class="num">15.63s</td>
+        <td>3</td>
+        <td class="num">182</td>
+        <td class="num">5.50s</td>
+        <td class="num">10.75s</td>
+        <td class="num">13.51s</td>
+        <td class="num">15.74s</td>
+        <td class="num">22.15s</td>
       </tr><tr>
         <td>2</td>
-        <td class="num">396</td>
-        <td class="num">3.67s</td>
-        <td class="num">7.42s</td>
-        <td class="num">8.29s</td>
-        <td class="num">12.80s</td>
-        <td class="num">15.91s</td>
+        <td class="num">271</td>
+        <td class="num">5.34s</td>
+        <td class="num">10.75s</td>
+        <td class="num">12.51s</td>
+        <td class="num">15.96s</td>
+        <td class="num">19.67s</td>
+      </tr><tr>
+        <td>0</td>
+        <td class="num">1,487</td>
+        <td class="num">5.10s</td>
+        <td class="num">10.36s</td>
+        <td class="num">12.40s</td>
+        <td class="num">15.97s</td>
+        <td class="num">22.23s</td>
+      </tr><tr>
+        <td>4</td>
+        <td class="num">145</td>
+        <td class="num">5.08s</td>
+        <td class="num">9.98s</td>
+        <td class="num">12.10s</td>
+        <td class="num">16.56s</td>
+        <td class="num">19.12s</td>
       </tr></tbody></table></div><h3>기능별 응답시간 (P95 내림차순)</h3>
       <div class="card scroll"><table>
         <thead><tr><th>feature</th><th class="num">요청 수</th><th class="num">평균</th>
           <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
         <tbody><tr>
         <td>comment</td>
-        <td class="num">6,438</td>
-        <td class="num">7.19s</td>
-        <td class="num">14.12s</td>
-        <td class="num">16.81s</td>
-        <td class="num">20.90s</td>
-        <td class="num">36.39s</td>
-      </tr><tr>
-        <td>mypage</td>
-        <td class="num">474</td>
-        <td class="num">5.76s</td>
-        <td class="num">10.36s</td>
-        <td class="num">12.25s</td>
-        <td class="num">14.98s</td>
-        <td class="num">18.92s</td>
-      </tr><tr>
-        <td>friend</td>
-        <td class="num">553</td>
-        <td class="num">5.54s</td>
-        <td class="num">9.89s</td>
-        <td class="num">11.96s</td>
-        <td class="num">14.71s</td>
-        <td class="num">17.19s</td>
-      </tr><tr>
-        <td>reaction</td>
-        <td class="num">650</td>
-        <td class="num">5.76s</td>
-        <td class="num">9.62s</td>
-        <td class="num">11.58s</td>
-        <td class="num">15.01s</td>
-        <td class="num">21.38s</td>
-      </tr><tr>
-        <td>chat</td>
-        <td class="num">2,881</td>
-        <td class="num">5.54s</td>
-        <td class="num">9.75s</td>
-        <td class="num">11.46s</td>
-        <td class="num">15.57s</td>
-        <td class="num">26.87s</td>
-      </tr><tr>
-        <td>school</td>
-        <td class="num">321</td>
-        <td class="num">5.37s</td>
-        <td class="num">9.56s</td>
-        <td class="num">11.36s</td>
-        <td class="num">14.93s</td>
-        <td class="num">16.52s</td>
-      </tr><tr>
-        <td>board</td>
-        <td class="num">3,284</td>
-        <td class="num">5.49s</td>
-        <td class="num">9.81s</td>
-        <td class="num">11.32s</td>
-        <td class="num">14.88s</td>
-        <td class="num">20.66s</td>
-      </tr><tr>
-        <td>notification</td>
-        <td class="num">1,518</td>
-        <td class="num">5.57s</td>
-        <td class="num">9.66s</td>
-        <td class="num">11.29s</td>
-        <td class="num">14.79s</td>
-        <td class="num">21.50s</td>
-      </tr><tr>
-        <td>hot</td>
-        <td class="num">3,284</td>
-        <td class="num">5.58s</td>
-        <td class="num">9.88s</td>
-        <td class="num">11.27s</td>
-        <td class="num">14.80s</td>
-        <td class="num">22.76s</td>
-      </tr><tr>
-        <td>post</td>
-        <td class="num">15,245</td>
-        <td class="num">5.25s</td>
-        <td class="num">9.57s</td>
-        <td class="num">11.09s</td>
-        <td class="num">14.71s</td>
-        <td class="num">23.51s</td>
+        <td class="num">5,065</td>
+        <td class="num">9.65s</td>
+        <td class="num">19.20s</td>
+        <td class="num">22.72s</td>
+        <td class="num">28.55s</td>
+        <td class="num">41.73s</td>
       </tr><tr>
         <td>scrap</td>
-        <td class="num">167</td>
-        <td class="num">5.49s</td>
-        <td class="num">9.55s</td>
-        <td class="num">10.94s</td>
-        <td class="num">14.06s</td>
-        <td class="num">17.00s</td>
+        <td class="num">141</td>
+        <td class="num">8.77s</td>
+        <td class="num">15.67s</td>
+        <td class="num">17.29s</td>
+        <td class="num">23.82s</td>
+        <td class="num">27.82s</td>
+      </tr><tr>
+        <td>reaction</td>
+        <td class="num">507</td>
+        <td class="num">7.84s</td>
+        <td class="num">15.12s</td>
+        <td class="num">17.25s</td>
+        <td class="num">21.07s</td>
+        <td class="num">22.38s</td>
+      </tr><tr>
+        <td>friend</td>
+        <td class="num">461</td>
+        <td class="num">8.44s</td>
+        <td class="num">16.11s</td>
+        <td class="num">17.19s</td>
+        <td class="num">21.90s</td>
+        <td class="num">24.50s</td>
+      </tr><tr>
+        <td>notification</td>
+        <td class="num">1,146</td>
+        <td class="num">7.88s</td>
+        <td class="num">14.83s</td>
+        <td class="num">17.13s</td>
+        <td class="num">21.29s</td>
+        <td class="num">24.46s</td>
+      </tr><tr>
+        <td>chat</td>
+        <td class="num">2,106</td>
+        <td class="num">7.77s</td>
+        <td class="num">14.91s</td>
+        <td class="num">17.08s</td>
+        <td class="num">21.42s</td>
+        <td class="num">28.66s</td>
+      </tr><tr>
+        <td>hot</td>
+        <td class="num">2,605</td>
+        <td class="num">7.72s</td>
+        <td class="num">14.44s</td>
+        <td class="num">17.03s</td>
+        <td class="num">21.43s</td>
+        <td class="num">28.30s</td>
+      </tr><tr>
+        <td>school</td>
+        <td class="num">229</td>
+        <td class="num">8.09s</td>
+        <td class="num">15.12s</td>
+        <td class="num">16.91s</td>
+        <td class="num">21.44s</td>
+        <td class="num">21.67s</td>
+      </tr><tr>
+        <td>mypage</td>
+        <td class="num">392</td>
+        <td class="num">7.91s</td>
+        <td class="num">14.54s</td>
+        <td class="num">16.80s</td>
+        <td class="num">18.96s</td>
+        <td class="num">22.07s</td>
+      </tr><tr>
+        <td>board</td>
+        <td class="num">2,605</td>
+        <td class="num">7.84s</td>
+        <td class="num">14.39s</td>
+        <td class="num">16.79s</td>
+        <td class="num">21.13s</td>
+        <td class="num">25.63s</td>
+      </tr><tr>
+        <td>post</td>
+        <td class="num">11,993</td>
+        <td class="num">7.31s</td>
+        <td class="num">14.12s</td>
+        <td class="num">16.53s</td>
+        <td class="num">21.21s</td>
+        <td class="num">31.09s</td>
       </tr><tr>
         <td>timetable</td>
-        <td class="num">259</td>
-        <td class="num">5.40s</td>
-        <td class="num">9.64s</td>
-        <td class="num">10.80s</td>
-        <td class="num">13.35s</td>
-        <td class="num">18.61s</td>
+        <td class="num">186</td>
+        <td class="num">7.41s</td>
+        <td class="num">14.37s</td>
+        <td class="num">16.01s</td>
+        <td class="num">17.55s</td>
+        <td class="num">20.73s</td>
       </tr><tr>
         <td>auth</td>
-        <td class="num">461</td>
-        <td class="num">3.65s</td>
-        <td class="num">7.88s</td>
-        <td class="num">9.73s</td>
-        <td class="num">11.54s</td>
-        <td class="num">13.82s</td>
+        <td class="num">397</td>
+        <td class="num">5.01s</td>
+        <td class="num">11.48s</td>
+        <td class="num">14.13s</td>
+        <td class="num">20.92s</td>
+        <td class="num">22.16s</td>
+      </tr></tbody></table></div><h3>expected_response 응답시간 (P95 내림차순)</h3>
+      <div class="card scroll"><table>
+        <thead><tr><th>expected_response</th><th class="num">요청 수</th><th class="num">평균</th>
+          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
+        <tbody><tr>
+        <td>true</td>
+        <td class="num">—</td>
+        <td class="num">7.90s</td>
+        <td class="num">15.18s</td>
+        <td class="num">17.58s</td>
+        <td class="num">23.16s</td>
+        <td class="num">41.73s</td>
       </tr></tbody></table></div><h3>phase 응답시간 (P95 내림차순)</h3>
       <div class="card scroll"><table>
         <thead><tr><th>phase</th><th class="num">요청 수</th><th class="num">평균</th>
           <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
         <tbody><tr>
         <td>measure</td>
-        <td class="num">28,016</td>
-        <td class="num">6.23s</td>
-        <td class="num">10.78s</td>
-        <td class="num">12.92s</td>
-        <td class="num">17.74s</td>
-        <td class="num">28.59s</td>
+        <td class="num">21,174</td>
+        <td class="num">8.97s</td>
+        <td class="num">16.29s</td>
+        <td class="num">18.37s</td>
+        <td class="num">23.85s</td>
+        <td class="num">41.73s</td>
       </tr><tr>
         <td>warmup</td>
-        <td class="num">5,421</td>
-        <td class="num">3.41s</td>
-        <td class="num">7.73s</td>
-        <td class="num">9.64s</td>
-        <td class="num">15.77s</td>
-        <td class="num">36.39s</td>
+        <td class="num">4,601</td>
+        <td class="num">4.44s</td>
+        <td class="num">10.09s</td>
+        <td class="num">11.51s</td>
+        <td class="num">20.39s</td>
+        <td class="num">38.37s</td>
       </tr><tr>
         <td>rampdown</td>
-        <td class="num">2,098</td>
-        <td class="num">4.41s</td>
-        <td class="num">8.49s</td>
-        <td class="num">9.43s</td>
-        <td class="num">13.81s</td>
-        <td class="num">19.03s</td>
+        <td class="num">2,058</td>
+        <td class="num">4.69s</td>
+        <td class="num">9.37s</td>
+        <td class="num">10.63s</td>
+        <td class="num">16.22s</td>
+        <td class="num">26.60s</td>
       </tr></tbody></table></div><h3>오퍼레이션별 응답시간 (P95 내림차순)</h3>
       <div class="card scroll"><table>
         <thead><tr><th>op</th><th class="num">요청 수</th><th class="num">평균</th>
           <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
         <tbody><tr>
         <td>auth</td>
-        <td class="num">461</td>
-        <td class="num">3.65s</td>
-        <td class="num">7.88s</td>
-        <td class="num">9.73s</td>
-        <td class="num">11.54s</td>
-        <td class="num">13.82s</td>
+        <td class="num">397</td>
+        <td class="num">5.01s</td>
+        <td class="num">11.48s</td>
+        <td class="num">14.13s</td>
+        <td class="num">20.92s</td>
+        <td class="num">22.16s</td>
       </tr></tbody></table></div>
     <div class="note">P95가 가장 큰 항목이 곧 최적화 1순위 후보다. 요청 수가 적은데 P95가 크면
     "느리지만 드문" 경로이므로 사용자 체감 영향은 작을 수 있다 — 요청 수와 같이 본다.</div></section>
-  <section><h2>Trend (최근 5회)</h2>
+  <section><h2>Trend (최근 7회)</h2>
     <div class="sparks"><div class="spark">
     <div class="st">P95 응답시간</div>
-    <div class="sv">12.92s</div>
+    <div class="sv">18.37s</div>
     <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
-  <path d="M0.00,37.00 L25.00,28.87 L50.00,29.29 L75.00,27.23 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L25.00,28.87 L50.00,29.29 L75.00,27.23 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+  <path d="M0.00,37.00 L16.67,35.67 L33.33,35.74 L50.00,35.40 L66.67,31.44 L83.33,6.59 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L16.67,35.67 L33.33,35.74 L50.00,35.40 L66.67,31.44 L83.33,6.59 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-    <div class="range"><span>min 11.86s</span><span>max 12.92s</span></div>
+    <div class="range"><span>min 11.86s</span><span>max 18.37s</span></div>
   </div><div class="spark">
     <div class="st">평균 응답시간</div>
-    <div class="sv">6.23s</div>
+    <div class="sv">8.97s</div>
     <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
-  <path d="M0.00,37.00 L25.00,3.00 L50.00,24.96 L75.00,14.15 L100.00,5.24 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L25.00,3.00 L50.00,24.96 L75.00,14.15 L100.00,5.24" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+  <path d="M0.00,37.00 L16.67,31.56 L33.33,35.07 L50.00,33.34 L66.67,31.91 L83.33,10.66 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L16.67,31.56 L33.33,35.07 L50.00,33.34 L66.67,31.91 L83.33,10.66 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="5.24" r="2.6" fill="var(--series-1)"
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-    <div class="range"><span>min 5.75s</span><span>max 6.27s</span></div>
+    <div class="range"><span>min 5.75s</span><span>max 8.97s</span></div>
   </div><div class="spark">
     <div class="st">TPS</div>
-    <div class="sv">5.5/s</div>
+    <div class="sv">4.1/s</div>
     <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
-  <path d="M0.00,3.00 L25.00,37.00 L50.00,15.61 L75.00,26.75 L100.00,36.55 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L25.00,37.00 L50.00,15.61 L75.00,26.75 L100.00,36.55" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+  <path d="M0.00,3.00 L16.67,8.21 L33.33,4.93 L50.00,6.64 L66.67,8.14 L83.33,30.83 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L16.67,8.21 L33.33,4.93 L50.00,6.64 L66.67,8.14 L83.33,30.83 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="36.55" r="2.6" fill="var(--series-1)"
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-    <div class="range"><span>min 5.5/s</span><span>max 5.7/s</span></div>
+    <div class="range"><span>min 4.1/s</span><span>max 5.7/s</span></div>
   </div><div class="spark">
     <div class="st">오류율</div>
     <div class="sv">0.0%</div>
     <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
-  <path d="M0.00,37.00 L25.00,37.00 L50.00,37.00 L75.00,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L25.00,37.00 L50.00,37.00 L75.00,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+  <path d="M0.00,37.00 L16.67,37.00 L33.33,37.00 L50.00,37.00 L66.67,37.00 L83.33,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L16.67,37.00 L33.33,37.00 L50.00,37.00 L66.67,37.00 L83.33,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
@@ -1214,61 +1214,52 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     <div class="st">CPU 포화도</div>
     <div class="sv">100.1%</div>
     <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
-  <path d="M0.00,19.26 L25.00,37.00 L50.00,3.00 L75.00,33.82 L100.00,10.76 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,19.26 L25.00,37.00 L50.00,3.00 L75.00,33.82 L100.00,10.76" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+  <path d="M0.00,18.70 L16.67,35.83 L33.33,3.00 L50.00,32.76 L66.67,10.50 L83.33,28.87 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,18.70 L16.67,35.83 L33.33,3.00 L50.00,32.76 L66.67,10.50 L83.33,28.87 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="10.76" r="2.6" fill="var(--series-1)"
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
     <div class="range"><span>min 100.1%</span><span>max 100.1%</span></div>
   </div><div class="spark">
     <div class="st">Heap 최대</div>
-    <div class="sv">823 MB</div>
+    <div class="sv">814 MB</div>
     <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
-  <path d="M0.00,22.03 L25.00,21.89 L50.00,3.00 L75.00,37.00 L100.00,14.43 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,22.03 L25.00,21.89 L50.00,3.00 L75.00,37.00 L100.00,14.43" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+  <path d="M0.00,22.03 L16.67,21.89 L33.33,3.00 L50.00,37.00 L66.67,14.43 L83.33,23.44 L100.00,25.20 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,22.03 L16.67,21.89 L33.33,3.00 L50.00,37.00 L66.67,14.43 L83.33,23.44 L100.00,25.20" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="14.43" r="2.6" fill="var(--series-1)"
+  <circle cx="100.00" cy="25.20" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
     <div class="range"><span>min 803 MB</span><span>max 833 MB</span></div>
   </div><div class="spark">
     <div class="st">GC 최대 정지</div>
-    <div class="sv">271ms</div>
+    <div class="sv">500ms</div>
     <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
-  <path d="M0.00,3.00 L25.00,23.05 L50.00,33.22 L75.00,37.00 L100.00,3.29 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L25.00,23.05 L50.00,33.22 L75.00,37.00 L100.00,3.29" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+  <path d="M0.00,25.47 L16.67,32.27 L33.33,35.72 L50.00,37.00 L66.67,25.57 L83.33,34.63 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,25.47 L16.67,32.27 L33.33,35.72 L50.00,37.00 L66.67,25.57 L83.33,34.63 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.29" r="2.6" fill="var(--series-1)"
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-    <div class="range"><span>min 155ms</span><span>max 272ms</span></div>
+    <div class="range"><span>min 155ms</span><span>max 500ms</span></div>
   </div><div class="spark">
     <div class="st">Slow Query</div>
-    <div class="sv">3,973</div>
+    <div class="sv">3,225</div>
     <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
-  <path d="M0.00,3.00 L25.00,32.00 L50.00,5.28 L75.00,19.65 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L25.00,32.00 L50.00,5.28 L75.00,19.65 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+  <path d="M0.00,3.00 L16.67,7.83 L33.33,3.38 L50.00,5.77 L66.67,8.66 L83.33,34.38 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L16.67,7.83 L33.33,3.38 L50.00,5.77 L66.67,8.66 L83.33,34.38 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-    <div class="range"><span>min 3,973</span><span>max 4,122</span></div>
+    <div class="range"><span>min 3,225</span><span>max 4,122</span></div>
   </div></div>
     <div class="note">같은 시나리오·같은 환경의 최근 실행만 모았다. 오른쪽 끝이 이번 실행이다.
     한 번의 변화보다 <b>추세의 방향</b>이 중요하다 — 매 실행 5%씩 나빠지면 개별 판정은 계속 통과하지만
     10회 뒤에는 1.6배가 된다.</div></section>
   <section><h2>SLO Thresholds</h2><div class="card scroll">
     <table><thead><tr><th>메트릭</th><th>조건</th><th>결과</th></tr></thead><tbody><tr>
-    <td><code>checks{phase:measure}</code></td><td><code>rate&gt;0.99</code></td>
-    <td><span class="badge b-PASS">✓ 통과</span></td>
-  </tr><tr>
-    <td><code>http_req_duration{op:write,phase:measure}</code></td><td><code>p(95)&lt;500</code></td>
-    <td><span class="badge b-FAIL">✕ 실패</span></td>
-  </tr><tr>
-    <td><code>http_req_duration{op:write,phase:measure}</code></td><td><code>p(99)&lt;1200</code></td>
-    <td><span class="badge b-FAIL">✕ 실패</span></td>
-  </tr><tr>
     <td><code>http_req_failed{phase:measure}</code></td><td><code>rate&lt;0.01</code></td>
     <td><span class="badge b-PASS">✓ 통과</span></td>
   </tr><tr>
@@ -1276,6 +1267,15 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     <td><span class="badge b-FAIL">✕ 실패</span></td>
   </tr><tr>
     <td><code>http_req_duration{op:read,phase:measure}</code></td><td><code>p(99)&lt;800</code></td>
+    <td><span class="badge b-FAIL">✕ 실패</span></td>
+  </tr><tr>
+    <td><code>checks{phase:measure}</code></td><td><code>rate&gt;0.99</code></td>
+    <td><span class="badge b-PASS">✓ 통과</span></td>
+  </tr><tr>
+    <td><code>http_req_duration{op:write,phase:measure}</code></td><td><code>p(99)&lt;1200</code></td>
+    <td><span class="badge b-FAIL">✕ 실패</span></td>
+  </tr><tr>
+    <td><code>http_req_duration{op:write,phase:measure}</code></td><td><code>p(95)&lt;500</code></td>
     <td><span class="badge b-FAIL">✕ 실패</span></td>
   </tr></tbody></table>
     <div class="note">4건 미달 — k6 실행 중 판정된 SLO다.
@@ -1285,23 +1285,23 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     
     <h3>measure 구간 (게이트가 본 구간)</h3>
     <div class="links">
-      <a class="primary" href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786876192989&amp;to=1786877632989" target="_blank" rel="noopener">대시보드 열기</a>
-      <a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786876192989&amp;to=1786877632989&amp;kiosk" target="_blank" rel="noopener">Kiosk 모드</a>
-      <a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786876192989&amp;to=1786877632989&amp;viewPanel=2" target="_blank" rel="noopener">지연 P50/P95/P99</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786876192989&amp;to=1786877632989&amp;viewPanel=1" target="_blank" rel="noopener">RPS</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786876192989&amp;to=1786877632989&amp;viewPanel=3" target="_blank" rel="noopener">오류율 / VU</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786876192989&amp;to=1786877632989&amp;viewPanel=4" target="_blank" rel="noopener">JVM Heap</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786876192989&amp;to=1786877632989&amp;viewPanel=5" target="_blank" rel="noopener">GC Pause</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786876192989&amp;to=1786877632989&amp;viewPanel=7" target="_blank" rel="noopener">HikariCP</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786876192989&amp;to=1786877632989&amp;viewPanel=6" target="_blank" rel="noopener">Tomcat Threads</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786876192989&amp;to=1786877632989&amp;viewPanel=9" target="_blank" rel="noopener">MySQL</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786876192989&amp;to=1786877632989&amp;viewPanel=10" target="_blank" rel="noopener">Redis</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786876192989&amp;to=1786877632989&amp;viewPanel=11" target="_blank" rel="noopener">컨테이너 CPU</a>
+      <a class="primary" href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015831381&amp;to=1787017271381" target="_blank" rel="noopener">대시보드 열기</a>
+      <a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015831381&amp;to=1787017271381&amp;kiosk" target="_blank" rel="noopener">Kiosk 모드</a>
+      <a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015831381&amp;to=1787017271381&amp;viewPanel=2" target="_blank" rel="noopener">지연 P50/P95/P99</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015831381&amp;to=1787017271381&amp;viewPanel=1" target="_blank" rel="noopener">RPS</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015831381&amp;to=1787017271381&amp;viewPanel=3" target="_blank" rel="noopener">오류율 / VU</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015831381&amp;to=1787017271381&amp;viewPanel=4" target="_blank" rel="noopener">JVM Heap</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015831381&amp;to=1787017271381&amp;viewPanel=5" target="_blank" rel="noopener">GC Pause</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015831381&amp;to=1787017271381&amp;viewPanel=7" target="_blank" rel="noopener">HikariCP</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015831381&amp;to=1787017271381&amp;viewPanel=6" target="_blank" rel="noopener">Tomcat Threads</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015831381&amp;to=1787017271381&amp;viewPanel=9" target="_blank" rel="noopener">MySQL</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015831381&amp;to=1787017271381&amp;viewPanel=10" target="_blank" rel="noopener">Redis</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015831381&amp;to=1787017271381&amp;viewPanel=11" target="_blank" rel="noopener">컨테이너 CPU</a>
     </div>
     
     <h3>전체 실행 (ramp-up/rampdown 포함)</h3>
     <div class="links">
-      <a class="primary" href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786875892989&amp;to=1786877768531" target="_blank" rel="noopener">대시보드 열기</a>
-      <a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786875892989&amp;to=1786877768531&amp;kiosk" target="_blank" rel="noopener">Kiosk 모드</a>
-      <a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786875892989&amp;to=1786877768531&amp;viewPanel=2" target="_blank" rel="noopener">지연 P50/P95/P99</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786875892989&amp;to=1786877768531&amp;viewPanel=1" target="_blank" rel="noopener">RPS</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786875892989&amp;to=1786877768531&amp;viewPanel=3" target="_blank" rel="noopener">오류율 / VU</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786875892989&amp;to=1786877768531&amp;viewPanel=4" target="_blank" rel="noopener">JVM Heap</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786875892989&amp;to=1786877768531&amp;viewPanel=5" target="_blank" rel="noopener">GC Pause</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786875892989&amp;to=1786877768531&amp;viewPanel=7" target="_blank" rel="noopener">HikariCP</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786875892989&amp;to=1786877768531&amp;viewPanel=6" target="_blank" rel="noopener">Tomcat Threads</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786875892989&amp;to=1786877768531&amp;viewPanel=9" target="_blank" rel="noopener">MySQL</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786875892989&amp;to=1786877768531&amp;viewPanel=10" target="_blank" rel="noopener">Redis</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1786875892989&amp;to=1786877768531&amp;viewPanel=11" target="_blank" rel="noopener">컨테이너 CPU</a>
+      <a class="primary" href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015531381&amp;to=1787017406799" target="_blank" rel="noopener">대시보드 열기</a>
+      <a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015531381&amp;to=1787017406799&amp;kiosk" target="_blank" rel="noopener">Kiosk 모드</a>
+      <a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015531381&amp;to=1787017406799&amp;viewPanel=2" target="_blank" rel="noopener">지연 P50/P95/P99</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015531381&amp;to=1787017406799&amp;viewPanel=1" target="_blank" rel="noopener">RPS</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015531381&amp;to=1787017406799&amp;viewPanel=3" target="_blank" rel="noopener">오류율 / VU</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015531381&amp;to=1787017406799&amp;viewPanel=4" target="_blank" rel="noopener">JVM Heap</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015531381&amp;to=1787017406799&amp;viewPanel=5" target="_blank" rel="noopener">GC Pause</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015531381&amp;to=1787017406799&amp;viewPanel=7" target="_blank" rel="noopener">HikariCP</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015531381&amp;to=1787017406799&amp;viewPanel=6" target="_blank" rel="noopener">Tomcat Threads</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015531381&amp;to=1787017406799&amp;viewPanel=9" target="_blank" rel="noopener">MySQL</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015531381&amp;to=1787017406799&amp;viewPanel=10" target="_blank" rel="noopener">Redis</a><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787015531381&amp;to=1787017406799&amp;viewPanel=11" target="_blank" rel="noopener">컨테이너 CPU</a>
     </div>
     <div class="note">링크에는 각 구간이 앞뒤 2분 여유와 함께 이미 박혀 있다.
     여유를 두는 이유는 "부하 직전 상태"와 비교해야 이번 부하로 올라간 값인지 원래 높았던 값인지 구분되기 때문이다.
     두 링크는 서로 다른 시간 범위를 가리킨다 — measure 링크가 실제 판정에 쓰인 구간이다.</div>
   </div></section>
   <footer>
-    생성 2026-08-18 09:41:13 KST · Run ID <code>normal-day-2026-08-16T10-54-08</code> ·
+    생성 2026-08-18 10:41:47 KST · Run ID <code>normal-day-2026-08-18T01-41-26</code> ·
     원본 <code>run.json</code> / <code>k6.json</code> 은 같은 디렉터리에 있습니다.
   </footer>
 </div>
