@@ -47,6 +47,60 @@ EXPLAIN SELECT ... FROM post WHERE BRD_id=? AND is_valid=1 ORDER BY ... LIMIT 10
 -- rows 값이 OFFSET에 비례하면 확정
 ```
 
+## 개선 전 선행 조건
+
+공통 조건 넷은 [`README.md`의 "개선 전 공통 선행 조건"](README.md#개선-전-공통-선행-조건)에 있다.
+이 병목에만 걸리는 것은 아래 넷이다.
+
+### ① 지금 부하는 **커서 분기를 한 번도 실행하지 않는다** — 코드로 확인함
+
+이게 이 병목에서 가장 중요한 사실이다.
+
+| 확인 대상 | 실제 값 | 위치 |
+|---|---|---|
+| k6가 보내는 파라미터 | `page`, `sortType=RECENT`, `size=10` — **`isRandomPage`를 보내지 않는다** | `scripts/posts.js:32-34` |
+| 서버 기본값 | `isRandomPage=true` | `BoardPostController.java:49` |
+| 커서 분기 조건 | `RECENT && !isRandomPage && lastSeedId != null` | `PostRepositoryCustomImpl.java:85` |
+
+셋을 합치면 **지금 부하는 OFFSET 경로만 잰다.** 커서 분기는 `isRandomPage=false`와
+`lastSeedId`를 함께 보내야 타는데 부하가 둘 다 보내지 않는다.
+
+그래서 개선이 "커서 페이징으로 전환"이라면 **부하 스크립트도 파라미터를 바꿔 보내야 한다.**
+그러면 스크립트 지문이 갈려 옛 Before와의 자동 비교가 끊긴다(정상 동작). **개선 후의 부하
+형태로 Before를 다시 재 두는 것**이 순서다 — 그러지 않으면 "OFFSET을 보낸 실행"과
+"커서를 보낸 실행"을 비교하게 되고, 그건 쿼리 개선이 아니라 요청이 달라진 것이다.
+
+### ② 깊이 곡선은 `deep-paging` + `medium` 이상에서만 나온다
+
+일반 시나리오의 페이지 분포는 0~4페이지다(`PAGE_WEIGHTS = [0.55, 0.20, 0.12, 0.08, 0.05]`,
+`scripts/lib/sampling.js:96`). OFFSET이 최대 40이라 **0페이지와 비용 차이가 사실상 없다** —
+일반 시나리오로는 이 병목의 개선이 보이지 않는다.
+
+`small`(전체 500건)로 `deep-paging`을 돌리면 깊은 페이지가 빈 배열을 반환하고, 빈 응답은
+빠르기 때문에 **"깊은 페이지도 싸다"는 정반대 결론**이 난다. 500페이지 × size 10은
+5,010번째 글까지 존재해야 한다는 뜻이다.
+
+### ③ 정렬 축이 하나뿐이다
+
+부하는 `sortType=RECENT`만 쓴다. `LIKE`·`VIEW` 정렬(`getOrderSec()`)은 한 번도 측정되지
+않으므로, **그쪽 인덱스를 고쳐도 결과에 나타나지 않는다.** 개선 범위에 다른 정렬을 넣을
+거라면 부하에 그 축을 먼저 추가한다.
+
+### ④ 카운트 비용을 OFFSET 비용과 혼동하지 말 것
+
+목록 응답의 `total`은 `RedisPostsCache.getCount()`가 돌려주고, 그 값은 **5분 TTL로
+캐시된다**(`RedisPostsCache.java:151-172`). 캐시 미스일 때만 `countTotal()`의 `COUNT(*)`가
+실행된다.
+
+즉 `COUNT(*)`는 목록 요청마다 도는 비용이 **아니다.** OFFSET을 고쳐도 남고, 반대로 캐시가
+식은 구간에서는 OFFSET과 무관하게 튄다. 두 비용을 분리해서 봐야 하며, 후자는 이 병목이
+아니라 BTL-004(캐시)의 영역이다.
+
+### 선택 — 레벨 3 지표
+
+`mysql.fullScanRows`(T-29, 카탈로그 미등록)를 넣으면 인덱스·정렬 개선이 실제로 읽는 행 수를
+줄였는지 수치로 볼 수 있다. 없어도 `EXPLAIN`으로 확정 가능하므로(E-40) 필수는 아니다.
+
 ## 해결 방법
 
 | 후보 | 효과 | 트레이드오프 |

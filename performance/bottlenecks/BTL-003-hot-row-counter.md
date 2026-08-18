@@ -8,6 +8,9 @@
 > 다시 재야 한다(시더의 동시성은 부하 시나리오의 VU 수와 다르다).
 > 관련: EXP-003, [KI-53](../../docs/defects/KI-53-comment-counter-lost-update.md)(같은 코드의
 > 정합성 문제 — 느린 것과 틀린 것은 다른 축이다), KI-55
+>
+> ⚠ **개선에 착수하기 전에 락 지표를 먼저 수집해야 한다.** 현재 지표 카탈로그로는 개선
+> 전후의 락 대기를 비교할 수 없다 — 아래 [개선 전 선행 조건](#개선-전-선행-조건--락-지표를-먼저-수집한다) 절 참고.
 
 ## 증상
 
@@ -170,6 +173,85 @@ content 등 전체 컬럼을 매번 다시 쓴다) 락 보유 시간과 충돌 �
 컬럼이 SET 절에 나열되는 것이 그 증거. 이는 개선 우선순위를 더 높인다: 단순 원자적
 `UPDATE posts SET like_count = like_count + 1 WHERE id = ?`로 바꾸면 락 보유 시간이
 크게 줄어 이 데드락 빈도도 함께 낮아질 가능성이 높다.
+
+## 개선 전 선행 조건 — 락 지표를 먼저 수집한다
+
+공통 조건 넷은 [`README.md`의 "개선 전 공통 선행 조건"](README.md#개선-전-공통-선행-조건)에 있다.
+아래는 이 병목에만 걸리는 것이다.
+
+**이 병목의 개선은 락 지표를 지표 카탈로그에 넣기 전에 시작하지 않는다.** 순서를 뒤집으면
+개선을 적용한 뒤에 "무엇이 좋아졌는지" 말할 근거가 없어진다.
+
+### 왜 지금은 잴 수 없는가
+
+카탈로그(`tools/lib/metrics-catalog.js`)의 MySQL 그룹에 있는 락 지표는
+`mysql.innodbRowLockWaits` 하나이고, 그 원본은 `Innodb_row_lock_current_waits`다.
+이 값은 **조회하는 순간에 락을 기다리고 있는 트랜잭션 수**를 재는 스냅샷 게이지다.
+스크레이프 간격(5초) 사이에 시작해서 끝난 대기는 여기에 전혀 나타나지 않는다.
+
+그래서 지금 도구로는 다음에 답할 수 없다.
+
+- 테스트 구간 전체에서 락 대기가 **몇 밀리초** 발생했는가
+- 가장 길었던 단일 대기가 얼마였는가
+- 데드락으로 **롤백된 트랜잭션이 몇 건**인가
+
+남는 근거는 `post_reaction`의 P99 하나뿐인데, P99가 좋아졌다는 사실만으로는 그 원인이 락
+경합 감소인지 다른 변화인지 가를 수 없다. 이 병목은 "확정" 상태인데 **그 확정을 뒷받침하는
+지표가 리포트에 없는** 상태다.
+
+### 무엇을 추가하는가
+
+아래 PromQL은 2026-08-06에 실제 Prometheus에서 값을 반환하는 것을 확인했다. **익스포터
+설정을 바꿀 필요가 없고 수집 오버헤드도 없다** — 이미 스크레이프되고 있는 값을 카탈로그에
+등록하지 않아 쓰지 못하는 것뿐이다.
+
+| 키 | PromQL | 이 병목에서의 역할 |
+|---|---|---|
+| `mysql.rowLockTimeMs` | `increase(mysql_global_status_innodb_row_lock_time[$RANGE])` | **1차 판정 근거.** 구간 누적 락 대기 시간 |
+| `mysql.rowLockTimeMaxMs` | `max_over_time((mysql_global_status_innodb_row_lock_time_max)[$RANGE:])` | 최악의 단일 대기. P99와 대조한다 |
+| `mysql.rollbacks` | `increase(mysql_global_status_commands_total{command="rollback"}[$RANGE])` | 데드락의 **간접 신호** (아래 제약 참고) |
+| `mysql.commits` | `increase(mysql_global_status_commands_total{command="commit"}[$RANGE])` | 롤백률의 분모 |
+
+앞의 셋이 필수다. 작업량은 카탈로그 파일 한 곳에 4줄 추가로 약 30분이다.
+
+### 주의 ① `gate: false`로 추가한다
+
+`gate: true`는 회귀 판정 대상 선언이면서 **동시에 필수 지표 선언**이다. 새 지표를 게이트로
+올린 뒤 `collect.js --all --force`로 과거 실행을 재판정하면, 그 지표가 존재하지 않던 실행이
+`UNMEASURED`가 되어 **기준선 자격을 잃는다**(`tools/lib/repository.js`의 `eligibilityOf`).
+이 병목의 Before가 되어야 할 과거 실행이 그렇게 사라지면 개선 폭을 잴 수 없다.
+
+게이트로 승격할지는 개선을 완료하고 정상 범위를 확인한 뒤에 판단한다.
+
+### 주의 ② 데드락 횟수는 아직 직접 셀 수 없다
+
+`mysql_global_status_innodb_deadlocks`는 현재 Prometheus에 시계열이 없다.
+직접 수집하려면 mysqld-exporter에 `--collect.engine_innodb_status`가 필요하다(E-39).
+그전까지는 `mysql.rollbacks`를 간접 신호로 쓰고, 데드락 자체는
+`SHOW ENGINE INNODB STATUS`와 애플리케이션 로그(`CannotAcquireLockException`)로 확인한다.
+
+### 함께 막혀 있는 것 — 리포트에 쓰기 P95가 없다
+
+이 병목은 쓰기 경로인데, 리포트의 op 축에서 `write` 행은 **요청 개수만 있고 지연 통계가
+없다**(S-25 — `measureOnly()`가 태그를 2개로 만들어 `breakdown()`이 건너뛴다). 그래서
+개선 전후를 리포트만으로 대조할 수 없고 `run.json`의 `rawMetrics`에서
+`http_req_duration{op:write,phase:measure}`를 직접 읽어야 한다.
+
+**락 지표보다 이쪽이 먼저다.** "락 대기가 줄었다"는 설명은 "쓰기 지연이 줄었다"는 사실
+위에 서는 것이라, 순서가 바뀌면 설명할 대상 자체가 없다.
+
+### 권장 순서
+
+```text
+1. S-25 해결 — 리포트에서 쓰기 P95를 읽을 수 있게 한다
+2. 위 락 지표 4개를 gate:false 로 카탈로그에 추가
+3. Before 세트 측정 (같은 조건 5회, 스냅샷 복원 강제)
+4. 개선 적용 — 한 번에 하나만 (해결 방법 표 참고)
+5. After 세트 측정 (Before와 연달아, 같은 세션에서)
+```
+
+3·5를 **연달아** 재는 이유는 반복 세트에 시간 방향 드리프트가 관측됐기 때문이다(E-46).
+시간을 두고 재면 그 드리프트가 노이즈가 아니라 편향으로 개선 폭에 섞인다.
 
 ## 해결 방법
 

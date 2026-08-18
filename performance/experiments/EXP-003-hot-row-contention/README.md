@@ -66,6 +66,13 @@ k6 run -o experimental-prometheus-rw scripts/reactions.js -e VUS=100 -e DURATION
 | 1차 | rate(mysql_global_status_innodb_row_lock_waits[1m]) | A에서만 유의 증가 |
 | 보조 | innodb_row_lock_time, deadlock 로그(`SHOW ENGINE INNODB STATUS`) | 데드락 여부 |
 
+> ⚠ **이 표의 락 지표는 아직 지표 카탈로그에 없어 리포트에 나타나지 않는다.**
+> `mysql.innodbRowLockWaits`는 조회 순간의 스냅샷(`Innodb_row_lock_current_waits`)이라
+> 구간 누적 대기 시간을 알 수 없고, `innodb_row_lock_time`은 등록조차 되어 있지 않다.
+> 실험을 시작하기 전에 [BTL-003의 "개선 전 선행 조건"](../../bottlenecks/BTL-003-hot-row-counter.md#개선-전-선행-조건--락-지표를-먼저-수집한다)
+> 절을 따라 락 지표를 먼저 추가할 것. 추가하지 않으면 §11 재실험 표의 Before/After를 채울
+> 근거가 없다.
+
 ## 7~8. 결과 / 그래프
 
 (기입 — A/B 두 실행의 시간축 겹쳐 그리기)
