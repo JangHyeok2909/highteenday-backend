@@ -131,14 +131,42 @@ async function reset(mode, settleSec) {
   return true;
 }
 
-/** 서버가 스스로 잰 평균 처리시간(ms) — k6 왕복 시간과의 차이가 곧 경로 오버헤드다. */
-async function serverMeanMs(startedAt, endedAt) {
-  const durSec = Math.max(1, Math.round((new Date(endedAt) - new Date(startedAt)) / 1000));
-  const at = Math.floor(new Date(endedAt).getTime() / 1000);
+/**
+ * 서버가 스스로 잰 평균 처리시간(ms) — k6 왕복 시간과의 차이가 곧 경로 오버헤드다.
+ *
+ * **판정 구간과 같은 창을 봐야 한다.** 예전에는 실행 전체(warmup+measure+rampdown)를
+ * 질의하면서 k6 쪽은 measure 구간 값과 빼고 있었다. 분자와 분모의 구간이 달라 경로
+ * 오버헤드가 통째로 틀렸다 — 실측 1,033.9ms 로 보고됐지만 같은 창으로 맞추면 77.8ms 다
+ * (13배). 워밍업의 낮은 부하 구간이 서버측 평균을 끌어내리기 때문이다.
+ *
+ * 그래서 phasePlan 의 gatePhase 구간만 질의한다. 창의 길이뿐 아니라 **끝 시각**도 그
+ * 구간의 끝이어야 한다 — increase() 는 지정한 시각에서 뒤로 창을 잡으므로, 끝 시각이
+ * 실행 종료면 rampdown 이 섞인다.
+ */
+async function serverMeanMs(run) {
+  const plan = run.phasePlan;
+  const gate = plan && plan.gatePhase;
+  const startSec = new Date(run.startedAt).getTime() / 1000;
+
+  let windowSec;
+  let endAt;
+  if (gate && plan[`${gate}Sec`] > 0) {
+    // 판정 구간만. offset 이 기록돼 있으면 그것을 쓰고, 없으면 warmup 다음이라고 본다.
+    const offset = plan.measureStartOffsetSec != null && gate === 'measure'
+      ? plan.measureStartOffsetSec
+      : (plan.warmupSec || 0);
+    windowSec = Math.round(plan[`${gate}Sec`]);
+    endAt = startSec + offset + windowSec;
+  } else {
+    // gatePhase 가 없는 진단 시나리오는 전체 구간으로 되돌린다.
+    windowSec = Math.max(1, Math.round(run.durationSec || 1));
+    endAt = startSec + windowSec;
+  }
+
   const q =
-    `1000 * sum(increase(http_server_requests_seconds_sum{job="spring-app"}[${durSec}s]))` +
-    ` / clamp_min(sum(increase(http_server_requests_seconds_count{job="spring-app"}[${durSec}s])), 0.0001)`;
-  const url = `${PROM}/api/v1/query?query=${encodeURIComponent(q)}&time=${at}`;
+    `1000 * sum(increase(http_server_requests_seconds_sum{job="spring-app"}[${windowSec}s]))` +
+    ` / clamp_min(sum(increase(http_server_requests_seconds_count{job="spring-app"}[${windowSec}s])), 0.0001)`;
+  const url = `${PROM}/api/v1/query?query=${encodeURIComponent(q)}&time=${Math.floor(endAt)}`;
   const r = await fetch(url);
   const j = await r.json();
   if (j.status !== 'success' || !j.data.result.length) return null;
@@ -229,9 +257,23 @@ async function main() {
 
     const id = newIds[0];
     const rec = repo.loadRun(id);
-    const k = rec.k6.all;
+    /*
+     * **판정 구간(보통 measure)을 읽는다.** 예전에는 `k6.all` 을 읽어 워밍업·램프다운이
+     * 섞인 전체 구간을 보고했다. 그런데 회귀 게이트도 SLO 판정도 measure 구간만 본다
+     * (T-03/S-08 에서 일원화한 정책). 그래서 같은 문서 안에서 CV 는 전체 구간, SLO 대조는
+     * measure 구간이 되는 범위 혼재가 생겼다 — EXP-001 에서 실제로 그렇게 기록됐다.
+     *
+     * 실측 차이(EXP-001 5회 평균): p95 전체 11,821ms vs measure 12,231ms.
+     * 워밍업의 낮은 부하 구간이 섞여 전체 쪽이 낙관적으로 나온다.
+     *
+     * gatePhase 가 없는 진단 시나리오는 measure 구간 자체가 없으므로 all 로 되돌린다.
+     * 그 경우 어느 쪽을 썼는지 결과에 남긴다 — 범위가 섞이면 값이 아니라 해석이 틀린다.
+     */
+    const gate = (rec.run.phasePlan && rec.run.phasePlan.gatePhase) || null;
+    const scoped = gate && rec.k6.phases && rec.k6.phases[gate];
+    const k = scoped || rec.k6.all;
     const row = {
-      index: i, ok: true, id, exitCode,
+      index: i, ok: true, id, exitCode, scope: scoped ? gate : 'all',
       startedAt: rec.run.startedAt, endedAt: rec.run.endedAt,
       p95: k.p95, p99: k.p99, avg: k.avg, tps: k.tps, rps: k.rps,
       errorRate: k.errorRate, iterations: k.iterations,
@@ -242,7 +284,7 @@ async function main() {
     // 서버측 지연은 카탈로그에 없어 run 레코드에 안 들어간다 — 여기서 직접 조회한다.
     // 실패해도 반복 전체를 중단시키지 않는다(보조 지표).
     try {
-      row.serverMeanMs = await serverMeanMs(rec.run.startedAt, rec.run.endedAt);
+      row.serverMeanMs = await serverMeanMs(rec.run);
       row.pathOverheadMs = row.serverMeanMs == null ? null : row.avg - row.serverMeanMs;
     } catch (e) {
       console.warn(`  ⚠ 서버측 지연 조회 실패: ${e.message}`);
