@@ -110,6 +110,34 @@ sequenceDiagram
 - [KI-20](../KNOWN-ISSUES.md#ki-20-핫랭킹-zset-키에-ttl이-없어-무기한-누적) 날짜별 랭킹 키 누적 — 정리 스케줄러가 없다
 - [KI-30](../KNOWN-ISSUES.md#ki-30-급식-수집-주기가-readme와-다름) 급식 주기 문서 불일치
 - [KI-11](../KNOWN-ISSUES.md#ki-11-readme의-핫스코어-갱신-주기-서술이-코드와-다름) 핫스코어 주기 문서 불일치
-- `[미확인]` 스케줄러 스레드 풀 크기 — 별도 `TaskScheduler` 빈이 없어 기본 단일 스레드로 추정되나 설정 파일에서 확정 근거를 찾지 못함 (4개 작업이 한 스레드를 공유하면 장시간 작업이 다른 주기를 밀어낼 수 있다)
+- [KI-44](../KNOWN-ISSUES.md#ki-44-외부-api-resttemplate에-타임아웃이-없음) 스케줄러 스레드 풀 크기 **1** — 장시간 작업이 다른 주기를 밀어낸다
 
-마지막 검증일: 2026-07-30
+### 스레드 풀 크기 — `[미확인]` 해소 (2026-08-18)
+
+이전 판에 "기본 단일 스레드로 추정되나 확정 근거를 찾지 못함"으로 남아 있던 항목이다.
+**단일 스레드가 맞다.** 근거는 두 가지이며 둘 다 부재 증명이다.
+
+| 확인 | 명령 | 결과 |
+|---|---|---|
+| `TaskScheduler` 빈 정의 | `grep -rn "TaskScheduler" src/main/java` | 0건 (주석 1건 제외) |
+| 풀 크기 설정 | `grep -rn "task.scheduling" src/main/resources` | 0건 (properties 4개 전부) |
+
+`HighteendayBackendApplication`에 `@EnableScheduling`만 있고 커스터마이징이 없으므로 Spring
+Boot의 `TaskSchedulingProperties` 기본값인 **풀 크기 1**이 적용된다. 즉 아래 네 작업이
+스레드 하나를 공유한다.
+
+| 작업 | 주기 | 위험 |
+|---|---|---|
+| `ViewCountScheduler` | 60초 | 밀리면 Redis 조회수 버퍼가 계속 쌓인다 |
+| `HotScoreScheduler` | 5분 | 밀리면 시간 감쇠가 반영되지 않아 순위가 굳는다 |
+| `TokenCleanupScheduler` | 매일 03:00 | 지연 허용 |
+| `SchoolMealScheduler` | 매월 1일 00:00 | **외부 NEIS 호출 — 타임아웃 없음** |
+
+마지막 항목이 [KI-44](../KNOWN-ISSUES.md#ki-44-외부-api-resttemplate에-타임아웃이-없음)와
+맞물린다. `AppConfig.restTemplate()`이 `new RestTemplate()`이라 read 타임아웃이 없으므로,
+NEIS가 무응답이면 그 스레드가 무기한 대기하고 **조회수 동기화와 핫스코어 갱신이 함께
+멈춘다.** 위험 창은 월 1회지만 정지 시간에 상한이 없다.
+
+조치는 KI-44에 적었다 — 타임아웃 설정과 풀 크기 확대가 **둘 다** 필요하다.
+
+마지막 검증일: 2026-08-18 (최초 작성 2026-07-30)
