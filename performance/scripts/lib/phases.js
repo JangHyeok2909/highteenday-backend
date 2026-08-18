@@ -252,7 +252,21 @@ export function metricsByPhase(m, plan) {
     out[phase] = {
       ...dur,
       durationSec: phaseSec,
-      rps: !noSamples && reqsM && reqsM.values && reqsM.values.rate != null ? reqsM.values.rate : null,
+      /*
+       * **k6 의 `rate` 를 쓰면 안 된다.** k6 는 카운터의 rate 를 언제나 **전체 테스트
+       * 시간**으로 나눈다 — phase 태그가 붙은 서브메트릭이어도 그렇다. 그래서
+       * `http_reqs{phase:measure}.rate` 는 "measure 구간의 요청 수 ÷ 전체 실행 시간"이라는,
+       * 분자와 분모의 구간이 어긋난 값이 된다.
+       *
+       * 실측(EXP-001, measure 1200s / 전체 1649s): 요청 29,650건에 대해
+       *   k6 rate      17.98  (29650 / 1649)   ← 틀림
+       *   요청/구간     24.71  (29650 / 1200)   ← 맞음
+       * 워밍업이 길수록 더 크게 어긋난다. 측정 300s / 전체 607s 설계에서는 참값의 49%였다.
+       *
+       * 바로 아래 tps 가 옳게 나오던 이유는 역설적이다 — `iterations` 에 phase 서브메트릭이
+       * 없어 k6 rate 를 못 쓰고 직접 나눴기 때문이다. 정석대로 쓴 쪽이 틀렸다.
+       */
+      rps: !noSamples && reqCount != null && phaseSec > 0 ? reqCount / phaseSec : null,
       tps: iterCount != null && phaseSec > 0 ? iterCount / phaseSec : null,
       errorRate: !noSamples && failedM && failedM.values && failedM.values.rate != null ? failedM.values.rate : null,
       httpReqs: reqCount || 0,

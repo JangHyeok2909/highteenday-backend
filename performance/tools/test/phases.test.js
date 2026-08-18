@@ -247,10 +247,37 @@ test('metricsByPhase: measure의 오류율/RPS/TPS/checks를 정확히 추출한
   const out = metricsByPhase(fakeK6Metrics(), plan);
 
   assert.equal(out.measure.errorRate, 0.001);
-  assert.equal(out.measure.rps, 4.16);
+  // 구간 요청 수 ÷ **구간 시간**. 픽스처의 rate(4.16)는 k6가 전체 실행 시간으로 나눈 값이라
+  // 정답이 아니다 — 아래 전용 테스트 참고.
+  assert.equal(out.measure.rps, 5000 / 500);
   assert.equal(out.measure.tps, 2000 / 500); // phase_iterations{phase:measure}.count / measureSec
   assert.equal(out.measure.checkRate, 0.999);
   assert.equal(out.measure.checksPassed, 4995);
+});
+
+/*
+ * S-26 회귀 테스트.
+ *
+ * k6 는 카운터의 `rate` 를 **전체 테스트 시간**으로 나눈다 — phase 태그가 붙은 서브메트릭
+ * 이어도 그렇다. 그 값을 그대로 쓰면 "measure 구간 요청 수 ÷ 전체 실행 시간"이라는, 분자와
+ * 분모의 구간이 어긋난 수치가 된다. 실측에서 참값의 49%까지 내려갔다(측정 300s/전체 607s).
+ *
+ * 이 테스트가 필요한 이유가 특히 크다 — **원래 테스트가 결함 쪽을 정답으로 단언하고
+ * 있었다**(`rps === 4.16`). 테스트가 있다는 사실이 오히려 안심의 근거가 됐다.
+ */
+test('metricsByPhase: RPS 는 k6 의 rate 가 아니라 구간 시간으로 나눈 값이다 (S-26)', async () => {
+  const { buildPhasePlan, metricsByPhase } = await loadPhases();
+  const plan = buildPhasePlan({ warmupSec: 300, measureSec: 500, rampdownSec: 0 });
+  const m = fakeK6Metrics();
+  const k6Rate = m['http_reqs{phase:measure}'].values.rate;
+  const out = metricsByPhase(m, plan);
+
+  assert.equal(out.measure.rps, 5000 / 500);
+  assert.notEqual(out.measure.rps, k6Rate);
+
+  // rate 를 아예 지워도 같은 값이 나와야 한다 — 그 필드를 읽지 않는다는 증거다.
+  delete m['http_reqs{phase:measure}'].values.rate;
+  assert.equal(metricsByPhase(m, plan).measure.rps, 5000 / 500);
 });
 
 test('metricsByPhase: 시간이 배정되지 않은 phase는 버킷을 만들지 않는다 (cold-start형 plan)', async () => {
