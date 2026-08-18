@@ -27,9 +27,10 @@ Port/Adapter 구분(왜 일부는 `infrastructure/redis/`이고 일부는 `servi
 | `RT:{refreshToken}` | String — 값은 이메일 | 7일 또는 DB 만료까지 남은 시간 | `infrastructure/redis/RedisTokenCacheStore` | `put`/`delete`는 AOP 스킵, `get`은 직접 try/catch로 `Optional.empty()` → DB 조회로 fallback (`services/domain/TokenService · findByRefreshTokenOrThrow()`) |
 | `board:{boardId}:posts` | List — 최신 게시글 id 최대 50개 | 60분 (`RedisPostsCache · BOARD_TTL`) | `services/domain/redisService/RedisPostsCache · addPostToBoard() / getPostPrevs()` | `getPostPrevs`가 직접 try/catch → `postRepository.findByBoard` DB 재조회 |
 | `posts:{postId}` | String — `PostPreviewDto` JSON | 30분 (`POST_TTL`) | `RedisPostsCache · cachePostPrev()`, 미스 시 `findAllDtoByIds`로 채움 | 위와 동일 경로에서 함께 fallback |
-| `board:{boardId}:count` | String — 게시글 총 건수 | 생성 시 5분 (`createCount`), 증감 시 60분으로 재설정 | `RedisPostsCache · getCount() / createCount() / incrementBoardCount() / decrementBoardCount()` | `getCount` 직접 try/catch → `postRepository.countTotal` |
+| `board:{boardId}:count` | String — 게시글 총 건수 | 생성 시 5분 (`createCount`), 증감 시 60분으로 재설정 — **어긋난 두 TTL이 [KI-56](../KNOWN-ISSUES.md#ki-56-게시판-글-개수-캐시가-만료-후-첫-쓰기에서-1로-되살아난다)의 원인이다** | `RedisPostsCache · getCount() / createCount() / incrementBoardCount() / decrementBoardCount()` | `getCount` 직접 try/catch → `postRepository.countTotal` |
 
 - `services/domain/redisService/CursorCacheService`는 전체가 주석 처리된 빈 껍데기다 — 사용처 없음.
+- `board:{boardId}:posts`는 최대 50개만 담는데 캐시 경로 진입 조건은 페이지 **번호**만 본다 — `size`가 크면 조회 범위가 리스트를 벗어나 빈 목록이 반환된다 ([KI-57](../KNOWN-ISSUES.md#ki-57-페이지-크기가-크면-캐시-경로가-빈-목록을-반환한다)).
 - RedisTemplate 빈은 `configs/RedisConfig.java`에 5개 정의되어 있는데 그중 `boardTemplate`/`countingTemplate`/`hotPidTemplate` 3개는 구성이 동일하다 ([KI-19](../KNOWN-ISSUES.md#ki-19-redisconfig에-동일-구성-redistemplate-빈-3개)). `board:{boardId}:count` 키는 증감은 `boardTemplate`, 조회·생성은 `countingTemplate`으로 접근하지만 직렬화가 같아 호환된다.
 
 ## 장애 격리 두 정책

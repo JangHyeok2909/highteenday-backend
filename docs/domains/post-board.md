@@ -45,11 +45,12 @@
 1. **캐시 경로** — `page < 5` 그리고 `sortType == RECENT`면 `services/domain/redisService/RedisPostsCache · getPostPrevs()`:
    - `board:{boardId}:posts` (Redis LIST, 최근 50개 postId, TTL 60분) → `posts:{postId}` (게시글 미리보기 값 캐시, TTL 30분)를 `multiGet`.
    - 리스트가 비면 DB에서 RECENT 상위 50개를 읽어 재적재하고, 개별 miss는 `findAllDtoByIds()`로 채운 뒤 재캐시한다. Redis 예외 시 전체가 DB fallback.
+   - 진입 조건이 페이지 **번호**만 보기 때문에 `page × size ≥ 50`이면(예: `page=3&size=20`) 조회 범위가 50개 리스트를 벗어나 **빈 목록이 반환된다** ([KI-57](../KNOWN-ISSUES.md#ki-57-페이지-크기가-크면-캐시-경로가-빈-목록을-반환한다)).
 2. **DB 경로** — 그 외에는 `findByBoard()` QueryDSL 직행:
    - 기본은 `offset = page * size` **오프셋 페이징**.
    - `sortType == RECENT` **그리고** `isRandomPage == false` **그리고** `lastSeedId != null`일 때만 `post.id < lastSeedId` **커서 페이징**으로 전환하고 offset을 제거한다. `isRandomPage` 기본값이 true라 클라이언트가 명시적으로 끄지 않으면 커서 경로는 타지 않는다.
    - 정렬: `getOrderSec()` — LIKE→`likeCount desc`, VIEW→`viewCount desc`, 그 외→`id desc`. `isValid=true`만 조회.
-3. **총 개수** — `PostPrevCache.getCount()`: `board:{boardId}:count` (TTL 5분), miss·장애 시 `countTotal()` DB 집계. 생성/삭제 시 increment/decrement로 보정한다.
+3. **총 개수** — `PostPrevCache.getCount()`: `board:{boardId}:count` (TTL 5분), miss·장애 시 `countTotal()` DB 집계. 생성/삭제 시 increment/decrement로 보정한다. 이 보정이 Redis `INCRBY`라, **키가 만료된 뒤 첫 쓰기가 들어오면 값이 1(또는 −1)로 되살아난다** ([KI-56](../KNOWN-ISSUES.md#ki-56-게시판-글-개수-캐시가-만료-후-첫-쓰기에서-1로-되살아난다)).
 
 ## 검색
 
