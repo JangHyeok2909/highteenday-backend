@@ -56,7 +56,7 @@ if (typeof fetch !== 'function') {
 
 function parseArgs(argv) {
   const o = {
-    script: null, runs: 10, vus: null, duration: null, dataset: null, loadgen: null,
+    script: null, runs: 10, vus: null, duration: null, dataset: null, loadgen: null, warmup: null, hold: null,
     env: null, reset: 'restart', wait: 20, settle: 5, note: '', out: null,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -66,6 +66,8 @@ function parseArgs(argv) {
     else if (a === '--duration') o.duration = argv[++i];
     else if (a === '--dataset') o.dataset = argv[++i];
     else if (a === '--loadgen') o.loadgen = argv[++i];
+    else if (a === '--warmup') o.warmup = argv[++i];
+    else if (a === '--hold') o.hold = argv[++i];
     else if (a === '--env') o.env = argv[++i];
     else if (a === '--reset') o.reset = argv[++i];
     else if (a === '--wait') o.wait = Number(argv[++i]);
@@ -184,6 +186,11 @@ function runOnce(o, index) {
   // 부하 발생기 모드는 비교 조건이다(conditions v4). 반복 전체가 같은 모드여야 하므로
   // 환경변수에 기대지 않고 명시적으로 넘긴다.
   if (o.loadgen) args.push('--loadgen', o.loadgen);
+  // 구간 길이도 넘긴다. 이것을 못 바꾸면 '드리프트가 회차 수에 비례하는지 경과 시간에
+  // 비례하는지'(E-46)를 가르는 실험 자체를 설계할 수 없다 — 실행 길이를 바꿔야 두 가설이
+  // 서로 다른 예측을 내기 때문이다.
+  if (o.warmup != null) args.push('--warmup', o.warmup);
+  if (o.hold) args.push('--hold', o.hold);
   if (o.env) args.push('--env', o.env);
   args.push('--note', `${o.note ? o.note + ' — ' : ''}repeatability ${index}/${o.runs}`);
 
