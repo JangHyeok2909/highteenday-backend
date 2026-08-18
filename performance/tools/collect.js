@@ -234,8 +234,15 @@ function printConsole(record) {
     // 조건이 다르면 아래 증감을 성능 변화로 읽으면 안 된다. 표보다 먼저 말해 준다.
     if (reg.comparability && reg.comparability.level === 'degraded') {
       for (const m of reg.comparability.mismatches) line(`  ⚠  ${m.desc}`);
-      line(`     아래 증감은 성능 변화가 아니라 다른 것을 잰 결과일 수 있다.` +
-           (reg.downgradedFrom ? ` 판정을 ${reg.downgradedFrom}→WARN으로 낮췄다.` : ''));
+      line('     아래 증감은 성능 변화가 아니라 다른 것을 잰 결과일 수 있다.');
+      // 강등했는지, 아니면 절대 SLO 위반이 있어 게이트를 유지했는지를 반드시 말한다(T-32).
+      // 아무 말도 안 하면 사람은 "조건이 다르니 어차피 통과겠지"로 읽는다.
+      if (reg.downgradedFrom) {
+        line(`     상대 비교만 실패해 판정을 ${reg.downgradedFrom}→WARN으로 낮췄다.`);
+      } else if (reg.absoluteGateFailures && reg.absoluteGateFailures.length) {
+        line(`     단, 기준선과 무관한 절대 SLO 위반 ${reg.absoluteGateFailures.length}건이 있어 게이트는 유지했다.`);
+        for (const key of reg.absoluteGateFailures) line(`       · ${key}`);
+      }
     }
     if (changed.length === 0) {
       line('  변화 없음 — 모든 지표가 허용 범위 내');
