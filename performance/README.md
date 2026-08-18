@@ -92,6 +92,7 @@ node tools/history.js          # reports/history.html — 이력과 추세
 ```
 performance/
 ├── README.md          # 이 문서
+├── MANUAL.md          # 운영 매뉴얼 — 실행 절차와 전체 명령어 사용설명서
 ├── scripts/           # 기능별 k6 스크립트 (독립 실행 + 시나리오에서 import)
 │   └── lib/           # 설정·세션·Zipf 샘플러·summary 공통 모듈
 ├── scenarios/         # 워크로드 시나리오 16종 (가중치 프로파일 기반)
@@ -109,6 +110,8 @@ performance/
 └── tools/             # perf-run/collect/history/repeatability/snapshot + lib/(수집·분석·리포트 엔진) + test/(도구 단위 테스트)
 ```
 
+실행 절차와 전체 명령어(옵션·환경변수·트러블슈팅 포함)는 사용설명서로 분리했다:
+**[`MANUAL.md`](MANUAL.md)** — 처음 돌려 보는 사람은 이 문서부터 본다.
 성능 관리 파이프라인의 구조와 설계 근거는 별도 문서로 분리했다:
 **[`PERFORMANCE-MANAGEMENT.md`](PERFORMANCE-MANAGEMENT.md)**
 데이터셋 상태 고정(스냅샷·상태 지문·`--guard`)은 **[`DATASET-STATE.md`](DATASET-STATE.md)**
