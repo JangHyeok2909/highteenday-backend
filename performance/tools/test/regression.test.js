@@ -214,7 +214,7 @@ test('analyze: 조건이 같으면 정상 비교하고 baselineStatus 가 compar
   assert.equal(res.gateFailed, true);
 });
 
-test('analyze: 스크립트 지문만 다르면 비교는 하되 게이트를 연다 (degraded)', () => {
+test('analyze: 스크립트 지문만 다르면 상대 실패는 강등한다 (degraded)', () => {
   const rulesFile = tmpRules([
     { key: 'k6.phases.measure.p95', direction: 'lower_is_better', fail: { changePct: 20 }, gate: true },
   ]);
@@ -226,6 +226,120 @@ test('analyze: 스크립트 지문만 다르면 비교는 하되 게이트를 �
   assert.equal(res.comparability.level, 'degraded');
   assert.equal(res.downgradedFrom, 'FAIL');
   assert.equal(res.verdict, 'WARN');
+  assert.equal(res.gateFailed, false);
+  assert.deepEqual(res.absoluteGateFailures, [], '상대 사유로만 실패했으므로 절대 실패 목록은 비어야 한다');
+});
+
+// ---------------------------------------------------------------------------
+// T-32 — degraded 강등의 적용 범위.
+//
+// 강등이 노리는 것은 "직전 대비 +30% 악화" 같은 **증감률**이다. 그 값은 기준선이 다른 것을
+// 잰 순간 의미를 잃는다. 반면 절대 게이트는 evaluateRule 안에서 기준선을 아예 읽지 않으므로
+// 비교 가능성 등급과 무관하게 유효하다. 사유를 구분하지 않고 강등하면, 부하 스크립트에
+// 주석 한 줄만 고쳐도 SLO 게이트가 꺼지는 우회로가 생긴다.
+//
+// 아래 네 케이스는 "판정 강도가 차이 크기에 대해 단조로운가"를 고정한다 — 더 작은 차이가
+// 더 약한 강제를 만들면 안 된다.
+// ---------------------------------------------------------------------------
+const SLO_RULE = {
+  key: 'k6.phases.measure.p95',
+  direction: 'lower_is_better',
+  fail: { changePct: 20 },
+  absolute: { fail: { gt: 500 } },
+  gate: true,
+};
+
+/** measure p95 가 SLO(500ms) 를 크게 넘긴 실행. 기준선이 무엇이든 절대 판정은 FAIL 이다. */
+function sloViolating() {
+  return { run: conds(), k6: { phases: { measure: { p95: 9999 } } } };
+}
+
+test('T-32: degraded 여도 절대 SLO 위반은 게이트를 유지한다', () => {
+  const rulesFile = tmpRules([SLO_RULE]);
+  const prev = {
+    run: { ...conds({ scriptVersion: 'zzz999' }), id: 'prev', startedAt: 't' },
+    k6: { phases: { measure: { p95: 9000 } } }, // 상대 변화는 +11% 로 허용 범위
+  };
+
+  const res = analyze(sloViolating(), prev, { rulesFile });
+
+  assert.equal(res.comparability.level, 'degraded');
+  assert.equal(res.verdict, 'FAIL', '스크립트가 바뀌어도 SLO 위반은 FAIL 이다');
+  assert.equal(res.gateFailed, true, '주석 한 줄 수정이 SLO 게이트를 끄는 우회로가 되면 안 된다');
+  assert.equal(res.downgradedFrom, null, '절대 실패가 있으면 강등하지 않는다');
+  assert.deepEqual(res.absoluteGateFailures, ['k6.phases.measure.p95']);
+});
+
+test('T-32: degraded 에서 절대는 통과하고 상대만 실패하면 그대로 강등한다', () => {
+  const rulesFile = tmpRules([SLO_RULE]);
+  // 100 → 300ms: 절대 상한(500) 은 넘지 않지만 상대 허용치(+20%) 는 크게 넘는다.
+  const record = { run: conds(), k6: { phases: { measure: { p95: 300 } } } };
+  const prev = {
+    run: { ...conds({ scriptVersion: 'zzz999' }), id: 'prev', startedAt: 't' },
+    k6: { phases: { measure: { p95: 100 } } },
+  };
+
+  const res = analyze(record, prev, { rulesFile });
+
+  assert.equal(res.comparability.level, 'degraded');
+  assert.equal(res.verdict, 'WARN', '증감률은 기준선이 달라지면 믿을 수 없다');
+  assert.equal(res.gateFailed, false);
+  assert.equal(res.downgradedFrom, 'FAIL');
+  assert.deepEqual(res.absoluteGateFailures, []);
+});
+
+test('T-32: 판정 강도가 비교 등급에 대해 역전되지 않는다', () => {
+  const rulesFile = tmpRules([SLO_RULE]);
+  const record = sloViolating();
+  const withPrev = (over) => ({
+    run: { ...conds(over), id: 'prev', startedAt: 't' },
+    k6: { phases: { measure: { p95: 9000 } } },
+  });
+
+  const cases = [
+    ['exact', analyze(record, withPrev({}), { rulesFile })],
+    ['degraded', analyze(record, withPrev({ scriptVersion: 'zzz999' }), { rulesFile })],
+    ['incomparable', analyze(record, withPrev({ dataset: 'small' }), { rulesFile })],
+    ['no-baseline', analyze(record, null, { rulesFile })],
+  ];
+
+  for (const [label, res] of cases) {
+    assert.equal(res.verdict, 'FAIL', `${label}: SLO 위반은 항상 FAIL 이어야 한다`);
+    assert.equal(res.gateFailed, true, `${label}: SLO 위반은 항상 CI 를 멈춰야 한다`);
+  }
+});
+
+test('T-32: 같은 게이트가 절대·상대 양쪽으로 실패해도 강등하지 않는다', () => {
+  const rulesFile = tmpRules([SLO_RULE]);
+  const prev = {
+    run: { ...conds({ scriptVersion: 'zzz999' }), id: 'prev', startedAt: 't' },
+    k6: { phases: { measure: { p95: 100 } } }, // 100 → 9999: 상대도 절대도 실패
+  };
+
+  const res = analyze(sloViolating(), prev, { rulesFile });
+  const c = res.comparisons[0];
+
+  assert.ok(c.reasons.some((r) => r.type === 'absolute'), '절대 사유가 기록되어야 한다');
+  assert.ok(c.reasons.some((r) => r.type === 'relative'), '상대 사유도 기록되어야 한다');
+  assert.equal(res.gateFailed, true, '절대 사유가 하나라도 있으면 게이트를 유지한다');
+  assert.equal(res.downgradedFrom, null);
+});
+
+test('T-32: gate:false 규칙의 절대 실패만으로는 게이트가 닫히지 않는다', () => {
+  const rulesFile = tmpRules([
+    { ...SLO_RULE, gate: false },
+    { key: 'k6.phases.measure.tps', direction: 'higher_is_better', fail: { changePct: 20 }, gate: true },
+  ]);
+  const record = { run: conds(), k6: { phases: { measure: { p95: 9999, tps: 50 } } } };
+  const prev = {
+    run: { ...conds({ scriptVersion: 'zzz999' }), id: 'prev', startedAt: 't' },
+    k6: { phases: { measure: { p95: 9000, tps: 100 } } }, // TPS 반토막 → 상대 사유로만 실패
+  };
+
+  const res = analyze(record, prev, { rulesFile });
+
+  assert.deepEqual(res.absoluteGateFailures, [], 'gate:false 는 CI 를 멈추는 축이 아니다');
+  assert.equal(res.downgradedFrom, 'FAIL', '게이트 실패가 상대 사유뿐이므로 강등한다');
   assert.equal(res.gateFailed, false);
 });
 

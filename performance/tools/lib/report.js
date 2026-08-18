@@ -630,19 +630,28 @@ function sectionRegression(record) {
   const degradedList = reg.comparability && reg.comparability.level === 'degraded'
     ? reg.comparability.mismatches
     : [];
+  // 강등(상대 사유만 실패)과 게이트 유지(절대 SLO 위반 있음)는 사람이 할 다음 행동이
+  // 정반대다. 둘을 구분해 말하지 않으면 "조건이 다르다"가 곧 "통과"로 읽힌다(T-32).
+  const hardGates = (reg.absoluteGateFailures || []);
+  const degradedHeadline = reg.downgradedFrom
+    ? ' — 게이트를 열었다'
+    : hardGates.length ? ' — 절대 SLO 위반이 있어 게이트는 유지했다' : '';
+  const degradedTail = reg.downgradedFrom
+    ? ` 그래서 판정을 ${esc(reg.downgradedFrom)}에서 WARN으로 낮추고 빌드는 통과시켰다.`
+    : hardGates.length
+      ? ` 다만 아래 ${hardGates.length}건은 기준선을 참조하지 않는 <b>절대 상한 위반</b>이라
+          조건이 달라도 판정이 유효하다 — 빌드는 멈춘다:
+          ${hardGates.map((k) => `<code>${esc(k)}</code>`).join(' ')}`
+      : '';
   const scriptWarn = degradedList.length
     ? `<div class="hint">
         <div class="n">!</div>
         <div>
-          <div class="t">기준선과 실행 조건이 다르다${reg.downgradedFrom ? ' — 게이트를 열었다' : ''}</div>
+          <div class="t">기준선과 실행 조건이 다르다${degradedHeadline}</div>
           <div class="d">
             ${degradedList.map((m) => `<div><code>${esc(m.label)}</code> ${esc(String(m.baseline))} → ${esc(String(m.current))}</div>`).join('')}
             조건이 바뀌면 요청 구성이 달라져 TPS·RPS·지연이 함께 움직인다 — 아래 증감은
-            성능 변화가 아니라 <b>다른 것을 잰 결과</b>일 수 있다.${
-              reg.downgradedFrom
-                ? ` 그래서 판정을 ${esc(reg.downgradedFrom)}에서 WARN으로 낮추고 빌드는 통과시켰다.`
-                : ''
-            }
+            성능 변화가 아니라 <b>다른 것을 잰 결과</b>일 수 있다.${degradedTail}
             이 실행을 새 기준선으로 삼고 다음 실행부터 다시 비교하는 것이 맞다.</div>
         </div>
       </div>`

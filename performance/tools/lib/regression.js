@@ -320,16 +320,36 @@ function analyze(record, prevRun, opts = {}) {
   // CI를 멈추는 건 gate:true 인 FAIL 뿐이다. gate:false 는 정보 제공용.
   const gateFailures = failures.filter((c) => c.gate);
 
+  /*
+   * 절대 사유로 실패한 게이트 — degraded 강등에서 제외할 대상이다(T-32).
+   *
+   * evaluateRule 의 절대 판정은 기준선을 아예 읽지 않는다. 그래서 "기준선을 믿을 수 있는가"가
+   * 흔들려도 절대 판정은 그대로 유효하다. 이 구분이 없으면 강등이 실패 사유를 가리지 않고
+   * 통째로 적용돼, 부하 스크립트에 주석 한 줄만 고쳐도 SLO 게이트가 꺼지는 우회로가 생긴다.
+   */
+  const isAbsoluteFail = (c) => c.reasons.some((r) => r.type === 'absolute' && r.level === 'FAIL');
+  const absoluteGateFailures = gateFailures.filter(isAbsoluteFail);
+
   let verdict = 'PASS';
   if (gateFailures.length) verdict = 'FAIL';
   else if (failures.length || warnings.length) verdict = 'WARN';
 
-  // degraded — 스크립트 지문만 다른 경우다. 기준선을 버리지는 않는다.
-  // 주석 한 줄만 고쳐도 지문이 바뀌므로, 스크립트 변경마다 이력을 끊으면 추세 분석이 상시 리셋된다.
-  // 수치는 그대로 보여주되 "이 비교는 믿을 수 없다"고 표시하고 빌드는 통과시킨다.
+  /*
+   * degraded — 스크립트 지문만 다른 경우다. 기준선을 버리지는 않는다.
+   * 주석 한 줄만 고쳐도 지문이 바뀌므로, 스크립트 변경마다 이력을 끊으면 추세 분석이 상시 리셋된다.
+   * 수치는 그대로 보여주되 "이 비교는 믿을 수 없다"고 표시하고 빌드는 통과시킨다.
+   *
+   * **강등은 상대 비교 결과에만 적용한다**(T-32). 강등이 노리는 것은 "직전 대비 +30% 악화"
+   * 같은 증감률인데, 그 값은 기준선이 다른 것을 잰 순간 의미를 잃는다. 반면 절대 게이트는
+   * 기준선을 참조하지 않으므로 등급과 무관하게 유효하다.
+   *
+   * 나누지 않으면 판정 강도가 역전된다 — blocking 불일치(데이터셋 변경)는 상대 비교만 끄고
+   * 절대 게이트를 유지하는데, 더 약한 degrading 불일치(주석 수정)는 절대 게이트까지 껐다.
+   * 차이가 작을수록 SLO 강제가 약해지는 셈이라, 스크립트를 고치는 실행마다 게이트가 열렸다.
+   */
   const degraded = !!(comparability && comparability.level === 'degraded');
   let downgradedFrom = null;
-  if (degraded && verdict === 'FAIL') {
+  if (degraded && verdict === 'FAIL' && absoluteGateFailures.length === 0) {
     downgradedFrom = 'FAIL';
     verdict = 'WARN';
   }
@@ -416,7 +436,11 @@ function analyze(record, prevRun, opts = {}) {
     missingOptional,
     notApplicable,
     windowIncomplete,
-    gateFailed: gateFailures.length > 0 && !degraded,
+    // 절대 사유로 실패한 게이트는 degraded 여도 CI를 멈춘다(T-32). 상대 사유만으로 실패한
+    // 게이트는 기준선을 믿을 수 없으므로 degraded 일 때 열어 준다.
+    gateFailed: absoluteGateFailures.length > 0 || (gateFailures.length > 0 && !degraded),
+    // 어떤 게이트가 "기준선과 무관하게" 실패했는지 — 콘솔·리포트가 강등 여부를 설명할 때 쓴다.
+    absoluteGateFailures: absoluteGateFailures.map((c) => c.key),
     counts: {
       total: comparisons.length,
       fail: failures.length,
