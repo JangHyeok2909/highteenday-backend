@@ -87,6 +87,36 @@ export function startVusFor(plan, targetVus) {
 }
 
 /**
+ * open model(arrival-rate) 용 stage. `stagesFor` 와 같은 구간 구조를 도착률로 만든다.
+ *
+ * 왜 필요한가 — closed model(`ramping-vus`)에서는 **시스템이 느려지면 부하 발생기가
+ * 스스로 요청을 줄인다.** 한 VU 는 이전 iteration 이 끝나야 다음을 시작하기 때문이다
+ * (coordinated omission). 그 결과 두 가지가 생긴다.
+ *
+ *   1) "같은 부하에서 처리량이 25% 줄었다"고 말할 수 없다 — 도착률 자체가 달랐다.
+ *   2) VU 가 고정이면 리틀의 법칙에 따라 응답시간이 `R = N / X` 로 **기계적으로** 정해진다.
+ *      실측에서 `200/처리율` 과 p95 의 상관이 0.962 였다 — p95 가 처리량의 그림자였다.
+ *      작은 호스트 변동이 큰 p95 차이로 증폭되는 것도 이 구조 탓이다.
+ *
+ * 도착률을 고정하면 이 되먹임이 끊긴다. 시스템이 못 따라오면 부하가 줄어드는 대신
+ * **dropped_iterations 로 드러난다** — 숨지 않고 신호가 된다.
+ *
+ * 자세한 근거: localDocs/perf-session-drift.md 8-d.2, 8-d.5
+ */
+export function ratesFor(plan, targetRate) {
+  const stages = [];
+  if (plan.warmupSec > 0) stages.push({ duration: `${plan.warmupSec}s`, target: targetRate });
+  stages.push({ duration: `${plan.measureSec}s`, target: targetRate });
+  if (plan.rampdownSec > 0) stages.push({ duration: `${plan.rampdownSec}s`, target: 0 });
+  return stages;
+}
+
+/** warmup 이 0이면 처음부터 목표 도착률로 시작한다(stagesFor 와 같은 이유). */
+export function startRateFor(plan, targetRate) {
+  return plan.warmupSec > 0 ? 0 : targetRate;
+}
+
+/**
  * 'http_req_duration{op:read}' 같은 threshold 키를 {metric, tags} 로 분해한다.
  * 태그가 없으면 tags 는 빈 객체.
  */
