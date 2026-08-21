@@ -45,6 +45,7 @@ const crypto = require('crypto');
 const dbstate = require('./lib/dbstate');
 const guard = require('./lib/guard');
 const snapshot = require('./snapshot');
+const { acquireRunLock } = require('./lib/run-lock');
 
 const PERF_ROOT = path.resolve(__dirname, '..');
 const RUNS_DIR = path.join(PERF_ROOT, 'reports', 'runs');
@@ -439,6 +440,19 @@ function main() {
     console.error(`스크립트를 찾을 수 없습니다: ${o.script}`);
     process.exit(2);
   }
+
+  // 데이터셋 복원과 앱 재시작을 포함하는 실행 둘이 겹치면 서로의 측정이 망가진다.
+  // 프로세스 단위 잠금으로 같은 성능 스택에서는 perf-run 하나만 허용한다.
+  let runLock;
+  try {
+    runLock = acquireRunLock();
+  } catch (e) {
+    console.error(`성능 실행 시작 거부: ${e.message}`);
+    process.exit(2);
+  }
+  process.once('exit', () => runLock.release());
+  process.once('SIGINT', () => process.exit(130));
+  process.once('SIGTERM', () => process.exit(143));
 
   const git = gitMeta();
   const env = {

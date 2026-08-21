@@ -18,3 +18,5 @@ require('./sampling.test.js');
 require('./fingerprint.test.js');
 require('./dataset-guard.test.js');
 require('./sanitize-reports.test.js');
+require('./repeatability.test.js');
+require('./run-lock.test.js');

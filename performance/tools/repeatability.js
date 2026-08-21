@@ -182,14 +182,20 @@ function stats(values) {
   const n = xs.length;
   if (n === 0) return null;
   const mean = xs.reduce((a, b) => a + b, 0) / n;
-  const sd = n < 2 ? 0 : Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1));
+  // 한 번만 성공한 반복은 편차를 측정한 것이 아니다. 0으로 채우면 "완벽히 재현됨"으로
+  // 오해되므로 표준편차와 CV를 모두 결측으로 둔다.
+  const sd = n < 2 ? null : Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1));
   const sorted = [...xs].sort((a, b) => a - b);
   const median = n % 2 ? sorted[(n - 1) / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
   return {
     n, mean, sd, median,
-    cvPct: mean === 0 ? null : (sd / mean) * 100,
+    cvPct: n < 2 || mean === 0 ? null : (sd / mean) * 100,
     min: sorted[0], max: sorted[n - 1],
   };
+}
+
+function resultExitCode(validCount, requestedRuns) {
+  return validCount === requestedRuns ? 0 : 2;
 }
 
 // ------------------------------------------------------------------ 실행
@@ -320,13 +326,18 @@ async function main() {
     if (!s) continue;
     console.log(
       `  ${m.label.padEnd(12)}${f(s.mean).padStart(9)}${f(s.sd, 2).padStart(13)}` +
-      `${(f(s.cvPct, 2) + '%').padStart(10)}${f(s.min).padStart(11)}${f(s.max).padStart(12)}`,
+      `${(s.cvPct == null ? '—' : f(s.cvPct, 2) + '%').padStart(10)}` +
+      `${f(s.min).padStart(11)}${f(s.max).padStart(12)}`,
     );
   }
   console.log('  ' + '─'.repeat(70));
-  if (summary.p95) {
+  if (summary.p95?.cvPct != null) {
     console.log(`\n  ▶ 판정 지표: P95 CV = ${f(summary.p95.cvPct, 2)}%` +
       `  (같은 조건 반복 시 p95가 평균 대비 이만큼 흔들린다)`);
+  } else if (summary.p95) {
+    console.log(`\n  ▶ 판정 지표: 유효 표본 부족(${summary.p95.n}회) — P95 CV를 계산하지 않는다.`);
+  } else {
+    console.log('\n  ▶ 판정 지표: 유효 표본 없음 — P95 CV를 계산하지 않는다.');
   }
 
   // ---- 저장 ----------------------------------------------------------
@@ -349,6 +360,10 @@ async function main() {
   if (valid.length < o.runs) {
     console.warn(`  ⚠ 무효 ${o.runs - valid.length}회 — 사유는 저장된 JSON 의 runs[].reason 참조\n`);
   }
+
+  // 일부라도 무효면 반복 세트는 완료된 측정이 아니다. 이전에는 0/5회여도 exit 0이라
+  // 상위 무인 실행기가 다음 장시간 실험으로 넘어갔다.
+  process.exitCode = resultExitCode(valid.length, o.runs);
 }
 
 if (require.main === module) {
@@ -357,3 +372,5 @@ if (require.main === module) {
     process.exit(2);
   });
 }
+
+module.exports = { stats, resultExitCode };
