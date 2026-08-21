@@ -28,6 +28,7 @@
 
 const APP = process.env.PERF_APP_CONTAINER || 'perf-app';
 const DB = process.env.PERF_DB_CONTAINER || 'perf-mysql';
+const CACHE = process.env.PERF_CACHE_CONTAINER || 'perf-redis';
 /** k6 를 컨테이너로 돌릴 때의 이름. 이 이름이어야 cAdvisor 가 부하 발생기를 따로 계측한다. */
 const LOADGEN = process.env.PERF_LOADGEN_CONTAINER || 'perf-k6';
 const APP_JOB = 'spring-app';
@@ -46,6 +47,23 @@ const APP_JOB = 'spring-app';
  * 쿼리 단계에서 접어 두면 겹친 시계열이 몇 개든 결과가 항상 1개다.
  */
 const one = (expr) => `max(${expr})`;
+
+/**
+ * 효율 지표의 공통 분모 — 측정 구간의 요청 수.
+ *
+ * k6 요약본이 아니라 remote-write 로 들어온 시계열에서 센다. 요약본은 실행 전체에 대해
+ * 한 번 계산된 값이라 임의 구간으로 나눌 수 없고, 애초에 Prometheus 질의 안에 넣을 수 없다.
+ *
+ * `clamp_min(..., 1)` 은 0 나눗셈 방지다. 요청이 0건인 구간은 효율을 논할 수 없으므로
+ * 값이 커지지 않게 1 로 막아 둔다.
+ *
+ * ⚠ **분자도 반드시 라벨을 지워야 한다.** 이 값은 `sum()` 을 거쳐 라벨이 하나도 없는데,
+ * PromQL 의 이항 연산은 **양변의 라벨 집합이 같은 것끼리만 짝짓는다.** 라벨이 남은 벡터를
+ * 이걸로 나누면 짝이 없어 **에러 없이 빈 결과**가 되고, 수집기에는 그냥 null 로 기록된다.
+ * 실제로 이 그룹의 절반이 그렇게 조용히 비어 있었다(검증에서 발견). 분자는 `one()` 이나
+ * `max()`/`sum()` 으로 반드시 감싼다.
+ */
+const REQS = 'clamp_min(sum(increase(k6_http_reqs_total[$RANGE])), 1)';
 
 /**
  * 인터페이스/디바이스별로 쪼개지는 지표용 — 컨테이너 인스턴스(id) 안에서 먼저 합친 뒤 접는다.
@@ -97,6 +115,15 @@ const GROUPS = [
         query: one(`100 * rate(container_cpu_cfs_throttled_periods_total{name="${APP}"}[$RANGE]) / clamp_min(rate(container_cpu_cfs_periods_total{name="${APP}"}[$RANGE]), 1)`),
         reduce: 'max', unit: 'percent',
         desc: 'cgroup이 CPU를 강제로 뺏은 주기 비율. >0 이면 CPU 한계가 지연에 직접 영향을 준다.',
+      },
+      {
+        // 구간 **총** 소비량. avg 코어 수와 달리 창 길이에 무관한 절대량이라, 요청 수로
+        // 나누면 곧바로 "요청 1건에 든 CPU"가 된다(efficiency 그룹). 세션 간 편차 조사에서
+        // 결정적이었던 값이 이것이다 — 소비량은 같은데 처리량만 줄었다는 관측.
+        key: 'cpu.seconds', label: '앱 컨테이너 CPU 총초',
+        query: one(`increase(container_cpu_usage_seconds_total{name="${APP}"}[$RANGE])`),
+        reduce: 'max', unit: 'sec',
+        desc: '측정 구간에 앱 컨테이너가 태운 CPU 초. 요청 수로 나누면 요청당 CPU 비용.',
       },
       {
         key: 'cpu.throttledSeconds', label: 'CPU throttled 누적(초)',
@@ -220,6 +247,50 @@ const GROUPS = [
   },
 
   {
+    // 세션 간 편차(E-46) 조사용으로 붙인 그룹. JIT·스레드·JVM CPU는 컨테이너 CPU
+    // 지표만으로는 구분되지 않는 층이다. 게이트는 걸지 않는다 — 과거 런에 값이 없어
+    // UNMEASURED 가 되기 때문.
+    id: 'jvm',
+    label: 'JVM 내부 (JIT / 스레드 / CPU)',
+    metrics: [
+      {
+        key: 'jvm.jitCompileMs', label: 'JIT 컴파일 누적시간',
+        query: `increase(jvm_compilation_time_ms_total{job="${APP_JOB}"}[$RANGE])`,
+        reduce: 'sum', unit: 'ms',
+        desc: 'JIT 컴파일러가 쓴 CPU 시간. 워밍업이 덜 끝났으면 크고, 정상 상태면 작다.',
+      },
+      ...gaugeStats('jvm.classesLoaded', `jvm_classes_loaded_classes{job="${APP_JOB}"}`, {
+        label: '로드된 클래스', unit: 'count', reduce: 'sum',
+        desc: '현재 로드된 클래스 수. 워밍업 진행도의 대리 지표.',
+      }),
+      {
+        // 컨테이너 CPU(cpu.usageCores)와 달리 JVM 프로세스만의 소비량.
+        // 요청 수로 나누면 "요청 1건당 CPU" 가 나와 효율 회귀를 직접 본다.
+        key: 'jvm.cpuSeconds', label: 'JVM CPU 소비(초)',
+        query: `increase(process_cpu_time_ns_total{job="${APP_JOB}"}[$RANGE]) / 1e9`,
+        reduce: 'sum', unit: 'sec',
+        desc: 'JVM 프로세스가 실제로 쓴 CPU 초. 요청 수로 나누면 요청당 CPU 비용.',
+      },
+      ...gaugeStats('jvm.cpuUsagePct', `100 * process_cpu_usage{job="${APP_JOB}"}`, {
+        label: 'JVM CPU 사용률', unit: 'percent', reduce: 'max',
+        desc: 'JVM 이 쓰는 CPU 비율(호스트 코어 기준).',
+      }),
+      ...gaugeStats('jvm.threadsLive', `jvm_threads_live_threads{job="${APP_JOB}"}`, {
+        label: '살아있는 스레드', unit: 'count', reduce: 'sum',
+        desc: '전체 스레드 수. 누수가 있으면 실행마다 증가한다.',
+      }),
+      ...gaugeStats('jvm.threadsBlocked', `jvm_threads_states_threads{job="${APP_JOB}",state="blocked"}`, {
+        label: 'BLOCKED 스레드', unit: 'count', reduce: 'max',
+        desc: 'synchronized 락을 기다리는 스레드. >0 이 지속되면 앱 레벨 경합이다.',
+      }),
+      ...gaugeStats('jvm.threadsWaiting', `jvm_threads_states_threads{job="${APP_JOB}",state="waiting"}`, {
+        label: 'WAITING 스레드', unit: 'count', reduce: 'max',
+        desc: '대기 중인 스레드. 커넥션 풀·큐 대기가 여기 잡힌다.',
+      }),
+    ],
+  },
+
+  {
     id: 'mysql',
     label: 'MySQL',
     metrics: [
@@ -278,6 +349,77 @@ const GROUPS = [
         label: 'Row lock 대기', unit: 'count', reduce: 'max',
         desc: '현재 행 잠금 대기 수. 핫 로우 경합 탐지.',
       }),
+      {
+        // 풀스캔은 인덱스 회귀의 직접 증거. 세션 간 편차 조사에서 옵티마이저 플랜이
+        // 바뀌었는지 보려면 slowQueries 보다 이쪽이 먼저 움직인다.
+        key: 'mysql.selectScan', label: '풀 테이블 스캔 수',
+        query: 'increase(mysql_global_status_select_scan[$RANGE])',
+        reduce: 'sum', unit: 'count',
+        desc: '첫 테이블을 전부 훑은 SELECT 수. 급증하면 인덱스가 안 먹고 있다.',
+      },
+      {
+        key: 'mysql.selectFullJoin', label: '인덱스 없는 조인',
+        query: 'increase(mysql_global_status_select_full_join[$RANGE])',
+        reduce: 'sum', unit: 'count',
+        desc: '조인 키에 인덱스가 없어 상대 테이블을 전부 훑은 횟수. 0이어야 정상.',
+      },
+      {
+        key: 'mysql.tmpDiskTables', label: '디스크 임시 테이블',
+        query: 'increase(mysql_global_status_created_tmp_disk_tables[$RANGE])',
+        reduce: 'sum', unit: 'count',
+        desc: '메모리에 못 담아 디스크로 내려간 임시 테이블. ORDER BY/GROUP BY 비용의 신호.',
+      },
+      {
+        key: 'mysql.rowLockTimeMs', label: 'Row lock 대기 총시간',
+        query: 'increase(mysql_global_status_innodb_row_lock_time[$RANGE])',
+        reduce: 'sum', unit: 'ms',
+        desc: '행 잠금을 기다린 누적 시간(ms). 응답시간에 그대로 더해진다. (T-29)',
+      },
+      {
+        key: 'mysql.rowLockWaitCount', label: 'Row lock 대기 횟수',
+        query: 'increase(mysql_global_status_innodb_row_lock_waits[$RANGE])',
+        reduce: 'sum', unit: 'count',
+        desc: '행 잠금 대기가 발생한 횟수. 대기 총시간과 나누면 1회 평균 대기. (T-29)',
+      },
+      {
+        key: 'mysql.rollbacks', label: '롤백 수',
+        query: 'increase(mysql_global_status_commands_total{command="rollback"}[$RANGE])',
+        reduce: 'sum', unit: 'count',
+        desc: '롤백된 트랜잭션 수. 데드락·예외가 조용히 늘고 있는지 본다. (T-29)',
+      },
+
+      // ── 컨테이너 관점 ──────────────────────────────────────────────────
+      // 위쪽은 전부 mysqld-exporter(=MySQL 자신이 세는 값)이고 여기부터는 cAdvisor
+      // (=커널이 세는 값)다. 출처가 다르니 답하는 질문도 다르다. exporter 는 "쿼리를 몇 번
+      // 처리했나", cAdvisor 는 "그러느라 CPU 를 얼마나 태웠나"를 안다.
+      //
+      // 왜 뒤늦게 붙였나: 세션 간 편차(E-46) 조사에서 앱만 느려진 것인지 DB 도 같이
+      // 느려진 것인지를 갈라야 했는데, DB 쪽 CPU 지표가 없어 Prometheus 를 손으로 조회해야
+      // 했다. 그 값이 결론을 갈랐다 — **MySQL 도 같은 CPU 로 23% 적은 쿼리를 처리했다.**
+      // 두 프로세스가 동시에 같은 비율로 비효율해졌다는 것이 원인을 컨테이너 아래 층으로
+      // 좁힌 유일한 근거다. 다시 손으로 조회하지 않도록 카탈로그에 넣는다.
+      ...gaugeStats('mysql.cpuCores', one(`rate(container_cpu_usage_seconds_total{name="${DB}"}[1m])`), {
+        label: 'MySQL 컨테이너 CPU', unit: 'cores', reduce: 'max',
+        desc: 'MySQL 컨테이너가 소비한 CPU 코어 수. 앱 CPU 와 나란히 놓고 본다.',
+      }),
+      {
+        key: 'mysql.cpuSeconds', label: 'MySQL CPU 총초',
+        query: one(`increase(container_cpu_usage_seconds_total{name="${DB}"}[$RANGE])`),
+        reduce: 'max', unit: 'sec',
+        desc: '측정 구간에 MySQL 이 태운 CPU 초. 쿼리 수로 나누면 쿼리당 CPU 비용.',
+      },
+      {
+        key: 'mysql.cpuLimitCores', label: 'MySQL CPU 한계(코어)',
+        query: one(`container_spec_cpu_quota{name="${DB}"} / container_spec_cpu_period{name="${DB}"}`),
+        reduce: 'max', unit: 'cores',
+        desc: 'MySQL 에 걸린 cgroup CPU 상한. 여유가 있는데 느리면 CPU 부족이 아니다.',
+      },
+      {
+        key: 'mysql.throttledPct', label: 'MySQL CPU throttled 비율',
+        query: one(`100 * rate(container_cpu_cfs_throttled_periods_total{name="${DB}"}[$RANGE]) / clamp_min(rate(container_cpu_cfs_periods_total{name="${DB}"}[$RANGE]), 1)`),
+        reduce: 'max', unit: 'percent',
+        desc: 'MySQL 이 cgroup 에 강제 정지된 주기 비율. >0 이면 DB 지연의 원인이 CPU 상한이다.',
+      },
     ],
   },
 
@@ -290,6 +432,18 @@ const GROUPS = [
         query: 'rate(redis_commands_processed_total[$RANGE])',
         reduce: 'sum', unit: 'per_sec',
         desc: '초당 처리 명령 수.',
+      },
+      // MySQL 과 같은 이유로 붙인다(위 주석 참고). Redis 는 소비량이 작아 보통 결론을
+      // 가르지 않지만, **셋 중 하나만 빠져 있으면 "스택 전체가 같이 느려졌나"를 못 묻는다.**
+      ...gaugeStats('redis.cpuCores', one(`rate(container_cpu_usage_seconds_total{name="${CACHE}"}[1m])`), {
+        label: 'Redis 컨테이너 CPU', unit: 'cores', reduce: 'max',
+        desc: 'Redis 컨테이너가 소비한 CPU 코어 수.',
+      }),
+      {
+        key: 'redis.cpuSeconds', label: 'Redis CPU 총초',
+        query: one(`increase(container_cpu_usage_seconds_total{name="${CACHE}"}[$RANGE])`),
+        reduce: 'max', unit: 'sec',
+        desc: '측정 구간에 Redis 가 태운 CPU 초.',
       },
       {
         key: 'redis.opsPerSecMax', label: 'Ops/sec max',
@@ -515,6 +669,194 @@ const GROUPS = [
         label: '부하 발생기 메모리', unit: 'bytes', reduce: 'max',
         desc: 'k6 가 쓴 메모리. VU 가 많으면 여기가 먼저 터진다.',
       }),
+    ],
+  },
+  {
+    // k6 시계열 — remote-write 로 들어온 **부하 발생기 관점**의 지표 (P0-4 9번).
+    //
+    // record.k6 (k6 요약본)와 무엇이 다른가: 요약본은 실행 전체에 대해 **한 번** 계산된
+    // 값이라 사후에 구간을 바꿔 다시 물어볼 수 없다. 이쪽은 5초 간격 원본 분포가
+    // Prometheus 에 남아 있어, 저장된 실행에서 measure 앞 5분만 잘라 p95 를 다시 구하는
+    // 식의 재질의가 된다. 두 값이 크게 어긋나면 그 자체가 신호다(창 계산 오류 등).
+    //
+    // native histogram 이라 분위수는 **질의 시점에** 계산된다. `histogram_quantile` 은
+    // 버킷 원본을 받으므로 임의 구간에 대해 정확하다 — 계산된 p95 를 저장해 두는 방식은
+    // 분위수가 합산되지 않아 근사치밖에 안 된다.
+    //
+    // k6 는 초 단위로 보낸다. 리포트·SLO 는 전부 ms 기준이라 1000 을 곱해 맞춘다.
+    //
+    // ⚠ 요약본과 **정확히 같은 값이 나오지는 않는다.** 두 가지 이유가 있고 둘 다 정상이다.
+    //
+    //   1) rate() 는 창의 **첫 표본을 기준선으로 소비**한다. push 간격이 5초이므로
+    //      창 맨 앞 5초에 일어난 요청은 분포에서 빠진다. 20분 측정 구간이면 0.4%라
+    //      무시할 수 있지만, 1분짜리 짧은 실행에서는 8%가 되어 눈에 띈다. 실제로
+    //      검증 smoke(63초)에서 >100ms 요청 5건이 전부 첫 구간에 몰려 있어
+    //      요약본 P99 195ms 대 시계열 P99 22ms 로 벌어졌다 — 그 5건은 커넥션·JIT
+    //      워밍업이었고, measure 구간이 애초에 배제하려는 종류의 표본이다.
+    //   2) native histogram 은 버킷 경계로 반올림된다. k6 가 쓰는 schema 3 은 버킷
+    //      폭비가 2^(1/8)=1.0905 라 상대 오차가 최대 ±4.5%다.
+    //
+    // 그래서 이 값은 요약본을 **대체**하는 게 아니라 요약본이 답할 수 없는 질문
+    // ("구간을 바꾸면 얼마인가")을 답한다. 판정은 계속 요약본으로 한다.
+    //
+    // 게이트는 걸지 않는다 — remote-write 이전 실행에는 값이 없어 UNMEASURED 가 된다.
+    // `--no-remote-write` 로 끈 실행도 전부 null 이 되는데, 그 결측 자체가
+    // "이 실행은 시계열을 남기지 않았다"는 정확한 기록이다.
+    id: 'k6ts',
+    label: 'k6 시계열 (remote-write)',
+    metrics: [
+      {
+        key: 'k6ts.p95', label: 'k6 P95 (시계열)',
+        query: '1000 * histogram_quantile(0.95, sum(rate(k6_http_req_duration_seconds[$RANGE])))',
+        reduce: 'max', unit: 'ms',
+        desc: '측정 구간 전체의 응답시간 P95. k6 요약본의 P95 와 같은 값이어야 한다 — 어긋나면 측정 창 계산을 의심한다.',
+      },
+      {
+        key: 'k6ts.p99', label: 'k6 P99 (시계열)',
+        query: '1000 * histogram_quantile(0.99, sum(rate(k6_http_req_duration_seconds[$RANGE])))',
+        reduce: 'max', unit: 'ms',
+        desc: '응답시간 P99. 꼬리가 얼마나 두꺼운지를 본다.',
+      },
+      {
+        key: 'k6ts.p50', label: 'k6 P50 (시계열)',
+        query: '1000 * histogram_quantile(0.50, sum(rate(k6_http_req_duration_seconds[$RANGE])))',
+        reduce: 'max', unit: 'ms',
+        desc: '응답시간 중앙값. P95 와의 벌어짐이 곧 꼬리 비대칭의 크기다.',
+      },
+      {
+        // SLO 가 읽기 300ms / 쓰기 500ms 로 갈려 있다. k6 가 붙여 보내는 `op` 라벨로
+        // 그 구분을 지표 레벨에서 그대로 잰다 — 요약본에서는 섞여 있어 못 하던 것이다.
+        key: 'k6ts.p95Read', label: 'k6 P95 읽기',
+        query: '1000 * histogram_quantile(0.95, sum(rate(k6_http_req_duration_seconds{op="read"}[$RANGE])))',
+        reduce: 'max', unit: 'ms',
+        desc: '읽기 요청만의 P95. SLO 기준 300ms.',
+      },
+      {
+        key: 'k6ts.p95Write', label: 'k6 P95 쓰기',
+        query: '1000 * histogram_quantile(0.95, sum(rate(k6_http_req_duration_seconds{op="write"}[$RANGE])))',
+        reduce: 'max', unit: 'ms',
+        desc: '쓰기 요청만의 P95. SLO 기준 500ms.',
+      },
+      {
+        // waiting = TTFB(요청을 다 보낸 뒤 첫 바이트까지). duration 에서 이걸 빼면
+        // 전송·수신에 쓴 시간이 남는다. 서버가 느린 것과 왕복 경로가 느린 것을 가른다.
+        key: 'k6ts.waitingP95', label: 'k6 서버 대기 P95',
+        query: '1000 * histogram_quantile(0.95, sum(rate(k6_http_req_waiting_seconds[$RANGE])))',
+        reduce: 'max', unit: 'ms',
+        desc: '첫 바이트까지 기다린 시간의 P95(TTFB). P95 전체와 거의 같으면 지연은 서버 안에서 났다.',
+      },
+      {
+        // 발생기가 자기 커넥션 슬롯을 기다린 시간. 0 이 아니면 서버가 아니라 k6 가
+        // 먼저 막힌 것이다 — loadgen.throttledPct 와 함께 E-01 판정에 쓴다.
+        key: 'k6ts.blockedP95', label: 'k6 커넥션 대기 P95',
+        query: '1000 * histogram_quantile(0.95, sum(rate(k6_http_req_blocked_seconds[$RANGE])))',
+        reduce: 'max', unit: 'ms',
+        desc: '요청을 보내기 전 커넥션을 기다린 시간. 커지면 부하 발생기 쪽 병목이다.',
+      },
+      {
+        key: 'k6ts.rps', label: 'k6 RPS (시계열)',
+        query: 'sum(rate(k6_http_reqs_total[$RANGE]))',
+        reduce: 'sum', unit: 'per_sec',
+        desc: '측정 구간의 초당 요청 수. 닫힌 부하 루프라 지연이 오르면 이 값이 내려간다.',
+      },
+      {
+        key: 'k6ts.reqs', label: 'k6 요청 수 (시계열)',
+        query: 'sum(increase(k6_http_reqs_total[$RANGE]))',
+        reduce: 'sum', unit: 'count',
+        desc: '측정 구간 요청 총수. k6 요약본의 measure 구간 httpReqs 와 대조하는 용도.',
+      },
+      {
+        // expected_response=false = k6 가 실패로 친 응답. 비율을 여기서 직접 계산하는
+        // 이유: k6 의 `_failed_rate` 게이지는 실행 시작부터 누적된 비율이라 구간을
+        // 잘라 다시 계산할 수 없다. 카운터 두 개로 나누면 임의 구간에 대해 정확하다.
+        key: 'k6ts.errorPct', label: 'k6 오류율 (시계열)',
+        // `or vector(0)` 가 없으면 **오류가 0건일 때 결과가 빈 벡터**가 된다 —
+        // 일치하는 계열이 아예 없기 때문이다. 그러면 "오류율 0%" 와 "측정 못 함" 이
+        // 똑같이 null 로 기록돼, 가장 흔한 정상 실행이 전부 결측으로 보인다.
+        query: '100 * (sum(rate(k6_http_reqs_total{expected_response="false"}[$RANGE])) or vector(0))'
+          + ' / clamp_min(sum(rate(k6_http_reqs_total[$RANGE])), 0.0001)',
+        reduce: 'max', unit: 'percent',
+        desc: '측정 구간의 실패 응답 비율. 구간을 잘라도 정확하게 다시 계산된다.',
+      },
+      ...gaugeStats('k6ts.vus', 'max(k6_vus)', {
+        label: '활성 VU', unit: 'count', reduce: 'max',
+        desc: '그 순간 붙어 있던 가상 사용자 수. 램프업 곡선과 지연 상승을 겹쳐 보는 축이다.',
+      }),
+    ],
+  },
+
+  {
+    // 효율 — "요청 1건을 처리하는 데 자원이 얼마나 들었나".
+    //
+    // 왜 별도 그룹인가: **CPU 가 포화된 상태에서는 사용률이 신호가 아니다.** 앱은 세션이
+    // 빠르든 느리든 항상 2코어에 붙어 있어 `cpu.cores.avg` 가 1.98 로 똑같이 나온다.
+    // 그 상태에서 실제로 달라지는 것은 "같은 CPU 로 몇 건을 처리했나"뿐이고, 그건 사용률이
+    // 아니라 **총소비량 ÷ 처리량**으로만 보인다.
+    //
+    // 세션 간 편차(E-46) 조사가 이 값 하나로 뒤집혔다. 자원 지표는 전부 평평했는데
+    // 요청당 CPU 가 앱 +27%, MySQL +21% 로 함께 올라 있었다. 매번 손으로 나눠 계산하던
+    // 것을 지표로 고정한다.
+    //
+    // ⚠ **분모가 k6 remote-write 에서 온다.** `--no-remote-write` 로 끈 실행과
+    // remote-write 도입 이전 실행은 전부 null 이다. 그 결측은 "효율이 나빴다"가 아니라
+    // "요청 수를 시계열로 남기지 않았다"는 뜻이다.
+    id: 'efficiency',
+    label: '효율 (요청당 자원 비용)',
+    metrics: [
+      {
+        key: 'efficiency.appCpuMsPerReq', label: '요청당 앱 CPU',
+        query: `1000 * ${one(`increase(container_cpu_usage_seconds_total{name="${APP}"}[$RANGE])`)} / ${REQS}`,
+        reduce: 'max', unit: 'ms',
+        desc: '요청 1건에 앱 컨테이너가 태운 CPU(ms). **CPU 포화 상태에서 성능 회귀를 직접 보는 값.** 오르면 같은 일을 더 비싸게 하고 있다.',
+      },
+      {
+        // 컨테이너 CPU 에는 JVM 밖(쉘·에이전트 등)도 섞인다. 이 둘이 크게 벌어지면
+        // 컨테이너 안에서 JVM 아닌 무언가가 CPU 를 먹고 있다는 뜻이다.
+        key: 'efficiency.jvmCpuMsPerReq', label: '요청당 JVM CPU',
+        query: `1000 * ${one(`increase(process_cpu_time_ns_total{job="${APP_JOB}"}[$RANGE])`)} / 1e9 / ${REQS}`,
+        reduce: 'max', unit: 'ms',
+        desc: 'JVM 프로세스만의 요청당 CPU(ms). 앱 컨테이너 값과 크게 다르면 컨테이너 안에 다른 소비자가 있다.',
+      },
+      {
+        key: 'efficiency.dbCpuMsPerReq', label: '요청당 MySQL CPU',
+        query: `1000 * ${one(`increase(container_cpu_usage_seconds_total{name="${DB}"}[$RANGE])`)} / ${REQS}`,
+        reduce: 'max', unit: 'ms',
+        desc: '요청 1건에 MySQL 이 태운 CPU(ms). 앱 값과 **같은 비율로** 움직이면 원인은 둘 다의 아래 층이다.',
+      },
+      {
+        key: 'efficiency.cacheCpuMsPerReq', label: '요청당 Redis CPU',
+        query: `1000 * ${one(`increase(container_cpu_usage_seconds_total{name="${CACHE}"}[$RANGE])`)} / ${REQS}`,
+        reduce: 'max', unit: 'ms',
+        desc: '요청 1건에 Redis 가 태운 CPU(ms).',
+      },
+      {
+        key: 'efficiency.stackCpuMsPerReq', label: '요청당 스택 전체 CPU',
+        query: `1000 * (${one(`increase(container_cpu_usage_seconds_total{name="${APP}"}[$RANGE])`)}`
+          + ` + ${one(`increase(container_cpu_usage_seconds_total{name="${DB}"}[$RANGE])`)}`
+          + ` + ${one(`increase(container_cpu_usage_seconds_total{name="${CACHE}"}[$RANGE])`)}) / ${REQS}`,
+        reduce: 'max', unit: 'ms',
+        desc: '앱+MySQL+Redis 를 합친 요청당 CPU. 병목이 옮겨 다녀도 이 합계는 총비용을 그대로 보여준다.',
+      },
+      {
+        // 쿼리 수로 나누면 "쿼리가 늘어난 것"과 "쿼리 하나가 비싸진 것"이 갈린다.
+        // efficiency.dbCpuMsPerReq 만 보면 이 둘이 섞여 있다.
+        key: 'efficiency.dbCpuUsPerQuery', label: '쿼리당 MySQL CPU',
+        query: `1e6 * ${one(`increase(container_cpu_usage_seconds_total{name="${DB}"}[$RANGE])`)} / clamp_min(${one('increase(mysql_global_status_queries[$RANGE])')}, 1)`,
+        reduce: 'max', unit: 'us',
+        desc: '쿼리 1건에 든 CPU(마이크로초). 요청당 쿼리 수는 그대로인데 이 값만 오르면 DB 자체가 비효율해진 것이다.',
+      },
+      {
+        key: 'efficiency.queriesPerReq', label: '요청당 쿼리 수',
+        query: `${one('increase(mysql_global_status_queries[$RANGE])')} / ${REQS}`,
+        reduce: 'max', unit: 'count',
+        desc: '요청 1건이 만든 쿼리 수. 급증하면 N+1 이다. 위 두 지표를 해석할 때의 기준선.',
+      },
+      {
+        key: 'efficiency.ctxSwitchPerReq', label: '요청당 컨텍스트 스위치',
+        query: `${one('increase(node_context_switches_total[$RANGE])')} / ${REQS}`,
+        reduce: 'max', unit: 'count',
+        desc: '요청 1건당 VM 전체 컨텍스트 스위치. CPU 는 그대로인데 이게 오르면 스케줄링 비용이 늘어난 것이다.',
+      },
     ],
   },
 ];
