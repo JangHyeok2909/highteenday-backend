@@ -35,7 +35,6 @@ public class PostService {
     private final MediaProcessingService mediaProcessingService;
     private final PostPrevCache postPrevCache;
     private final static int SIZE = 10;
-    private final static int CACHE_PAGE_LIMIT = 5;
 
     public Post findById(Long postId) {
         return postRepository.findById(postId)
@@ -68,12 +67,17 @@ public class PostService {
     }
 
     /**
-     * 게시글 목록 조회. 캐시는 "최신순 + 앞쪽 5페이지"에만 적용한다 —
+     * 게시글 목록 조회. 캐시는 "최신순 + 캐시가 담는 범위 안" 에만 적용한다 —
      * 트래픽 대부분이 이 구간에 몰리고, 정렬 조건별로 캐시를 다 두면
      * 무효화 비용이 커지기 때문이다. 그 외 조건은 DB(QueryDSL) 직행.
+     *
+     * 판정은 페이지 번호가 아니라 조회 끝 인덱스로 한다. 캐시는 최신 글
+     * {@value PostPrevCache#MAX_CACHED_POSTS} 개만 담으므로 page 가 작아도 size 가 크면
+     * 구간이 캐시 밖으로 나가고, 그러면 캐시는 빈 목록밖에 줄 수 없다 (KI-57).
      */
     public List<PostPreviewDto> getPagedPosts(PostListingDto dto) {
-        if (dto.getPage() < CACHE_PAGE_LIMIT && dto.getSortType() == SortType.RECENT) {
+        long endIndexExclusive = (long) (dto.getPage() + 1) * dto.getSize();
+        if (endIndexExclusive <= PostPrevCache.MAX_CACHED_POSTS && dto.getSortType() == SortType.RECENT) {
             return postPrevCache.getPostPrevs(dto.getBoardId(), dto.getPage(), dto.getSize());
         }
         return postRepository.findByBoard(dto);
