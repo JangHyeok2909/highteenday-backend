@@ -152,6 +152,18 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=30d
       - --web.enable-remote-write-receiver   # k6 experimental-prometheus-rw 수신
+      # k6 가 보내는 trend 지표를 **native histogram** 으로 받기 위해 필요하다.
+      # 이게 없으면 remote-write 는 성공하는데 히스토그램 계열만 조용히 버려진다
+      # (k6 는 에러를 내지 않는다). 왜 native histogram 이어야 하는지는 perf-run.js 의
+      # remoteWriteEnv() 주석 참고 — 요약하면 분위수는 합산되지 않아서, 계산된 p95 를
+      # 받아 두면 임의 구간(예: measure 앞 5분)의 p95 를 사후에 정확히 못 구한다.
+      #
+      # ⚠ 부작용을 하나 막아 뒀다. 이 플래그는 **스크레이프 프로토콜 협상도 바꾼다** —
+      # 켜면 Prometheus 가 타깃에 protobuf 를 먼저 요청한다. 그러면 앱·MySQL·Redis 의
+      # 지표가 오늘까지와 다른 인코딩으로 들어와, 미해결 상태인 E-46(세션 간 편차)
+      # 조사에 새 변수가 하나 끼어든다. prometheus.yml 의 `scrape_protocols` 에
+      # 기존 목록을 **명시적으로 고정**해 그 협상을 원래대로 묶어 뒀다.
+      - --enable-feature=native-histograms
     ports:
       # 루프백에만 바인딩한다(E-14). `"9090:9090"` 은 0.0.0.0 에 붙어 같은 네트워크의
       # 누구나 접근할 수 있는데, 위 remote-write 수신기에는 **인증이 없다**. 즉 외부에서

@@ -2,6 +2,18 @@
 global:
   scrape_interval: 5s        # 부하 테스트는 15s 기본값으론 스파이크를 놓친다
   evaluation_interval: 15s
+  # 스크레이프 협상 프로토콜을 **명시적으로 고정**한다. 이 목록은 Prometheus 2.51 의
+  # 기본값과 같아서 동작이 달라지지는 않는다 — 고정한다는 것 자체가 목적이다.
+  #
+  # 이유: docker-compose 에 붙인 `--enable-feature=native-histograms` 는 remote-write 로
+  # 들어오는 k6 히스토그램을 받기 위한 플래그인데, 부수적으로 이 기본 목록 맨 앞에
+  # PrometheusProto 를 끼워 넣어 **앱·MySQL·Redis 스크레이프까지 protobuf 로 바꾼다.**
+  # 계열 이름은 그대로지만 수집 경로가 달라지므로, 세션 간 편차(E-46)를 쫓는 중에
+  # 원인 후보를 하나 늘리는 셈이 된다. 여기 적어 두면 그 자동 삽입이 일어나지 않는다.
+  scrape_protocols:
+    - OpenMetricsText1.0.0
+    - OpenMetricsText0.0.1
+    - PrometheusText0.0.4
 
 scrape_configs:
   - job_name: spring-app
@@ -30,6 +42,12 @@ scrape_configs:
       - targets: ["node-exporter:9100"]
         labels: { role: perf-host }
 
-# k6는 스크레이프가 아니라 remote write로 밀어넣는다:
-#   k6 run -o experimental-prometheus-rw \
-#     -e K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write ...
+# k6 는 스크레이프가 아니라 remote write 로 밀어넣는다. 손으로 칠 일은 없다 —
+# `tools/perf-run.js` 가 기본으로 켜고 주소도 모드에 맞춰 넣는다(`--no-remote-write` 로 끔).
+#
+#   local  모드: http://localhost:9090/api/v1/write   (Windows 프로세스 → 퍼블리시된 포트)
+#   docker 모드: http://prometheus:9090/api/v1/write  (컨테이너 네트워크 → 서비스 이름)
+#
+# 들어오는 계열은 `k6_*` 이고, trend 지표(http_req_duration 등)는 native histogram 이라
+# 임의 구간의 분위수를 사후에 정확히 계산할 수 있다:
+#   histogram_quantile(0.95, sum(rate(k6_http_req_duration[5m])))
