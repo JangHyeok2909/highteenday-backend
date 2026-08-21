@@ -33,8 +33,12 @@ class PostServiceTest {
     private static final int SIZE = 10;
 
     private PostListingDto dto(int page, SortType sortType) {
+        return dto(page, sortType, SIZE);
+    }
+
+    private PostListingDto dto(int page, SortType sortType, int size) {
         return PostListingDto.builder()
-                .boardId(BOARD_ID).page(page).sortType(sortType).size(SIZE)
+                .boardId(BOARD_ID).page(page).sortType(sortType).size(size)
                 .build();
     }
 
@@ -112,6 +116,78 @@ class PostServiceTest {
 
             verify(postRepository).findByBoard(dto);
             verify(postPrevCache, never()).getPostPrevs(any(), anyInt(), anyInt());
+        }
+
+        // ── KI-57: 페이지 번호가 작아도 size 가 크면 캐시 밖으로 나간다 ──
+        // 캐시는 최신 50건만 담으므로 판정 기준은 page 가 아니라 (page + 1) * size 다.
+
+        @Test
+        @DisplayName("최신순 + 3페이지 · size 20 → DB 조회 (끝 인덱스 80 > 50, KI-57)")
+        void recentPage3Size20_usesDb() {
+            PostListingDto dto = dto(3, SortType.RECENT, 20);
+            when(postRepository.findByBoard(dto)).thenReturn(List.of());
+
+            postService.getPagedPosts(dto);
+
+            verify(postRepository).findByBoard(dto);
+            verify(postPrevCache, never()).getPostPrevs(any(), anyInt(), anyInt());
+        }
+
+        @Test
+        @DisplayName("최신순 + 2페이지 · size 20 → DB 조회 (끝 인덱스 60 > 50, 일부만 반환되던 구간)")
+        void recentPage2Size20_usesDb() {
+            PostListingDto dto = dto(2, SortType.RECENT, 20);
+            when(postRepository.findByBoard(dto)).thenReturn(List.of());
+
+            postService.getPagedPosts(dto);
+
+            verify(postRepository).findByBoard(dto);
+            verify(postPrevCache, never()).getPostPrevs(any(), anyInt(), anyInt());
+        }
+
+        @Test
+        @DisplayName("최신순 + 1페이지 · size 20 → 캐시 조회 (끝 인덱스 40 ≤ 50)")
+        void recentPage1Size20_usesCache() {
+            when(postPrevCache.getPostPrevs(BOARD_ID, 1, 20)).thenReturn(List.of());
+
+            postService.getPagedPosts(dto(1, SortType.RECENT, 20));
+
+            verify(postPrevCache).getPostPrevs(BOARD_ID, 1, 20);
+            verify(postRepository, never()).findByBoard(any());
+        }
+
+        @Test
+        @DisplayName("최신순 + 0페이지 · size 50 → 캐시 조회 (끝 인덱스 50 = 경계값)")
+        void recentPage0Size50_usesCache() {
+            when(postPrevCache.getPostPrevs(BOARD_ID, 0, 50)).thenReturn(List.of());
+
+            postService.getPagedPosts(dto(0, SortType.RECENT, 50));
+
+            verify(postPrevCache).getPostPrevs(BOARD_ID, 0, 50);
+            verify(postRepository, never()).findByBoard(any());
+        }
+
+        @Test
+        @DisplayName("최신순 + 1페이지 · size 50 → DB 조회 (끝 인덱스 100 > 50)")
+        void recentPage1Size50_usesDb() {
+            PostListingDto dto = dto(1, SortType.RECENT, 50);
+            when(postRepository.findByBoard(dto)).thenReturn(List.of());
+
+            postService.getPagedPosts(dto);
+
+            verify(postRepository).findByBoard(dto);
+            verify(postPrevCache, never()).getPostPrevs(any(), anyInt(), anyInt());
+        }
+
+        @Test
+        @DisplayName("최신순 + 9페이지 · size 5 → 캐시 조회 (끝 인덱스 50 — 페이지 번호만 보던 기존 조건이면 DB로 샜다)")
+        void recentPage9Size5_usesCache() {
+            when(postPrevCache.getPostPrevs(BOARD_ID, 9, 5)).thenReturn(List.of());
+
+            postService.getPagedPosts(dto(9, SortType.RECENT, 5));
+
+            verify(postPrevCache).getPostPrevs(BOARD_ID, 9, 5);
+            verify(postRepository, never()).findByBoard(any());
         }
     }
 

@@ -363,6 +363,10 @@
   즉 `page=3~4 & size=20`은 게시글이 수만 건 있어도 `content`가 빈 배열이고(`total`은 정상값이라 "3페이지가 있다는데 열면 비어 있다"로 보인다), `page=2 & size=20`은 20건 요청에 **10건만** 조용히 반환한다. 성능 측면으로는 그런 요청마다 DB 50행 조회와 Redis 명령 약 150회를 쓰고 아무것도 돌려주지 않는다.
 - 확인 방법: 게시글 60건 이상인 게시판에 `GET /api/boards/{id}/posts?page=3&size=20` 요청 → `content: []`, `total`은 정상. 같은 요청을 `sortType=LIKE`로 바꾸면(캐시 경로를 벗어난다) 정상 응답이 온다.
 - 조치 방향: 캐시 경로 진입 조건을 페이지 번호가 아니라 **끝 인덱스** 기준으로 바꾼다 — `(page + 1) * size <= MAX_SIZE`. 벗어나면 `postRepository.findByBoard(dto)`로 직행한다. 재적재도 `range` 결과가 아니라 `size(key)`로 "리스트가 실제로 비었는지"를 판정해야 한다.
+- → 갱신 (2026-08-19): **해소** — 조치 방향대로 두 군데를 고쳤다.
+  - `PostService.getPagedPosts()`: 진입 조건을 `dto.getPage() < CACHE_PAGE_LIMIT` 에서 `(page + 1) * size <= PostPrevCache.MAX_CACHED_POSTS` 로 바꿨다. 캐시 용량 50은 `PostPrevCache.MAX_CACHED_POSTS` 상수 하나로 모았다 — 이전에는 `RedisPostsCache` 의 private `MAX_SIZE=50` 과 `PostService` 의 `CACHE_PAGE_LIMIT=5` 가 서로 모르는 채로 같은 사실을 두 번 표현했고, **그 어긋남이 이 결함의 원인**이었다. 새 조건이 기존 조건을 완전히 포함하므로(size 10 일 때 page 0~4 그대로) `CACHE_PAGE_LIMIT` 은 삭제했다.
+  - `RedisPostsCache.getPostPrevs()`: 재적재 판정을 `range()` 결과가 아니라 `opsForList().size(key)` 로 바꿨다. 부수적으로 재적재 경로의 중복 `range` 호출이 사라졌고, `ids` 가 null 일 때 NPE 로 예외 폴백에 빠지던 것이 명시적 빈 목록 반환이 됐다.
+- 검증: 단위 테스트 8개 추가. 라우팅 6개(`page=3&size=20`·`page=2&size=20` → DB, `page=1&size=20`·`page=0&size=50`(경계) → 캐시, `page=1&size=50` → DB, `page=9&size=5` → 캐시 — 마지막은 기존 조건이면 캐시를 쓸 수 있는데도 DB로 새던 경우다)와 재적재 판정 2개(리스트가 비면 재적재, 차 있는데 구간만 밖이면 DB를 다시 읽지 않음). 저장소 전체 테스트 597개가 통과했다.
 
 마지막 검증일: 2026-08-11 (최초 작성 2026-07-30, 이후 해소분은 각 항목의 "→ 갱신" 줄 참고)
 KI-53·54는 2026-08-14 추가 — 부하 테스트 중 발견분. KI-55는 같은 날 데이터셋 재생성 검증 중 발견.

@@ -24,7 +24,6 @@ public class RedisPostsCache implements PostPrevCache{
     private final RedisTemplate<String, Long> countingTemplate;
     private final PostRepository postRepository;
 
-    private static final int MAX_SIZE=50;
     private static final Duration POST_TTL = Duration.ofMinutes(30);
     private static final Duration BOARD_TTL = Duration.ofMinutes(60);
 
@@ -37,12 +36,15 @@ public class RedisPostsCache implements PostPrevCache{
 
             String idKey = createBoardKey(boardId);
 
-            List<Long> ids = boardTemplate.opsForList().range(idKey, start, end);
-            if(ids == null||ids.isEmpty()) {
+            // 재적재 여부는 range 결과가 아니라 리스트 길이로 판정한다. range 가 빈 값을
+            // 돌려주는 이유는 "캐시가 비었다"와 "요청 구간이 리스트 밖이다" 두 가지인데,
+            // 뒤쪽에서 재적재하면 길이가 그대로라 다시 빈 값이 나온다 (KI-57).
+            Long cachedSize = boardTemplate.opsForList().size(idKey);
+            if(cachedSize == null || cachedSize == 0) {
                 List<PostPreviewDto> postPreviewDtos = postRepository.findByBoard(PostListingDto.builder()
                         .boardId(boardId)
                         .page(0)
-                        .size(MAX_SIZE)
+                        .size(MAX_CACHED_POSTS)
                         .sortType(SortType.RECENT)
                         .build());
 
@@ -50,8 +52,10 @@ public class RedisPostsCache implements PostPrevCache{
                     addPostToBoard(boardId,p.getId());
                     cachePostPrev(p);
                 }
-                ids = boardTemplate.opsForList().range(idKey, start, end);
             }
+
+            List<Long> ids = boardTemplate.opsForList().range(idKey, start, end);
+            if(ids == null || ids.isEmpty()) return Collections.emptyList();
 
             List<String> keys = ids
                     .stream()
@@ -114,7 +118,7 @@ public class RedisPostsCache implements PostPrevCache{
         String key = createBoardKey(boardId);
         boardTemplate.opsForList().rightPush(key,postId);
         boardTemplate.expire(key,BOARD_TTL);
-        boardTemplate.opsForList().trim(key,0,MAX_SIZE-1);
+        boardTemplate.opsForList().trim(key,0,MAX_CACHED_POSTS-1);
     }
 
     @ResilientRedis
