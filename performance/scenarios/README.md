@@ -29,8 +29,9 @@ flowchart LR
 cd performance                       # 반드시 performance/ 루트에서
 k6 run scenarios/normal-day.js       # 기본 설정
 k6 run scenarios/normal-day.js -e VUS=100 -e HOLD=5m -e BASE_URL=http://localhost:18080
-# Prometheus로 실시간 메트릭 전송 시:
-k6 run -o experimental-prometheus-rw scenarios/normal-day.js
+# 다만 실제 측정은 래퍼로 돌린다 — 메타데이터 기록·데이터셋 상태 확인·지표 수집·
+# k6 remote-write(p95 시계열)가 전부 여기 묶여 있다:
+node tools/perf-run.js scenarios/normal-day.js --dataset medium --loadgen docker
 ```
 
 ## 카탈로그
