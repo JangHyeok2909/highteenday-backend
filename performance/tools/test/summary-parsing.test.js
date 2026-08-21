@@ -63,12 +63,17 @@ test('breakdown: 단일 태그 서브메트릭은 축별로 분해된다', () =>
   assert.equal(out.op.auth.p95, 80);
 });
 
-test('breakdown: 다중 태그 서브메트릭({phase:...,op:...})은 축 분해에서 제외된다', () => {
+test('breakdown: phase 가 섞인 2태그는 그 축의 구간별 값으로 받는다 (S-28)', () => {
+  // 2026-08-20 규칙 변경. 예전에는 다중 태그를 전부 버렸는데, 그 때문에 op:read/op:write
+  // 의 p95 가 리포트에서 통째로 비어 있었다 — 이 둘은 실제 SLO 축이라 measure 구간으로만
+  // 선언되기 때문이다. 오파싱 위험(첫 콜론 오인)은 태그를 쉼표로 먼저 쪼개어 없앴다.
   const out = breakdown({
     'http_req_duration{phase:measurement,op:read}': { values: { avg: 5 } },
   });
   assert.equal(out.phase, undefined, '오파싱된 "phase" 축이 생기면 안 된다');
-  assert.deepEqual(Object.keys(out), []);
+  assert.ok(out.op && out.op.read, 'op 축은 살아야 한다');
+  assert.equal(out.op.read.byPhase.measurement.avg, 5);
+  assert.equal(out.op.read.p95, undefined, '전체 구간 칸은 비어 있어야 한다');
 });
 
 test('breakdown: 태그 값에 콜론이 있어도 첫 콜론 기준으로 자른다', () => {
@@ -88,4 +93,38 @@ test('parseName: 파일명에서 시나리오와 종료 시각을 복원한다',
   assert.equal(info.scenario, 'normal-day');
   assert.equal(info.runId, 'normal-day-2026-08-05T09-39-43');
   assert.equal(info.endedAt.toISOString(), '2026-08-05T09:39:43.000Z');
+});
+
+// ── S-28: op 축 통계 결손 회귀 테스트 ──
+// `op:read`/`op:write` 는 실제 SLO 축이라 PHASED_THRESHOLDS 에서 measure 구간으로만
+// 선언된다. 예전 breakdown 은 2태그 서브메트릭을 전부 버려서 read·write 에 p95 가 없었다.
+
+const trend = (p95) => ({ values: { avg: p95 / 3, min: 1, med: p95 / 4, max: p95 * 2, 'p(90)': p95 * 0.8, 'p(95)': p95, 'p(99)': p95 * 1.5, count: 100 } });
+
+test('measure 구간 서브메트릭에서 op 축 통계를 만든다', () => {
+  const b = breakdown({
+    'http_req_duration{op:read,phase:measure}': trend(300),
+    'http_req_duration{op:write,phase:measure}': trend(500),
+  });
+  assert.equal(b.op.read.byPhase.measure.p95, 300);
+  assert.equal(b.op.write.byPhase.measure.p95, 500);
+});
+
+test('전체 구간과 measure 구간을 섞지 않는다', () => {
+  const b = breakdown({
+    'http_req_duration{feature:comment}': trend(1868),
+    'http_req_duration{feature:comment,phase:measure}': trend(1200),
+  });
+  assert.equal(b.feature.comment.p95, 1868, '전체 구간 값은 최상위에');
+  assert.equal(b.feature.comment.byPhase.measure.p95, 1200, 'measure 값은 byPhase 에');
+});
+
+test('phase 단독 태그는 분해 축이 아니다', () => {
+  const b = breakdown({ 'http_req_duration{phase:measure}': trend(100) });
+  assert.equal(b.phase, undefined);
+});
+
+test('태그 3개 이상은 여전히 제외한다', () => {
+  const b = breakdown({ 'http_req_duration{op:read,phase:measure,page:0}': trend(100) });
+  assert.deepEqual(b, {});
 });
