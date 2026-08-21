@@ -32,6 +32,8 @@
  *   --no-gate        회귀가 있어도 exit 0
  *   --guard <mode>   데이터셋 상태 강제 수준 off|warn|strict (tools/lib/guard.js)
  *                    미지정 시 PERF_DATASET_GUARD → perf.config.json → off 순으로 결정된다.
+ *   --no-remote-write  k6 지표를 Prometheus 로 흘려보내지 않는다 (기본은 흘려보냄).
+ *                    끄면 그 실행은 p95 시계열이 남지 않아 사후 재질의가 불가능하다.
  *   -e KEY=VALUE     k6로 그대로 전달
  */
 'use strict';
@@ -105,6 +107,50 @@ const LOADGEN_CT = process.env.PERF_LOADGEN_CONTAINER || 'perf-k6';
 const K6_DOCKER_BASE_URL = process.env.K6_DOCKER_BASE_URL || 'http://app:8080';
 const K6_CPUS = process.env.K6_CPUS || '4';
 
+/**
+ * k6 지표를 Prometheus 로 remote-write 한다.
+ *
+ * 무엇이 없었나: k6 는 실행이 끝난 뒤 `handleSummary()` 로 **요약본 하나**만 남긴다.
+ * 20분을 돌려도 그 20분 동안 p95 가 어떻게 움직였는지는 어디에도 기록되지 않았다.
+ * 인프라(앱·MySQL·Redis·호스트)만 5초 간격 시계열이고, 정작 **판정 지표인 k6 쪽이
+ * 시계열이 아니었다.** 그래서 "측정 구간을 20분에서 5분으로 줄여도 되나"에 답하려다
+ * 막혔다 — 저장된 실행에서 앞 5분만 잘라 p95 를 다시 계산할 데이터가 없었다.
+ *
+ * 왜 native histogram 인가: `K6_PROMETHEUS_RW_TREND_STATS` 방식은 5초마다 **이미
+ * 계산된 p95 하나**를 보낸다. 그런데 분위수는 구간끼리 합산되지 않는다 — 5초 구간
+ * p95 240개를 평균해도 20분 p95가 나오지 않는다. 원본 분포(버킷)를 보내야 임의
+ * 구간의 분위수를 정확히 계산할 수 있다:
+ *   histogram_quantile(0.95, sum(rate(k6_http_req_duration[5m])))
+ * 이 방식은 Prometheus 쪽 `--enable-feature=native-histograms` 가 함께 켜져 있어야
+ * 한다(docker-compose.perf.yml).
+ *
+ * 주소가 모드마다 다르다: `local` 은 Windows 프로세스라 퍼블리시된 127.0.0.1:9090 으로,
+ * `docker` 는 컨테이너 네트워크 안이라 서비스 이름 `prometheus:9090` 으로 붙는다.
+ */
+const K6_RW_URL_LOCAL = process.env.K6_RW_URL_LOCAL || 'http://localhost:9090/api/v1/write';
+const K6_RW_URL_DOCKER = process.env.K6_RW_URL_DOCKER || 'http://prometheus:9090/api/v1/write';
+/** 인프라 스크레이프 간격(5s)과 맞춘다 — 두 계열을 같은 시간축에 겹쳐 보기 위함. */
+const K6_RW_PUSH_INTERVAL = process.env.K6_RW_PUSH_INTERVAL || '5s';
+
+/** k6 로 넘길 remote-write 환경변수. 컨테이너 모드면 `-e` 로 그대로 전달된다. */
+const K6_RW_ENV_KEYS = [
+  'K6_PROMETHEUS_RW_SERVER_URL',
+  'K6_PROMETHEUS_RW_PUSH_INTERVAL',
+  'K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM',
+  'K6_PROMETHEUS_RW_STALE_MARKERS',
+];
+
+function remoteWriteEnv(loadgenMode) {
+  return {
+    K6_PROMETHEUS_RW_SERVER_URL: loadgenMode === 'docker' ? K6_RW_URL_DOCKER : K6_RW_URL_LOCAL,
+    K6_PROMETHEUS_RW_PUSH_INTERVAL: K6_RW_PUSH_INTERVAL,
+    K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM: 'true',
+    // 테스트가 끝나면 계열에 stale 표식을 찍는다. 없으면 Prometheus 가 마지막 값을
+    // 5분간 그대로 이어 그려서, 실행이 끝난 뒤에도 VU 가 200명인 것처럼 보인다.
+    K6_PROMETHEUS_RW_STALE_MARKERS: 'true',
+  };
+}
+
 /** Docker Desktop 은 `C:/x/y` 는 받지만 Git Bash 스타일 `/c/x/y` 는 못 받는다. */
 const dockerPath = (p) => path.resolve(p).replace(/\\/g, '/');
 
@@ -116,6 +162,10 @@ function dockerK6Args(k6Args, env) {
   const passthrough = [
     'PERF_ENV', 'PERF_BRANCH', 'PERF_COMMIT', 'PERF_BUILD', 'PERF_EXECUTOR',
     'PERF_SCRIPT_VERSION', 'PERF_NOTE', 'PERF_DATASET_FINGERPRINT', 'DATASET',
+    // remote-write 설정. 컨테이너 안의 k6 는 호스트 환경변수를 물려받지 않으므로
+    // 여기서 명시적으로 넣지 않으면 `-o experimental-prometheus-rw` 가 기본 주소
+    // (http://localhost:9090)로 붙었다가 조용히 전송에 실패한다.
+    ...K6_RW_ENV_KEYS,
   ];
   const args = [
     'run', '--rm', '--name', LOADGEN_CT,
@@ -346,6 +396,10 @@ function parseArgs(argv) {
     guard: null,
     // local | docker. 기본은 local(현행) — docker 는 부하 발생기를 계측 가능하게 만든다.
     loadgen: null,
+    // 기본 on. 끄는 쪽을 명시적으로 만든 이유: 켜는 걸 잊으면 그 실행의 p95 시계열은
+    // **영원히 존재하지 않는다**(사후 복구 불가). 반대로 켜서 생기는 비용은 발생기
+    // CPU 소폭 증가뿐이고 그건 loadgen 지표로 측정된다.
+    remoteWrite: true,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -361,6 +415,7 @@ function parseArgs(argv) {
     else if (a === '--wait') o.wait = Number(argv[++i]);
     else if (a === '--no-collect') o.collect = false;
     else if (a === '--no-gate') o.gate = false;
+    else if (a === '--no-remote-write') o.remoteWrite = false;
     else if (a === '-e') o.passthrough.push('-e', argv[++i]);
     else if (a.startsWith('--k6:')) o.k6Extra.push('--' + a.slice(5), argv[++i]);
     else if (!o.script && !a.startsWith('-')) o.script = a;
@@ -456,6 +511,16 @@ function main() {
     console.log('  부하 발생기: 로컬 프로세스 — CPU 사용량이 측정되지 않습니다 (--loadgen docker 로 계측 가능)');
   }
 
+  // remote-write 는 부하 발생기 모드가 정해진 뒤에 붙인다 — 주소가 모드에 따라 다르다.
+  stateBlock.remoteWrite = o.remoteWrite;
+  if (o.remoteWrite) {
+    const rw = remoteWriteEnv(loadgenMode);
+    Object.assign(env, rw);
+    args.push('-o', 'experimental-prometheus-rw');
+    console.log(`  k6 지표 전송: ${rw.K6_PROMETHEUS_RW_SERVER_URL} (native histogram, ${K6_RW_PUSH_INTERVAL} 간격)`);
+  } else {
+    console.log('  k6 지표 전송: 꺼짐 — 이 실행은 p95 시계열이 남지 않습니다 (사후 재질의 불가)');
+  }
   const k6 = loadgenMode === 'docker'
     ? spawnSync('docker', dockerK6Args(args, env), { stdio: 'inherit', cwd: PERF_ROOT })
     : spawnSync(K6_BIN, args, { stdio: 'inherit', env, cwd: PERF_ROOT });

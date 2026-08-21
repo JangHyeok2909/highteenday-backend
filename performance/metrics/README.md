@@ -19,12 +19,26 @@ flowchart LR
     JFR[JFR /tmp/perf.jfr<br/>GC 로그 /tmp/gc.log] -.->|사후 분석| A
 ```
 
-k6 → Prometheus 전송 시 트렌드 통계를 명시해야 P50/P95/P99가 게이지로 노출된다:
+k6 지표는 remote-write 로 Prometheus 에 들어온다. `tools/perf-run.js` 가 기본으로 켜므로
+평소에는 아무것도 할 게 없다. k6 를 직접 칠 때만:
 
 ```bash
 K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write \
-K6_PROMETHEUS_RW_TREND_STATS="p(50),p(95),p(99),avg,max" \
+K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true \
+K6_PROMETHEUS_RW_PUSH_INTERVAL=5s \
 k6 run -o experimental-prometheus-rw scenarios/normal-day.js
+```
+
+> **분위수를 직접 보내지 마라.** `K6_PROMETHEUS_RW_TREND_STATS` 는 5초마다 *이미 계산된*
+> p95 를 하나씩 보내는데, **분위수는 구간끼리 합산되지 않는다** — 5초 p95 240개를 평균해도
+> 20분 p95 가 나오지 않는다. 그래서 저장된 실행에서 앞 5분만 잘라 p95 를 다시 구하는
+> 사후 분석이 근사치밖에 안 된다. 원본 분포를 보내는 native histogram 을 쓴다.
+
+native histogram 으로 들어오므로 분위수는 질의 시점에 계산한다 — 창 길이를 바꿔 가며
+다시 물어볼 수 있다는 것이 요점이다.
+
+```promql
+histogram_quantile(0.95, sum(rate(k6_http_req_duration[5m])))
 ```
 
 ## 1. 클라이언트 관점 (k6) — SLO 판정의 기준
