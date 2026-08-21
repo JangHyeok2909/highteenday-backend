@@ -1,0 +1,4642 @@
+{
+  "schemaVersion": 1,
+  "phase": "collected",
+  "run": {
+    "scenario": "normal-day",
+    "environment": "perf",
+    "branch": "personal/localdocs",
+    "commit": "3e96d9463207837a473009767f3954ba5f78c918+dirty",
+    "commitShort": "3e96d946",
+    "buildNumber": "local",
+    "executor": "user@DESKTOP-DJJPASG",
+    "scriptVersion": "sha256:7757707b0a2b",
+    "dataset": "medium",
+    "datasetFingerprint": "sha256:aae4bccfae5e",
+    "baseUrl": "http://app:8080",
+    "note": "clock-pinned control set (E-49) — repeatability 1/3",
+    "startedAt": "2026-08-20T01:22:00.690Z",
+    "endedAt": "2026-08-20T01:32:18.270Z",
+    "durationSec": 617.6,
+    "vusConfigured": null,
+    "rampUp": null,
+    "hold": "5m",
+    "loadProfile": {
+      "normal_day": {
+        "executor": "ramping-vus",
+        "startVUs": 0,
+        "stages": [
+          {
+            "duration": "3m0s",
+            "target": 200
+          },
+          {
+            "duration": "5m0s",
+            "target": 200
+          },
+          {
+            "duration": "2m0s",
+            "target": 0
+          }
+        ],
+        "gracefulRampDown": "30s"
+      }
+    },
+    "phasePlan": {
+      "schemaVersion": 1,
+      "mode": "steady-state",
+      "warmupSec": 180,
+      "measureSec": 300,
+      "rampdownSec": 120,
+      "measureStartOffsetSec": 180,
+      "measureEndOffsetSec": 480,
+      "gatePhase": "measure"
+    },
+    "id": "normal-day-2026-08-20T01-32-18",
+    "datasetGuard": "strict",
+    "datasetGuardSource": "perf.config.json",
+    "stateBefore": "sha256:ffe696d17416",
+    "stateCoreBefore": {
+      "users.count": 1000,
+      "users.maxId": 1000,
+      "posts.count": 10000,
+      "posts.maxId": 10000,
+      "comments.count": 40000,
+      "comments.maxId": 40549,
+      "posts_reactions.count": 100000,
+      "posts_reactions.maxId": 100603,
+      "comments_reactions.count": 0,
+      "comments_reactions.maxId": 0,
+      "scraps.count": 8000,
+      "scraps.maxId": 8203,
+      "friends.count": 6000,
+      "friends.maxId": 6000,
+      "friends_requests.count": 0,
+      "friends_requests.maxId": 3000,
+      "chat_rooms.count": 1200,
+      "chat_rooms.maxId": 1200,
+      "chat_participants.count": 2400,
+      "chat_participants.maxId": 2400,
+      "chat_messages.count": 0,
+      "chat_messages.maxId": 0,
+      "notifications.count": 45573,
+      "notifications.maxId": 45573,
+      "medias.count": 0,
+      "medias.maxId": 0,
+      "posts.sumCommentCount": 40000,
+      "posts.sumLikeCount": 85143,
+      "posts.sumDislikeCount": 14854,
+      "posts.sumScrapCount": 7997
+    },
+    "stateVolatileBefore": {
+      "tokens.count": 1000,
+      "posts.sumViewCount": 0,
+      "daily_hot_post.count": 81,
+      "recenthotpost.count": 0
+    },
+    "stateFingerprintMs": 226,
+    "cacheState": "cold",
+    "cacheKeysBefore": 0,
+    "snapshotId": "medium-20260816-062210",
+    "stateMatchedSnapshot": true,
+    "restored": false,
+    "loadgen": "docker",
+    "loadgenCpus": "4",
+    "loadgenImage": "grafana/k6:2.1.0",
+    "remoteWrite": true,
+    "cpuBench": {
+      "cpus": "2",
+      "image": "alpine",
+      "axes": {
+        "single": {
+          "ms": 5222,
+          "samples": [
+            5222,
+            5025,
+            5429
+          ],
+          "label": "단일 스레드 (코어 클럭)"
+        },
+        "parallel": {
+          "ms": 5213,
+          "samples": [
+            6301,
+            4209,
+            5213
+          ],
+          "label": "다중 스레드 (스케줄링)"
+        },
+        "ctxswitch": {
+          "ms": 2184,
+          "samples": [
+            2184,
+            4146,
+            2162
+          ],
+          "label": "컨텍스트 스위치 (시스템 콜)"
+        }
+      },
+      "ratios": {
+        "parallelPerSingle": 0.998,
+        "ctxswitchPerSingle": 0.418
+      },
+      "errors": []
+    },
+    "hostProbe": {
+      "available": true,
+      "intervalSec": 5,
+      "startedAt": "2026-08-20T01:21:59.808Z",
+      "endedAt": "2026-08-20T01:32:18.734Z",
+      "samples": 122,
+      "counters": {
+        "cpuPct": {
+          "label": "Windows 전체 CPU",
+          "desc": "Windows 가 본 전체 CPU 사용률. VM 이 쓰는 몫과 그 밖의 프로세스가 합쳐진 값.",
+          "avg": 27.13,
+          "min": 7.08,
+          "max": 49.44,
+          "p95": 41.42,
+          "samples": 122
+        },
+        "freqPct": {
+          "label": "CPU 실동작 주파수 비율",
+          "desc": "실제 주파수 ÷ 공칭 주파수. 100 미만이면 다운클럭 — 같은 CPU 시간에 더 적은 일을 한다.",
+          "avg": 101.51,
+          "min": 71.68,
+          "max": 141.25,
+          "p95": 130.98,
+          "samples": 122
+        },
+        "queueLen": {
+          "label": "실행 대기 스레드",
+          "desc": "CPU 를 기다리는 스레드 수. 지속적으로 코어 수를 넘으면 호스트가 밀린 것이다.",
+          "avg": 10.45,
+          "min": 0,
+          "max": 189,
+          "p95": 137,
+          "samples": 122
+        },
+        "availMB": {
+          "label": "Windows 가용 메모리(MB)",
+          "desc": "남은 물리 메모리. 줄어들면 VM 메모리가 압축·페이징될 수 있다.",
+          "avg": 4564.49,
+          "min": 3375,
+          "max": 5487,
+          "p95": 5437,
+          "samples": 122
+        }
+      }
+    },
+    "loadBench": {
+      "available": true,
+      "startedAt": "2026-08-20T01:22:59.853Z",
+      "endedAt": "2026-08-20T01:23:41.163Z",
+      "delaySec": 60,
+      "repeat": 3,
+      "cpus": "2",
+      "image": "alpine",
+      "axes": {
+        "single": {
+          "ms": 5766,
+          "samples": [
+            6406,
+            5561,
+            5766
+          ],
+          "label": "단일 스레드 (코어 클럭)"
+        },
+        "parallel": {
+          "ms": 5292,
+          "samples": [
+            5292,
+            4531,
+            5768
+          ],
+          "label": "다중 스레드 (스케줄링)"
+        },
+        "ctxswitch": {
+          "ms": 2661,
+          "samples": [
+            2631,
+            2661,
+            2692
+          ],
+          "label": "컨텍스트 스위치 (시스템 콜)"
+        }
+      },
+      "ratios": {
+        "parallelPerSingle": 0.918,
+        "ctxswitchPerSingle": 0.461
+      },
+      "errors": []
+    },
+    "stateAfter": "sha256:baf26df9f262",
+    "stateCoreAfter": {
+      "users.count": 1000,
+      "users.maxId": 1000,
+      "posts.count": 10107,
+      "posts.maxId": 10131,
+      "comments.count": 40137,
+      "comments.maxId": 40686,
+      "posts_reactions.count": 100028,
+      "posts_reactions.maxId": 100709,
+      "comments_reactions.count": 63,
+      "comments_reactions.maxId": 63,
+      "scraps.count": 8054,
+      "scraps.maxId": 8262,
+      "friends.count": 6000,
+      "friends.maxId": 6000,
+      "friends_requests.count": 0,
+      "friends_requests.maxId": 3000,
+      "chat_rooms.count": 1200,
+      "chat_rooms.maxId": 1200,
+      "chat_participants.count": 2400,
+      "chat_participants.maxId": 2400,
+      "chat_messages.count": 790,
+      "chat_messages.maxId": 796,
+      "notifications.count": 45710,
+      "notifications.maxId": 45710,
+      "medias.count": 0,
+      "medias.maxId": 0,
+      "posts.sumCommentCount": 40134,
+      "posts.sumLikeCount": 85163,
+      "posts.sumDislikeCount": 14863,
+      "posts.sumScrapCount": 8052
+    },
+    "stateVolatileAfter": {
+      "tokens.count": 1000,
+      "posts.sumViewCount": 3214,
+      "daily_hot_post.count": 132,
+      "recenthotpost.count": 0
+    },
+    "stateChanged": true,
+    "stateDelta": [
+      {
+        "key": "chat_messages.maxId",
+        "before": 0,
+        "after": 796,
+        "delta": 796
+      },
+      {
+        "key": "chat_messages.count",
+        "before": 0,
+        "after": 790,
+        "delta": 790
+      },
+      {
+        "key": "comments.count",
+        "before": 40000,
+        "after": 40137,
+        "delta": 137
+      },
+      {
+        "key": "comments.maxId",
+        "before": 40549,
+        "after": 40686,
+        "delta": 137
+      },
+      {
+        "key": "notifications.count",
+        "before": 45573,
+        "after": 45710,
+        "delta": 137
+      },
+      {
+        "key": "notifications.maxId",
+        "before": 45573,
+        "after": 45710,
+        "delta": 137
+      },
+      {
+        "key": "posts.sumCommentCount",
+        "before": 40000,
+        "after": 40134,
+        "delta": 134
+      },
+      {
+        "key": "posts.maxId",
+        "before": 10000,
+        "after": 10131,
+        "delta": 131
+      },
+      {
+        "key": "posts.count",
+        "before": 10000,
+        "after": 10107,
+        "delta": 107
+      },
+      {
+        "key": "posts_reactions.maxId",
+        "before": 100603,
+        "after": 100709,
+        "delta": 106
+      },
+      {
+        "key": "comments_reactions.count",
+        "before": 0,
+        "after": 63,
+        "delta": 63
+      },
+      {
+        "key": "comments_reactions.maxId",
+        "before": 0,
+        "after": 63,
+        "delta": 63
+      },
+      {
+        "key": "scraps.maxId",
+        "before": 8203,
+        "after": 8262,
+        "delta": 59
+      },
+      {
+        "key": "posts.sumScrapCount",
+        "before": 7997,
+        "after": 8052,
+        "delta": 55
+      },
+      {
+        "key": "scraps.count",
+        "before": 8000,
+        "after": 8054,
+        "delta": 54
+      },
+      {
+        "key": "posts_reactions.count",
+        "before": 100000,
+        "after": 100028,
+        "delta": 28
+      },
+      {
+        "key": "posts.sumLikeCount",
+        "before": 85143,
+        "after": 85163,
+        "delta": 20
+      },
+      {
+        "key": "posts.sumDislikeCount",
+        "before": 14854,
+        "after": 14863,
+        "delta": 9
+      }
+    ],
+    "number": 101
+  },
+  "k6": {
+    "all": {
+      "avg": 5520.857813250712,
+      "min": 2.384198,
+      "med": 4806.351053,
+      "max": 35313.287573,
+      "p90": 11379.0653348,
+      "p95": 14589.3988553,
+      "p99": 19169.131156749998,
+      "missingPercentiles": [],
+      "rps": 19.284970119639812,
+      "tps": 4.418865109697485,
+      "errorRate": 0,
+      "failedRequests": 0,
+      "httpReqs": 11910,
+      "iterations": 2729,
+      "checkRate": 1,
+      "checksPassed": 12056,
+      "checksFailed": 0,
+      "vusMax": 200,
+      "dataReceivedBytes": 489365931,
+      "dataSentBytes": 4912598,
+      "waitingAvgMs": 5518.848429781628,
+      "waitingP95Ms": 14588.6858095,
+      "blockedAvgMs": 0.020217665910999126,
+      "connectingAvgMs": 0.0089164241813602,
+      "iterationDurationAvgMs": 33179.68679323408
+    },
+    "phases": {
+      "warmup": {
+        "avg": 2665.223946860978,
+        "min": 2.722696,
+        "med": 1443.1159,
+        "max": 35313.287573,
+        "p90": 6964.8747129,
+        "p95": 8039.61293545,
+        "p99": 13578.5457343,
+        "durationSec": 180,
+        "rps": 20.9,
+        "tps": 4.388888888888889,
+        "errorRate": 0,
+        "httpReqs": 3762,
+        "iterations": 790,
+        "checkRate": 1,
+        "checksPassed": 3699,
+        "checksFailed": null
+      },
+      "measure": {
+        "avg": 7017.975020091643,
+        "min": 2.652581,
+        "med": 6202.6161055,
+        "max": 31090.031747,
+        "p90": 13671.628843,
+        "p95": 15505.4388649,
+        "p99": 20237.74195758001,
+        "durationSec": 300,
+        "rps": 21.64,
+        "tps": 5.066666666666666,
+        "errorRate": 0,
+        "httpReqs": 6492,
+        "iterations": 1520,
+        "checkRate": 1,
+        "checksPassed": 6504,
+        "checksFailed": null
+      },
+      "rampdown": {
+        "avg": 6138.979611890096,
+        "min": 2.384198,
+        "med": 5790.009316,
+        "max": 29912.533159,
+        "p90": 11404.776411499999,
+        "p95": 12890.71856125,
+        "p99": 18491.76948270001,
+        "durationSec": 120,
+        "rps": 13.8,
+        "tps": 3.4916666666666667,
+        "errorRate": 0,
+        "httpReqs": 1656,
+        "iterations": 419,
+        "checkRate": 1,
+        "checksPassed": 1853,
+        "checksFailed": null
+      }
+    },
+    "breakdown": {
+      "page": {
+        "0": {
+          "count": 625,
+          "avg": 3644.7871609727995,
+          "min": 2.652581,
+          "med": 3020.604272,
+          "max": 16973.312296,
+          "p90": 8024.4459044000005,
+          "p95": 9618.210800799996,
+          "p99": 15343.106696719997
+        },
+        "1": {
+          "count": 218,
+          "avg": 3789.634148912843,
+          "min": 3.302771,
+          "med": 2836.0999890000003,
+          "max": 17877.670859,
+          "p90": 8233.5450139,
+          "p95": 9933.68009434999,
+          "p99": 15875.783271629994
+        },
+        "2": {
+          "count": 112,
+          "avg": 3159.4771777142855,
+          "min": 6.587562,
+          "med": 2465.2570895,
+          "max": 12486.721376,
+          "p90": 6918.3902169,
+          "p95": 8123.5609313,
+          "p99": 10798.78746662
+        },
+        "3": {
+          "count": 81,
+          "avg": 3981.155175246915,
+          "min": 5.679678,
+          "med": 3588.475256,
+          "max": 11969.233879,
+          "p90": 8049.850504,
+          "p95": 9151.977362,
+          "p99": 10224.050695000005
+        },
+        "4": {
+          "count": 49,
+          "avg": 5013.919735693876,
+          "min": 59.345826,
+          "med": 4145.82018,
+          "max": 14593.748476,
+          "p90": 9538.054055800001,
+          "p95": 12209.871904599991,
+          "p99": 14502.69536032
+        }
+      },
+      "expected_response": {
+        "true": {
+          "count": null,
+          "avg": 5520.857813250712,
+          "min": 2.384198,
+          "med": 4806.351053,
+          "max": 35313.287573,
+          "p90": 11379.0653348,
+          "p95": 14589.3988553,
+          "p99": 19169.131156749998
+        }
+      },
+      "op": {
+        "auth": {
+          "count": 288,
+          "avg": 2438.711664267361,
+          "min": 26.880039,
+          "med": 1273.3403094999999,
+          "max": 14960.94,
+          "p90": 5778.5394873000005,
+          "p95": 7644.013629699997,
+          "p99": 10798.72275192
+        },
+        "write": {
+          "count": 899
+        },
+        "read": {
+          "count": 10723
+        }
+      },
+      "feature": {
+        "scrap": {
+          "count": 64,
+          "avg": 5629.353443718751,
+          "min": 17.246492,
+          "med": 4360.832706,
+          "max": 16833.226831,
+          "p90": 12911.650782800001,
+          "p95": 15051.715144849999,
+          "p99": 16115.392103109998
+        },
+        "chat": {
+          "count": 904,
+          "avg": 5707.192880745579,
+          "min": 3.894874,
+          "med": 5119.555901,
+          "max": 20607.697731,
+          "p90": 11631.461291600004,
+          "p95": 14280.738896699995,
+          "p99": 15917.546986740002
+        },
+        "friend": {
+          "count": 213,
+          "avg": 5478.601366779344,
+          "min": 4.46497,
+          "med": 4932.684574,
+          "max": 17849.274413,
+          "p90": 10543.130158200007,
+          "p95": 13886.413441,
+          "p99": 16467.604214519997
+        },
+        "comment": {
+          "count": 2129,
+          "avg": 7369.373987208086,
+          "min": 2.384198,
+          "med": 6198.470839,
+          "max": 35313.287573,
+          "p90": 15483.3575538,
+          "p95": 19046.190731999995,
+          "p99": 23455.429443839992
+        },
+        "mypage": {
+          "count": 180,
+          "avg": 4947.495483266666,
+          "min": 2.722696,
+          "med": 4423.488178,
+          "max": 16943.307092,
+          "p90": 10614.234980599998,
+          "p95": 13647.667853249985,
+          "p99": 15598.873717360002
+        },
+        "hot": {
+          "count": 1088,
+          "avg": 5289.049315334552,
+          "min": 9.717299,
+          "med": 4649.8188895,
+          "max": 20320.945776,
+          "p90": 10878.954394400005,
+          "p95": 14334.646626449998,
+          "p99": 16054.614096909994
+        },
+        "post": {
+          "count": 5039,
+          "avg": 5053.57088779243,
+          "min": 2.652581,
+          "med": 4376.604665,
+          "max": 21575.800632,
+          "p90": 10205.9489112,
+          "p95": 13171.234179799996,
+          "p99": 15797.636830679998
+        },
+        "reaction": {
+          "count": 236,
+          "avg": 5372.215874495761,
+          "min": 18.265068,
+          "med": 4520.247431,
+          "max": 16799.913022,
+          "p90": 11076.017786,
+          "p95": 14669.563467,
+          "p99": 16457.4362147
+        },
+        "timetable": {
+          "count": 83,
+          "avg": 5065.3165221084355,
+          "min": 4.472443,
+          "med": 4420.683316,
+          "max": 16735.606409,
+          "p90": 9852.197552,
+          "p95": 12941.134090399999,
+          "p99": 15832.762542899993
+        },
+        "school": {
+          "count": 94,
+          "avg": 4624.464701521276,
+          "min": 4.212227,
+          "med": 4095.7565985,
+          "max": 15271.255162,
+          "p90": 9639.0700591,
+          "p95": 12331.853609799995,
+          "p99": 14544.406131789994
+        },
+        "board": {
+          "count": 1088,
+          "avg": 5414.33839263694,
+          "min": 3.365821,
+          "med": 5080.4804355,
+          "max": 19326.147184,
+          "p90": 10723.804320800002,
+          "p95": 13584.16837629999,
+          "p99": 15672.33899255
+        },
+        "notification": {
+          "count": 504,
+          "avg": 5062.310883966266,
+          "min": 3.390658,
+          "med": 4809.160519499999,
+          "max": 24087.618661,
+          "p90": 9803.0032841,
+          "p95": 12574.692724899995,
+          "p99": 15701.78124719
+        },
+        "auth": {
+          "count": 288,
+          "avg": 2438.711664267361,
+          "min": 26.880039,
+          "med": 1273.3403094999999,
+          "max": 14960.94,
+          "p90": 5778.5394873000005,
+          "p95": 7644.013629699997,
+          "p99": 10798.72275192
+        }
+      },
+      "phase": {
+        "rampdown": {
+          "count": 1656,
+          "avg": 6138.979611890096,
+          "min": 2.384198,
+          "med": 5790.009316,
+          "max": 29912.533159,
+          "p90": 11404.776411499999,
+          "p95": 12890.71856125,
+          "p99": 18491.76948270001
+        },
+        "measure": {
+          "count": 6492,
+          "avg": 7017.975020091643,
+          "min": 2.652581,
+          "med": 6202.6161055,
+          "max": 31090.031747,
+          "p90": 13671.628843,
+          "p95": 15505.4388649,
+          "p99": 20237.74195758001
+        },
+        "warmup": {
+          "count": 3762,
+          "avg": 2665.223946860978,
+          "min": 2.722696,
+          "med": 1443.1159,
+          "max": 35313.287573,
+          "p90": 6964.8747129,
+          "p95": 8039.61293545,
+          "p99": 13578.5457343
+        }
+      }
+    },
+    "thresholds": [
+      {
+        "metric": "http_reqs{page:2}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{feature:comment}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{feature:mypage}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{feature:hot}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{op:read,phase:measure}",
+        "expression": "p(99)<800",
+        "ok": false
+      },
+      {
+        "metric": "http_req_duration{op:read,phase:measure}",
+        "expression": "p(95)<300",
+        "ok": false
+      },
+      {
+        "metric": "checks{phase:rampdown}",
+        "expression": "rate>=0",
+        "ok": true
+      },
+      {
+        "metric": "iterations{phase:rampdown}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{feature:post}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{feature:post}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{page:3}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{page:1}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{feature:school}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{phase:rampdown}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{feature:reaction}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "phase_iterations{phase:measure}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{op:write}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{op:read}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{feature:board}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{phase:rampdown}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "phase_iterations{phase:warmup}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{page:2}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{page:4}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{feature:timetable}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{phase:measure}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "iterations{phase:warmup}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{op:write,phase:measure}",
+        "expression": "p(95)<500",
+        "ok": false
+      },
+      {
+        "metric": "http_req_duration{op:write,phase:measure}",
+        "expression": "p(99)<1200",
+        "ok": false
+      },
+      {
+        "metric": "http_req_failed{phase:measure}",
+        "expression": "rate<0.01",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{feature:hot}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{feature:school}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{feature:mypage}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{feature:auth}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{phase:warmup}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{feature:board}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_req_failed{phase:warmup}",
+        "expression": "rate<=1",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{feature:notification}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{page:4}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{feature:notification}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{op:auth}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{page:0}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "checks{phase:warmup}",
+        "expression": "rate>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{feature:auth}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{page:0}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{feature:chat}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{phase:measure}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{feature:reaction}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{feature:friend}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{page:1}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{feature:comment}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "iterations{phase:measure}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "checks{phase:measure}",
+        "expression": "rate>0.99",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{op:auth}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{feature:scrap}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{page:3}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{feature:timetable}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{phase:warmup}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{feature:chat}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_req_failed{phase:rampdown}",
+        "expression": "rate<=1",
+        "ok": true
+      },
+      {
+        "metric": "http_req_duration{feature:friend}",
+        "expression": "p(99)<600000",
+        "ok": true
+      },
+      {
+        "metric": "http_reqs{feature:scrap}",
+        "expression": "count>=0",
+        "ok": true
+      },
+      {
+        "metric": "phase_iterations{phase:rampdown}",
+        "expression": "count>=0",
+        "ok": true
+      }
+    ],
+    "thresholdsPassed": false,
+    "checks": [
+      {
+        "name": "login 200",
+        "passes": 229,
+        "fails": 0
+      },
+      {
+        "name": "board list 200",
+        "passes": 1088,
+        "fails": 0
+      },
+      {
+        "name": "post detail 200",
+        "passes": 3673,
+        "fails": 0
+      },
+      {
+        "name": "hot daily 200",
+        "passes": 1088,
+        "fails": 0
+      },
+      {
+        "name": "meal today 200",
+        "passes": 83,
+        "fails": 0
+      },
+      {
+        "name": "post reaction 2xx",
+        "passes": 173,
+        "fails": 0
+      },
+      {
+        "name": "chat rooms 200",
+        "passes": 517,
+        "fails": 0
+      },
+      {
+        "name": "unread count 200",
+        "passes": 274,
+        "fails": 0
+      },
+      {
+        "name": "post list 200",
+        "passes": 1085,
+        "fails": 0
+      },
+      {
+        "name": "notif list 200",
+        "passes": 140,
+        "fails": 0
+      },
+      {
+        "name": "timetable today 200",
+        "passes": 83,
+        "fails": 0
+      },
+      {
+        "name": "chat messages 200",
+        "passes": 194,
+        "fails": 0
+      },
+      {
+        "name": "read one 200",
+        "passes": 62,
+        "fails": 0
+      },
+      {
+        "name": "post create 2xx",
+        "passes": 131,
+        "fails": 0
+      },
+      {
+        "name": "chat read 200",
+        "passes": 193,
+        "fails": 0
+      },
+      {
+        "name": "comment list 200",
+        "passes": 1992,
+        "fails": 0
+      },
+      {
+        "name": "friend list 200",
+        "passes": 152,
+        "fails": 0
+      },
+      {
+        "name": "user info 200",
+        "passes": 90,
+        "fails": 0
+      },
+      {
+        "name": "my posts 200",
+        "passes": 90,
+        "fails": 0
+      },
+      {
+        "name": "comment create 2xx",
+        "passes": 137,
+        "fails": 0
+      },
+      {
+        "name": "received reqs 200",
+        "passes": 61,
+        "fails": 0
+      },
+      {
+        "name": "post search 200",
+        "passes": 102,
+        "fails": 0
+      },
+      {
+        "name": "post update 200",
+        "passes": 24,
+        "fails": 0
+      },
+      {
+        "name": "post delete 200",
+        "passes": 24,
+        "fails": 0
+      },
+      {
+        "name": "read all 200",
+        "passes": 28,
+        "fails": 0
+      },
+      {
+        "name": "logout 200",
+        "passes": 29,
+        "fails": 0
+      },
+      {
+        "name": "scrap 2xx",
+        "passes": 64,
+        "fails": 0
+      },
+      {
+        "name": "ws handshake 101",
+        "passes": 146,
+        "fails": 0
+      },
+      {
+        "name": "comment reaction 200",
+        "passes": 63,
+        "fails": 0
+      },
+      {
+        "name": "refresh 200",
+        "passes": 30,
+        "fails": 0
+      },
+      {
+        "name": "meal month 200",
+        "passes": 11,
+        "fails": 0
+      }
+    ],
+    "rawMetrics": {
+      "http_req_duration{feature:mypage}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(99)": 15598.873717360002,
+          "avg": 4947.495483266666,
+          "min": 2.722696,
+          "med": 4423.488178,
+          "max": 16943.307092,
+          "p(90)": 10614.234980599998,
+          "p(95)": 13647.667853249985
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_duration{feature:hot}": {
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        },
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(95)": 14334.646626449998,
+          "p(99)": 16054.614096909994,
+          "avg": 5289.049315334552,
+          "min": 9.717299,
+          "med": 4649.8188895,
+          "max": 20320.945776,
+          "p(90)": 10878.954394400005
+        }
+      },
+      "http_req_duration{op:read,phase:measure}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(95)": 15484.9951375,
+          "p(99)": 20320.624360499998,
+          "avg": 6983.871936065033,
+          "min": 2.652581,
+          "med": 6185.43446,
+          "max": 31090.031747,
+          "p(90)": 13588.215668
+        },
+        "thresholds": {
+          "p(95)<300": {
+            "ok": false
+          },
+          "p(99)<800": {
+            "ok": false
+          }
+        }
+      },
+      "chat_ws_messages_sent": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 796,
+          "rate": 1.2889031247047265
+        }
+      },
+      "checks{phase:rampdown}": {
+        "type": "rate",
+        "contains": "default",
+        "values": {
+          "rate": 1,
+          "passes": 1853,
+          "fails": 0
+        },
+        "thresholds": {
+          "rate>=0": {
+            "ok": true
+          }
+        }
+      },
+      "iterations{phase:rampdown}": {
+        "values": {
+          "count": 0,
+          "rate": 0
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        },
+        "type": "counter",
+        "contains": "default"
+      },
+      "http_req_duration{feature:post}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "avg": 5053.57088779243,
+          "min": 2.652581,
+          "med": 4376.604665,
+          "max": 21575.800632,
+          "p(90)": 10205.9489112,
+          "p(95)": 13171.234179799996,
+          "p(99)": 15797.636830679998
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "http_reqs{feature:post}": {
+        "values": {
+          "count": 5039,
+          "rate": 8.159274931390849
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        },
+        "type": "counter",
+        "contains": "default"
+      },
+      "http_req_waiting": {
+        "contains": "time",
+        "values": {
+          "p(90)": 11378.5543416,
+          "p(95)": 14588.6858095,
+          "p(99)": 19163.259679619994,
+          "avg": 5518.848429781628,
+          "min": 2.303856,
+          "med": 4806.161115,
+          "max": 35289.479939
+        },
+        "type": "trend"
+      },
+      "http_reqs{page:3}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 81,
+          "rate": 0.13115722751392317
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_duration{page:1}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "min": 3.302771,
+          "med": 2836.0999890000003,
+          "max": 17877.670859,
+          "p(90)": 8233.5450139,
+          "p(95)": 9933.68009434999,
+          "p(99)": 15875.783271629994,
+          "avg": 3789.634148912843
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "http_reqs{feature:school}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 94,
+          "rate": 0.1522071529173923
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_reqs{phase:rampdown}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 1656,
+          "rate": 2.6814366513957624
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_duration{feature:reaction}": {
+        "contains": "time",
+        "values": {
+          "avg": 5372.215874495761,
+          "min": 18.265068,
+          "med": 4520.247431,
+          "max": 16799.913022,
+          "p(90)": 11076.017786,
+          "p(95)": 14669.563467,
+          "p(99)": 16457.4362147
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        },
+        "type": "trend"
+      },
+      "phase_iterations{phase:measure}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 1520,
+          "rate": 2.4612220471748545
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_reqs{op:write}": {
+        "values": {
+          "rate": 1.4556833029014435,
+          "count": 899
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        },
+        "type": "counter",
+        "contains": "default"
+      },
+      "http_reqs{op:read}": {
+        "values": {
+          "count": 10723,
+          "rate": 17.362950007799977
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        },
+        "type": "counter",
+        "contains": "default"
+      },
+      "http_reqs{feature:board}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "rate": 1.7617168337672642,
+          "count": 1088
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_duration{phase:rampdown}": {
+        "contains": "time",
+        "values": {
+          "p(90)": 11404.776411499999,
+          "p(95)": 12890.71856125,
+          "p(99)": 18491.76948270001,
+          "avg": 6138.979611890096,
+          "min": 2.384198,
+          "med": 5790.009316,
+          "max": 29912.533159
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        },
+        "type": "trend"
+      },
+      "phase_iterations{phase:warmup}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 790,
+          "rate": 1.2791877745185098
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_blocked": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(95)": 0.016747199999999997,
+          "p(99)": 0.3609766599999998,
+          "avg": 0.020217665910999126,
+          "min": 0.001803,
+          "med": 0.0067335,
+          "max": 23.776173,
+          "p(90)": 0.0133801
+        }
+      },
+      "http_req_tls_handshaking": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "med": 0,
+          "max": 0,
+          "p(90)": 0,
+          "p(95)": 0,
+          "p(99)": 0,
+          "avg": 0,
+          "min": 0
+        }
+      },
+      "http_req_duration{page:2}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "min": 6.587562,
+          "med": 2465.2570895,
+          "max": 12486.721376,
+          "p(90)": 6918.3902169,
+          "p(95)": 8123.5609313,
+          "p(99)": 10798.78746662,
+          "avg": 3159.4771777142855
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "http_reqs{page:4}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "rate": 0.07934202652076833,
+          "count": 49
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_duration{feature:timetable}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(95)": 12941.134090399999,
+          "p(99)": 15832.762542899993,
+          "avg": 5065.3165221084355,
+          "min": 4.472443,
+          "med": 4420.683316,
+          "max": 16735.606409,
+          "p(90)": 9852.197552
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "iteration_duration": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "avg": 33179.68679323408,
+          "min": 1200.64357,
+          "med": 24472.079497,
+          "max": 123840.673391,
+          "p(90)": 74483.84425720005,
+          "p(95)": 87338.2350272,
+          "p(99)": 105343.29360175996
+        }
+      },
+      "checks": {
+        "contains": "default",
+        "values": {
+          "rate": 1,
+          "passes": 12056,
+          "fails": 0
+        },
+        "type": "rate"
+      },
+      "ws_connecting": {
+        "values": {
+          "avg": 4352.449044829932,
+          "min": 3.409654,
+          "med": 3594.785255,
+          "max": 18738.876907,
+          "p(90)": 9427.5471318,
+          "p(95)": 10244.820247099993,
+          "p(99)": 14068.220952479984
+        },
+        "type": "trend",
+        "contains": "time"
+      },
+      "http_req_duration{phase:measure}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "max": 31090.031747,
+          "p(90)": 13671.628843,
+          "p(95)": 15505.4388649,
+          "p(99)": 20237.74195758001,
+          "avg": 7017.975020091643,
+          "min": 2.652581,
+          "med": 6202.6161055
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "iterations{phase:warmup}": {
+        "values": {
+          "count": 0,
+          "rate": 0
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        },
+        "type": "counter",
+        "contains": "default"
+      },
+      "http_req_duration{op:write,phase:measure}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(95)": 15754.15367125,
+          "p(99)": 19387.959957439998,
+          "avg": 7539.198301250005,
+          "min": 3.390658,
+          "med": 6580.2075115,
+          "max": 21209.497649,
+          "p(90)": 14939.6864339
+        },
+        "thresholds": {
+          "p(95)<500": {
+            "ok": false
+          },
+          "p(99)<1200": {
+            "ok": false
+          }
+        }
+      },
+      "http_req_failed{phase:measure}": {
+        "type": "rate",
+        "contains": "default",
+        "values": {
+          "rate": 0,
+          "passes": 0,
+          "fails": 6492
+        },
+        "thresholds": {
+          "rate<0.01": {
+            "ok": true
+          }
+        }
+      },
+      "ws_msgs_received": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 803,
+          "rate": 1.300237699921979
+        }
+      },
+      "http_reqs{feature:hot}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "rate": 1.7617168337672642,
+          "count": 1088
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_duration{feature:school}": {
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        },
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "avg": 4624.464701521276,
+          "min": 4.212227,
+          "med": 4095.7565985,
+          "max": 15271.255162,
+          "p(90)": 9639.0700591,
+          "p(95)": 12331.853609799995,
+          "p(99)": 14544.406131789994
+        }
+      },
+      "http_reqs{feature:mypage}": {
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        },
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 180,
+          "rate": 0.29146050558649594
+        }
+      },
+      "http_reqs{feature:auth}": {
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        },
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "rate": 0.46633680893839347,
+          "count": 288
+        }
+      },
+      "data_received": {
+        "contains": "data",
+        "values": {
+          "rate": 792393.5648114793,
+          "count": 489365931
+        },
+        "type": "counter"
+      },
+      "http_req_sending": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(95)": 0.1134152,
+          "p(99)": 0.19362184,
+          "avg": 0.05401394559193932,
+          "min": 0.005652,
+          "med": 0.0363005,
+          "max": 25.050674,
+          "p(90)": 0.09746110000000001
+        }
+      },
+      "http_req_duration{phase:warmup}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(90)": 6964.8747129,
+          "p(95)": 8039.61293545,
+          "p(99)": 13578.5457343,
+          "avg": 2665.223946860978,
+          "min": 2.722696,
+          "med": 1443.1159,
+          "max": 35313.287573
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_duration{feature:board}": {
+        "values": {
+          "max": 19326.147184,
+          "p(90)": 10723.804320800002,
+          "p(95)": 13584.16837629999,
+          "p(99)": 15672.33899255,
+          "avg": 5414.33839263694,
+          "min": 3.365821,
+          "med": 5080.4804355
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        },
+        "type": "trend",
+        "contains": "time"
+      },
+      "http_req_failed{phase:warmup}": {
+        "contains": "default",
+        "values": {
+          "rate": 0,
+          "passes": 0,
+          "fails": 3762
+        },
+        "thresholds": {
+          "rate<=1": {
+            "ok": true
+          }
+        },
+        "type": "rate"
+      },
+      "http_req_duration{feature:notification}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "min": 3.390658,
+          "med": 4809.160519499999,
+          "max": 24087.618661,
+          "p(90)": 9803.0032841,
+          "p(95)": 12574.692724899995,
+          "p(99)": 15701.78124719,
+          "avg": 5062.310883966266
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_duration{page:4}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(99)": 14502.69536032,
+          "avg": 5013.919735693876,
+          "min": 59.345826,
+          "med": 4145.82018,
+          "max": 14593.748476,
+          "p(90)": 9538.054055800001,
+          "p(95)": 12209.871904599991
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "auth_token_refreshes": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 30,
+          "rate": 0.04857675093108265
+        }
+      },
+      "http_reqs{feature:notification}": {
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        },
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 504,
+          "rate": 0.8160894156421886
+        }
+      },
+      "http_reqs{op:auth}": {
+        "contains": "default",
+        "values": {
+          "rate": 0.46633680893839347,
+          "count": 288
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        },
+        "type": "counter"
+      },
+      "vus": {
+        "contains": "default",
+        "values": {
+          "min": 0,
+          "max": 200,
+          "value": 1
+        },
+        "type": "gauge"
+      },
+      "http_reqs{page:0}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 625,
+          "rate": 1.0120156443975552
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "checks{phase:warmup}": {
+        "type": "rate",
+        "contains": "default",
+        "values": {
+          "rate": 1,
+          "passes": 3699,
+          "fails": 0
+        },
+        "thresholds": {
+          "rate>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_duration{feature:auth}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "avg": 2438.711664267361,
+          "min": 26.880039,
+          "med": 1273.3403094999999,
+          "max": 14960.94,
+          "p(90)": 5778.5394873000005,
+          "p(95)": 7644.013629699997,
+          "p(99)": 10798.72275192
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "phase_iterations": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 2729,
+          "rate": 4.418865109697485
+        }
+      },
+      "http_req_duration{page:0}": {
+        "contains": "time",
+        "values": {
+          "avg": 3644.7871609727995,
+          "min": 2.652581,
+          "med": 3020.604272,
+          "max": 16973.312296,
+          "p(90)": 8024.4459044000005,
+          "p(95)": 9618.210800799996,
+          "p(99)": 15343.106696719997
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        },
+        "type": "trend"
+      },
+      "http_reqs{feature:chat}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 904,
+          "rate": 1.4637794280566239
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_reqs{phase:measure}": {
+        "contains": "default",
+        "values": {
+          "count": 6492,
+          "rate": 10.512008901486286
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        },
+        "type": "counter"
+      },
+      "http_reqs{feature:reaction}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 236,
+          "rate": 0.3821371073245169
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_receiving": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(99)": 70.79614616999999,
+          "avg": 1.9553695235096495,
+          "min": 0.021846,
+          "med": 0.316513,
+          "max": 200.648851,
+          "p(90)": 0.9504598000000003,
+          "p(95)": 2.834115499999992
+        }
+      },
+      "http_reqs{feature:friend}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 213,
+          "rate": 0.34489493161068685
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "ws_session_duration": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(95)": 37144.990571500006,
+          "p(99)": 41026.69844395,
+          "avg": 27275.4959749178,
+          "min": 17087.048837,
+          "med": 26970.984178,
+          "max": 41863.234261,
+          "p(90)": 34976.311841500006
+        }
+      },
+      "http_reqs{page:1}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 218,
+          "rate": 0.3529910567658673
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_reqs{feature:comment}": {
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        },
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "rate": 3.447330091075832,
+          "count": 2129
+        }
+      },
+      "iterations{phase:measure}": {
+        "contains": "default",
+        "values": {
+          "count": 0,
+          "rate": 0
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        },
+        "type": "counter"
+      },
+      "http_req_duration{expected_response:true}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "med": 4806.351053,
+          "max": 35313.287573,
+          "p(90)": 11379.0653348,
+          "p(95)": 14589.3988553,
+          "p(99)": 19169.131156749998,
+          "avg": 5520.857813250712,
+          "min": 2.384198
+        }
+      },
+      "http_req_connecting": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(95)": 0,
+          "p(99)": 0.23675072999999952,
+          "avg": 0.0089164241813602,
+          "min": 0,
+          "med": 0,
+          "max": 23.543502,
+          "p(90)": 0
+        }
+      },
+      "ws_msgs_sent": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 1090,
+          "rate": 1.7649552838293363
+        }
+      },
+      "data_sent": {
+        "type": "counter",
+        "contains": "data",
+        "values": {
+          "count": 4912598,
+          "rate": 7954.601649017826
+        }
+      },
+      "chat_ws_rtt": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(95)": 9053.099999999999,
+          "p(99)": 12605.160000000003,
+          "avg": 3172.819847328244,
+          "min": 15,
+          "med": 2411,
+          "max": 20201,
+          "p(90)": 7363.2
+        }
+      },
+      "vus_max": {
+        "type": "gauge",
+        "contains": "default",
+        "values": {
+          "value": 200,
+          "min": 200,
+          "max": 200
+        }
+      },
+      "checks{phase:measure}": {
+        "type": "rate",
+        "contains": "default",
+        "values": {
+          "rate": 1,
+          "passes": 6504,
+          "fails": 0
+        },
+        "thresholds": {
+          "rate>0.99": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_duration{op:auth}": {
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        },
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(95)": 7644.013629699997,
+          "p(99)": 10798.72275192,
+          "avg": 2438.711664267361,
+          "min": 26.880039,
+          "med": 1273.3403094999999,
+          "max": 14960.94,
+          "p(90)": 5778.5394873000005
+        }
+      },
+      "http_req_duration": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(95)": 14589.3988553,
+          "p(99)": 19169.131156749998,
+          "avg": 5520.857813250712,
+          "min": 2.384198,
+          "med": 4806.351053,
+          "max": 35313.287573,
+          "p(90)": 11379.0653348
+        }
+      },
+      "http_req_failed": {
+        "type": "rate",
+        "contains": "default",
+        "values": {
+          "rate": 0,
+          "passes": 0,
+          "fails": 11910
+        }
+      },
+      "http_req_duration{feature:scrap}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "max": 16833.226831,
+          "p(90)": 12911.650782800001,
+          "p(95)": 15051.715144849999,
+          "p(99)": 16115.392103109998,
+          "avg": 5629.353443718751,
+          "min": 17.246492,
+          "med": 4360.832706
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_duration{page:3}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "max": 11969.233879,
+          "p(90)": 8049.850504,
+          "p(95)": 9151.977362,
+          "p(99)": 10224.050695000005,
+          "avg": 3981.155175246915,
+          "min": 5.679678,
+          "med": 3588.475256
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "ws_sessions": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 147,
+          "rate": 0.238026079562305
+        }
+      },
+      "http_reqs{feature:timetable}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 83,
+          "rate": 0.13439567757599533
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_reqs{phase:warmup}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 3762,
+          "rate": 6.091524566757765
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_duration{feature:chat}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "med": 5119.555901,
+          "max": 20607.697731,
+          "p(90)": 11631.461291600004,
+          "p(95)": 14280.738896699995,
+          "p(99)": 15917.546986740002,
+          "avg": 5707.192880745579,
+          "min": 3.894874
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "http_req_failed{phase:rampdown}": {
+        "type": "rate",
+        "contains": "default",
+        "values": {
+          "rate": 0,
+          "passes": 0,
+          "fails": 1656
+        },
+        "thresholds": {
+          "rate<=1": {
+            "ok": true
+          }
+        }
+      },
+      "http_reqs": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 11910,
+          "rate": 19.284970119639812
+        }
+      },
+      "http_req_duration{feature:friend}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "p(95)": 13886.413441,
+          "p(99)": 16467.604214519997,
+          "avg": 5478.601366779344,
+          "min": 4.46497,
+          "med": 4932.684574,
+          "max": 17849.274413,
+          "p(90)": 10543.130158200007
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      },
+      "http_reqs{feature:scrap}": {
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        },
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 64,
+          "rate": 0.10363040198630966
+        }
+      },
+      "phase_iterations{phase:rampdown}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 419,
+          "rate": 0.678455288004121
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "http_reqs{page:2}": {
+        "type": "counter",
+        "contains": "default",
+        "values": {
+          "count": 112,
+          "rate": 0.1813532034760419
+        },
+        "thresholds": {
+          "count>=0": {
+            "ok": true
+          }
+        }
+      },
+      "iterations": {
+        "contains": "default",
+        "values": {
+          "count": 2729,
+          "rate": 4.418865109697485
+        },
+        "type": "counter"
+      },
+      "http_req_duration{feature:comment}": {
+        "type": "trend",
+        "contains": "time",
+        "values": {
+          "med": 6198.470839,
+          "max": 35313.287573,
+          "p(90)": 15483.3575538,
+          "p(95)": 19046.190731999995,
+          "p(99)": 23455.429443839992,
+          "avg": 7369.373987208086,
+          "min": 2.384198
+        },
+        "thresholds": {
+          "p(99)<600000": {
+            "ok": true
+          }
+        }
+      }
+    }
+  },
+  "collectedAt": "2026-08-20T01:32:38.983Z",
+  "infra": {
+    "window": {
+      "from": "2026-08-20T01:25:00.690Z",
+      "to": "2026-08-20T01:30:00.690Z",
+      "durationSec": 300,
+      "mode": "measure",
+      "incomplete": false
+    },
+    "prometheusUrl": "http://localhost:9090",
+    "queryStats": {
+      "queries": 158,
+      "failures": 0
+    },
+    "groups": [
+      {
+        "id": "cpu",
+        "label": "CPU",
+        "metrics": [
+          {
+            "key": "cpu.process.avg",
+            "label": "JVM 프로세스 CPU avg",
+            "value": 99.84761904761905,
+            "unit": "percent",
+            "desc": "JVM이 사용한 CPU 비율. 호스트 전체 코어 기준."
+          },
+          {
+            "key": "cpu.process.max",
+            "label": "JVM 프로세스 CPU max",
+            "value": 100,
+            "unit": "percent",
+            "desc": "JVM이 사용한 CPU 비율. 호스트 전체 코어 기준."
+          },
+          {
+            "key": "cpu.process.p95",
+            "label": "JVM 프로세스 CPU p95",
+            "value": 100,
+            "unit": "percent",
+            "desc": "JVM이 사용한 CPU 비율. 호스트 전체 코어 기준."
+          },
+          {
+            "key": "cpu.cores.avg",
+            "label": "컨테이너 CPU avg",
+            "value": 1.9967517540872473,
+            "unit": "cores",
+            "desc": "컨테이너가 소비한 CPU 코어 수. cgroup 한계와 직접 비교한다."
+          },
+          {
+            "key": "cpu.cores.max",
+            "label": "컨테이너 CPU max",
+            "value": 2.0014469260544834,
+            "unit": "cores",
+            "desc": "컨테이너가 소비한 CPU 코어 수. cgroup 한계와 직접 비교한다."
+          },
+          {
+            "key": "cpu.cores.p95",
+            "label": "컨테이너 CPU p95",
+            "value": 2.0011295818368855,
+            "unit": "cores",
+            "desc": "컨테이너가 소비한 CPU 코어 수. cgroup 한계와 직접 비교한다."
+          },
+          {
+            "key": "cpu.limitCores",
+            "label": "CPU 한계(코어)",
+            "value": 2,
+            "unit": "cores",
+            "desc": "cgroup에 설정된 CPU 상한. 포화도 계산의 분모."
+          },
+          {
+            "key": "cpu.throttledPct",
+            "label": "CPU throttled 비율",
+            "value": 99.8982015609094,
+            "unit": "percent",
+            "desc": "cgroup이 CPU를 강제로 뺏은 주기 비율. >0 이면 CPU 한계가 지연에 직접 영향을 준다."
+          },
+          {
+            "key": "cpu.seconds",
+            "label": "앱 컨테이너 CPU 총초",
+            "value": 599.8665715197263,
+            "unit": "sec",
+            "desc": "측정 구간에 앱 컨테이너가 태운 CPU 초. 요청 수로 나누면 요청당 CPU 비용."
+          },
+          {
+            "key": "cpu.throttledSeconds",
+            "label": "CPU throttled 누적(초)",
+            "value": 1627.6064029026043,
+            "unit": "seconds",
+            "desc": "테스트 구간 동안 강제 정지된 총 시간."
+          }
+        ]
+      },
+      {
+        "id": "memory",
+        "label": "Memory",
+        "metrics": [
+          {
+            "key": "memory.workingSet.avg",
+            "label": "컨테이너 메모리 avg",
+            "value": 2026610492.952381,
+            "unit": "bytes",
+            "desc": "OOM 판정 기준이 되는 실사용 메모리(page cache 제외)."
+          },
+          {
+            "key": "memory.workingSet.max",
+            "label": "컨테이너 메모리 max",
+            "value": 2043281408,
+            "unit": "bytes",
+            "desc": "OOM 판정 기준이 되는 실사용 메모리(page cache 제외)."
+          },
+          {
+            "key": "memory.workingSet.p95",
+            "label": "컨테이너 메모리 p95",
+            "value": 2041667584,
+            "unit": "bytes",
+            "desc": "OOM 판정 기준이 되는 실사용 메모리(page cache 제외)."
+          },
+          {
+            "key": "memory.limitBytes",
+            "label": "메모리 한계",
+            "value": 2684354560,
+            "unit": "bytes",
+            "desc": "cgroup 메모리 상한."
+          },
+          {
+            "key": "memory.rss.avg",
+            "label": "RSS avg",
+            "value": 1932736804.5714288,
+            "unit": "bytes",
+            "desc": "프로세스가 물리 메모리에 올린 양."
+          },
+          {
+            "key": "memory.rss.max",
+            "label": "RSS max",
+            "value": 1948176384,
+            "unit": "bytes",
+            "desc": "프로세스가 물리 메모리에 올린 양."
+          },
+          {
+            "key": "memory.rss.p95",
+            "label": "RSS p95",
+            "value": 1946767360,
+            "unit": "bytes",
+            "desc": "프로세스가 물리 메모리에 올린 양."
+          }
+        ]
+      },
+      {
+        "id": "heap",
+        "label": "JVM Heap",
+        "metrics": [
+          {
+            "key": "heap.used.avg",
+            "label": "Heap 사용 avg",
+            "value": 523627827.8095239,
+            "unit": "bytes",
+            "desc": "힙 영역 합계 사용량."
+          },
+          {
+            "key": "heap.used.max",
+            "label": "Heap 사용 max",
+            "value": 807036872,
+            "unit": "bytes",
+            "desc": "힙 영역 합계 사용량."
+          },
+          {
+            "key": "heap.used.p95",
+            "label": "Heap 사용 p95",
+            "value": 796344704,
+            "unit": "bytes",
+            "desc": "힙 영역 합계 사용량."
+          },
+          {
+            "key": "heap.maxBytes",
+            "label": "Heap 최대",
+            "value": 1073741822,
+            "unit": "bytes",
+            "desc": "-Xmx 로 설정된 힙 상한."
+          },
+          {
+            "key": "heap.committedMax",
+            "label": "Heap committed max",
+            "value": 1073741824,
+            "unit": "bytes",
+            "desc": "OS로부터 실제로 확보한 힙 크기."
+          },
+          {
+            "key": "heap.liveDataMax",
+            "label": "Live data max",
+            "value": 0,
+            "unit": "bytes",
+            "desc": "Full GC 직후 남은 힙. 계속 우상향하면 누수 의심."
+          },
+          {
+            "key": "heap.nonHeapUsed.avg",
+            "label": "Non-heap 사용 avg",
+            "value": 244635208.3809524,
+            "unit": "bytes",
+            "desc": "Metaspace/CodeCache 등."
+          },
+          {
+            "key": "heap.nonHeapUsed.max",
+            "label": "Non-heap 사용 max",
+            "value": 246987360,
+            "unit": "bytes",
+            "desc": "Metaspace/CodeCache 등."
+          },
+          {
+            "key": "heap.nonHeapUsed.p95",
+            "label": "Non-heap 사용 p95",
+            "value": 246847944,
+            "unit": "bytes",
+            "desc": "Metaspace/CodeCache 등."
+          }
+        ]
+      },
+      {
+        "id": "gc",
+        "label": "GC",
+        "metrics": [
+          {
+            "key": "gc.pauseAvgMs",
+            "label": "GC pause avg",
+            "value": 37.119565217391305,
+            "unit": "ms",
+            "desc": "한 번의 GC가 애플리케이션을 멈춘 평균 시간."
+          },
+          {
+            "key": "gc.pauseMaxMs",
+            "label": "GC pause max",
+            "value": 105,
+            "unit": "ms",
+            "desc": "최악의 단일 STW 시간. p99 지연의 주범인지 판단하는 근거."
+          },
+          {
+            "key": "gc.pauseP95Ms",
+            "label": "GC pause p95",
+            "value": 88.20022094285713,
+            "unit": "ms",
+            "desc": "GC pause 분포의 95분위."
+          },
+          {
+            "key": "gc.count",
+            "label": "GC 횟수",
+            "value": 93.56756866706897,
+            "unit": "count",
+            "desc": "테스트 구간 총 GC 발생 횟수."
+          },
+          {
+            "key": "gc.totalPauseMs",
+            "label": "GC 총 정지시간",
+            "value": 3473.187467370006,
+            "unit": "ms",
+            "desc": "구간 내 STW 누적. duration 대비 비율이 GC 오버헤드다."
+          },
+          {
+            "key": "gc.overheadPct.avg",
+            "label": "GC 오버헤드 avg",
+            "value": 1.0319766378917887,
+            "unit": "percent",
+            "desc": "CPU 시간 중 GC가 차지한 비율. 지속 5% 초과면 튜닝 대상."
+          },
+          {
+            "key": "gc.overheadPct.max",
+            "label": "GC 오버헤드 max",
+            "value": 1.213,
+            "unit": "percent",
+            "desc": "CPU 시간 중 GC가 차지한 비율. 지속 5% 초과면 튜닝 대상."
+          },
+          {
+            "key": "gc.overheadPct.p95",
+            "label": "GC 오버헤드 p95",
+            "value": 1.1913333333333334,
+            "unit": "percent",
+            "desc": "CPU 시간 중 GC가 차지한 비율. 지속 5% 초과면 튜닝 대상."
+          },
+          {
+            "key": "gc.allocRateBytesSec",
+            "label": "할당률",
+            "value": 192578179.55480823,
+            "unit": "bytes_per_sec",
+            "desc": "초당 힙 할당량. GC 빈도의 선행 지표."
+          },
+          {
+            "key": "gc.promotedBytesSec",
+            "label": "Old 승격률",
+            "value": 48503.69185080719,
+            "unit": "bytes_per_sec",
+            "desc": "Young에서 Old로 승격된 초당 바이트. 높으면 Full GC가 다가온다."
+          }
+        ]
+      },
+      {
+        "id": "jvm",
+        "label": "JVM 내부 (JIT / 스레드 / CPU)",
+        "metrics": [
+          {
+            "key": "jvm.jitCompileMs",
+            "label": "JIT 컴파일 누적시간",
+            "value": 44975.48936516439,
+            "unit": "ms",
+            "desc": "JIT 컴파일러가 쓴 CPU 시간. 워밍업이 덜 끝났으면 크고, 정상 상태면 작다."
+          },
+          {
+            "key": "jvm.classesLoaded.avg",
+            "label": "로드된 클래스 avg",
+            "value": 27276.428571428572,
+            "unit": "count",
+            "desc": "현재 로드된 클래스 수. 워밍업 진행도의 대리 지표."
+          },
+          {
+            "key": "jvm.classesLoaded.max",
+            "label": "로드된 클래스 max",
+            "value": 27293,
+            "unit": "count",
+            "desc": "현재 로드된 클래스 수. 워밍업 진행도의 대리 지표."
+          },
+          {
+            "key": "jvm.classesLoaded.p95",
+            "label": "로드된 클래스 p95",
+            "value": 27293,
+            "unit": "count",
+            "desc": "현재 로드된 클래스 수. 워밍업 진행도의 대리 지표."
+          },
+          {
+            "key": "jvm.cpuSeconds",
+            "label": "JVM CPU 소비(초)",
+            "value": 599.8393078712023,
+            "unit": "sec",
+            "desc": "JVM 프로세스가 실제로 쓴 CPU 초. 요청 수로 나누면 요청당 CPU 비용."
+          },
+          {
+            "key": "jvm.cpuUsagePct.avg",
+            "label": "JVM CPU 사용률 avg",
+            "value": 99.84761904761906,
+            "unit": "percent",
+            "desc": "JVM 이 쓰는 CPU 비율(호스트 코어 기준)."
+          },
+          {
+            "key": "jvm.cpuUsagePct.max",
+            "label": "JVM CPU 사용률 max",
+            "value": 100,
+            "unit": "percent",
+            "desc": "JVM 이 쓰는 CPU 비율(호스트 코어 기준)."
+          },
+          {
+            "key": "jvm.cpuUsagePct.p95",
+            "label": "JVM CPU 사용률 p95",
+            "value": 100,
+            "unit": "percent",
+            "desc": "JVM 이 쓰는 CPU 비율(호스트 코어 기준)."
+          },
+          {
+            "key": "jvm.threadsLive.avg",
+            "label": "살아있는 스레드 avg",
+            "value": 305.2380952380952,
+            "unit": "count",
+            "desc": "전체 스레드 수. 누수가 있으면 실행마다 증가한다."
+          },
+          {
+            "key": "jvm.threadsLive.max",
+            "label": "살아있는 스레드 max",
+            "value": 316,
+            "unit": "count",
+            "desc": "전체 스레드 수. 누수가 있으면 실행마다 증가한다."
+          },
+          {
+            "key": "jvm.threadsLive.p95",
+            "label": "살아있는 스레드 p95",
+            "value": 316,
+            "unit": "count",
+            "desc": "전체 스레드 수. 누수가 있으면 실행마다 증가한다."
+          },
+          {
+            "key": "jvm.threadsBlocked.avg",
+            "label": "BLOCKED 스레드 avg",
+            "value": 0,
+            "unit": "count",
+            "desc": "synchronized 락을 기다리는 스레드. >0 이 지속되면 앱 레벨 경합이다."
+          },
+          {
+            "key": "jvm.threadsBlocked.max",
+            "label": "BLOCKED 스레드 max",
+            "value": 0,
+            "unit": "count",
+            "desc": "synchronized 락을 기다리는 스레드. >0 이 지속되면 앱 레벨 경합이다."
+          },
+          {
+            "key": "jvm.threadsBlocked.p95",
+            "label": "BLOCKED 스레드 p95",
+            "value": 0,
+            "unit": "count",
+            "desc": "synchronized 락을 기다리는 스레드. >0 이 지속되면 앱 레벨 경합이다."
+          },
+          {
+            "key": "jvm.threadsWaiting.avg",
+            "label": "WAITING 스레드 avg",
+            "value": 13.04761904761905,
+            "unit": "count",
+            "desc": "대기 중인 스레드. 커넥션 풀·큐 대기가 여기 잡힌다."
+          },
+          {
+            "key": "jvm.threadsWaiting.max",
+            "label": "WAITING 스레드 max",
+            "value": 16,
+            "unit": "count",
+            "desc": "대기 중인 스레드. 커넥션 풀·큐 대기가 여기 잡힌다."
+          },
+          {
+            "key": "jvm.threadsWaiting.p95",
+            "label": "WAITING 스레드 p95",
+            "value": 15,
+            "unit": "count",
+            "desc": "대기 중인 스레드. 커넥션 풀·큐 대기가 여기 잡힌다."
+          }
+        ]
+      },
+      {
+        "id": "mysql",
+        "label": "MySQL",
+        "metrics": [
+          {
+            "key": "mysql.threadsRunning.avg",
+            "label": "Threads running avg",
+            "value": 2.6190476190476186,
+            "unit": "count",
+            "desc": "실제로 쿼리를 실행 중인 스레드. DB 동시성의 직접 지표."
+          },
+          {
+            "key": "mysql.threadsRunning.max",
+            "label": "Threads running max",
+            "value": 6,
+            "unit": "count",
+            "desc": "실제로 쿼리를 실행 중인 스레드. DB 동시성의 직접 지표."
+          },
+          {
+            "key": "mysql.threadsRunning.p95",
+            "label": "Threads running p95",
+            "value": 5,
+            "unit": "count",
+            "desc": "실제로 쿼리를 실행 중인 스레드. DB 동시성의 직접 지표."
+          },
+          {
+            "key": "mysql.threadsConnected.avg",
+            "label": "Threads connected avg",
+            "value": 11,
+            "unit": "count",
+            "desc": "연결된 커넥션 수."
+          },
+          {
+            "key": "mysql.threadsConnected.max",
+            "label": "Threads connected max",
+            "value": 11,
+            "unit": "count",
+            "desc": "연결된 커넥션 수."
+          },
+          {
+            "key": "mysql.threadsConnected.p95",
+            "label": "Threads connected p95",
+            "value": 11,
+            "unit": "count",
+            "desc": "연결된 커넥션 수."
+          },
+          {
+            "key": "mysql.maxConnections",
+            "label": "max_connections",
+            "value": 200,
+            "unit": "count",
+            "desc": "서버 커넥션 상한. 포화도 계산 분모."
+          },
+          {
+            "key": "mysql.slowQueries",
+            "label": "Slow query 수",
+            "value": 927.5425208408906,
+            "unit": "count",
+            "desc": "long_query_time(0.1s) 초과 쿼리 수. 인덱스 회귀의 1차 신호."
+          },
+          {
+            "key": "mysql.qps",
+            "label": "Queries/sec",
+            "value": 5677.7908486539445,
+            "unit": "per_sec",
+            "desc": "초당 쿼리 수. RPS 대비 비율이 곧 요청당 쿼리 수 = N+1 탐지기."
+          },
+          {
+            "key": "mysql.qpsMax",
+            "label": "Queries/sec max",
+            "value": 6298.759864712514,
+            "unit": "per_sec",
+            "desc": "순간 최대 쿼리 처리율."
+          },
+          {
+            "key": "mysql.bufferPoolHitPct",
+            "label": "Buffer pool hit ratio",
+            "value": 99.9994135261972,
+            "unit": "percent",
+            "desc": "InnoDB 버퍼풀 적중률. 낮으면 디스크에서 읽고 있다는 뜻."
+          },
+          {
+            "key": "mysql.rowsReadPerSec",
+            "label": "Rows read/sec",
+            "value": 5353.988331135392,
+            "unit": "per_sec",
+            "desc": "초당 읽은 행 수. 쿼리 수 대비 급증하면 풀스캔 의심."
+          },
+          {
+            "key": "mysql.abortedConnects",
+            "label": "Aborted connects",
+            "value": 0,
+            "unit": "count",
+            "desc": "연결 실패 횟수. 커넥션 고갈의 직접 증거."
+          },
+          {
+            "key": "mysql.innodbRowLockWaits.avg",
+            "label": "Row lock 대기 avg",
+            "value": 0.09523809523809523,
+            "unit": "count",
+            "desc": "현재 행 잠금 대기 수. 핫 로우 경합 탐지."
+          },
+          {
+            "key": "mysql.innodbRowLockWaits.max",
+            "label": "Row lock 대기 max",
+            "value": 2,
+            "unit": "count",
+            "desc": "현재 행 잠금 대기 수. 핫 로우 경합 탐지."
+          },
+          {
+            "key": "mysql.innodbRowLockWaits.p95",
+            "label": "Row lock 대기 p95",
+            "value": 0,
+            "unit": "count",
+            "desc": "현재 행 잠금 대기 수. 핫 로우 경합 탐지."
+          },
+          {
+            "key": "mysql.selectScan",
+            "label": "풀 테이블 스캔 수",
+            "value": 1139.0873062958306,
+            "unit": "count",
+            "desc": "첫 테이블을 전부 훑은 SELECT 수. 급증하면 인덱스가 안 먹고 있다."
+          },
+          {
+            "key": "mysql.selectFullJoin",
+            "label": "인덱스 없는 조인",
+            "value": 0,
+            "unit": "count",
+            "desc": "조인 키에 인덱스가 없어 상대 테이블을 전부 훑은 횟수. 0이어야 정상."
+          },
+          {
+            "key": "mysql.tmpDiskTables",
+            "label": "디스크 임시 테이블",
+            "value": 0,
+            "unit": "count",
+            "desc": "메모리에 못 담아 디스크로 내려간 임시 테이블. ORDER BY/GROUP BY 비용의 신호."
+          },
+          {
+            "key": "mysql.rowLockTimeMs",
+            "label": "Row lock 대기 총시간",
+            "value": 3154.865021544345,
+            "unit": "ms",
+            "desc": "행 잠금을 기다린 누적 시간(ms). 응답시간에 그대로 더해진다. (T-29)"
+          },
+          {
+            "key": "mysql.rowLockWaitCount",
+            "label": "Row lock 대기 횟수",
+            "value": 28.477182657395762,
+            "unit": "count",
+            "desc": "행 잠금 대기가 발생한 횟수. 대기 총시간과 나누면 1회 평균 대기. (T-29)"
+          },
+          {
+            "key": "mysql.rollbacks",
+            "label": "롤백 수",
+            "value": 6.009458492811206,
+            "unit": "count",
+            "desc": "롤백된 트랜잭션 수. 데드락·예외가 조용히 늘고 있는지 본다. (T-29)"
+          },
+          {
+            "key": "mysql.cpuCores.avg",
+            "label": "MySQL 컨테이너 CPU avg",
+            "value": 1.2952321116621899,
+            "unit": "cores",
+            "desc": "MySQL 컨테이너가 소비한 CPU 코어 수. 앱 CPU 와 나란히 놓고 본다."
+          },
+          {
+            "key": "mysql.cpuCores.max",
+            "label": "MySQL 컨테이너 CPU max",
+            "value": 1.3483012367969667,
+            "unit": "cores",
+            "desc": "MySQL 컨테이너가 소비한 CPU 코어 수. 앱 CPU 와 나란히 놓고 본다."
+          },
+          {
+            "key": "mysql.cpuCores.p95",
+            "label": "MySQL 컨테이너 CPU p95",
+            "value": 1.3464953666249917,
+            "unit": "cores",
+            "desc": "MySQL 컨테이너가 소비한 CPU 코어 수. 앱 CPU 와 나란히 놓고 본다."
+          },
+          {
+            "key": "mysql.cpuSeconds",
+            "label": "MySQL CPU 총초",
+            "value": 394.37152601038383,
+            "unit": "sec",
+            "desc": "측정 구간에 MySQL 이 태운 CPU 초. 쿼리 수로 나누면 쿼리당 CPU 비용."
+          },
+          {
+            "key": "mysql.cpuLimitCores",
+            "label": "MySQL CPU 한계(코어)",
+            "value": 2,
+            "unit": "cores",
+            "desc": "MySQL 에 걸린 cgroup CPU 상한. 여유가 있는데 느리면 CPU 부족이 아니다."
+          },
+          {
+            "key": "mysql.throttledPct",
+            "label": "MySQL CPU throttled 비율",
+            "value": 0.3053953172718018,
+            "unit": "percent",
+            "desc": "MySQL 이 cgroup 에 강제 정지된 주기 비율. >0 이면 DB 지연의 원인이 CPU 상한이다."
+          }
+        ]
+      },
+      {
+        "id": "redis",
+        "label": "Redis",
+        "metrics": [
+          {
+            "key": "redis.opsPerSec",
+            "label": "Ops/sec",
+            "value": 114.04094612049239,
+            "unit": "per_sec",
+            "desc": "초당 처리 명령 수."
+          },
+          {
+            "key": "redis.cpuCores.avg",
+            "label": "Redis 컨테이너 CPU avg",
+            "value": 0.014819264780241424,
+            "unit": "cores",
+            "desc": "Redis 컨테이너가 소비한 CPU 코어 수."
+          },
+          {
+            "key": "redis.cpuCores.max",
+            "label": "Redis 컨테이너 CPU max",
+            "value": 0.017751192513564027,
+            "unit": "cores",
+            "desc": "Redis 컨테이너가 소비한 CPU 코어 수."
+          },
+          {
+            "key": "redis.cpuCores.p95",
+            "label": "Redis 컨테이너 CPU p95",
+            "value": 0.017640018424690745,
+            "unit": "cores",
+            "desc": "Redis 컨테이너가 소비한 CPU 코어 수."
+          },
+          {
+            "key": "redis.cpuSeconds",
+            "label": "Redis CPU 총초",
+            "value": 4.275915008057906,
+            "unit": "sec",
+            "desc": "측정 구간에 Redis 가 태운 CPU 초."
+          },
+          {
+            "key": "redis.opsPerSecMax",
+            "label": "Ops/sec max",
+            "value": 185.98054368578966,
+            "unit": "per_sec",
+            "desc": "순간 최대 처리율."
+          },
+          {
+            "key": "redis.connectedClients.avg",
+            "label": "Connected clients avg",
+            "value": 3,
+            "unit": "count",
+            "desc": "연결된 클라이언트 수. Lettuce 풀 설정과 비교한다."
+          },
+          {
+            "key": "redis.connectedClients.max",
+            "label": "Connected clients max",
+            "value": 3,
+            "unit": "count",
+            "desc": "연결된 클라이언트 수. Lettuce 풀 설정과 비교한다."
+          },
+          {
+            "key": "redis.connectedClients.p95",
+            "label": "Connected clients p95",
+            "value": 3,
+            "unit": "count",
+            "desc": "연결된 클라이언트 수. Lettuce 풀 설정과 비교한다."
+          },
+          {
+            "key": "redis.hitRatioPct",
+            "label": "Hit ratio",
+            "value": 98.61426624261699,
+            "unit": "percent",
+            "desc": "캐시 적중률. 캐시 기여도 실험(EXP-004)의 핵심 지표."
+          },
+          {
+            "key": "redis.evictedKeys",
+            "label": "Evicted keys",
+            "value": 0,
+            "unit": "count",
+            "desc": "메모리 부족으로 쫓겨난 키 수. >0 이면 캐시 효과가 무너지고 있다."
+          },
+          {
+            "key": "redis.expiredKeys",
+            "label": "Expired keys",
+            "value": 0,
+            "unit": "count",
+            "desc": "TTL 만료로 삭제된 키 수."
+          },
+          {
+            "key": "redis.memoryUsed.avg",
+            "label": "Redis 메모리 avg",
+            "value": 2290244.5714285714,
+            "unit": "bytes",
+            "desc": "Redis가 사용 중인 메모리."
+          },
+          {
+            "key": "redis.memoryUsed.max",
+            "label": "Redis 메모리 max",
+            "value": 2394568,
+            "unit": "bytes",
+            "desc": "Redis가 사용 중인 메모리."
+          },
+          {
+            "key": "redis.memoryUsed.p95",
+            "label": "Redis 메모리 p95",
+            "value": 2389320,
+            "unit": "bytes",
+            "desc": "Redis가 사용 중인 메모리."
+          },
+          {
+            "key": "redis.memoryMaxBytes",
+            "label": "maxmemory",
+            "value": 402653184,
+            "unit": "bytes",
+            "desc": "Redis 메모리 상한 (0이면 무제한)."
+          },
+          {
+            "key": "redis.blockedClients",
+            "label": "Blocked clients",
+            "value": 0,
+            "unit": "count",
+            "desc": "블로킹 명령 대기 클라이언트."
+          }
+        ]
+      },
+      {
+        "id": "pool",
+        "label": "Connection Pool / Threads",
+        "metrics": [
+          {
+            "key": "pool.hikariActive.avg",
+            "label": "HikariCP active avg",
+            "value": 9.952380952380953,
+            "unit": "count",
+            "desc": "사용 중인 DB 커넥션."
+          },
+          {
+            "key": "pool.hikariActive.max",
+            "label": "HikariCP active max",
+            "value": 10,
+            "unit": "count",
+            "desc": "사용 중인 DB 커넥션."
+          },
+          {
+            "key": "pool.hikariActive.p95",
+            "label": "HikariCP active p95",
+            "value": 10,
+            "unit": "count",
+            "desc": "사용 중인 DB 커넥션."
+          },
+          {
+            "key": "pool.hikariPending.avg",
+            "label": "HikariCP pending avg",
+            "value": 141.28571428571428,
+            "unit": "count",
+            "desc": "커넥션을 기다리는 스레드. >0 이 지속되면 풀이 병목이다."
+          },
+          {
+            "key": "pool.hikariPending.max",
+            "label": "HikariCP pending max",
+            "value": 181,
+            "unit": "count",
+            "desc": "커넥션을 기다리는 스레드. >0 이 지속되면 풀이 병목이다."
+          },
+          {
+            "key": "pool.hikariPending.p95",
+            "label": "HikariCP pending p95",
+            "value": 178,
+            "unit": "count",
+            "desc": "커넥션을 기다리는 스레드. >0 이 지속되면 풀이 병목이다."
+          },
+          {
+            "key": "pool.hikariMax",
+            "label": "HikariCP max",
+            "value": 10,
+            "unit": "count",
+            "desc": "풀 최대 크기. 포화도 분모."
+          },
+          {
+            "key": "pool.hikariAcquireP95Ms",
+            "label": "커넥션 획득 p95",
+            "value": 8581.16935162245,
+            "unit": "ms",
+            "desc": "풀에서 커넥션을 받기까지 걸린 p95. 응답시간에 그대로 더해진다."
+          },
+          {
+            "key": "pool.hikariTimeouts",
+            "label": "커넥션 타임아웃",
+            "value": 0,
+            "unit": "count",
+            "desc": "커넥션을 못 받고 실패한 횟수. 0이어야 정상."
+          },
+          {
+            "key": "pool.tomcatBusy.avg",
+            "label": "Tomcat busy threads avg",
+            "value": 146.42857142857142,
+            "unit": "count",
+            "desc": "요청 처리 중인 워커 스레드."
+          },
+          {
+            "key": "pool.tomcatBusy.max",
+            "label": "Tomcat busy threads max",
+            "value": 186,
+            "unit": "count",
+            "desc": "요청 처리 중인 워커 스레드."
+          },
+          {
+            "key": "pool.tomcatBusy.p95",
+            "label": "Tomcat busy threads p95",
+            "value": 185,
+            "unit": "count",
+            "desc": "요청 처리 중인 워커 스레드."
+          },
+          {
+            "key": "pool.tomcatMax",
+            "label": "Tomcat max threads",
+            "value": 400,
+            "unit": "count",
+            "desc": "워커 스레드 상한. 여기 닿으면 요청이 큐에서 대기한다."
+          }
+        ]
+      },
+      {
+        "id": "network",
+        "label": "Network",
+        "metrics": [
+          {
+            "key": "network.rxBytesSec",
+            "label": "수신 대역폭",
+            "value": 2095171.121941948,
+            "unit": "bytes_per_sec",
+            "desc": "앱 컨테이너 초당 수신 바이트."
+          },
+          {
+            "key": "network.txBytesSec",
+            "label": "송신 대역폭",
+            "value": 2678223.095251025,
+            "unit": "bytes_per_sec",
+            "desc": "앱 컨테이너 초당 송신 바이트."
+          },
+          {
+            "key": "network.rxErrors",
+            "label": "수신 에러",
+            "value": 0,
+            "unit": "count",
+            "desc": "네트워크 수신 오류. 0이어야 정상."
+          },
+          {
+            "key": "network.txDropped",
+            "label": "송신 드롭",
+            "value": 0,
+            "unit": "count",
+            "desc": "드롭된 송신 패킷."
+          }
+        ]
+      },
+      {
+        "id": "disk",
+        "label": "Disk (MySQL)",
+        "metrics": [
+          {
+            "key": "disk.readBytesSec",
+            "label": "디스크 읽기",
+            "value": 32649.577522141906,
+            "unit": "bytes_per_sec",
+            "desc": "DB 컨테이너 초당 디스크 읽기. 버퍼풀 미스와 연동해서 본다."
+          },
+          {
+            "key": "disk.writeBytesSec",
+            "label": "디스크 쓰기",
+            "value": 876673.8199463842,
+            "unit": "bytes_per_sec",
+            "desc": "DB 컨테이너 초당 디스크 쓰기 (redo/binlog 포함)."
+          },
+          {
+            "key": "disk.ioTimeSec",
+            "label": "I/O 시간",
+            "value": 0.00006268960602667242,
+            "unit": "seconds",
+            "desc": "디스크가 바빴던 누적 시간. duration 대비 비율이 디스크 이용률."
+          }
+        ]
+      },
+      {
+        "id": "host",
+        "label": "호스트",
+        "metrics": [
+          {
+            "key": "host.cores",
+            "label": "호스트 코어 수",
+            "value": 20,
+            "unit": "cores",
+            "desc": "VM 에 할당된 논리 코어 수. 아래 사용률의 분모."
+          },
+          {
+            "key": "host.cpuPct.avg",
+            "label": "호스트 CPU 사용률 avg",
+            "value": 18.99872904878585,
+            "unit": "percent",
+            "desc": "VM 전체 CPU 사용률. 개별 컨테이너가 한가해도 이 값이 높으면 서로 밀어낸 것이다."
+          },
+          {
+            "key": "host.cpuPct.max",
+            "label": "호스트 CPU 사용률 max",
+            "value": 19.270492399442695,
+            "unit": "percent",
+            "desc": "VM 전체 CPU 사용률. 개별 컨테이너가 한가해도 이 값이 높으면 서로 밀어낸 것이다."
+          },
+          {
+            "key": "host.cpuPct.p95",
+            "label": "호스트 CPU 사용률 p95",
+            "value": 19.25811437403253,
+            "unit": "percent",
+            "desc": "VM 전체 CPU 사용률. 개별 컨테이너가 한가해도 이 값이 높으면 서로 밀어낸 것이다."
+          },
+          {
+            "key": "host.loadPerCore.avg",
+            "label": "코어당 run queue avg",
+            "value": 0.22600000000000006,
+            "unit": "ratio",
+            "desc": "load1 을 코어 수로 나눈 값. 1 을 넘으면 실행 대기가 코어보다 많다는 뜻이다."
+          },
+          {
+            "key": "host.loadPerCore.max",
+            "label": "코어당 run queue max",
+            "value": 0.337,
+            "unit": "ratio",
+            "desc": "load1 을 코어 수로 나눈 값. 1 을 넘으면 실행 대기가 코어보다 많다는 뜻이다."
+          },
+          {
+            "key": "host.loadPerCore.p95",
+            "label": "코어당 run queue p95",
+            "value": 0.33399999999999996,
+            "unit": "ratio",
+            "desc": "load1 을 코어 수로 나눈 값. 1 을 넘으면 실행 대기가 코어보다 많다는 뜻이다."
+          },
+          {
+            "key": "host.iowaitPct",
+            "label": "iowait 비율",
+            "value": 0.7353190450683785,
+            "unit": "percent",
+            "desc": "CPU 가 디스크를 기다린 비율. 높으면 병목이 CPU 가 아니라 I/O 다."
+          },
+          {
+            "key": "host.stealPct",
+            "label": "steal 비율",
+            "value": 0,
+            "unit": "percent",
+            "desc": "하이퍼바이저가 CPU 를 가져간 비율. VM 밖(Windows) 부하의 간접 증거다."
+          },
+          {
+            "key": "host.memAvailableBytes",
+            "label": "가용 메모리",
+            "value": 11561095168,
+            "unit": "bytes",
+            "desc": "구간 중 최저 가용 메모리. 0 에 가까우면 페이지 캐시가 밀려 디스크 읽기가 는다."
+          },
+          {
+            "key": "host.contextSwitchesSec",
+            "label": "컨텍스트 스위치",
+            "value": 37654.8509360147,
+            "unit": "per_sec",
+            "desc": "초당 컨텍스트 스위치. 급증은 과도한 스레드 경합 신호다."
+          }
+        ]
+      },
+      {
+        "id": "loadgen",
+        "label": "부하 발생기",
+        "metrics": [
+          {
+            "key": "loadgen.cores.avg",
+            "label": "부하 발생기 CPU avg",
+            "value": 0.059220562984854855,
+            "unit": "cores",
+            "desc": "k6 컨테이너가 소비한 코어 수. 측정 대상과 같은 머신이면 이만큼 뺏은 것이다."
+          },
+          {
+            "key": "loadgen.cores.max",
+            "label": "부하 발생기 CPU max",
+            "value": 0.07231542391679849,
+            "unit": "cores",
+            "desc": "k6 컨테이너가 소비한 코어 수. 측정 대상과 같은 머신이면 이만큼 뺏은 것이다."
+          },
+          {
+            "key": "loadgen.cores.p95",
+            "label": "부하 발생기 CPU p95",
+            "value": 0.07121941868107795,
+            "unit": "cores",
+            "desc": "k6 컨테이너가 소비한 코어 수. 측정 대상과 같은 머신이면 이만큼 뺏은 것이다."
+          },
+          {
+            "key": "loadgen.throttledPct",
+            "label": "부하 발생기 throttled",
+            "value": 0,
+            "unit": "percent",
+            "desc": "**0 이 아니면 그 실행의 지연은 서버가 아니라 부하 발생기가 만든 것일 수 있다.** 서버 포화와 발생기 포화를 가르는 값."
+          },
+          {
+            "key": "loadgen.memBytes.avg",
+            "label": "부하 발생기 메모리 avg",
+            "value": 386727936,
+            "unit": "bytes",
+            "desc": "k6 가 쓴 메모리. VU 가 많으면 여기가 먼저 터진다."
+          },
+          {
+            "key": "loadgen.memBytes.max",
+            "label": "부하 발생기 메모리 max",
+            "value": 406720512,
+            "unit": "bytes",
+            "desc": "k6 가 쓴 메모리. VU 가 많으면 여기가 먼저 터진다."
+          },
+          {
+            "key": "loadgen.memBytes.p95",
+            "label": "부하 발생기 메모리 p95",
+            "value": 406601728,
+            "unit": "bytes",
+            "desc": "k6 가 쓴 메모리. VU 가 많으면 여기가 먼저 터진다."
+          }
+        ]
+      },
+      {
+        "id": "k6ts",
+        "label": "k6 시계열 (remote-write)",
+        "metrics": [
+          {
+            "key": "k6ts.p95",
+            "label": "k6 P95 (시계열)",
+            "value": 15224.177010289837,
+            "unit": "ms",
+            "desc": "측정 구간 전체의 응답시간 P95. k6 요약본의 P95 와 같은 값이어야 한다 — 어긋나면 측정 창 계산을 의심한다."
+          },
+          {
+            "key": "k6ts.p99",
+            "label": "k6 P99 (시계열)",
+            "value": 19561.87670201714,
+            "unit": "ms",
+            "desc": "응답시간 P99. 꼬리가 얼마나 두꺼운지를 본다."
+          },
+          {
+            "key": "k6ts.p50",
+            "label": "k6 P50 (시계열)",
+            "value": 6081.013866664712,
+            "unit": "ms",
+            "desc": "응답시간 중앙값. P95 와의 벌어짐이 곧 꼬리 비대칭의 크기다."
+          },
+          {
+            "key": "k6ts.p95Read",
+            "label": "k6 P95 읽기",
+            "value": 15148.470349241734,
+            "unit": "ms",
+            "desc": "읽기 요청만의 P95. SLO 기준 300ms."
+          },
+          {
+            "key": "k6ts.p95Write",
+            "label": "k6 P95 쓰기",
+            "value": 15706.74358002567,
+            "unit": "ms",
+            "desc": "쓰기 요청만의 P95. SLO 기준 500ms."
+          },
+          {
+            "key": "k6ts.waitingP95",
+            "label": "k6 서버 대기 P95",
+            "value": 15224.177010289837,
+            "unit": "ms",
+            "desc": "첫 바이트까지 기다린 시간의 P95(TTFB). P95 전체와 거의 같으면 지연은 서버 안에서 났다."
+          },
+          {
+            "key": "k6ts.blockedP95",
+            "label": "k6 커넥션 대기 P95",
+            "value": 0.014914233061672052,
+            "unit": "ms",
+            "desc": "요청을 보내기 전 커넥션을 기다린 시간. 커지면 부하 발생기 쪽 병목이다."
+          },
+          {
+            "key": "k6ts.rps",
+            "label": "k6 RPS (시계열)",
+            "value": 21.437140854072304,
+            "unit": "per_sec",
+            "desc": "측정 구간의 초당 요청 수. 닫힌 부하 루프라 지연이 오르면 이 값이 내려간다."
+          },
+          {
+            "key": "k6ts.reqs",
+            "label": "k6 요청 수 (시계열)",
+            "value": 6431.142256221693,
+            "unit": "count",
+            "desc": "측정 구간 요청 총수. k6 요약본의 measure 구간 httpReqs 와 대조하는 용도."
+          },
+          {
+            "key": "k6ts.errorPct",
+            "label": "k6 오류율 (시계열)",
+            "value": 0,
+            "unit": "percent",
+            "desc": "측정 구간의 실패 응답 비율. 구간을 잘라도 정확하게 다시 계산된다."
+          },
+          {
+            "key": "k6ts.vus.avg",
+            "label": "활성 VU avg",
+            "value": 199.90476190476193,
+            "unit": "count",
+            "desc": "그 순간 붙어 있던 가상 사용자 수. 램프업 곡선과 지연 상승을 겹쳐 보는 축이다."
+          },
+          {
+            "key": "k6ts.vus.max",
+            "label": "활성 VU max",
+            "value": 200,
+            "unit": "count",
+            "desc": "그 순간 붙어 있던 가상 사용자 수. 램프업 곡선과 지연 상승을 겹쳐 보는 축이다."
+          },
+          {
+            "key": "k6ts.vus.p95",
+            "label": "활성 VU p95",
+            "value": 200,
+            "unit": "count",
+            "desc": "그 순간 붙어 있던 가상 사용자 수. 램프업 곡선과 지연 상승을 겹쳐 보는 축이다."
+          }
+        ]
+      },
+      {
+        "id": "efficiency",
+        "label": "효율 (요청당 자원 비용)",
+        "metrics": [
+          {
+            "key": "efficiency.appCpuMsPerReq",
+            "label": "요청당 앱 CPU",
+            "value": 93.27527640045533,
+            "unit": "ms",
+            "desc": "요청 1건에 앱 컨테이너가 태운 CPU(ms). **CPU 포화 상태에서 성능 회귀를 직접 보는 값.** 오르면 같은 일을 더 비싸게 하고 있다."
+          },
+          {
+            "key": "efficiency.jvmCpuMsPerReq",
+            "label": "요청당 JVM CPU",
+            "value": 93.27103708379308,
+            "unit": "ms",
+            "desc": "JVM 프로세스만의 요청당 CPU(ms). 앱 컨테이너 값과 크게 다르면 컨테이너 안에 다른 소비자가 있다."
+          },
+          {
+            "key": "efficiency.dbCpuMsPerReq",
+            "label": "요청당 MySQL CPU",
+            "value": 61.32215869254893,
+            "unit": "ms",
+            "desc": "요청 1건에 MySQL 이 태운 CPU(ms). 앱 값과 **같은 비율로** 움직이면 원인은 둘 다의 아래 층이다."
+          },
+          {
+            "key": "efficiency.cacheCpuMsPerReq",
+            "label": "요청당 Redis CPU",
+            "value": 0.6648764461587284,
+            "unit": "ms",
+            "desc": "요청 1건에 Redis 가 태운 CPU(ms)."
+          },
+          {
+            "key": "efficiency.stackCpuMsPerReq",
+            "label": "요청당 스택 전체 CPU",
+            "value": 155.262311539163,
+            "unit": "ms",
+            "desc": "앱+MySQL+Redis 를 합친 요청당 CPU. 병목이 옮겨 다녀도 이 합계는 총비용을 그대로 보여준다."
+          },
+          {
+            "key": "efficiency.dbCpuUsPerQuery",
+            "label": "쿼리당 MySQL CPU",
+            "value": 231.52873862544558,
+            "unit": "us",
+            "desc": "쿼리 1건에 든 CPU(마이크로초). 요청당 쿼리 수는 그대로인데 이 값만 오르면 DB 자체가 비효율해진 것이다."
+          },
+          {
+            "key": "efficiency.queriesPerReq",
+            "label": "요청당 쿼리 수",
+            "value": 264.8576546333306,
+            "unit": "count",
+            "desc": "요청 1건이 만든 쿼리 수. 급증하면 N+1 이다. 위 두 지표를 해석할 때의 기준선."
+          },
+          {
+            "key": "efficiency.ctxSwitchPerReq",
+            "label": "요청당 컨텍스트 스위치",
+            "value": 1756.5239316352952,
+            "unit": "count",
+            "desc": "요청 1건당 VM 전체 컨텍스트 스위치. CPU 는 그대로인데 이게 오르면 스케줄링 비용이 늘어난 것이다."
+          }
+        ]
+      }
+    ],
+    "flat": {
+      "cpu.process.avg": 99.84761904761905,
+      "cpu.process.max": 100,
+      "cpu.process.p95": 100,
+      "cpu.cores.avg": 1.9967517540872473,
+      "cpu.cores.max": 2.0014469260544834,
+      "cpu.cores.p95": 2.0011295818368855,
+      "cpu.limitCores": 2,
+      "cpu.throttledPct": 99.8982015609094,
+      "cpu.seconds": 599.8665715197263,
+      "cpu.throttledSeconds": 1627.6064029026043,
+      "memory.workingSet.avg": 2026610492.952381,
+      "memory.workingSet.max": 2043281408,
+      "memory.workingSet.p95": 2041667584,
+      "memory.limitBytes": 2684354560,
+      "memory.rss.avg": 1932736804.5714288,
+      "memory.rss.max": 1948176384,
+      "memory.rss.p95": 1946767360,
+      "heap.used.avg": 523627827.8095239,
+      "heap.used.max": 807036872,
+      "heap.used.p95": 796344704,
+      "heap.maxBytes": 1073741822,
+      "heap.committedMax": 1073741824,
+      "heap.liveDataMax": 0,
+      "heap.nonHeapUsed.avg": 244635208.3809524,
+      "heap.nonHeapUsed.max": 246987360,
+      "heap.nonHeapUsed.p95": 246847944,
+      "gc.pauseAvgMs": 37.119565217391305,
+      "gc.pauseMaxMs": 105,
+      "gc.pauseP95Ms": 88.20022094285713,
+      "gc.count": 93.56756866706897,
+      "gc.totalPauseMs": 3473.187467370006,
+      "gc.overheadPct.avg": 1.0319766378917887,
+      "gc.overheadPct.max": 1.213,
+      "gc.overheadPct.p95": 1.1913333333333334,
+      "gc.allocRateBytesSec": 192578179.55480823,
+      "gc.promotedBytesSec": 48503.69185080719,
+      "jvm.jitCompileMs": 44975.48936516439,
+      "jvm.classesLoaded.avg": 27276.428571428572,
+      "jvm.classesLoaded.max": 27293,
+      "jvm.classesLoaded.p95": 27293,
+      "jvm.cpuSeconds": 599.8393078712023,
+      "jvm.cpuUsagePct.avg": 99.84761904761906,
+      "jvm.cpuUsagePct.max": 100,
+      "jvm.cpuUsagePct.p95": 100,
+      "jvm.threadsLive.avg": 305.2380952380952,
+      "jvm.threadsLive.max": 316,
+      "jvm.threadsLive.p95": 316,
+      "jvm.threadsBlocked.avg": 0,
+      "jvm.threadsBlocked.max": 0,
+      "jvm.threadsBlocked.p95": 0,
+      "jvm.threadsWaiting.avg": 13.04761904761905,
+      "jvm.threadsWaiting.max": 16,
+      "jvm.threadsWaiting.p95": 15,
+      "mysql.threadsRunning.avg": 2.6190476190476186,
+      "mysql.threadsRunning.max": 6,
+      "mysql.threadsRunning.p95": 5,
+      "mysql.threadsConnected.avg": 11,
+      "mysql.threadsConnected.max": 11,
+      "mysql.threadsConnected.p95": 11,
+      "mysql.maxConnections": 200,
+      "mysql.slowQueries": 927.5425208408906,
+      "mysql.qps": 5677.7908486539445,
+      "mysql.qpsMax": 6298.759864712514,
+      "mysql.bufferPoolHitPct": 99.9994135261972,
+      "mysql.rowsReadPerSec": 5353.988331135392,
+      "mysql.abortedConnects": 0,
+      "mysql.innodbRowLockWaits.avg": 0.09523809523809523,
+      "mysql.innodbRowLockWaits.max": 2,
+      "mysql.innodbRowLockWaits.p95": 0,
+      "mysql.selectScan": 1139.0873062958306,
+      "mysql.selectFullJoin": 0,
+      "mysql.tmpDiskTables": 0,
+      "mysql.rowLockTimeMs": 3154.865021544345,
+      "mysql.rowLockWaitCount": 28.477182657395762,
+      "mysql.rollbacks": 6.009458492811206,
+      "mysql.cpuCores.avg": 1.2952321116621899,
+      "mysql.cpuCores.max": 1.3483012367969667,
+      "mysql.cpuCores.p95": 1.3464953666249917,
+      "mysql.cpuSeconds": 394.37152601038383,
+      "mysql.cpuLimitCores": 2,
+      "mysql.throttledPct": 0.3053953172718018,
+      "redis.opsPerSec": 114.04094612049239,
+      "redis.cpuCores.avg": 0.014819264780241424,
+      "redis.cpuCores.max": 0.017751192513564027,
+      "redis.cpuCores.p95": 0.017640018424690745,
+      "redis.cpuSeconds": 4.275915008057906,
+      "redis.opsPerSecMax": 185.98054368578966,
+      "redis.connectedClients.avg": 3,
+      "redis.connectedClients.max": 3,
+      "redis.connectedClients.p95": 3,
+      "redis.hitRatioPct": 98.61426624261699,
+      "redis.evictedKeys": 0,
+      "redis.expiredKeys": 0,
+      "redis.memoryUsed.avg": 2290244.5714285714,
+      "redis.memoryUsed.max": 2394568,
+      "redis.memoryUsed.p95": 2389320,
+      "redis.memoryMaxBytes": 402653184,
+      "redis.blockedClients": 0,
+      "pool.hikariActive.avg": 9.952380952380953,
+      "pool.hikariActive.max": 10,
+      "pool.hikariActive.p95": 10,
+      "pool.hikariPending.avg": 141.28571428571428,
+      "pool.hikariPending.max": 181,
+      "pool.hikariPending.p95": 178,
+      "pool.hikariMax": 10,
+      "pool.hikariAcquireP95Ms": 8581.16935162245,
+      "pool.hikariTimeouts": 0,
+      "pool.tomcatBusy.avg": 146.42857142857142,
+      "pool.tomcatBusy.max": 186,
+      "pool.tomcatBusy.p95": 185,
+      "pool.tomcatMax": 400,
+      "network.rxBytesSec": 2095171.121941948,
+      "network.txBytesSec": 2678223.095251025,
+      "network.rxErrors": 0,
+      "network.txDropped": 0,
+      "disk.readBytesSec": 32649.577522141906,
+      "disk.writeBytesSec": 876673.8199463842,
+      "disk.ioTimeSec": 0.00006268960602667242,
+      "host.cores": 20,
+      "host.cpuPct.avg": 18.99872904878585,
+      "host.cpuPct.max": 19.270492399442695,
+      "host.cpuPct.p95": 19.25811437403253,
+      "host.loadPerCore.avg": 0.22600000000000006,
+      "host.loadPerCore.max": 0.337,
+      "host.loadPerCore.p95": 0.33399999999999996,
+      "host.iowaitPct": 0.7353190450683785,
+      "host.stealPct": 0,
+      "host.memAvailableBytes": 11561095168,
+      "host.contextSwitchesSec": 37654.8509360147,
+      "loadgen.cores.avg": 0.059220562984854855,
+      "loadgen.cores.max": 0.07231542391679849,
+      "loadgen.cores.p95": 0.07121941868107795,
+      "loadgen.throttledPct": 0,
+      "loadgen.memBytes.avg": 386727936,
+      "loadgen.memBytes.max": 406720512,
+      "loadgen.memBytes.p95": 406601728,
+      "k6ts.p95": 15224.177010289837,
+      "k6ts.p99": 19561.87670201714,
+      "k6ts.p50": 6081.013866664712,
+      "k6ts.p95Read": 15148.470349241734,
+      "k6ts.p95Write": 15706.74358002567,
+      "k6ts.waitingP95": 15224.177010289837,
+      "k6ts.blockedP95": 0.014914233061672052,
+      "k6ts.rps": 21.437140854072304,
+      "k6ts.reqs": 6431.142256221693,
+      "k6ts.errorPct": 0,
+      "k6ts.vus.avg": 199.90476190476193,
+      "k6ts.vus.max": 200,
+      "k6ts.vus.p95": 200,
+      "efficiency.appCpuMsPerReq": 93.27527640045533,
+      "efficiency.jvmCpuMsPerReq": 93.27103708379308,
+      "efficiency.dbCpuMsPerReq": 61.32215869254893,
+      "efficiency.cacheCpuMsPerReq": 0.6648764461587284,
+      "efficiency.stackCpuMsPerReq": 155.262311539163,
+      "efficiency.dbCpuUsPerQuery": 231.52873862544558,
+      "efficiency.queriesPerReq": 264.8576546333306,
+      "efficiency.ctxSwitchPerReq": 1756.5239316352952,
+      "saturation.cpuPct": 100.07234630272417,
+      "saturation.cpuAvgPct": 99.83758770436236,
+      "saturation.memoryPct": 76.1181640625,
+      "saturation.heapPct": 75.16116588406481,
+      "saturation.hikariPct": 100,
+      "saturation.tomcatPct": 46.5,
+      "saturation.mysqlConnPct": 5.5,
+      "saturation.redisMemPct": 0.59469739596049
+    },
+    "errors": [],
+    "available": true
+  },
+  "regression": {
+    "baselineRunId": "normal-day-2026-08-19T14-20-01",
+    "baselineStartedAt": "2026-08-19T14:09:50.690Z",
+    "baselineCommit": "3e96d946",
+    "baselineStatus": "compared",
+    "hadPriorCandidates": true,
+    "baselineThresholdsPassed": false,
+    "baselineVerdict": "FAIL",
+    "conditions": {
+      "scenario": "normal-day",
+      "environment": "perf",
+      "dataset": {
+        "profile": "medium",
+        "fingerprint": "sha256:aae4bccfae5e",
+        "state": "sha256:ffe696d17416",
+        "snapshot": "medium-20260816-062210"
+      },
+      "loadProfile": {
+        "normal_day": {
+          "executor": "ramping-vus",
+          "startVUs": 0,
+          "stages": [
+            {
+              "duration": "3m0s",
+              "target": 200
+            },
+            {
+              "duration": "5m0s",
+              "target": 200
+            },
+            {
+              "duration": "2m0s",
+              "target": 0
+            }
+          ],
+          "gracefulRampDown": "30s"
+        }
+      },
+      "loadgen": "docker",
+      "remoteWrite": true,
+      "scriptVersion": "sha256:7757707b0a2b",
+      "measurementProfile": {
+        "mode": "steady-state",
+        "warmupSec": 180,
+        "measureSec": 300,
+        "rampdownSec": 120,
+        "gatePhase": "measure"
+      }
+    },
+    "seriesHash": "e568386ebd63",
+    "comparability": {
+      "comparable": true,
+      "level": "exact",
+      "mismatches": []
+    },
+    "rejectedBaselines": [],
+    "downgradedFrom": null,
+    "hasBaseline": true,
+    "verdict": "FAIL",
+    "measurementStatus": "MEASURED",
+    "missingRequired": [],
+    "missingOptional": [],
+    "notApplicable": [],
+    "windowIncomplete": false,
+    "gateFailed": true,
+    "absoluteGateFailures": [
+      "k6.phases.measure.p95",
+      "k6.phases.measure.p99",
+      "infra.flat.cpu.throttledPct"
+    ],
+    "counts": {
+      "total": 33,
+      "fail": 8,
+      "warn": 2,
+      "gateFail": 4,
+      "skipped": 0,
+      "suppressed": 19
+    },
+    "comparisons": [
+      {
+        "key": "k6.phases.measure.p95",
+        "label": "P95 응답시간",
+        "unit": "ms",
+        "direction": "lower_is_better",
+        "gate": true,
+        "current": 15505.4388649,
+        "baseline": 10944.44084625,
+        "deltaAbs": 4560.99801865,
+        "deltaPct": 41.67410727257737,
+        "badChangePct": 41.67410727257737,
+        "verdict": "FAIL",
+        "reasons": [
+          {
+            "type": "absolute",
+            "level": "FAIL",
+            "desc": "15505 > 상한 500"
+          },
+          {
+            "type": "relative",
+            "level": "FAIL",
+            "desc": "직전 대비 +41.7% 악화 (허용 20%)"
+          }
+        ],
+        "skipped": null,
+        "applicable": true,
+        "required": true
+      },
+      {
+        "key": "k6.phases.measure.p99",
+        "label": "P99 응답시간",
+        "unit": "ms",
+        "direction": "lower_is_better",
+        "gate": true,
+        "current": 20237.74195758001,
+        "baseline": 14985.024921099997,
+        "deltaAbs": 5252.717036480011,
+        "deltaPct": 35.05310844751286,
+        "badChangePct": 35.05310844751286,
+        "verdict": "FAIL",
+        "reasons": [
+          {
+            "type": "absolute",
+            "level": "FAIL",
+            "desc": "20238 > 상한 1200"
+          },
+          {
+            "type": "relative",
+            "level": "FAIL",
+            "desc": "직전 대비 +35.1% 악화 (허용 30%)"
+          }
+        ],
+        "skipped": null,
+        "applicable": true,
+        "required": true
+      },
+      {
+        "key": "k6.phases.measure.avg",
+        "label": "평균 응답시간",
+        "unit": "ms",
+        "direction": "lower_is_better",
+        "gate": true,
+        "current": 7017.975020091643,
+        "baseline": 5588.649519591654,
+        "deltaAbs": 1429.3255004999892,
+        "deltaPct": 25.575507919924554,
+        "badChangePct": 25.575507919924554,
+        "verdict": "FAIL",
+        "reasons": [
+          {
+            "type": "relative",
+            "level": "FAIL",
+            "desc": "직전 대비 +25.6% 악화 (허용 25%)"
+          }
+        ],
+        "skipped": null,
+        "applicable": true,
+        "required": true
+      },
+      {
+        "key": "k6.phases.measure.errorRate",
+        "label": "오류율",
+        "unit": "ratio",
+        "direction": "lower_is_better",
+        "gate": true,
+        "current": 0,
+        "baseline": 0,
+        "deltaAbs": 0,
+        "deltaPct": null,
+        "badChangePct": null,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 0.00 < 노이즈 하한 1.00e-3",
+        "applicable": true,
+        "required": true
+      },
+      {
+        "key": "k6.phases.measure.tps",
+        "label": "TPS (초당 트랜잭션)",
+        "unit": "per_sec",
+        "direction": "higher_is_better",
+        "gate": true,
+        "current": 5.066666666666666,
+        "baseline": 5.953333333333333,
+        "deltaAbs": -0.8866666666666667,
+        "deltaPct": -14.893617021276597,
+        "badChangePct": 14.893617021276597,
+        "verdict": "WARN",
+        "reasons": [
+          {
+            "type": "relative",
+            "level": "WARN",
+            "desc": "직전 대비 +14.9% 악화 (경고 10%)"
+          }
+        ],
+        "skipped": null,
+        "applicable": true,
+        "required": true
+      },
+      {
+        "key": "k6.phases.measure.rps",
+        "label": "RPS (초당 요청)",
+        "unit": "per_sec",
+        "direction": "higher_is_better",
+        "gate": true,
+        "current": 21.64,
+        "baseline": 25.35333333333333,
+        "deltaAbs": -3.713333333333331,
+        "deltaPct": -14.646331843281612,
+        "badChangePct": 14.646331843281612,
+        "verdict": "WARN",
+        "reasons": [
+          {
+            "type": "relative",
+            "level": "WARN",
+            "desc": "직전 대비 +14.6% 악화 (경고 10%)"
+          }
+        ],
+        "skipped": null,
+        "applicable": true,
+        "required": true
+      },
+      {
+        "key": "k6.phases.measure.checkRate",
+        "label": "Check 성공률",
+        "unit": "ratio",
+        "direction": "higher_is_better",
+        "gate": true,
+        "current": 1,
+        "baseline": 1,
+        "deltaAbs": 0,
+        "deltaPct": 0,
+        "badChangePct": 0,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 0.00 < 노이즈 하한 5.00e-3",
+        "applicable": true,
+        "required": true
+      },
+      {
+        "key": "infra.flat.saturation.cpuPct",
+        "label": "CPU 포화도 (한계 대비 최대)",
+        "unit": "percent",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 100.07234630272417,
+        "baseline": 100.05091854291163,
+        "deltaAbs": 0.021427759812539193,
+        "deltaPct": 0.021416854662207697,
+        "badChangePct": 0.021416854662207697,
+        "verdict": "FAIL",
+        "reasons": [
+          {
+            "type": "absolute",
+            "level": "FAIL",
+            "desc": "100 > 상한 95.00"
+          }
+        ],
+        "skipped": "변화 0.02 < 노이즈 하한 5.00",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.cpu.throttledPct",
+        "label": "CPU throttling 비율",
+        "unit": "percent",
+        "direction": "lower_is_better",
+        "gate": true,
+        "current": 99.8982015609094,
+        "baseline": 99.83050847457626,
+        "deltaAbs": 0.06769308633313642,
+        "deltaPct": 0.0678080151724117,
+        "badChangePct": 0.0678080151724117,
+        "verdict": "FAIL",
+        "reasons": [
+          {
+            "type": "absolute",
+            "level": "FAIL",
+            "desc": "99.90 > 상한 10.00"
+          }
+        ],
+        "skipped": "변화 0.07 < 노이즈 하한 0.50",
+        "applicable": true,
+        "required": true
+      },
+      {
+        "key": "infra.flat.loadgen.throttledPct",
+        "label": "부하 발생기 throttling 비율",
+        "unit": "percent",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 0,
+        "baseline": 0,
+        "deltaAbs": 0,
+        "deltaPct": null,
+        "badChangePct": null,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 0.00 < 노이즈 하한 0.50",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.memory.workingSet.max",
+        "label": "메모리 최대 사용량",
+        "unit": "bytes",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 2043281408,
+        "baseline": 2096754688,
+        "deltaAbs": -53473280,
+        "deltaPct": -2.550287847502359,
+        "badChangePct": -2.550287847502359,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": null,
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.saturation.memoryPct",
+        "label": "메모리 포화도",
+        "unit": "percent",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 76.1181640625,
+        "baseline": 78.11019897460938,
+        "deltaAbs": -1.992034912109375,
+        "deltaPct": -2.550287847502359,
+        "badChangePct": -2.550287847502359,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 1.99 < 노이즈 하한 3.00",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.heap.used.max",
+        "label": "Heap 최대 사용량",
+        "unit": "bytes",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 807036872,
+        "baseline": 747483136,
+        "deltaAbs": 59553736,
+        "deltaPct": 7.967234728356466,
+        "badChangePct": 7.967234728356466,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": null,
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.heap.liveDataMax",
+        "label": "Live data (누수 지표)",
+        "unit": "bytes",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 0,
+        "baseline": 0,
+        "deltaAbs": 0,
+        "deltaPct": null,
+        "badChangePct": null,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 0.00 < 노이즈 하한 5.24e+7",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.gc.pauseMaxMs",
+        "label": "GC 최대 정지시간",
+        "unit": "ms",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 105,
+        "baseline": 206,
+        "deltaAbs": -101,
+        "deltaPct": -49.029126213592235,
+        "badChangePct": -49.029126213592235,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": null,
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.gc.overheadPct.avg",
+        "label": "GC 오버헤드",
+        "unit": "percent",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 1.0319766378917887,
+        "baseline": 1.2807339497410237,
+        "deltaAbs": -0.248757311849235,
+        "deltaPct": -19.42302785832577,
+        "badChangePct": -19.42302785832577,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 0.25 < 노이즈 하한 1.00",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.gc.count",
+        "label": "GC 횟수",
+        "unit": "count",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 93.56756866706897,
+        "baseline": 118.99232821542017,
+        "deltaAbs": -25.424759548351204,
+        "deltaPct": -21.366721644712232,
+        "badChangePct": -21.366721644712232,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": null,
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.mysql.slowQueries",
+        "label": "MySQL Slow Query 수",
+        "unit": "count",
+        "direction": "lower_is_better",
+        "gate": true,
+        "current": 927.5425208408906,
+        "baseline": 1110.598828379258,
+        "deltaAbs": -183.0563075383675,
+        "deltaPct": -16.482667085603627,
+        "badChangePct": -16.482667085603627,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": null,
+        "applicable": true,
+        "required": true
+      },
+      {
+        "key": "infra.flat.mysql.threadsRunning.max",
+        "label": "MySQL 동시 실행 스레드 최대",
+        "unit": "count",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 6,
+        "baseline": 5,
+        "deltaAbs": 1,
+        "deltaPct": 20,
+        "badChangePct": 20,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 1.00 < 노이즈 하한 3.00",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.mysql.qps",
+        "label": "MySQL QPS",
+        "unit": "per_sec",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 5677.7908486539445,
+        "baseline": 7198.765323280538,
+        "deltaAbs": -1520.9744746265933,
+        "deltaPct": -21.128268617228272,
+        "badChangePct": -21.128268617228272,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": null,
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.mysql.bufferPoolHitPct",
+        "label": "InnoDB Buffer Pool 적중률",
+        "unit": "percent",
+        "direction": "higher_is_better",
+        "gate": false,
+        "current": 99.9994135261972,
+        "baseline": 99.999070718901,
+        "deltaAbs": 0.0003428072962066153,
+        "deltaPct": 0.00034281048187962884,
+        "badChangePct": -0.00034281048187962884,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 3.43e-4 < 노이즈 하한 0.50",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.mysql.abortedConnects",
+        "label": "MySQL 연결 실패",
+        "unit": "count",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 0,
+        "baseline": 0,
+        "deltaAbs": 0,
+        "deltaPct": null,
+        "badChangePct": null,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 0.00 < 노이즈 하한 1.00",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.redis.hitRatioPct",
+        "label": "Redis 캐시 적중률",
+        "unit": "percent",
+        "direction": "higher_is_better",
+        "gate": false,
+        "current": 98.61426624261699,
+        "baseline": 98.4753787878788,
+        "deltaAbs": 0.13888745473819597,
+        "deltaPct": 0.14103774613283482,
+        "badChangePct": -0.14103774613283482,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 0.14 < 노이즈 하한 1.00",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.redis.evictedKeys",
+        "label": "Redis Eviction",
+        "unit": "count",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 0,
+        "baseline": 0,
+        "deltaAbs": 0,
+        "deltaPct": null,
+        "badChangePct": null,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 0.00 < 노이즈 하한 1.00",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.redis.opsPerSec",
+        "label": "Redis Ops/sec",
+        "unit": "per_sec",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 114.04094612049239,
+        "baseline": 148.49343675417663,
+        "deltaAbs": -34.452490633684235,
+        "deltaPct": -23.201355822021004,
+        "badChangePct": -23.201355822021004,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": null,
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.redis.memoryUsed.max",
+        "label": "Redis 메모리 최대",
+        "unit": "bytes",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 2394568,
+        "baseline": 2419560,
+        "deltaAbs": -24992,
+        "deltaPct": -1.032915075468267,
+        "badChangePct": -1.032915075468267,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 24992 < 노이즈 하한 1.05e+7",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.saturation.hikariPct",
+        "label": "HikariCP 포화도",
+        "unit": "percent",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 100,
+        "baseline": 100,
+        "deltaAbs": 0,
+        "deltaPct": 0,
+        "badChangePct": 0,
+        "verdict": "FAIL",
+        "reasons": [
+          {
+            "type": "absolute",
+            "level": "FAIL",
+            "desc": "100 > 상한 95.00"
+          }
+        ],
+        "skipped": "변화 0.00 < 노이즈 하한 5.00",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.pool.hikariPending.max",
+        "label": "HikariCP 대기 스레드 최대",
+        "unit": "count",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 181,
+        "baseline": 195,
+        "deltaAbs": -14,
+        "deltaPct": -7.179487179487179,
+        "badChangePct": -7.179487179487179,
+        "verdict": "FAIL",
+        "reasons": [
+          {
+            "type": "absolute",
+            "level": "FAIL",
+            "desc": "181 > 상한 5.00"
+          }
+        ],
+        "skipped": null,
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.pool.hikariAcquireP95Ms",
+        "label": "커넥션 획득 p95",
+        "unit": "ms",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 8581.16935162245,
+        "baseline": 6827.916080930579,
+        "deltaAbs": 1753.253270691871,
+        "deltaPct": 25.677721429360616,
+        "badChangePct": 25.677721429360616,
+        "verdict": "FAIL",
+        "reasons": [
+          {
+            "type": "absolute",
+            "level": "FAIL",
+            "desc": "8581 > 상한 100"
+          }
+        ],
+        "skipped": null,
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.pool.hikariTimeouts",
+        "label": "커넥션 타임아웃",
+        "unit": "count",
+        "direction": "lower_is_better",
+        "gate": true,
+        "current": 0,
+        "baseline": 0,
+        "deltaAbs": 0,
+        "deltaPct": null,
+        "badChangePct": null,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 0.00 < 노이즈 하한 1.00",
+        "applicable": true,
+        "required": true
+      },
+      {
+        "key": "infra.flat.saturation.tomcatPct",
+        "label": "Tomcat 스레드 포화도",
+        "unit": "percent",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 46.5,
+        "baseline": 49.5,
+        "deltaAbs": -3,
+        "deltaPct": -6.0606060606060606,
+        "badChangePct": -6.0606060606060606,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 3.00 < 노이즈 하한 5.00",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.network.txBytesSec",
+        "label": "송신 대역폭",
+        "unit": "bytes_per_sec",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 2678223.095251025,
+        "baseline": 3369141.1058751736,
+        "deltaAbs": -690918.0106241484,
+        "deltaPct": -20.50724469269964,
+        "badChangePct": -20.50724469269964,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 690918 < 노이즈 하한 1.05e+6",
+        "applicable": true,
+        "required": false
+      },
+      {
+        "key": "infra.flat.disk.writeBytesSec",
+        "label": "DB 디스크 쓰기",
+        "unit": "bytes_per_sec",
+        "direction": "lower_is_better",
+        "gate": false,
+        "current": 876673.8199463842,
+        "baseline": 199415.12577721788,
+        "deltaAbs": 677258.6941691663,
+        "deltaPct": 339.62252939919136,
+        "badChangePct": 339.62252939919136,
+        "verdict": "PASS",
+        "reasons": [],
+        "skipped": "변화 677259 < 노이즈 하한 1.05e+6",
+        "applicable": true,
+        "required": false
+      }
+    ],
+    "failures": [
+      "k6.phases.measure.p95",
+      "k6.phases.measure.p99",
+      "k6.phases.measure.avg",
+      "infra.flat.saturation.cpuPct",
+      "infra.flat.cpu.throttledPct",
+      "infra.flat.saturation.hikariPct",
+      "infra.flat.pool.hikariPending.max",
+      "infra.flat.pool.hikariAcquireP95Ms"
+    ],
+    "warnings": [
+      "k6.phases.measure.tps",
+      "k6.phases.measure.rps"
+    ]
+  },
+  "bottleneckHints": [
+    {
+      "score": 100,
+      "title": "CPU throttling 발생",
+      "detail": "cgroup이 CPU를 강제 회수한 주기가 99.9%다. CPU 한계(2 core)를 올리거나 요청당 CPU 사용을 줄여야 p99가 안정된다."
+    },
+    {
+      "score": 95,
+      "title": "DB 커넥션 풀 대기 발생",
+      "detail": "최대 181개 스레드가 커넥션을 기다렸다. 풀 크기(10)가 동시성 대비 부족하거나, 커넥션 보유 시간이 긴 쿼리가 있다."
+    },
+    {
+      "score": 85,
+      "title": "DB 커넥션 풀 포화",
+      "detail": "풀 사용률이 100%까지 올라갔다. 여유가 거의 없어 부하가 조금만 늘어도 대기가 생긴다."
+    },
+    {
+      "score": 80,
+      "title": "CPU 포화",
+      "detail": "CPU 사용이 한계의 100%에 도달했다."
+    },
+    {
+      "score": 72,
+      "title": "HTTP 요청당 쿼리 수 과다",
+      "detail": "요청 1건당 평균 262.4개 쿼리가 실행됐다. N+1 패턴 가능성이 높다."
+    },
+    {
+      "score": 60,
+      "title": "Slow Query 다발",
+      "detail": "요청 1000건당 142.9건의 slow query(>100ms). 인덱스 또는 쿼리 계획 점검 대상."
+    }
+  ],
+  "links": {
+    "full": {
+      "uid": "htd-perf-overview",
+      "title": "HighTeenDay Performance Overview",
+      "from": 1787188800690,
+      "to": 1787189658270,
+      "dashboard": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188800690&to=1787189658270",
+      "kiosk": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188800690&to=1787189658270&kiosk",
+      "panels": [
+        {
+          "key": "latency",
+          "label": "지연 P50/P95/P99",
+          "id": 2,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188800690&to=1787189658270&viewPanel=2"
+        },
+        {
+          "key": "rps",
+          "label": "RPS",
+          "id": 1,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188800690&to=1787189658270&viewPanel=1"
+        },
+        {
+          "key": "errors",
+          "label": "오류율 / VU",
+          "id": 3,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188800690&to=1787189658270&viewPanel=3"
+        },
+        {
+          "key": "heap",
+          "label": "JVM Heap",
+          "id": 4,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188800690&to=1787189658270&viewPanel=4"
+        },
+        {
+          "key": "gc",
+          "label": "GC Pause",
+          "id": 5,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188800690&to=1787189658270&viewPanel=5"
+        },
+        {
+          "key": "hikari",
+          "label": "HikariCP",
+          "id": 7,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188800690&to=1787189658270&viewPanel=7"
+        },
+        {
+          "key": "tomcat",
+          "label": "Tomcat Threads",
+          "id": 6,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188800690&to=1787189658270&viewPanel=6"
+        },
+        {
+          "key": "mysql",
+          "label": "MySQL",
+          "id": 9,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188800690&to=1787189658270&viewPanel=9"
+        },
+        {
+          "key": "redis",
+          "label": "Redis",
+          "id": 10,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188800690&to=1787189658270&viewPanel=10"
+        },
+        {
+          "key": "cpu",
+          "label": "컨테이너 CPU",
+          "id": 11,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188800690&to=1787189658270&viewPanel=11"
+        }
+      ]
+    },
+    "measured": {
+      "uid": "htd-perf-overview",
+      "title": "HighTeenDay Performance Overview",
+      "from": 1787188980690,
+      "to": 1787189520690,
+      "dashboard": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188980690&to=1787189520690",
+      "kiosk": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188980690&to=1787189520690&kiosk",
+      "panels": [
+        {
+          "key": "latency",
+          "label": "지연 P50/P95/P99",
+          "id": 2,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188980690&to=1787189520690&viewPanel=2"
+        },
+        {
+          "key": "rps",
+          "label": "RPS",
+          "id": 1,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188980690&to=1787189520690&viewPanel=1"
+        },
+        {
+          "key": "errors",
+          "label": "오류율 / VU",
+          "id": 3,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188980690&to=1787189520690&viewPanel=3"
+        },
+        {
+          "key": "heap",
+          "label": "JVM Heap",
+          "id": 4,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188980690&to=1787189520690&viewPanel=4"
+        },
+        {
+          "key": "gc",
+          "label": "GC Pause",
+          "id": 5,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188980690&to=1787189520690&viewPanel=5"
+        },
+        {
+          "key": "hikari",
+          "label": "HikariCP",
+          "id": 7,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188980690&to=1787189520690&viewPanel=7"
+        },
+        {
+          "key": "tomcat",
+          "label": "Tomcat Threads",
+          "id": 6,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188980690&to=1787189520690&viewPanel=6"
+        },
+        {
+          "key": "mysql",
+          "label": "MySQL",
+          "id": 9,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188980690&to=1787189520690&viewPanel=9"
+        },
+        {
+          "key": "redis",
+          "label": "Redis",
+          "id": 10,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188980690&to=1787189520690&viewPanel=10"
+        },
+        {
+          "key": "cpu",
+          "label": "컨테이너 CPU",
+          "id": 11,
+          "url": "http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1787188980690&to=1787189520690&viewPanel=11"
+        }
+      ]
+    }
+  }
+}
