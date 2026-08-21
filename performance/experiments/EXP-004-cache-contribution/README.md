@@ -35,10 +35,10 @@ Redis 캐시: board/post 목록, HOT 랭킹(Sorted Set), 조회수 버퍼.
 # COLD: 반드시 순서대로
 docker exec perf-redis redis-cli FLUSHALL && docker restart perf-app
 sleep 30   # 앱 기동 대기 (healthcheck 확인)
-k6 run -o experimental-prometheus-rw scenarios/cold-start.js -e DATASET=medium
+node tools/perf-run.js scenarios/cold-start.js --dataset medium --loadgen docker
 
 # WARM: 워밍업 내장 시나리오
-k6 run -o experimental-prometheus-rw scenarios/cache-warm.js -e DATASET=medium
+node tools/perf-run.js scenarios/cache-warm.js --dataset medium --loadgen docker
 ```
 
 ## 6. 측정 지표

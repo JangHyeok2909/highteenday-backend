@@ -38,7 +38,7 @@ curl -s "localhost:18080/api/posts/<댓글5개글>/comments" > /dev/null
 curl -s "localhost:18080/api/posts/<댓글100개글>/comments" > /dev/null
 
 # 2단계 (부하 검증): 댓글 열람 편중 부하에서 지연 분포
-k6 run -o experimental-prometheus-rw scripts/comments.js -e VUS=50 -e DURATION=5m -e DATASET=medium
+node tools/perf-run.js scripts/comments.js --dataset medium -e VUS=50 -e DURATION=5m --loadgen docker
 ```
 
 ## 6. 측정 지표
