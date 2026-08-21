@@ -34,6 +34,7 @@ const { PromClient } = require('./lib/promql');
 const { GROUPS, computeDerived } = require('./lib/metrics-catalog');
 const { analyze, bottleneckHints } = require('./lib/regression');
 const cmp = require('./lib/comparability');
+const hostprobe = require('./lib/hostprobe');
 const grafana = require('./lib/grafana');
 const { renderReport } = require('./lib/report');
 const fmt = require('./lib/format');
@@ -305,6 +306,39 @@ async function processRun(runId, opts) {
   // 그러지 않으면 --all 재수집이 상태 축을 통째로 날린다.
   const dbstateFile = repo.loadDbState(runId);
   if (dbstateFile) Object.assign(record.run, dbstateFile);
+
+  /*
+   * 호스트 프로브를 **구간별로** 다시 요약한다 (T-37).
+   *
+   * 왜 여기서 하는가: 구간 경계는 `run.phasePlan` 에 있는데 그건 k6 요약에서 오므로
+   * perf-run 시점에는 알 수 없다. 원시 표본만 사이드카로 남겨 두고 경계를 아는 여기서
+   * 자른다 — k6·Prometheus 창 정렬(T-03/S-08)과 같은 원칙이다.
+   *
+   * 왜 필요한가: 예전에는 요약이 warmup+measure+rampdown 전체 평균이었는데 비교 대상인
+   * p95 는 measure 구간만이었다. 서로 다른 창을 상관분석해 **잘못된 인과 결론을 냈다가
+   * 철회했다**(perf-session-drift.md 8-e). 게다가 loadbench(2코어 40초)가 그 창 안에서
+   * 돌아 설명 변수 자체를 오염시켰다. 구간을 나누면 loadbench 는 warmup 에 격리된다.
+   *
+   * **분석과 게이트는 `hostProbe.phases.measure` 만 써야 한다.**
+   */
+  const hpRaw = repo.loadHostProbeRaw(runId);
+  if (hpRaw && record.run.hostProbe && record.run.hostProbe.available) {
+    const plan = record.run.phasePlan;
+    const t0 = record.run.k6StartedAt || record.run.startedAt;
+    const sliced = hostprobe.sliceByPhase(hpRaw.rows, plan, t0);
+    if (sliced) {
+      const idx = hostprobe.resolveIndex(hpRaw.header, hpRaw.rows[0].v.length);
+      record.run.hostProbe.phases = {};
+      for (const name of ['warmup', 'measure', 'rampdown']) {
+        const rows = sliced[name];
+        record.run.hostProbe.phases[name] = rows.length
+          ? { samples: rows.length, counters: hostprobe.summarize(rows, idx) }
+          : { samples: 0 };
+      }
+    } else {
+      record.run.hostProbe.phaseSliceSkipped = plan ? 'k6 시작 시각 없음' : 'phasePlan 없음';
+    }
+  }
 
   /*
    * 구간별 RPS 정규화 — 2026-08-13 ~ 2026-08-18 에 저장된 실행은 분모가 틀렸다(S-26).

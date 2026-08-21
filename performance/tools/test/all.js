@@ -20,3 +20,5 @@ require('./dataset-guard.test.js');
 require('./sanitize-reports.test.js');
 require('./repeatability.test.js');
 require('./run-lock.test.js');
+require('./loadbench.test.js');
+require('./hostprobe-phase.test.js');
