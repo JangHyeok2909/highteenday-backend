@@ -34,9 +34,8 @@
 ```bash
 # 실행한 명령을 그대로 기록 (재현의 최소 단위)
 docker restart perf-app && docker exec perf-redis redis-cli FLUSHALL   # 리셋
-K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write \
-K6_PROMETHEUS_RW_TREND_STATS="p(50),p(95),p(99),avg,max" \
-k6 run -o experimental-prometheus-rw scenarios/XXXX.js -e DATASET=medium
+node tools/perf-run.js scenarios/XXXX.js --dataset medium --loadgen docker
+# (perf-run.js 가 k6 remote-write 를 기본으로 켠다 — 이 실행의 p95 시계열이 Prometheus 에 남는다)
 ```
 
 ## 6. 측정 지표

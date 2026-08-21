@@ -53,7 +53,7 @@ joins on hot paths" — 읽기 최적화가 쓰기 경합으로 전이되는 전
 
 ```bash
 # A: Zipf 편중 (기본) — scripts/reactions.js 는 hotPost() 사용
-k6 run -o experimental-prometheus-rw scripts/reactions.js -e VUS=100 -e DURATION=5m -e DATASET=medium
+node tools/perf-run.js scripts/reactions.js --dataset medium -e VUS=100 -e DURATION=5m --loadgen docker
 # B: 대조군 — 균등 분포. 스크립트에서 hotPost() → randomPost() 로 바꾼 브랜치 또는
 #    -e UNIFORM=1 플래그 추가 후 실행 (변경 커밋 기록)
 ```

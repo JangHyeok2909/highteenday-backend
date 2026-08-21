@@ -33,9 +33,9 @@
 
 ```bash
 # 1단계: 계단식 스트레스 — 붕괴 순서 관찰
-k6 run -o experimental-prometheus-rw scenarios/stress.js -e DATASET=medium
+node tools/perf-run.js scenarios/stress.js --dataset medium --loadgen docker
 # 2단계: 도달률 기반 정밀 측정 — 최대 TPS 수치 확정
-k6 run -o experimental-prometheus-rw scenarios/breakpoint.js -e DATASET=medium
+node tools/perf-run.js scenarios/breakpoint.js --dataset medium --loadgen docker
 ```
 
 ## 6. 측정 지표
