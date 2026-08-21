@@ -34,6 +34,11 @@
  *                    미지정 시 PERF_DATASET_GUARD → perf.config.json → off 순으로 결정된다.
  *   --no-remote-write  k6 지표를 Prometheus 로 흘려보내지 않는다 (기본은 흘려보냄).
  *                    끄면 그 실행은 p95 시계열이 남지 않아 사후 재질의가 불가능하다.
+ *   --no-bench       CPU 대조 벤치(실행 전 + 부하 중)를 둘 다 건너뛴다.
+ *                    이 값이 없으면 나중에 "그때 환경이 느렸나"를 소급 확인할 수 없다.
+ *   --loadbench-at <sec>  부하 중 벤치를 k6 시작 후 몇 초에 돌릴지 직접 지정한다.
+ *                    미지정 시 --warmup 의 1/3 지점으로 정한다. warmup 이 짧거나
+ *                    지정되지 않았으면 measure 창 침범을 피해 아예 재지 않는다.
  *   -e KEY=VALUE     k6로 그대로 전달
  */
 'use strict';
@@ -45,6 +50,9 @@ const crypto = require('crypto');
 const dbstate = require('./lib/dbstate');
 const guard = require('./lib/guard');
 const snapshot = require('./snapshot');
+const hostprobe = require('./lib/hostprobe');
+const loadbench = require('./lib/loadbench');
+const cpuBench = require('./cpu-bench');
 const { acquireRunLock } = require('./lib/run-lock');
 
 const PERF_ROOT = path.resolve(__dirname, '..');
@@ -392,7 +400,7 @@ function parseArgs(argv) {
     // warmup은 undefined가 기본값이다(0이 아니다) — "지정 안 함"과 "명시적으로 0"을
     // 구분해야 한다(T-03). 0으로 두면 --warmup 0을 준 것과 아예 안 준 것을 구별할 수
     // 없어, k6로 WARMUP을 전달해야 하는지 판단이 틀어진다.
-    note: '', warmup: undefined, wait: 20, collect: true, gate: true, passthrough: [], k6Extra: [],
+    note: '', warmup: undefined, loadbenchAt: undefined, wait: 20, collect: true, gate: true, passthrough: [], k6Extra: [],
     // null = 지정 안 함. guard.js 가 환경변수 → perf.config.json → 기본값 순으로 이어받는다.
     guard: null,
     // local | docker. 기본은 local(현행) — docker 는 부하 발생기를 계측 가능하게 만든다.
@@ -401,6 +409,9 @@ function parseArgs(argv) {
     // **영원히 존재하지 않는다**(사후 복구 불가). 반대로 켜서 생기는 비용은 발생기
     // CPU 소폭 증가뿐이고 그건 loadgen 지표로 측정된다.
     remoteWrite: true,
+    // 기본 on. 회당 13초를 쓰지만, **없으면 사후에 만들 수 없는 값**이다. 세션 간 편차를
+    // 쫓을 때 "그 시점의 환경 속도"를 절대 비교하지 못한 것이 실제로 발목을 잡았다.
+    bench: true,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -413,10 +424,12 @@ function parseArgs(argv) {
     else if (a === '--dataset') o.dataset = argv[++i];
     else if (a === '--note') o.note = argv[++i];
     else if (a === '--warmup') o.warmup = Number(argv[++i]);
+    else if (a === '--loadbench-at') o.loadbenchAt = Number(argv[++i]);
     else if (a === '--wait') o.wait = Number(argv[++i]);
     else if (a === '--no-collect') o.collect = false;
     else if (a === '--no-gate') o.gate = false;
     else if (a === '--no-remote-write') o.remoteWrite = false;
+    else if (a === '--no-bench') o.bench = false;
     else if (a === '-e') o.passthrough.push('-e', argv[++i]);
     else if (a.startsWith('--k6:')) o.k6Extra.push('--' + a.slice(5), argv[++i]);
     else if (!o.script && !a.startsWith('-')) o.script = a;
@@ -535,9 +548,55 @@ function main() {
   } else {
     console.log('  k6 지표 전송: 꺼짐 — 이 실행은 p95 시계열이 남지 않습니다 (사후 재질의 불가)');
   }
+
+  // 유휴 벤치는 **k6 를 띄우기 전에** 끝낸다. 측정 중에 돌리면 앱과 같은 2코어를
+  // 놓고 다투게 되어 그 실행 자체를 오염시킨다 — 환경을 확인하려다 환경을 바꾸는 셈이다.
+  // warmup 구간이 뒤따르므로 벤치가 남긴 캐시·주파수 상태는 측정 창에 닿지 않는다.
+  if (o.bench) {
+    process.stdout.write(`  환경 대조 벤치 실행 중(3축 ${loadbench.REPEAT}회, 약 ${loadbench.APPROX_DURATION_SEC}초)... `);
+    const b = cpuBench.bench({ repeat: loadbench.REPEAT });
+    stateBlock.cpuBench = b;
+    const ax = b.axes;
+    console.log(ax.single
+      ? 'single ' + ax.single.ms + 'ms · parallel ' + (ax.parallel ? ax.parallel.ms : '—')
+        + 'ms · ctxswitch ' + (ax.ctxswitch ? ax.ctxswitch.ms : '—') + 'ms'
+      : '실패 (' + ((b.errors[0] || {}).error || '원인 미상') + ')');
+  }
+
+  // 부하 중 벤치는 warmup 구간에서 돈다 — 부하는 이미 걸려 있는데 통계에는 잡히지 않는
+  // 유일한 구간이다. 이 값이 있어야 "처리량이 떨어졌을 때 기계 자체도 느렸는가"를 가를 수
+  // 있다. 요청당 자원 지표는 앱이 CPU 상한에 붙어 있어 전부 처리량의 역수로 붕괴하므로
+  // 그 질문에 답하지 못한다(자세한 근거는 lib/loadbench.js 머리말).
+  const loadBenchAt = o.loadbenchAt !== undefined
+    ? o.loadbenchAt
+    : loadbench.deriveDelaySec(o.warmup);
+  const lbench = o.bench ? loadbench.start({ delaySec: loadBenchAt }) : { enabled: false, reason: '--no-bench' };
+  if (lbench.enabled) {
+    console.log(`  부하 중 벤치 예약: k6 시작 +${lbench.delaySec}초 (warmup 구간, ${lbench.repeat}회)`);
+  } else {
+    console.log(`  ⚠ 부하 중 벤치 생략 — ${lbench.reason}`);
+  }
+
+  // 호스트 프로브는 벤치 **뒤에** 시작한다. 벤치가 CPU 를 2코어 태우므로, 겹치면
+  // 호스트 통계에 벤치 부하가 섞여 "측정 중 호스트 상태"라는 의미가 흐려진다.
+  const probe = hostprobe.start();
+  if (!probe.enabled) console.log('  ⚠ ' + probe.reason);
+  // k6 실행 시작 시각을 붙잡는다. 호스트 표본을 구간별로 자르려면 기준 시각이 필요하고,
+  // 이 값이 없으면 요약이 warmup+measure+rampdown 을 뭉갠 평균이 된다(T-37).
+  stateBlock.k6StartedAt = new Date().toISOString();
   const k6 = loadgenMode === 'docker'
     ? spawnSync('docker', dockerK6Args(args, env), { stdio: 'inherit', cwd: PERF_ROOT })
     : spawnSync(K6_BIN, args, { stdio: 'inherit', env, cwd: PERF_ROOT });
+  // k6 가 끝나자마자 멈춘다. 이 뒤로는 수집기가 도는 시간이라 측정 구간이 아니다.
+  stateBlock.loadBench = loadbench.stop(lbench);
+  // loadbench 는 2코어를 40초 태운다. 그 구간을 표시해 두지 않으면 "환경이 바빴다"와
+  // "우리가 바쁘게 만들었다"가 섞인다 — 실제로 그 혼동이 잘못된 결론을 만들었다(8-e).
+  if (stateBlock.loadBench && stateBlock.loadBench.available) {
+    hostprobe.mark(probe, 'loadbench', stateBlock.loadBench.startedAt, stateBlock.loadBench.endedAt);
+  }
+  stateBlock.hostProbe = hostprobe.stop(probe);
+  console.log('  ' + hostprobe.describe(stateBlock.hostProbe));
+  console.log('  ' + loadbench.describe(stateBlock.loadBench, stateBlock.cpuBench));
 
   if (k6.error) {
     console.error(`k6 실행 실패: ${k6.error.message} (실행 파일: ${loadgenMode === 'docker' ? 'docker' : K6_BIN})`);
@@ -565,6 +624,20 @@ function main() {
           fs.statSync(path.join(RUNS_DIR, `${a}.k6.json`)).mtimeMs -
           fs.statSync(path.join(RUNS_DIR, `${b}.k6.json`)).mtimeMs)
         .pop();
+
+  // 호스트 프로브 원시 표본을 실행별 사이드카로 옮긴다. 요약만 남기면 사후에 measure
+  // 구간만 다시 잘라 볼 수 없다 — 실제로 그 필요가 생겼고 데이터가 이미 없었다(T-37).
+  const hp = stateBlock.hostProbe;
+  if (hp && hp.available && hp.rawFile) {
+    try {
+      fs.renameSync(hp.rawFile, path.join(RUNS_DIR, `${runId}.hostprobe.jsonl`));
+    } catch (e) {
+      console.warn(`⚠ 호스트 프로브 원시 표본 보존 실패: ${e.message}`);
+    }
+    // 요약에서 원시 배열을 뺀다. 안 빼면 dbstate 사이드카가 수 MB 로 불어난다.
+    delete hp.rows;
+    delete hp.rawFile;
+  }
 
   // 상태 블록은 사이드카 파일로 남긴다. k6 는 자기가 끝난 뒤의 DB 를 알 수 없으므로
   // 환경변수로는 실행 후 상태를 전달할 방법이 없다. collect.js 가 이 파일을 읽어

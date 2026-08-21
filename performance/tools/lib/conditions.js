@@ -114,6 +114,46 @@ const CONDITIONS = [
     read: (r) => (r.run ? (r.run.loadgen || 'local') : null),
   },
   {
+    key: 'loadBench',
+    label: '측정 중 대조 벤치',
+    // degrading 으로 둔다. warmup 안에서 도는 40초짜리 2코어 작업이라 measure 구간을
+    // 직접 침범하지는 않지만, **호스트 상태와 예열 정도를 바꾼다.**
+    //
+    // 왜 조건으로 올리는가 — 이걸 기록하지 않아서 실제로 틀린 결론을 냈다. 2026-08-19
+    // 저녁에 loadbench 를 도입했는데, 그 전후 실행을 한 계열로 놓고 상관을 냈더니
+    // 주파수와 p95 가 −0.43 으로 움직였다. 절차가 같은 구간만 보면 +0.40 으로 부호가
+    // 뒤집힌다 — 전체 상관은 **두 절차 집단의 평균 차이**가 만든 것이었다(심슨의 역설,
+    // perf-session-drift.md 8-e). 조건 축에 없으면 이런 절차 변경이 조용히 섞인다.
+    //
+    // 값이 없는 과거 실행은 `off` 로 본다. 기능이 존재하기 전이므로 추측이 아니라 사실이다.
+    materiality: 'degrading',
+    read: (r) => {
+      if (!r.run) return null;
+      const lb = r.run.loadBench;
+      return lb && lb.available ? `on@${lb.delaySec}s x${lb.repeat}` : 'off';
+    },
+  },
+  {
+    key: 'remoteWrite',
+    label: 'k6 지표 전송',
+    // **degrading 이지 blocking 이 아니다.** 이유: 측정 대상(앱·DB·Redis·데이터셋·
+    // 부하 프로파일)은 하나도 바뀌지 않는다. 바뀌는 건 부하 발생기가 5초마다 지표를
+    // 한 번 더 밀어 보낸다는 것뿐이고, 그 비용은 loadgen 지표로 직접 측정된다
+    // (전환 시점 실측: 발생기 CPU 0.108 / 상한 4 코어 — 여유 97%).
+    //
+    // blocking 으로 두면 SCHEMA_VERSION 을 올려야 하고, 그러면 seriesHash 가 바뀌어
+    // **기존 기준선 계열 전체가 통째로 비교 불가**가 된다. 미해결 상태인 E-46(세션 간
+    // 편차) 조사가 그 계열 위에서 돌고 있으므로 그 대가가 이득보다 크다.
+    // 대신 degrading 으로 잡아 두 실행이 다르면 리포트에 경고를 남기고 FAIL 을 WARN 으로
+    // 낮춘다 — "비교는 하되 이 차이를 알고 보라"는 뜻이다.
+    materiality: 'degrading',
+    // 값이 없는 과거 실행은 `false` 로 읽는다. 추측이 아니라 사실이다 — 전송 기능이
+    // 없던 시절이라 켜져 있었을 수가 없다. null(=unknown)로 두면 degrading 판정이
+    // 통째로 건너뛰어져(comparability.js) 전환 시점이 리포트에 아예 안 나타난다.
+    read: (r) => (r.run ? !!r.run.remoteWrite : null),
+    format: (v) => (v ? '켜짐(Prometheus)' : '꺼짐'),
+  },
+  {
     key: 'scriptVersion',
     label: '부하 스크립트',
     materiality: 'degrading',
