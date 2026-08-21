@@ -145,8 +145,22 @@ function describeAll(conditions) {
   return CONDITIONS.map((c) => [c.label, describe(c, conditions[c.key])]);
 }
 
+/**
+ * 조건 하나만 사람이 읽는 문자열로. 전체 표가 필요 없는 곳(이력 화면의 계열 제목 등)이 쓴다.
+ *
+ * 이게 없어서 호출부가 `String(conditions.dataset)` 를 하고 있었고, dataset 조건이 v3 에서
+ * 객체가 된 뒤로 이력 화면에 **`데이터셋 [object Object]`** 가 찍히고 있었다. 포맷터는
+ * CONDITIONS 표가 이미 들고 있으므로 호출부가 직접 문자열을 만들 이유가 없다.
+ */
+function describeCondition(conditions, key) {
+  const c = CONDITIONS.find((x) => x.key === key);
+  if (!c || !conditions) return '—';
+  return describe(c, conditions[key]);
+}
+
 module.exports = {
   CONDITIONS, SCHEMA_VERSION,
-  conditionsOf, seriesHash, compare, describeAll, formatLoadProfile, formatMeasurementProfile,
+  conditionsOf, seriesHash, compare, describeAll, describeCondition,
+  formatLoadProfile, formatMeasurementProfile,
   stableStringify, digest,
 };
