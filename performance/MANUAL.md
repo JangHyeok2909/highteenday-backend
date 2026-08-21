@@ -555,11 +555,19 @@ k6 run scripts/posts.js -e DATASET=medium -e VUS=30 -e DURATION=2m
 # P99를 얻으려면 반드시 이 플래그가 필요하다
 k6 run scenarios/normal-day.js --summary-trend-stats "avg,min,med,max,p(90),p(95),p(99)"
 
-# Prometheus로 실시간 전송 (Git Bash)
+# Prometheus로 실시간 전송 — 손으로 칠 일은 없다.
+# tools/perf-run.js 가 기본으로 켜고 주소도 local/docker 에 맞춰 넣는다(--no-remote-write 로 끔).
+# 굳이 k6 를 직접 칠 때만:
 K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write \
-K6_PROMETHEUS_RW_TREND_STATS="p(50),p(95),p(99),avg,max" \
+K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true \
+K6_PROMETHEUS_RW_PUSH_INTERVAL=5s \
 k6 run -o experimental-prometheus-rw scenarios/normal-day.js
 ```
+
+> **분위수를 직접 보내지 마라.** `K6_PROMETHEUS_RW_TREND_STATS` 는 5초마다 *이미 계산된*
+> p95 를 하나씩 보내는데, **분위수는 구간끼리 합산되지 않는다** — 5초 p95 240개를 평균해도
+> 20분 p95 가 나오지 않는다. 그래서 저장된 실행에서 앞 5분만 잘라 p95 를 다시 구하는
+> 사후 분석이 근사치밖에 안 된다. 원본 분포를 보내는 native histogram 을 쓴다.
 
 **k6 스크립트가 읽는 환경변수**
 

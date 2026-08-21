@@ -20,24 +20,25 @@
       "type": "timeseries", "title": "k6 RPS (요청 처리율)", "id": 1,
       "gridPos": { "x": 0, "y": 0, "w": 8, "h": 7 },
       "targets": [
-        { "expr": "rate(k6_http_reqs_total[15s])", "legendFormat": "RPS" }
+        { "expr": "sum(rate(k6_http_reqs_total[30s]))", "legendFormat": "RPS" }
       ]
     },
     {
       "type": "timeseries", "title": "k6 Latency P50/P95/P99 (ms)", "id": 2,
       "gridPos": { "x": 8, "y": 0, "w": 8, "h": 7 },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
       "targets": [
-        { "expr": "k6_http_req_duration_p50", "legendFormat": "p50" },
-        { "expr": "k6_http_req_duration_p95", "legendFormat": "p95" },
-        { "expr": "k6_http_req_duration_p99", "legendFormat": "p99" }
+        { "expr": "1000 * histogram_quantile(0.50, sum(rate(k6_http_req_duration_seconds[30s])))", "legendFormat": "p50" },
+        { "expr": "1000 * histogram_quantile(0.95, sum(rate(k6_http_req_duration_seconds[30s])))", "legendFormat": "p95" },
+        { "expr": "1000 * histogram_quantile(0.99, sum(rate(k6_http_req_duration_seconds[30s])))", "legendFormat": "p99" }
       ]
     },
     {
       "type": "timeseries", "title": "k6 Error Rate / VUs", "id": 3,
       "gridPos": { "x": 16, "y": 0, "w": 8, "h": 7 },
       "targets": [
-        { "expr": "k6_http_req_failed_rate", "legendFormat": "error rate" },
-        { "expr": "k6_vus", "legendFormat": "VUs" }
+        { "expr": "100 * (sum(rate(k6_http_reqs_total{expected_response=\"false\"}[30s])) or vector(0)) / clamp_min(sum(rate(k6_http_reqs_total[30s])), 0.0001)", "legendFormat": "error rate (%)" },
+        { "expr": "max(k6_vus)", "legendFormat": "VUs" }
       ]
     },
     {
