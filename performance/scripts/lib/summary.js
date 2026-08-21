@@ -126,17 +126,43 @@ function metadata(scenario, state, phasePlan) {
 function breakdown(metrics) {
   const out = {};
 
-  /** `http_req_duration{feature:post}` → {axis:'feature', value:'post'}. 아니면 null. */
+  /**
+   * `http_req_duration{feature:post}` → {axis:'feature', value:'post', scope:'run'}
+   * `http_req_duration{op:read,phase:measure}` → {axis:'op', value:'read', scope:'measure'}
+   *
+   * **2태그를 버리면 안 되는 이유(S-28).** `op:read`·`op:write` 는 실제 SLO 축이라
+   * `PHASED_THRESHOLDS` 에서 **measure 구간으로만** 선언된다 — 태그 없는 형태를 만들면
+   * warmup 이상치가 실행 전체를 FAIL 시키기 때문이다. 그래서 phased 시나리오에는
+   * `{op:read}` 단일 태그 서브메트릭이 **존재하지 않는다.**
+   *
+   * 예전 코드는 태그가 2개면 무조건 버렸고, 그 결과 리포트의 op 분해에 **read·write 는
+   * 요청 수만 있고 p95 가 비어 있었다.** "읽기가 느려졌나 쓰기가 느려졌나"라는 가장 기본적인
+   * 분해를 할 수 없어 기능(feature) 축 13개로 우회해야 했다.
+   *
+   * 원래 2태그를 버린 이유는 파싱 안전성이었다(첫 콜론까지를 태그 키로 오인). 태그를
+   * 쉼표로 먼저 쪼개면 그 위험이 없으므로, **phase 태그가 섞인 2태그만** 받아들인다.
+   * 그 외의 다중 태그는 여전히 단일 축 분해가 아니므로 제외한다.
+   */
   const axisOf = (key, metricName) => {
     const match = /^([a-z_]+)\{(.+)\}$/.exec(key);
     if (!match || match[1] !== metricName) return null;
-    // 태그가 2개 이상인 서브메트릭({phase:...,op:...})은 단일 축 분해가 아니므로 제외한다.
-    // 통짜 정규식으로 자르면 첫 콜론까지를 태그 키로 오인해 엉뚱한 축이 생긴다.
-    const tags = match[2].split(',');
-    if (tags.length !== 1) return null;
-    const sep = tags[0].indexOf(':');
-    if (sep < 0) return null;
-    return { axis: tags[0].slice(0, sep), value: tags[0].slice(sep + 1) };
+    const tags = match[2].split(',').map((t) => {
+      const sep = t.indexOf(':');
+      return sep < 0 ? null : { k: t.slice(0, sep), v: t.slice(sep + 1) };
+    });
+    if (tags.some((t) => t === null)) return null;
+
+    if (tags.length === 1) {
+      if (tags[0].k === 'phase') return null; // phase 자체는 분해 축이 아니다
+      return { axis: tags[0].k, value: tags[0].v, scope: 'run' };
+    }
+    if (tags.length === 2) {
+      const phase = tags.find((t) => t.k === 'phase');
+      const other = tags.find((t) => t.k !== 'phase');
+      if (!phase || !other) return null;
+      return { axis: other.k, value: other.v, scope: phase.v };
+    }
+    return null;
   };
 
   const cell = (axis, value) => {
@@ -149,8 +175,17 @@ function breakdown(metrics) {
     const at = axisOf(key, 'http_req_duration');
     if (!at) continue;
     const c = cell(at.axis, at.value);
-    Object.assign(c, trendStats(m.values));
-    if (m.values && m.values.count != null) c.count = m.values.count;
+    if (at.scope === 'run') {
+      Object.assign(c, trendStats(m.values));
+      if (m.values && m.values.count != null) c.count = m.values.count;
+    } else {
+      // 구간 스코프 값은 별도 칸에 둔다. 전체 구간 값과 섞으면 같은 표 안에서 어떤 셀은
+      // warmup 을 포함하고 어떤 셀은 안 하는 상태가 되어 비교가 성립하지 않는다.
+      // **판정·개선 비교에는 `measure` 쪽을 쓴다.**
+      c.byPhase = c.byPhase || {};
+      c.byPhase[at.scope] = trendStats(m.values);
+      if (m.values && m.values.count != null) c.byPhase[at.scope].count = m.values.count;
+    }
   }
 
   // 요청 수를 덧입힌다. 지연 축이 없는 값에도 행을 만든다 — 요청이 실제로 갔다는 사실
