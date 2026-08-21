@@ -63,6 +63,9 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
 | [perf-findings-tools.md](perf-findings-tools.md) | 수집·기준선·회귀 판정·리포트 도구에 어떤 문제가 있는가? | PASS/FAIL이나 비교 결과를 점검할 때 |
 | [perf-findings-scripts.md](perf-findings-scripts.md) | k6가 실제 사용자를 제대로 흉내 내고 있는가? | 부하 모델과 SLO를 점검할 때 |
 | [perf-findings-environment.md](perf-findings-environment.md) | 환경·데이터셋·Prometheus·CI가 결과를 왜곡하지 않는가? | 재현성과 운영 절차를 점검할 때 |
+| [perf-session-drift.md](perf-session-drift.md) | **E-46 해결 기록.** 세션 간 45% 편차의 정체(= 포화 상태 측정), 무엇을 잘못 읽었는가, 어떻게 무해화했는가 | 성능 수치를 인용하기 전, 포화 판정을 이해할 때, 저장된 과거 실행을 쓰려 할 때 |
+| [perf-measurement-explained.md](perf-measurement-explained.md) | 이 시스템은 지금 **무엇을 어떻게** 측정하고 있고, 무엇을 못 재는가? (개념 설명 포함 자립 문서) | 시스템 전체를 처음 이해할 때, 계측을 확장하기 전 |
+| [perf-metrics-catalog-plan.md](perf-metrics-catalog-plan.md) | 어떤 Prometheus 지표를 기본·귀속·조건부 아티팩트로 수집할 것인가? | 지표 카탈로그와 수집기를 확장하기 전 |
 | [perf-environment-essentials.md](perf-environment-essentials.md) | 스택을 어떻게 띄우고 왜 그렇게 구성했는가? | 환경을 직접 실행하거나 설명할 때 |
 | [perf-dataset-generation-problems.md](perf-dataset-generation-problems.md) | 현재 데이터셋 생성과 실제 DB 상태가 왜 성능 결과를 왜곡하는가? | 데이터셋 문제를 처음부터 쉽게 이해할 때 |
 | [perf-mastery-checklist.md](perf-mastery-checklist.md) | 내가 시스템 전체를 실제로 이해했는가? | 단계별 학습과 인수인계 때 |
@@ -78,6 +81,9 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
         │    ├─ tools        측정 도구가 잘못 판정한다
         │    ├─ scripts      부하가 실제 사용자와 다르다
         │    └─ environment  환경·데이터셋이 결과를 왜곡한다
+        │
+        ├─ 조사 기록: 한 항목을 파고든 실험 로그
+        │    └─ session-drift   E-46 의 실험·기각된 가설·다음 계획
         │
         ├─ 총평: 무엇을 먼저 고칠 것인가
         │
@@ -97,6 +103,8 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
 만들어도 "틀린 것"은 사라지지 않는다.
 
 - **발견 장부**는 증거와 결함 상태를 보관한다.
+- **조사 기록**은 장부 한 항목의 조사가 커졌을 때 분리한 실험 로그다. 장부에는 문제와
+  현재 결론만 남기고, 실험 설계·측정값·기각 근거는 이쪽에 모은다.
 - **총평**은 여러 결함을 우선순위와 실행 계획으로 묶는다.
 - **학습 장부**는 코드를 읽고 실행한 사람이 직접 답을 써서 이해도를 확인한다.
 

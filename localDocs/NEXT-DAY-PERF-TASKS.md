@@ -41,6 +41,7 @@
 | 2 | P0 | DB·Redis 초기화 후 small→large 재생성 | 인기글·캐시·락 경합 실험 |
 | 3 | P0 | 데이터셋 스냅샷과 실행 전후 상태 기록 | 같은 데이터셋끼리 비교했다는 주장 |
 | 4 | P0 | 관측 경로 정상화와 PromQL 교정 | CPU·컨테이너·MySQL 병목 판정 |
+| 4-b | P0 | PMU 활성화 — IPC·요청당 명령어 수 관측 | "같은 CPU 1초가 왜 다른 양의 일을 하는가" (E-46의 마지막 질문) |
 | 5 | P0 | 기능 의미 검증과 저니 카운터 추가 | 2xx 응답과 실제 사용자 성공의 일치 |
 | 6 | P0 | 반복 측정과 timeout 검열 처리 | 회귀율과 개선율 |
 | 7 | P1 | stress·spike 부하 모델과 VU 용량 수정 | 포화점과 최대 처리량 |
@@ -528,6 +529,259 @@ CPU 한계 변경 실험과 묶으면 전환 비용이 0이다. 그 전에 smoke
 
 관련: E-09, E-10, E-13, E-39, T-18, T-29
 
+### 4-b. PMU(하드웨어 성능 카운터)를 켜서 "CPU 1초가 왜 다른 양의 일을 하는가"에 답한다
+
+> **한 줄 요약.** WSL 이 하드웨어 성능 카운터를 게스트에 노출하는 기능을 갖고 있는데
+> 기본값이 꺼져 있다. `.wslconfig` 한 줄로 켤 수 있고, 켜면 E-46 의 마지막 질문에 답할
+> 수 있는 지표(IPC)가 처음 생긴다. 상태: **미적용, 절차 확정** (2026-08-19)
+
+#### 우선순위 재조정 (2026-08-19 저녁, 실험 6 이후)
+
+**이 항목은 P0 에 두되 지금 당장 하지는 않는다.** 실험 6([perf-session-drift.md](perf-session-drift.md) 8-b절)이
+두 가지를 바꿨다.
+
+1. **지금은 잴 대상이 없다.** PMU 는 대조 계측기다 — 열화 상태와 정상 상태의 IPC 를 비교해야
+   의미가 있다. 그런데 저녁 세트(평균 10,685ms)는 어제(14,994ms)보다 28.7% 빠른 **좋은 상태**다.
+   지금 켜서 재면 정상값만 나온다.
+2. **원인이 이 층이 아닐 가능성이 커졌다.** 부하 중·유휴 대조 벤치가 앱 성능과 **역방향**으로
+   움직였다 — 환경이 6% 느려진 구간에서 앱은 22% 빨라졌다(8-b.6). 공유 CPU 층이 원인이라면
+   두 계열이 같은 방향이어야 한다. IPC·캐시 미스는 정확히 그 층을 재는 지표다.
+
+**따라서 순서는 이렇다.** 먼저 레벨이 언제·어느 방향으로 움직이는지를 촘촘히 관측하고
+(드리프트 문서 12절 실험 10·11·12), **열화 상태가 재현되는 시점을 포착한 뒤에** 그 순간을
+PMU 로 들여다본다. 그때는 정상 상태 대조군이 함께 있으므로 비교가 성립한다.
+
+아래 절차와 설계는 그대로 유효하므로 보존한다.
+#### 왜 필요한가 — 지금 답할 수 없는 질문
+
+E-46(세션 간 편차)에서 남은 질문은 하나로 좁혀져 있다.
+
+> **같은 CPU 1초가 왜 회차마다 다른 양의 일을 하는가.**
+
+2026-08-19 세트의 실측이 이 질문을 만든다. 앱 컨테이너가 CPU 상한(2코어)에 완전히 붙어
+있어서 measure 300초짜리 실행의 앱 CPU 소비량이 599.6~600.0초로 **고정**인데, 처리한 요청
+수만 7,374 → 6,224 → 6,767 → 5,774 로 변한다. 투입은 상수고 산출만 변한다.
+
+문제는 **현재 지표로는 그 이유를 물을 수 없다**는 것이다(T-36). 풀어야 할 등식은 이렇다.
+
+```
+CPU 시간 = 명령어 수 ÷ (사이클당 명령어 × 클럭 주파수)
+```
+
+| 항 | 지금 관측되는가 |
+|---|---|
+| 클럭 주파수 | **부분적** — Windows 전체 평균, 5초 표본. 컨테이너별로도 정밀하게도 못 봄 |
+| 사이클당 명령어(IPC) | **전혀 안 됨** |
+| 요청당 명령어 수 | **전혀 안 됨** (`queriesPerReq` 는 대리 지표이고 배경 쿼리 43.8% 로 오염) |
+
+`efficiency.*` 계열은 분자(CPU 시간)가 상한에 묶여 고정이고 분모(요청 수)만 변해서 전부
+처리량의 역수로 붕괴한다. 그래서 이들을 설명 변수로 쓰면 순환 논증이 된다. 상세 근거와
+실측 회귀식은 [perf-findings-tools.md](perf-findings-tools.md) T-36 에 있다.
+
+#### 현재 상태 — 2026-08-19 확인 결과
+
+**게스트에 PMU 가 노출돼 있지 않다**는 것은 실측으로 확정됐다.
+
+```
+/proc/cpuinfo flags        → pdpe1gb, hypervisor   (arch_perfmon 없음)
+/sys/bus/event_source/devices/
+                           → breakpoint kprobe msr power software tracepoint uprobe
+                             (cpu / cpu_core / cpu_atom 없음)
+msr 이벤트                  → tsc, smi, pperf       (aperf/mperf 없음)
+power 이벤트                → 비어 있음             (RAPL 전력 불가)
+/sys/devices/system/cpu/cpu0/cpufreq/  → 없음
+커널                       → 6.18.33.2-microsoft-standard-WSL2
+CPU                        → i7-13700H (P·E 혼합, 논리 20개)
+```
+
+`arch_perfmon` 은 "이 CPU 에 아키텍처 PMU 가 있다"를 알리는 플래그다. Linux 는 이 플래그와
+CPUID leaf 0Ah 를 보고 PMU 드라이버를 붙인다. 없다는 것은 **하이퍼바이저가 CPUID 단계에서
+PMU 의 존재 자체를 가리고 있다**는 뜻이고, 그래서 게스트 안에서는 권한을 올려도(`--privileged`
+확인 완료) 보이지 않는다.
+
+**원인은 Hyper-V 의 구조적 한계가 아니라 WSL 기능 토글의 기본값이다.** 설치된
+`C:\Program Files\WSL\wslservice.exe` 에서 확인했다.
+
+- `.wslconfig` 의 `[wsl2]` 섹션이 **`hardwarePerformanceCounters`** 키를 지원한다.
+  내부 이름은 `EnableHardwarePerformanceCounters` 이고, `EnableGpuSupport`·`EnableGuiApps`
+  와 나란히 놓인 평범한 기능 플래그다.
+- 같은 섹션에 `safeMode` 키가 있다. 안전 모드는 기능을 최소화하는 문제 해결용 모드라
+  켜져 있으면 이 기능도 함께 꺼진다.
+- 설치된 WSL 은 **2.7.10.0**. 이 기능은 0.50.2 부터 들어갔으므로 이 빌드에 포함된다.
+- 이 머신에는 **`.wslconfig` 파일 자체가 없다.** 따라서 safeMode 는 기본값(off)이고,
+  실제로 추가할 것은 한 줄뿐이다.
+
+#### 적용 절차
+
+**실행 중인 측정이 없을 때만 한다.** 4단계가 Docker Desktop 의 VM 을 통째로 내린다.
+
+1. `docker ps` 로 `perf-k6` 가 없고, `reports/overnight/` 에 도는 실행기가 없는지 확인한다.
+2. `%USERPROFILE%\.wslconfig` 를 만든다(없으면 새로 생성).
+
+   ```ini
+   [wsl2]
+   hardwarePerformanceCounters=true
+   ```
+
+   safeMode 는 기본이 off 이므로 적지 않아도 된다. 명시하고 싶으면 `safeMode=false` 를
+   같은 섹션에 넣는다.
+3. Docker Desktop 을 종료한다(트레이 아이콘 → Quit). 먼저 종료하지 않으면 재기동 때
+   컨테이너 상태가 어긋날 수 있다.
+4. `wsl --shutdown` — 모든 WSL2 배포판과 Docker 의 VM 이 내려간다.
+5. Docker Desktop 을 기동하고 perf 스택을 올린다.
+
+   ```bash
+   cd performance
+   DATASET_PROFILE=medium docker compose -f environment/docker-compose.perf.yml \
+     --env-file environment/.env.perf up -d
+   ```
+6. 아래 "검증" 을 수행한다.
+7. **벤치가 정상 범위로 돌아온 뒤에 측정을 시작한다.** VM 재기동 직후 3회는 5~14% 느리다
+   ([perf-session-drift.md](perf-session-drift.md) 5절). `node tools/cpu-bench.js --repeat 3`
+   의 `single` 이 4,950~5,050ms 로 돌아오는지 확인한다.
+
+#### 검증 — 무엇을 보면 켜진 것인가
+
+```bash
+# ① 아키텍처 PMU 플래그가 생겼는가 — 이게 1차 관문이다
+docker run --rm alpine grep -o arch_perfmon /proc/cpuinfo | head -1
+
+# ② 코어 PMU 이벤트 소스가 생겼는가 (하이브리드 CPU 라 cpu_core / cpu_atom 로 갈린다)
+docker run --rm --privileged alpine ls /sys/bus/event_source/devices/
+
+# ③ 덤으로 실효 주파수 MSR 이 열렸는가 (aperf/mperf 가 있으면 게스트 안에서 클럭을 직접 잰다)
+docker run --rm --privileged alpine ls /sys/bus/event_source/devices/msr/events/
+```
+
+①이 나오지 않으면 켜지지 않은 것이다. ②에 `cpu_core`(또는 `cpu`)가 보이면 성공이다.
+
+③은 별개 문제다. aperf/mperf 는 코어 PMU 가 아니라 MSR 계열이라 함께 열린다는 보장이 없다.
+열리면 **호스트 전체 평균이 아니라 게스트 안에서 잰 실효 주파수**가 생기므로, 현재
+`freqPct`(Windows typeperf, 5초 표본)의 정밀도 한계가 해소된다. 안 열려도 ①②만으로 목적은
+달성된다.
+
+#### perf 를 실제로 돌리기 위한 조건
+
+PMU 가 열려도 바로 `perf stat` 이 되는 것은 아니다. 세 가지가 더 필요하다.
+
+1. **`kernel.perf_event_paranoid` 완화.** 현재 값은 `2` 이고, 이 값에서는 자기 프로세스
+   외의 이벤트나 시스템 전역 측정이 금지된다. 컨테이너 안에서 낮춘다.
+
+   ```bash
+   docker run --rm --privileged alpine sysctl -w kernel.perf_event_paranoid=-1
+   ```
+
+   VM 재기동 때마다 초기화되므로, 도구화할 때는 측정 시작 전에 한 번 설정하는 절차로 넣는다.
+2. **컨테이너 권한.** `--privileged` 또는 최소한 `--cap-add PERFMON`(구 커널은 `SYS_ADMIN`)
+   이 필요하다.
+3. **perf 바이너리.** Alpine 은 community 저장소의 `perf`, Debian 계열은 `linux-perf` 를 쓴다.
+   WSL2 커널 버전과 배포판 perf 버전이 다르면 경고가 뜨지만 대체로 동작한다. 안 되면
+   `linux-tools-generic` 을 쓰거나 커널 소스에서 빌드한다.
+
+**무엇을 측정 대상으로 삼는가.** 두 가지 방법이 있다.
+
+- **cgroup 단위**: `perf stat -e cycles,instructions -G <앱 컨테이너 cgroup 경로>` —
+  앱만 정확히 잰다. 경로는 `/sys/fs/cgroup/` 아래에서 컨테이너 ID 로 찾는다.
+- **시스템 전역**: `perf stat -a` — 측정 중에는 다른 작업을 하지 않는 것이 원래 규칙이라
+  전역 값이 곧 perf 스택의 값에 가깝다. 설정이 훨씬 단순하다.
+
+먼저 전역으로 시작해 값이 나오는지 확인하고, 앱과 MySQL 을 분리해 볼 필요가 생기면 cgroup
+단위로 넘어간다.
+
+#### 켜지면 무엇을 잴 수 있게 되는가
+
+| 이벤트 | 답하는 질문 |
+|---|---|
+| `instructions`, `cycles` | **IPC** — 같은 명령어를 더 느리게 실행했는가 |
+| `instructions` ÷ 요청 수 | **요청당 명령어 수** — 앱이 실제로 더 많은 일을 했는가 |
+| `cache-references`, `cache-misses`, `LLC-load-misses` | 메모리 계층 경합이 원인인가 |
+| `msr/aperf`, `msr/mperf` (열리면) | 게스트 안에서 잰 실효 클럭 주파수 |
+| `stalled-cycles-frontend/backend` | 정체가 명령어 공급인가 실행인가 (하이브리드 코어에서 미지원일 수 있음) |
+
+**핵심은 분해가 완성된다는 것이다.**
+
+```
+요청당 CPU 시간 = 요청당 명령어 수 ÷ (IPC × 실효 주파수)
+                  └── 앱 동작        └── 미세구조  └── 클럭
+```
+
+이 세 항은 서로 독립이고, **어느 것도 처리량으로 계산되지 않는다.** T-36 이 지적한 순환이
+해소되고, "CPU 1초가 왜 다른 양의 일을 하는가" 가 처음으로 답 가능한 질문이 된다.
+
+#### 도구 통합 — 이 작업의 실제 산출물
+
+지표가 손으로만 나오면 회차마다 사람이 붙어야 하므로 실행 기록에 자동으로 남겨야 한다.
+`hostprobe`·`loadbench` 와 같은 워커 프로세스 패턴을 쓴다(`perf-run.js` 가 k6 를 `spawnSync`
+로 돌려 부모 이벤트 루프가 막히므로, 부모 안의 타이머·스트림은 동작하지 않는다).
+
+- `tools/lib/perfstat.js` + `perfstat-worker.js` (가칭) — measure 창과 **같은 시간대**에
+  `perf stat` 을 돌린다. 창 정렬은 `run.phasePlan` 에서 파생시켜 k6·Prometheus 와 같은
+  기준을 쓴다(T-03/S-08 과 같은 원칙).
+- 결과를 `run.perfStat` 으로 저장한다. `collect.js` 가 상태 블록을 통째로 병합하므로
+  수집기 수정은 필요 없다(`loadbench` 에서 확인된 경로).
+- 지표 카탈로그(`tools/lib/metrics-catalog.js`)에 파생 지표를 추가한다.
+
+  | 키 | 계산 | 의미 |
+  |---|---|---|
+  | `cpu.ipc` | instructions ÷ cycles | 사이클당 명령어 |
+  | `efficiency.instructionsPerReq` | instructions ÷ 요청 수 | 요청당 실제 작업량 |
+  | `cpu.effectiveFreqPct` | aperf ÷ mperf (열리면) | 게스트 기준 실효 클럭 |
+  | `cache.llcMissPct` | LLC-load-misses ÷ cache-references | 메모리 계층 경합 |
+
+- 단위 테스트는 `loadbench.test.js` 와 같은 수준으로 넣는다 — 창 정렬, 미완료 시 값을
+  만들어내지 않는 것, PMU 미노출 환경에서 조용히 건너뛰고 사유를 남기는 것.
+
+#### 위험 — 이것도 환경 변경이다
+
+1. **`wsl --shutdown` 이 Docker VM 을 내린다.** 실행 중인 측정이 있으면 죽는다. 볼륨과
+   이미지는 유지되지만 컨테이너는 재생성될 수 있다.
+2. **재기동 직후 3회는 5~14% 느리다.** 벤치가 정상 범위로 돌아온 뒤 시작한다.
+3. **PMU 가상화 자체가 오버헤드를 줄 수 있다.** 이게 가장 중요한 위험이다. 확인하지 않으면
+   **E-46 을 조사하려고 E-46 의 관측 조건을 바꾼 셈**이 된다.
+4. **실행 조건이 바뀐다.** 엄밀히는 PMU on/off 가 서로 다른 환경이다. 오버헤드가 무시할
+   수준으로 확인되면 같은 계열로 이어 쓰고, 유의미하면 `seriesHash` 에 반영해 계열을
+   갈라야 한다(T-02 의 비교 가능성 조건).
+
+#### 오버헤드 대조 실험 — 반드시 함께 한다
+
+- **Before (PMU off)**: 2026-08-19 실험 7 세트 10회. **이 세트가 그 대조군이다** —
+  PMU 를 켜기 전에 확보해 두는 것이 이 순서의 이유다.
+- **After (PMU on)**: 같은 명령으로 10회.
+  ```bash
+  node tools/repeatability.js scenarios/normal-day.js --runs 10 \
+    --warmup 180 --hold 5m --dataset medium --env perf --loadgen docker --reset restart \
+    --note "PMU on 대조 — 가상화 오버헤드 확인"
+  ```
+- **비교 방법**: 세트 평균끼리 비교하지 않는다. 세트 안에 방향성 성분이 있어서 평균 비교는
+  차이를 과대평가한다(드리프트 문서 8.4, 실측 11.7% 대 6.2%). **같은 회차 위치끼리** 비교한다.
+- **판정**: 회차 위치별 차이가 그 설정의 CV 범위(5분 창 기준 2.4~5.3%) 안에 들어오면
+  오버헤드는 무시 가능으로 본다.
+
+#### 완료 기준
+
+이 항목을 문서에서 지우려면 다섯 가지를 모두 만족해야 한다.
+
+1. `arch_perfmon` 이 게스트에 보이고, `/sys/bus/event_source/devices/` 에 `cpu_core`
+   (또는 `cpu`)가 있다.
+2. `perf stat` 이 `instructions`·`cycles` 를 0 이 아닌 값으로 돌려준다.
+3. PMU on/off 대조 세트로 오버헤드를 정량화하고, 계열을 이어 쓸지 가를지 결정했다.
+4. `run.json` 에 IPC 와 요청당 명령어 수가 자동으로 기록된다.
+5. [perf-findings-environment.md](perf-findings-environment.md) 의 E-48 에 검증 결과를
+   기록했다.
+
+#### 안 되면 — 확인 순서
+
+1. `.wslconfig` 위치가 맞는지 확인한다(`%USERPROFILE%\.wslconfig`, `C:\Users\<이름>` 바로 아래).
+   `wsl --shutdown` 을 실제로 거쳤는지도 확인한다 — 재기동 없이는 반영되지 않는다.
+2. `safeMode` 가 켜져 있지 않은지 확인한다. 켜져 있으면 이 기능도 함께 꺼진다.
+3. **Windows 가상화 기반 보안(VBS / Core Isolation / 메모리 무결성)** 을 확인한다.
+   이 계층이 PMU 노출을 막을 수 있다. 끄는 것은 보안 설정 변경이므로 사용자 승인이 필요하다.
+4. 그래도 안 되면 E-48 의 원래 결론(PMU 사용 불가)으로 돌아가고, **부하 중 cpu-bench**
+   (`tools/lib/loadbench.js`, 2026-08-19 도입)로 진행한다. 그쪽은 IPC 를 분해하지는 못하지만
+   "컨테이너 밖이냐 안이냐" 는 가른다.
+
+관련: E-46, E-48, T-36, E-09, E-13, P1-9(부하 발생기 물리 분리)
+
 ### 5. HTTP 2xx가 아니라 “사용자가 일을 끝냈는가”를 검증
 
 #### 현재 문제
@@ -577,7 +831,236 @@ CPU 한계 변경 실험과 묶으면 전환 비용이 0이다. 그 전에 smoke
 - [ ] timeout 상한값이 성능 개선률로 계산되지 않음
 - [ ] 리포트에서 `MEASURED`와 `CENSORED`를 구분함
 
-관련: T-04, E-11, EXP-000
+#### 실행 시간 — 반복 세트를 감당 가능하게 만들기 (2026-08-18 분석)
+
+##### 왜 이 항목에 붙는가
+
+위의 "최소 5회 반복"이 계속 미뤄지는 실질적 이유는 시간이다. 현행 `normal-day` 1회가
+**29.05분**이라 5회 세트에 **145분**이 든다. 실행 시간을 줄이지 못하면 이 항목의 할 일
+전체가 실행되지 않는다. 그래서 "얼마나 줄여도 신뢰가 유지되는가"를 먼저 정한다.
+
+##### 결론 — 신뢰 가능한 최소 실행 시간
+
+| 구간 | 현행 | 신뢰 가능한 최소 | 근거 상태 |
+|---|---:|---:|---|
+| warmup | 300초 | **300초 (유지)** | **미검증** — 줄일 근거가 아직 없다 |
+| measure | 1,200초 | **300초** | 실측 + 분산 분해로 확인 |
+| rampdown | 120초 | **120초 (유지)** | iteration p99가 129.6초 — 이미 최소에 가깝다 |
+| k6 실행 합계 | 27.0분 | **12.0분** | |
+| 고정 오버헤드(재시작·health·FLUSHALL·스크레이프 대기) | 2.05분 | 2.05분 | 실측 |
+| **회차당 사이클** | **29.05분** | **14.05분** | |
+
+```text
+권장 세트: 8회 × 14.05분 = 112분   (현행 5회 × 29.05분 = 145분)
+```
+
+```bash
+node tools/repeatability.js scenarios/normal-day.js \
+  --dataset medium --loadgen docker --runs 8 \
+  --hold 300 --note "짧은 반복 세트"
+```
+
+`--hold`는 `repeatability.js`와 `perf-run.js`가 이미 그대로 전달한다. **코드 변경이 필요
+없다.** `--warmup`을 지정하지 않으면 `scenarios/normal-day.js:29`의 기본값 300초가 그대로
+쓰이므로 warmup은 현행과 동일하게 유지된다 — 바뀌는 것은 measure 하나뿐이다.
+
+| | 현행 20분 × 5회 | 권장 5분 × 8회 |
+|---|---:|---:|
+| 세트 총 시간 | 145분 | **112분** |
+| p95 CV | 4.85% (실측) | ~5.3% (추정) |
+| 세트 대 세트 MDE (`2·CV·√(2/n)`) | 6.85% | **5.29%** |
+| CV 추정치 자체의 오차 (`1/√(2(n−1))`) | ±35% | ±27% |
+
+**시간·민감도·CV 신뢰도 세 축이 모두 개선된다.** 회차 수가 늘어난 효과가 창 축소 손실보다
+크기 때문이다.
+
+##### 근거 1 — 저장된 세 세트가 이미 답을 갖고 있었다
+
+`reports/repeatability/` 재계산 결과다.
+
+| 세트 | 구성 | 회차 | p95 평균 | p95 CV | RPS CV | 사이클 | 총 시간 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| A (08-16) | warmup 5분 + measure **20분** | 5 | 11,821ms | **3.12%** | 2.64% | 29.3분 | 144분 |
+| B (08-17) | warmup 3분 + measure **5분** | 8 | 12,838ms | **4.26%** | 3.98% | 12.2분 | 96분 |
+| C (08-18) | warmup 5분 + measure **20분** | 5 | 17,695ms | **4.85%** | 3.50% | 29.4분 | 145분 |
+
+**측정 창이 4배 짧은 B가 20분짜리 C보다 CV가 낮다.** 창 길이가 편차의 주된 원인이라면
+나올 수 없는 순서다.
+
+> 주의: A·B는 T-31 수정 이전 도구라 `k6.all`(전체 구간) 기준이고 C만 `measure` 구간
+> 기준이다. 절대값을 나란히 놓으면 안 된다. 다만 A↔B는 서로 같은 기준이며 그쪽에서도
+> 창을 4배 줄였을 때 CV는 1.4배 증가에 그쳤다.
+
+##### 근거 2 — 편차의 93%는 창 길이와 무관하다
+
+한 회차의 p95가 흔들리는 원인은 둘로 나뉜다.
+
+- **분위수 표본오차** — 유한한 요청 수로 p95를 추정하는 통계적 오차. `1/√n`으로 줄어들므로
+  **창 길이에만 의존**한다.
+- **시스템 잡음** — 회차마다 JVM·OS·VM 상태가 달라 생기는 실제 성능 차이. 창을 늘려도
+  안 줄어든다.
+
+분위수 표준오차 `√(p(1−p)/n) ÷ f(x_p)`를 쓰고, 밀도 `f`는 `(p99−p95)/0.04`로 근사했다.
+
+| 세트 C 기준 | 값 |
+|---|---:|
+| measure 구간 요청 수 | 약 22,600건 |
+| 표본오차 성분 `q(20분)` | **1.22%** |
+| 관측 CV | 4.85% |
+| 시스템 잡음 성분 `s = √(4.85² − 1.22²)` | **4.69%** |
+
+창을 줄이면 `q(T) = 1.22% × √(20/T)` 만 커진다.
+
+| measure | 꼬리 표본 수(약 18 RPS) | 예상 CV | 20분 대비 |
+|---:|---:|---:|---:|
+| 20분 | 1,080건 | 4.85% | 기준 |
+| 10분 | 540건 | 5.00% | +3.1% |
+| 8분 | 432건 | 5.07% | +4.5% |
+| 6분 | 324건 | 5.19% | +7.0% |
+| **5분** | **270건** | **5.29%** | **+9.1%** |
+| 4분 | 216건 | 5.42% | +11.9% |
+| 3분 | 162건 | 5.65% | +16.5% |
+| 2분 | 108건 | 6.07% | +25.2% |
+
+**"CV 열화 10% 이내"를 기준으로 삼으면 하한은 4.6분이다.** 5분은 그 바로 위이고, 여유를
+두고 싶으면 6분(+7.0%)을 쓴다. 3분 이하는 꼬리 표본이 200건 밑으로 떨어져 권하지 않는다.
+
+##### 근거 3 — 표본 수집 속도는 못 올린다
+
+"VU를 늘려 요청을 빨리 모으면 되지 않나"는 이 조건에서 통하지 않는다. EXP-001에서 앱
+컨테이너 CPU 포화도 100.1%, throttled 99.79%다. 2코어를 전부 쓰고 있어 약 18 RPS가 물리적
+상한이다. VU를 늘리면 요청 수는 그대로이고 대기열만 길어진다.
+
+**표본을 늘리는 유일한 레버가 시간**이고, 그 대가가 위 표의 `q(T)`다.
+
+##### 한계 — 이 결론이 답하지 않는 것
+
+1. **표본오차 모델은 요청 독립을 가정한다.** 대기열 때문에 연속 요청이 자기상관을 가지므로
+   실효 표본 수가 `n`보다 작고, `q(T)`는 과소평가다. 방향이 짧은 창에 불리하므로 위 표는
+   낙관적일 수 있다. 다만 세트 B가 실측으로 반대 방향을 보여 큰 왜곡은 아니라고 본다.
+2. **세션 간 편차(E-46)는 그대로다.** 창을 줄여도 42시간 뒤 p95 +45%는 해결되지 않는다.
+   오히려 짧은 세트라야 여러 세션에 걸쳐 세트를 반복해 분산을 "세션 내 / 세션 간"으로
+   분해할 수 있다. 6세션 × 5회 × 14.05분 = 421분이면 되고, 20분 세트로는 15시간이 든다.
+3. **`measurementProfile`은 blocking 조건이다**(`tools/lib/conditions.js:126`). 짧은 세트는
+   자기만의 계열이므로 Before/After 둘 다 짧은 설정으로 재야 한다. 20분 기준선과 직접
+   비교할 수 없다.
+
+##### 남은 과제 A — warmup 최소값 구하기 (미측정)
+
+**구조부터 확인해야 한다.** `stagesFor()`(`scripts/lib/phases.js:74`)는 warmup 구간 전체를
+`0 → 200 VU` 선형 ramp 한 개로 만들고, `startVusFor()`가 0을 돌려준다. 즉 ramp가 끝나는
+그 순간 measure가 시작하며, **"200 VU 도달 후 안정화를 기다리는 시간"이 0초다.**
+
+```text
+t=0 ──────── ramp 0→200 ──────── t=300 ──── measure(200 VU 고정) ──── t=1500
+                                   ↑ 여기서 바로 판정이 시작된다
+```
+
+그래서 최소 warmup은 `ramp 시간 + 정착 시간`의 합으로 봐야 하고, 둘은 방향이 반대다
+(ramp를 짧게 하면 스탬피드가 생겨 정착이 늘어난다).
+
+판정 기준은 두 개이고 두 번째가 목적함수다.
+
+- **(a) 정상성** — measure 구간 안에서 p95가 시간 추세를 보이지 않는다.
+- **(b) 재현성** — warmup을 더 늘려도 회차 간 CV가 더 줄지 않는다.
+
+(a)만으로는 부족하다. 매번 안정되긴 하는데 **매번 다른 값으로** 안정될 수 있고, E-46이
+정확히 그 현상이다. (b)는 반복 세트로만 답할 수 있다.
+
+| 단계 | 작업 | 비용 | 답하는 것 |
+|---|---|---|---|
+| 1 | Prometheus 시계열로 구성요소별 정착 시점 확인 | 0회 (보존 30일) | warmup 후보 범위 |
+| 2 | `--warmup 60 --hold 1200` 진단 실행 1회 + csv 원자료 분석 | 약 30분 | 정착 시간 실측 (a) |
+| 3 | 후보 warmup으로 8회 세트 | 약 2시간 | 재현성 (b), 채택 여부 |
+
+1단계에서 볼 지표: `rate(jvm_compilation_time_seconds_total[30s])`(JIT),
+`jvm_memory_used_bytes{area="nonheap"}`(코드 캐시), Redis `hits/(hits+misses)`(캐시 적중률
+98.5% 도달), `hikaricp_connections_pending`(정상 수준 192 도달),
+`rate(http_server_requests_seconds_count[30s])`(처리량). 가장 늦게 평평해지는 지표가 하한을
+정한다. 단 ramp가 300초에 걸쳐 있어 그 구간의 변화는 "정착"이 아니라 "부하 증가"이므로,
+1단계만으로는 정착 종료 시점을 확정할 수 없다 — 그래서 2단계가 필요하다.
+
+2단계 실행:
+
+```bash
+node tools/perf-run.js scenarios/normal-day.js \
+  --dataset medium --loadgen docker \
+  --warmup 60 --hold 1200 --no-gate \
+  --k6:out "csv=/perf/reports/raw/warmup-probe.csv" \
+  --note "warmup 정착 시간 진단"
+```
+
+t=60부터 VU가 200 고정이므로 이후 변화는 순수 정착이다. csv를 1분 슬롯 20개로 잘라 슬롯별
+p95를 그리면 정착 곡선이 나온다. ramp 60초는 스탬피드를 만들어 정착 시간을 **과대추정**하는
+방향이라 안전한 쪽이다.
+
+> **이 csv 방식이 위 4번 항목의 Prometheus native-histogram 계획보다 싸고 정확하다.**
+> native-histogram은 Prometheus 기능 플래그 활성화가 선행돼야 하고, `TREND_STATS` 방식은
+> 분위수가 구간끼리 합산되지 않아 근사치만 나온다. 요청 단위 원자료는 임의 창의 분위수를
+> 정확히 재계산한다. 경로가 `/perf/...`인 것은 `dockerK6Args()`(`tools/perf-run.js:115`)가
+> `performance/`를 컨테이너의 `/perf`에 마운트하기 때문이며, `--k6:` 접두사 통과는
+> `tools/perf-run.js:365`가 이미 지원한다. 다만 `repeatability.js`는 이 인자를 회차에
+> 넘기지 않으므로, 세트 단위로 원자료를 남기려면 한 줄 추가가 필요하다.
+
+##### 남은 과제 B — rampdown 최소값 구하기 (측정은 됐고 판단이 남음)
+
+`rawMetrics.iteration_duration`을 꺼내 보면 rampdown이 기다려 줘야 하는 시간이 바로 나온다.
+
+| 실행 | 중앙값 | p90 | p95 | p99 | 최대 |
+|---|---:|---:|---:|---:|---:|
+| 08-18 03-09 (measure 20분) | 31.0초 | 95.3초 | 108.3초 | 129.6초 | **165.0초** |
+| 08-18 02-40 (measure 20분) | 32.5초 | 95.0초 | 106.5초 | 129.7초 | **167.9초** |
+| 08-17 15-46 (measure 5분) | 26.6초 | 72.5초 | 82.0초 | 99.0초 | 114.2초 |
+| 08-18 05-12 (measure 20분) | 29.6초 | 88.6초 | 100.4초 | **120.6초** | 159.0초 |
+
+**현행 120초는 넉넉한 값이 아니라 p99 언저리다.** 08-18 05-12 실행은 p99가 120.6초로 rampdown 길이와 거의 정확히 일치한다 — 즉 iteration 100건 중 1건은 지금도 배출 시간을 다 쓴다. 줄일 대상이 아니다. 길이가 이렇게 긴
+이유는 산술로 확인된다 — Little의 법칙으로 `평균 iteration = VU ÷ 처리량 = 200 ÷ 4.06 ≈ 49초`
+이고 실측 평균 43초와 맞는다. 포화 상태라 요청 하나가 12~17초씩 걸리는데 `journeyBrowse`는
+그런 요청을 6~8개 연달아 하고 사이사이 think time까지 넣는다.
+
+무엇을 지킬 것이냐에 따라 최소값이 갈린다.
+
+| 지키려는 것 | 필요 rampdown | 비고 |
+|---|---|---|
+| iteration을 하나도 안 끊는다 | 약 **170초** | 현행보다 길어야 한다 |
+| `k6.all` 오류율 0 유지 | 현행 120초로 **실측 달성 중** | 08-18 실행 27,573건 전부 성공, 전 구간 오류율 0 |
+| 판정 구간(measure)만 온전하면 된다 | **0초도 가능** | `gatePhase: 'measure'`라 rampdown은 판정 밖 |
+
+논리적으로 맞는 것은 세 번째다. 다만 **지금은 그게 안전한지 확인할 수단이 없다.** 끊긴
+iteration을 셀 방법이 없기 때문이다 — `phase_iterations`(`scenarios/lib/workload.js`)도 k6
+내장 `iterations`도 **끝난 것만** 센다. 실측에서 둘 다 6,522로 일치하는데 이건 "끊긴 게
+없다"가 아니라 "끊긴 걸 볼 수 없다"는 뜻이다.
+
+**계측 세 줄이면 확정된다.** `mixedIteration()` 맨 앞에 시작 카운터를 넣고,
+`scripts/lib/thresholds.js`에 selector를 선언해 서브메트릭을 만든다
+(`BREAKDOWN_PAGES`가 `http_reqs{page:N}`을 `count>=0`으로 선언한 것과 같은 방식).
+
+```javascript
+// scenarios/lib/workload.js
+const startedIterations = new Counter('started_iterations');
+
+export function mixedIteration(profile) {
+  const phase = currentPhase();
+  if (phase) startedIterations.add(1, { phase });
+  // ... 기존 본문
+}
+```
+
+그러면 `started_iterations{phase:rampdown} − phase_iterations{phase:rampdown}` 이 끊긴
+iteration 수가 된다. rampdown을 120/60/30/0초로 바꿔 1회씩만 돌려도 곡선이 나온다(약 1시간).
+
+**확인 전에는 건드리지 않는다.** iteration p95가 108초라 중간값이 의미가 없고, 선택은
+사실상 "170초(하나도 안 끊음)" 아니면 "30초(끊김을 받아들이고 measure만 지킴)" 둘 중
+하나다. 현행 120초는 얼마나 끊기는지 모르는 어중간한 지점이다.
+
+##### 완료 기준 (실행 시간)
+
+- [ ] `--hold 300` 8회 세트를 돌려 p95 CV가 20분 세트 대비 1.3배 이내임을 확인
+- [ ] warmup 정착 시간을 csv 원자료로 실측하고, 후보값으로 재현성(b)까지 검증
+- [ ] `started_iterations` 카운터로 rampdown 구간의 끊긴 iteration 수를 관측 가능하게 만듦
+- [ ] 위 셋이 끝난 뒤 확정한 `measurementProfile`을 EXP-001 재기준선의 조건으로 고정
+
+관련: T-04, T-30(추세 미검출), T-31(범위 혼재, 해결), E-11, E-46(세션 간 드리프트), EXP-000, EXP-001
 
 ---
 
@@ -811,6 +1294,278 @@ E-15, E-16
 
 large 생성은 오래 걸린다는 이유로 검증을 생략하지 않는다. P0-1이 끝나지 않았다면 large 생성부터
 돌리지 않는다.
+
+## 밤새 무인으로 돌려 둘 실행 목록
+
+**결론부터.** 밤에 걸 가치가 있는 실행은 "오래 걸린다"가 아니라 **길이 자체가 답인 실험**뿐이다.
+짧게 여러 번 돌려서 같은 답이 나오는 실행은 낮에 지켜보며 하는 편이 낫다. 아래 네 가지가
+그 기준을 통과한 것들이고, 마지막 절에 **밤을 태워도 못 쓰는 결과가 나오는 실행**을 따로
+적었다.
+
+### 공통 규칙
+
+1. **동시에 두 개 이상 돌리지 않는다.** 전부 같은 Windows 호스트와 WSL2 VM을 공유하므로
+   서로의 측정값을 오염시킨다. 아래 순서대로 하나씩 이어 붙인다.
+2. **Node 18 이상으로 실행한다.** 현재 셸 기본이 `v16.20.2`이고, 그대로 실행하면 도구가
+   `전역 fetch 없음`으로 **즉시 죽는다**(실제로 겪었다). `nvm use 22` 를 먼저 하거나
+   `C:\Users\user\AppData\Local\nvm\v22.23.1\node.exe` 를 절대 경로로 쓴다.
+3. **시작 직전에 `node tools/cpu-bench.js` 를 한 번 찍는다.** VM·Docker 재시작 직후 3회는
+   5~14% 느리다([perf-session-drift.md](perf-session-drift.md) 5절). 값이 평소(single 약
+   4,950~5,050ms)로 돌아온 뒤 시작한다.
+4. **도구를 고친 직후라면 걸지 않는다.** `localDocs/CLAUDE.md`의 smoke 규칙대로 3~5분짜리
+   확인을 먼저 통과시킨다. 밤새 돌려놓고 아침에 배관 오류로 전부 버리는 것이 최악이다.
+
+### 목록
+
+| 순서 | 실행 | 소요 | 무엇을 푸는가 |
+|---:|---|---:|---|
+| 1 | **시나리오 스모크 순회** | **1시간 22분** | 15개 시나리오가 아예 도는지 (다른 항목의 선행 조건) |
+| 2 | normal-day **5분 창 연속 10회** | **2시간 6분** | 세트 안 추세가 예열인가 드리프트인가 |
+| 3 | normal-day **20분 세트 5회** | **2시간 27분** | 주계열 복귀 + E-46 실험 6 |
+| 4 | **soak 2시간** 1회 | **2시간 15분** | 누수형 문제 (밤에만 가능) |
+| 5 | **데이터 크기 대조** (medium→large→medium) | **3시간 9분** | 병목이 데이터가 커져도 앱 CPU인가 |
+| 6 | normal-day **flush 리셋 5회** | **1시간 3분** | CV에서 JIT 웜업 성분 분리 |
+| 7 | **유휴 cpu-bench 반복** | 남는 시간 전부 | 부하 없이도 환경이 열화하는가 |
+
+전부 이어 붙이면 12시간이 넘는다. **밤 길이에 맞춰 위에서부터 자른다.** 다만 **1번은 건너뛰지
+말 것** — 4번(soak)을 포함해 이 목록의 대부분이 *한 번도 실행된 적 없는 스크립트*를 무인으로
+돌리는 일이고, 1번이 그것을 먼저 확인한다.
+
+소요는 추정이 아니라 실측이다. 회차 간 실제 간격이 20분 세트는 1,753~1,775초, 5분 세트는
+746~757초였다(2026-08-18 실행 기록).
+
+---
+
+### 1. 시나리오 스모크 순회 — 다른 항목의 선행 조건
+
+**실행 기록을 세어 보니 시나리오 17개 중 `normal-day` 하나만 돌아간 적이 있다.** 나머지
+16개는 저장된 실행이 0건이다 — 즉 **끝까지 도는지 아무도 확인한 적이 없다.** 이 목록의
+4번(soak, 2시간)도 그중 하나다. 검증 없이 걸면 아침에 "3분 만에 죽어 있음"을 발견하게 된다.
+
+`localDocs/CLAUDE.md` 의 규칙("긴 실행을 걸기 전에 3~5분짜리 smoke 로 배관을 확인한다")이
+정확히 이 상황을 위한 것이다. 확인 대상은 성능이 아니라 **도구가 망가지지 않았는지**다.
+
+```bash
+# ① HOLD·VUS·WARMUP 을 받는 10개 — 1분짜리로 줄여서 확인
+for s in read-heavy peak-hour exam-week chat-heavy notification-heavy \
+         registration-day write-heavy cache-warm cold-start soak; do
+  node tools/perf-run.js scenarios/$s.js --dataset smoke --vus 5 \
+    --warmup 30 --hold 1m --loadgen docker --no-gate --note "스모크 배관 확인"
+done
+
+# ② DURATION 을 받는 3개
+for s in deep-paging chaos failover; do
+  node tools/perf-run.js scenarios/$s.js --dataset smoke --vus 5 \
+    --duration 1m --loadgen docker --no-gate --note "스모크 배관 확인"
+done
+
+# ③ 손잡이 이름이 다른 2개
+node tools/perf-run.js scenarios/breakpoint.js --dataset smoke --loadgen docker --no-gate \
+  -e RAMP=2m -e MAX_VUS=50 -e TARGET_RATE=20 --note "스모크 배관 확인"
+node tools/perf-run.js scenarios/spike.js --dataset smoke --loadgen docker --no-gate \
+  -e SPIKE_VUS=20 --note "스모크 배관 확인"
+
+# ④ 길이 손잡이가 아예 없는 1개 — 27분 그대로 걸린다. 맨 뒤에 둔다
+node tools/perf-run.js scenarios/stress.js --dataset smoke --loadgen docker --no-gate \
+  --note "스모크 배관 확인"
+```
+
+**왜 넷으로 나누는가.** 시나리오마다 길이를 줄이는 환경변수가 다르다. `spike` 는
+`SPIKE_VUS` 로 크기만 바꿀 수 있고 길이는 650초로 고정이며, **`stress` 는 환경변수를 하나도
+읽지 않아** 13단계 27분이 통째로 돈다. 이 둘이 순회 시간의 절반을 차지한다.
+
+아침에 볼 것은 세 가지뿐이다.
+
+- 실행이 오류 없이 끝났는가
+- `phases.measure` 가 비어 있지 않은가 (구간 태깅이 동작하는가)
+- `infra.flat` 항목 수가 정상인가 (Prometheus 연결이 살아 있는가)
+
+**성능 수치는 보지 않는다.** smoke 데이터셋은 게시글 50건이라 전부 버퍼풀에 들어가고,
+medium(10,000건)과는 다른 병목이 나온다. smoke 는 도구 확인용이고 판정은 medium 이상이다.
+
+### 2. normal-day 5분 창 연속 10회 — 드리프트 판별 최우선
+
+```bash
+node tools/repeatability.js scenarios/normal-day.js --runs 10 \
+  --warmup 180 --hold 5m --dataset medium --env perf --loadgen docker --reset restart \
+  --note "E-46 우선순위 7 — 예열인가 드리프트인가(연속 10회)"
+```
+
+2026-08-18 오전 5회 세트에서 **아무것도 바꾸지 않았는데 p95 가 한 시간 만에 11.2%
+좋아졌다**(15,564 → 13,823ms, 회차와의 순위상관 −0.90). 같은 구간에 Windows 호스트의 CPU
+실동작 주파수가 86.0 → 107.8% 로 같이 올랐다. 두 가지 해석이 가능하다.
+
+- **예열** — 호스트가 저전력 상태에서 시작해 반복 부하로 클럭이 올라간 것
+- **드리프트** — E-46 의 세션 간 열화가 한 시간 규모에서도 진행되는 것
+
+**연속 10회가 이 둘을 가른다.** 예열이면 1~5회차에서 내려간 뒤 6~10회차가 평평해지고,
+드리프트면 끝까지 내려간다.
+
+**반드시 한 번에 돌려야 한다.** 5회씩 두 번 나눠 재면 사이의 공백에서 호스트가 다시 식어
+두 가설이 같은 예측을 내놓는다 — 실험이 성립하지 않는다.
+
+아침에 볼 것: 회차별 p95 를 6회차 기준으로 앞뒤로 나눠 각각 기울기를 낸다. 뒤 절반의
+기울기가 0에 가까우면 예열이다. 상세 배경은
+[perf-session-drift.md](perf-session-drift.md) 8절.
+
+### 3. normal-day 20분 measure 5회
+
+```bash
+node tools/repeatability.js scenarios/normal-day.js --runs 5 \
+  --dataset medium --env perf --loadgen docker --reset restart \
+  --note "E-46 실험2 — 재부팅 후 20분 창 세트 (remote-write 첫 세트)"
+```
+
+`--warmup`·`--hold` 를 주지 않는 것이 핵심이다. 시나리오 기본값(warmup 300초 / measure
+1,200초)이 그대로 적용돼 **주계열 `seriesHash=4307755dd860`** 에 붙는다. 세션 A(08-16)·
+C(08-18 새벽)·D와 자동 비교되는 유일한 설정이다.
+
+**이 한 세트가 남은 실험 두 개를 동시에 끝낸다.**
+
+- **실험 2 (재부팅 후 반복 측정)**: 5분 창에서는 2026-08-18 오전 5회로 해소됐고 결론은
+  바뀌지 않았다(재부팅해도 복귀하지 않음). 다만 **20분 창은 여전히 실행 62 하나뿐**이라,
+  주계열에서 확정하려면 이 세트가 필요하다.
+- **실험 6 (measure 창을 5분으로 줄여도 되는가)**: 이건 **추가 실행 0회로 끝난다.**
+  remote-write가 켜져 있어 k6 지표가 Prometheus에 시계열로 남으므로, 20분 실행 하나를
+  5분씩 네 토막으로 잘라 p95를 다시 계산하면 된다. 세션 드리프트가 개입하지 않는,
+  창 길이만 다른 비교가 성립한다. 지금까지 그 데이터를 가진 실행이 없어서 막혀 있었다.
+
+아침에 볼 것: `measure p95`의 세트 평균이 08-16 세션 A(12,231ms) 쪽인지, 08-18 세션 C/D
+(16,344~18,501ms) 쪽인지. 후자면 재부팅 무효가 n=6으로 확정된다.
+
+### 4. soak 2시간 1회 — 밤에만 가능한 유일한 실행
+
+```bash
+node tools/perf-run.js scenarios/soak.js --dataset medium --loadgen docker
+```
+
+옵션을 주지 않으면 기본값이 150 VU · warmup 5분 · **measure 2시간** · rampdown 5분이다.
+
+> **1번을 먼저 통과시킬 것.** `soak` 는 저장된 실행이 0건이다 — 2시간을 무인으로 걸기 전에
+> 1분짜리로 끝까지 도는지 확인한다.
+
+**왜 밤에만 가능한가.** 누수는 정의상 시간에 비례해 쌓이므로 12분짜리 실행으로는 원리적으로
+보이지 않는다. 대상은 네 가지다.
+
+- 힙 사용량과 Old Gen의 **기울기** (메모리 누수)
+- `pool.hikariActive` 의 우상향 (커넥션 누수)
+- WebSocket 세션 누적 (끊긴 세션 미정리)
+- ViewCount·HotScore 스케줄러의 flush 지연 누적
+
+판정은 절대값이 아니라 **기울기가 0인가**다. 우상향하면 누수다.
+
+주의 두 가지. 첫째, 측정 구간 오류율이 2%를 넘으면 k6가 자동 중단하므로 아침에 실행이
+일찍 끝나 있으면 그것 자체가 결과다. 둘째, 2시간 동안 데이터가 계속 늘어나므로 끝난 뒤
+데이터셋 상태가 스냅샷과 크게 벌어진다. 다음 실행이 `guard=strict` 로 자동 복원하지만,
+복원에 MySQL·앱 재기동이 들어가 몇 분 더 걸린다.
+
+### 5. 데이터 크기 대조 — medium → large → medium
+
+**아직 아무도 답하지 않은 질문이다: 지금의 병목(앱 CPU 2코어)이 데이터가 커져도 그대로인가.**
+지금까지의 판정은 전부 `medium` 에서 나왔는데, 두 프로파일은 **버퍼풀 경계를 사이에 두고
+갈라진다.**
+
+| | medium | large |
+|---|---:|---:|
+| MySQL 볼륨 | 510MB | **2,703MB** |
+| InnoDB 버퍼풀 | 1GB | 1GB |
+| 버퍼풀에 다 들어가는가 | **예** (적중률 100%) | **아니오** |
+
+즉 medium 에서는 디스크 I/O 가 사실상 0 이라 MySQL 이 CPU 만 쓴다. large 에서는 읽기 미스가
+생겨 **병목이 앱 CPU 에서 MySQL I/O 로 옮겨갈 수 있다.** 만약 그렇다면 EXP-002~005 의
+우선순위가 통째로 바뀐다 — 커넥션 풀이나 N+1 보다 데이터 접근 패턴이 먼저가 된다.
+
+```bash
+node tools/repeatability.js scenarios/normal-day.js --runs 5 --warmup 180 --hold 5m \
+  --dataset medium --env perf --loadgen docker --reset restart --note "크기 대조 A1 medium"
+node tools/repeatability.js scenarios/normal-day.js --runs 5 --warmup 180 --hold 5m \
+  --dataset large  --env perf --loadgen docker --reset restart --note "크기 대조 B large"
+node tools/repeatability.js scenarios/normal-day.js --runs 5 --warmup 180 --hold 5m \
+  --dataset medium --env perf --loadgen docker --reset restart --note "크기 대조 A2 medium"
+```
+
+**왜 medium 을 두 번 재는가 — 이게 이 실험의 핵심이다.** medium 5회 → large 5회로 끝내면
+large 가 항상 **나중에** 측정된다. 그런데 8절에서 확인했듯 세트 안에는 시간에 따른 추세가
+있어서, 뒤에 온 쪽이 유리해진다. **"large 가 빨랐다"가 데이터 크기 때문인지 순서 때문인지
+구분되지 않는다.** medium 을 앞뒤로 두 번 재면 그 사이의 추세 크기를 직접 알 수 있고,
+large 값에서 그만큼을 빼면 크기만의 효과가 남는다.
+
+`--env` 를 `perf` 로 두어도 안전하다. 데이터셋은 **blocking 비교 조건**이라 medium 실행이
+large 실행의 기준선으로 잘못 선택되는 일이 없다.
+
+소요에는 large 복원 시간이 포함돼 있다 — 볼륨이 2.7GB 라 회당 82초로, medium 보다 회차마다
+약 1분씩 더 걸린다.
+
+아침에 볼 것: `mysql.bufferPoolHitPct` 가 large 에서 100% 밑으로 떨어졌는가, 그리고
+`efficiency.dbCpuUsPerQuery` 와 앱 CPU throttling 중 어느 쪽이 움직였는가.
+
+### 6. normal-day flush 리셋 5회 — CV의 구성 요소 분리
+
+```bash
+node tools/repeatability.js scenarios/normal-day.js --runs 5 \
+  --warmup 180 --hold 5m --dataset medium --env perf-flush \
+  --loadgen docker --reset flush \
+  --note "CV 분해 — 앱 재시작 없이 Redis만 비움(JIT 웜업 성분 제거)"
+```
+
+**무엇을 가르는 실험인가.** 지금 기록된 CV(5분 창 4.55~5.83%)는 `--reset restart` 로 잰
+값이라 **매번 콜드 JVM에서 시작하는 데서 오는 JIT 웜업 편차가 섞여 있다.** 앱을 재시작하지
+않고 Redis만 비우는 `flush` 모드로 같은 5회를 돌리면 그 성분만 빠진다.
+
+- CV가 뚜렷하게 떨어지면 → 웜업 편차가 실측 노이즈의 주성분이다. MDE(최소 검출 가능
+  개선폭)를 낮출 여지가 생기고, 측정 절차를 바꿀 근거가 된다.
+- 거의 같으면 → 웜업은 편차 원인이 아니다. 후보 하나가 지워진다.
+
+**`--env` 를 `perf-flush` 로 따로 두는 이유**가 2·3번과 다르다. 리셋 모드는 비교 조건
+(`conditions.js`의 축)에 **기록되지 않는다.** 같은 `perf` 환경에 넣으면 restart 세트와
+flush 세트가 절차가 다른 채로 섞이고, 기준선 자동 선택이 그걸 구분하지 못한다. 이 실험은
+세트 **안**의 CV만 보면 되고 과거 실행과의 자동 비교가 필요 없으므로, 분리하는 쪽이 맞다.
+
+### 7. 유휴 상태 cpu-bench 반복 — 비용 거의 0
+
+부하 실행이 전부 끝난 뒤 남는 시간에 건다. 5초짜리 벤치라 호스트에 실질적 부하가 없다.
+
+```bash
+while true; do
+  # --json 은 여러 줄로 나온다 — 줄바꿈을 지워야 한 줄에 한 레코드(JSONL)가 된다
+  bench=$(node tools/cpu-bench.js --json | tr -d '\n')
+  printf '{"at":"%s","bench":%s}\n' "$(date -u +%FT%TZ)" "$bench" >> reports/idle-cpu-bench.jsonl
+  sleep 600
+done
+```
+
+**왜 유휴 상태여야 하는가.** E-46에서 기각되지 않고 남은 유일한 후보가 "컨테이너 아래
+층"(런타임·VM·Windows·물리 CPU)이다. 그런데 지금 있는 cpu-bench 값은 전부 **부하 실행에
+붙여서** 찍은 것이라, 값이 흔들려도 그게 시간 탓인지 부하 탓인지 가르지 못한다. 부하 없이
+밤새 10분 간격으로 찍으면 **"부하와 무관하게 시간만 흘러도 환경이 느려지는가"** 에
+독립적으로 답하는 시계열이 처음 생긴다.
+
+아침에 볼 것: `single`·`parallel`·`ctxswitch` 세 축이 밤새 우상향하는가. 셋 다 오르면 CPU
+클럭 층, `single`만 평평하면 스케줄링·시스템 콜 층이다.
+
+**아침에 딱 하나만 먼저 할 것.** 예열 가설이 맞다면 **밤새 유휴 상태였던 직후의 첫 실행이
+가장 느려야 한다.** 그러니 다른 작업을 하기 전에 `normal-day` 를 5분 창으로 한 번(12.5분)
+먼저 재 둔다. p95 가 15,500ms 대에서 시작하면 예열 가설이 맞고, 13,800ms 대면 틀렸다.
+비용 12분에 예측 하나를 검증한다.
+
+---
+
+### 밤에 돌리면 안 되는 것
+
+**stress · spike · breakpoint 계열.** P1-7이 미해결이다. 요청 도착률이 서버 응답 속도에
+묶여 있어(closed-loop), 서버가 느려지면 부하도 같이 줄어든다. 포화점과 최대 처리량을
+묻는 시나리오에서 이건 치명적이라 **밤을 태워도 해석할 수 없는 숫자가 나온다.** 부하 모델을
+고친 뒤에 돌린다.
+
+**새 시나리오의 기준선 대량 축적**(read-heavy, deep-paging, write-heavy 등). E-46이
+미해결인 동안 **저장된 기준선은 며칠 뒤 Before로 쓸 수 없다** — 아무것도 안 바꿔도 이틀에
+45%가 변한다. 지금 밤새 쌓아도 내일이면 가치가 크게 떨어진다. 드리프트 원인이 규명된
+뒤에 한다.
+
+**EXP-002~005의 Before/After 쌍.** 운용 규칙상 Before와 After를 연달아 재야 하는데,
+After는 코드 변경을 적용한 뒤에야 시작할 수 있다. 사람이 중간에 개입해야 하므로 무인
+실행에 맞지 않는다. 밤에는 Before만 걸고 아침에 After를 잇는 방식도 안 된다 — 그 사이가
+바로 드리프트 구간이다.
 
 ## 작업 항목을 이 문서에서 지우는 기준
 
