@@ -35,6 +35,7 @@ const { GROUPS, computeDerived } = require('./lib/metrics-catalog');
 const { analyze, bottleneckHints } = require('./lib/regression');
 const cmp = require('./lib/comparability');
 const hostprobe = require('./lib/hostprobe');
+const saturation = require('./lib/saturation');
 const grafana = require('./lib/grafana');
 const { renderReport } = require('./lib/report');
 const fmt = require('./lib/format');
@@ -198,6 +199,17 @@ function printConsole(record) {
     if (reg.missingOptional.length) why.push(`참고 지표 ${reg.missingOptional.length}건 결측`);
     if (reg.windowIncomplete) why.push('측정 구간이 계획보다 짧게 끝남');
     line(`  ⚠  부분 측정 — ${why.join(', ')}. 판정 자체는 유효합니다.`);
+  }
+  // 포화 경고는 측정 상태 바로 아래다. 지표가 다 있어도 **그 값의 의미가 다를 수 있다**는
+  // 것을 판정보다 먼저 알아야 한다 — 이 줄이 없어서 큐 대기를 애플리케이션 지연으로
+  // 닷새간 읽었다(perf-session-drift.md 8-h).
+  const satLine = saturation.banner(record.saturation);
+  if (satLine) {
+    line(`  ${satLine}`);
+    for (const why of (record.saturation.reasons || []).slice(0, 3)) line(`     · ${why}`);
+    if (record.saturation.baselineRegimeMismatch) {
+      line(`     · ${record.saturation.baselineRegimeMismatch}`);
+    }
   }
   line(`  환경 ${r.environment}  |  브랜치 ${r.branch}  |  커밋 ${r.commitShort}  |  빌드 ${r.buildNumber}`);
   line(`  시작 ${fmt.localTime(r.startedAt)}  |  수행 ${fmt.duration(r.durationSec)}  |  VU max ${record.k6.all.vusMax}`);
@@ -400,6 +412,18 @@ async function processRun(runId, opts) {
     hadPriorCandidates: search.hadPriorCandidates,
   });
   record.bottleneckHints = bottleneckHints(record);
+
+  /*
+   * 포화 판정 — measurementStatus 와 별개의 축이다(saturation.js 머리말).
+   *
+   * 지표가 멀쩡히 다 있어도 **그 값의 의미가 달라지는** 경우가 있다. 포화 상태의 p95 는
+   * 애플리케이션 지연이 아니라 큐 대기이고, 그걸 표시하지 않아 닷새를 날렸다.
+   * 게이트를 실패시키지는 않는다 — stress 계열은 포화가 목적이기 때문이다.
+   */
+  record.saturation = saturation.assess(record);
+  const prevSat = prevRun && prevRun.saturation;
+  const mismatch = saturation.regimeMismatch(record.saturation, prevSat);
+  if (mismatch) record.saturation.baselineRegimeMismatch = mismatch;
 
   // ---- 링크 -------------------------------------------------------------
   // 전체 실행 링크와 measure 구간 링크의 의미가 섞이면 안 된다(S-08) — 별도로 만든다.
