@@ -60,6 +60,9 @@ const stagedK6File = (runId) => path.join(RUNS_DIR, `${runId}.k6.json`);
 const stagedTxtFile = (runId) => path.join(RUNS_DIR, `${runId}.summary.txt`);
 /** perf-run.js 가 실행 전후로 잰 DB 상태. k6 는 자기 실행 후의 DB 를 알 수 없다. */
 const stagedDbStateFile = (runId) => path.join(RUNS_DIR, `${runId}.dbstate.json`);
+// 호스트 프로브 원시 표본. 요약만 남기면 사후에 measure 구간만 다시 자를 수 없다(T-37).
+const stagedHostProbeFile = (runId) => path.join(RUNS_DIR, `${runId}.hostprobe.jsonl`);
+const hostProbeFile = (runId) => path.join(runDir(runId), "hostprobe.jsonl");
 
 /** 저장된 모든 runId — 정리된 디렉터리 + 아직 스테이징 상태인 것 모두 */
 function listRunIds() {
@@ -98,12 +101,31 @@ function loadDbState(runId) {
  * 스테이징 평면 파일을 <runId>/ 디렉터리로 옮긴다.
  * 수집이 성공한 뒤에만 호출한다 — 실패 시 스테이징이 남아 재시도할 수 있어야 하므로.
  */
+/**
+ * 호스트 프로브 원시 표본을 읽는다. 승격된 위치를 먼저 보고 없으면 스테이징을 본다
+ * (dbstate 와 같은 규칙 — 재수집이 원시 표본을 날리지 않아야 한다).
+ */
+function loadHostProbeRaw(runId) {
+  for (const p of [hostProbeFile(runId), stagedHostProbeFile(runId)]) {
+    if (!fs.existsSync(p)) continue;
+    let header = null; const rows = [];
+    for (const line of fs.readFileSync(p, "utf8").split(/\r?\n/)) {
+      if (!line) continue;
+      let rec; try { rec = JSON.parse(line); } catch (e) { continue; }
+      if (rec.header) { header = rec.header; continue; }
+      if (rec.iso && Array.isArray(rec.v)) rows.push(rec);
+    }
+    if (rows.length) return { header, rows };
+  }
+  return null;
+}
 function promoteStaged(runId) {
   ensureDir(runDir(runId));
   for (const [src, dest] of [
     [stagedK6File(runId), k6File(runId)],
     [stagedTxtFile(runId), path.join(runDir(runId), 'summary.txt')],
     [stagedDbStateFile(runId), path.join(runDir(runId), 'dbstate.json')],
+    [stagedHostProbeFile(runId), hostProbeFile(runId)],
   ]) {
     if (fs.existsSync(src)) {
       fs.renameSync(src, dest);
@@ -193,6 +215,28 @@ function toIndexEntry(record) {
     hikariPct: flat['saturation.hikariPct'],
     hikariPendingMax: flat['pool.hikariPending.max'],
     verdict: reg.verdict || null,
+    // ── 체제(regime) 축 ────────────────────────────────────────────────────
+    // 포화 상태의 p95 는 애플리케이션 지연이 아니라 큐 대기다. 그 사실이 이력에 없어서
+    // 포화 회차와 비포화 회차가 같은 선 위에 그려지고 있었다 — 38배 차이가 한 꺾은선에
+    // 섞이면 그 선은 성능이 아니라 "그날 부하를 얼마나 걸었나"를 그린다.
+    //
+    // 실측: 계열 bfa06492dbb5 의 p95 CV 가 대기 발생 1회를 빼면 42.28% → 18.05% 로
+    // 내려간다. 그 한 회차를 구분하지 못하면 계열의 변동성 추정 자체가 틀린다.
+    //
+    // saturation.js 가 붙기 전(2026-08-20 이전) 실행에는 값이 없어 null 이 된다. 그건
+    // "여유 있었다"가 아니라 "판정하지 않았다"이며, trends.js 가 UNASSESSED 로 구분한다.
+    saturationStatus: record.saturation ? record.saturation.status : null,
+    // 도착률 달성도 — open model 에서 가장 결정적인 포화 신호다. 100% 미만이면 그 실행은
+    // 용량을 넘긴 것이고, p95 는 그 사실의 결과일 뿐이다.
+    achievedRatePct: record.saturation && record.saturation.achievedRate
+      ? record.saturation.achievedRate.pct
+      : null,
+    // ── 실패 축 ───────────────────────────────────────────────────────────
+    // 이력 표가 FAIL 배지만 보여주면 "무엇이 실패시켰는가"를 말할 수 없다. 실제로 한 계열
+    // 9회가 전부 FAIL 인 동안 p95(381ms, SLO 500 이내)에 시선이 묶여 있었고, 진짜 실패 축인
+    // p99(2,028ms, SLO 1,200)는 논의에 한 번도 등장하지 않았다. 키 배열이라 크기도 작다.
+    gateFailures: Array.isArray(reg.failures) ? reg.failures : null,
+    absoluteGateFailures: Array.isArray(reg.absoluteGateFailures) ? reg.absoluteGateFailures : null,
     // 기준선 탐색이 run.json 을 열지 않고 "제대로 측정된 실행인가"를 걸러낼 수 있어야 한다.
     // 이 필드가 없는 과거 엔트리는 null 이라 eligibilityOf 를 그대로 통과한다
     // (기존 이력을 소급 탈락시키지 않는다).
@@ -437,6 +481,7 @@ function rebuildIndex() {
 module.exports = {
   PERF_ROOT, RUNS_DIR, INDEX_FILE,
   runDir, runFile, k6File, reportFile, stagedK6File, stagedTxtFile, stagedDbStateFile,
+  stagedHostProbeFile, hostProbeFile, loadHostProbeRaw,
   ensureDir, readJson, writeJson, promoteStaged,
   listRunIds, listPendingRunIds, loadRun, loadK6, loadDbState, saveRun,
   loadIndex, saveIndex, rebuildIndex,
