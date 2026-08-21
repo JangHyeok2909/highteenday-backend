@@ -17,6 +17,9 @@
  *
  * 옵션
  *   --vus <n>        VU 수 (스크립트가 __ENV.VUS 를 읽는 경우)
+ *   --rate <n>       초당 iteration 도착률. 주면 시나리오가 **open model** 로 돈다.
+ *                    closed model 은 시스템이 느려지면 부하도 함께 줄어(coordinated
+ *                    omission) 판정용 값으로 쓸 수 없다. 판정에는 이 옵션을 쓴다.
  *   --duration <d>   지속 시간
  *   --hold <d>       유지 구간 (ramping 시나리오)
  *   --env <name>     환경 이름 (기본 perf)
@@ -396,7 +399,7 @@ function postflight(block) {
 
 function parseArgs(argv) {
   const o = {
-    script: null, vus: null, duration: null, hold: null, env: 'perf', dataset: null,
+    script: null, vus: null, rate: null, duration: null, hold: null, env: 'perf', dataset: null,
     // warmup은 undefined가 기본값이다(0이 아니다) — "지정 안 함"과 "명시적으로 0"을
     // 구분해야 한다(T-03). 0으로 두면 --warmup 0을 준 것과 아예 안 준 것을 구별할 수
     // 없어, k6로 WARMUP을 전달해야 하는지 판단이 틀어진다.
@@ -418,6 +421,7 @@ function parseArgs(argv) {
     if (a === '--guard') o.guard = argv[++i];
     else if (a === '--loadgen') o.loadgen = argv[++i];
     else if (a === '--vus') o.vus = argv[++i];
+    else if (a === '--rate') o.rate = argv[++i];
     else if (a === '--duration') o.duration = argv[++i];
     else if (a === '--hold') o.hold = argv[++i];
     else if (a === '--env') o.env = argv[++i];
@@ -494,6 +498,9 @@ function main() {
 
   const args = ['run', o.script, '--summary-trend-stats', TREND_STATS];
   if (o.vus) args.push('-e', `VUS=${o.vus}`);
+  // open model 전환. 시나리오가 RATE 를 받으면 ramping-arrival-rate 로 돈다 — 도착률을
+  // 고정해 closed model 의 되먹임(coordinated omission)을 끊는다.
+  if (o.rate) args.push('-e', `RATE=${o.rate}`);
   if (o.duration) args.push('-e', `DURATION=${o.duration}`);
   if (o.hold) args.push('-e', `HOLD=${o.hold}`);
   // warmup은 이제 k6 실행 계획 자체를 바꾼다(T-03/S-08) — collect.js에 별도로 넘기지

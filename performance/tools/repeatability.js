@@ -56,13 +56,16 @@ if (typeof fetch !== 'function') {
 
 function parseArgs(argv) {
   const o = {
-    script: null, runs: 10, vus: null, duration: null, dataset: null, loadgen: null, warmup: null, hold: null,
+    script: null, runs: 10, vus: null, rate: null, duration: null, dataset: null, loadgen: null, warmup: null, hold: null,
     env: null, reset: 'restart', wait: 20, settle: 5, note: '', out: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--runs') o.runs = Number(argv[++i]);
     else if (a === '--vus') o.vus = argv[++i];
+    // open model 도착률. perf-run 으로 그대로 넘긴다 — 시나리오가 RATE 를 받으면
+    // ramping-arrival-rate 로 돌아 closed model 의 되먹임이 끊긴다(T-36, 드리프트 8-d.5).
+    else if (a === '--rate') o.rate = argv[++i];
     else if (a === '--duration') o.duration = argv[++i];
     else if (a === '--dataset') o.dataset = argv[++i];
     else if (a === '--loadgen') o.loadgen = argv[++i];
@@ -215,6 +218,7 @@ function runOnce(o, index) {
 
   const args = [path.join(__dirname, 'perf-run.js'), o.script, '--no-gate', '--wait', String(o.wait)];
   if (o.vus) args.push('--vus', o.vus);
+  if (o.rate) args.push('--rate', o.rate);
   if (o.duration) args.push('--duration', o.duration);
   if (o.dataset) args.push('--dataset', o.dataset);
   // 부하 발생기 모드는 비교 조건이다(conditions v4). 반복 전체가 같은 모드여야 하므로
@@ -239,7 +243,7 @@ async function main() {
 
   console.log('═'.repeat(74));
   console.log(`  반복 정밀도 측정 — ${o.script}`);
-  console.log(`  반복 ${o.runs}회 · VU ${o.vus || '기본'} · ${o.duration || '기본'} · 데이터셋 ${o.dataset || '기본'}`);
+  console.log(`  반복 ${o.runs}회 · ${o.rate ? `도착률 ${o.rate}/s (open model)` : `VU ${o.vus || '기본'}`} · ${o.duration || '기본'} · 데이터셋 ${o.dataset || '기본'}`);
   console.log(`  환경 ${o.env || 'perf'} · 리셋 ${o.reset} · 스크레이프 대기 ${o.wait}s`);
   console.log('═'.repeat(74));
 
