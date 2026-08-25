@@ -214,6 +214,16 @@ function toIndexEntry(record) {
     redisOpsPerSec: flat['redis.opsPerSec'],
     hikariPct: flat['saturation.hikariPct'],
     hikariPendingMax: flat['pool.hikariPending.max'],
+    // 감시 화면 헤드라인의 '비용' 칸. **CPU 가 상한에 붙어 있으면 사용률은 신호가 아니다** —
+    // 앱은 빠르든 느리든 항상 2코어를 쓰므로 cpu.cores.avg 가 1.998 로 고정된다. 그 상태에서
+    // 실제로 달라지는 것은 "같은 CPU 로 몇 건을 처리했나"뿐이고, 그건 요청당 비용으로만 보인다.
+    // E-46 조사가 이 값 하나로 뒤집혔다(앱 +27%, MySQL +21% 동반 상승).
+    // remote-write 이전 실행에는 분모(요청 수)가 없어 null 이다.
+    stackCpuMsPerReq: flat['efficiency.stackCpuMsPerReq'],
+    queriesPerReq: flat['efficiency.queriesPerReq'],
+    // 병목 추적 체인의 앞단 — 컨테이너 환경에서 p99 급등의 최대 원인이라 이력에도 필요하다.
+    throttledPct: flat['cpu.throttledPct'],
+    hikariAcquireP95Ms: flat['pool.hikariAcquireP95Ms'],
     verdict: reg.verdict || null,
     // ── 체제(regime) 축 ────────────────────────────────────────────────────
     // 포화 상태의 p95 는 애플리케이션 지연이 아니라 큐 대기다. 그 사실이 이력에 없어서

@@ -155,3 +155,60 @@ test('seriesOf: 조건 해시가 다르면 같은 선에 잇지 않는다', () =
   assert.equal(grouped.length, 2);
   assert.equal(grouped[0].rows.length, 2);
 });
+
+// ── 감시 레이어 축약 ────────────────────────────────────────────────────────
+// 감시와 조사가 같은 계열에 대해 다른 말을 하면 안 된다. 축약도 계산이므로 여기서 고정한다.
+
+test('headlineOf: 질문 수만큼 네 칸 — 지연/처리/비용/여유', () => {
+  const h = trends.headlineOf(SERIES);
+  assert.deepEqual(h.map((x) => x.title), ['지연', '처리', '비용', '여유']);
+});
+
+test('headlineOf: 지연 칸은 조사 화면의 권고 축과 같아야 한다', () => {
+  const sets = trends.sampleSets(SERIES);
+  const primary = sets.find((s) => s.key === 'no-queue');
+  const rec = trends.recommendAxis(trends.stabilityOf(primary.rows));
+  const h = trends.headlineOf(SERIES);
+  assert.equal(h[0].key, rec.latency.key, '두 화면이 다른 축을 고르면 같은 계열에 다른 말을 하게 된다');
+});
+
+test('headlineOf: 값이 없는 칸을 0으로 채우지 않는다', () => {
+  const noCost = SERIES.map((r) => ({ ...r, stackCpuMsPerReq: null }));
+  const h = trends.headlineOf(noCost);
+  assert.equal(h[2].current, null);
+  assert.equal(h[2].stats, null, '미수집은 0이 아니라 없는 값이다');
+});
+
+test('pickHeadroom: 포화도가 가장 높은 자원을 자동으로 고른다', () => {
+  const rows = [{ cpuMaxPct: 50, hikariPct: 20, heapPct: 71 }];
+  assert.equal(trends.pickHeadroom(rows).key, 'heapPct');
+  // 병목이 옮겨 가면 칸도 따라간다 — 고정 지표였다면 못 보는 변화다.
+  assert.equal(trends.pickHeadroom([{ cpuMaxPct: 95, hikariPct: 20, heapPct: 71 }]).key, 'cpuMaxPct');
+});
+
+test('pickHeadroom: 후보가 전부 결측이면 아무것도 고르지 않는다', () => {
+  assert.equal(trends.pickHeadroom([{ cpuMaxPct: null, hikariPct: null, heapPct: null }]), null);
+});
+
+test('stabilityLine: 대기 발생 회차를 제외한 표본을 기본으로 쓰고 그 사실을 밝힌다', () => {
+  const line = trends.stabilityLine(SERIES);
+  assert.equal(line.sampleLabel, '대기 발생 회차 제외');
+  assert.equal(line.n, 8);
+  assert.equal(line.excluded, 1, '몇 회를 뺐는지 말하지 않으면 근거 없는 수치가 된다');
+  assert.equal(line.axis.key, 'p99');
+});
+
+test('dominantFailure: 지배적인 축 하나와 나머지 개수만 낸다 (전체 목록은 조사 화면 몫)', () => {
+  const rows = SERIES.map((r, i) => (i < 2
+    ? { ...r, gateFailures: [...r.gateFailures, 'infra.flat.cpu.throttledPct'] }
+    : r));
+  const d = trends.dominantFailure(rows);
+  assert.equal(d.key, 'k6.phases.measure.p99');
+  assert.equal(d.runs, 9);
+  assert.equal(d.allRuns, true);
+  assert.equal(d.others, 1);
+});
+
+test('dominantFailure: 실패가 없으면 null', () => {
+  assert.equal(trends.dominantFailure([{ gateFailures: [] }]), null);
+});

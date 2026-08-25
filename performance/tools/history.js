@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Performance History — 전체 실행 이력과 추세를 한 화면으로 만든다.
+ * Performance History — **감시(monitoring) 레이어**. 전 계열을 한 화면으로 훑는다.
  *
  * 왜 개별 보고서만으로는 부족한가
  * --------------------------------
@@ -9,8 +9,26 @@
  * 매 배포 3~5%씩의 누적으로 온다. 개별 판정은 계속 통과하는데 6개월 뒤 2배가 되는 식이다.
  * 이 화면의 존재 이유가 그 누적을 보이게 만드는 것이다.
  *
+ * 세 단계 줌에서 이 파일의 위치
+ * -----------------------------
+ *   history.html              [감시]  전 계열 × 헤드라인 4개   "봐야 하는가"    ← 이 파일
+ *   trends/<계열>.html        [조사]  한 계열 × 전 지표        "무엇인가"       lib/detail-report.js
+ *   runs/<runId>/report.html  [단일]  실행 하나                "그때 무슨 일이"  lib/report.js
+ *
+ * **감시 화면에 조사용 밀도를 넣지 말 것.** 계열마다 훑어야 할 숫자가 수십 개가 되면
+ * 아무도 안 본다 — 지금의 12개 고정 목록이 방치된 것과 같은 경로다. 표본 구성 조절,
+ * 실패 축 전체 목록, 지표 격자는 전부 조사 화면이 갖는다. 여기는 계열당 다음만 낸다.
+ *
+ *   ① 체제 띠      — 이 선을 어떻게 읽어야 하는가
+ *   ② 헤드라인 4칸 — 지연 / 처리 / 비용 / 여유
+ *   ③ 한 줄 판정   — 실패 축 하나 + 검출 한계(MDE) 하나
+ *   ④ 누적 저하 감지
+ *   ⑤ 조사 화면으로 가는 링크
+ *
+ * 계산은 하나도 하지 않는다. 전부 `lib/trends.js` 가 소유하고 두 화면이 같은 값을 쓴다.
+ *
  * 사용법
- *   node tools/history.js                 전체 이력 HTML 생성
+ *   node tools/history.js                 감시 화면 + 계열별 조사 화면 생성
  *   node tools/history.js --scenario normal-day
  *   node tools/history.js --limit 50
  *   node tools/history.js --rebuild       index.json을 run.json들로부터 재생성
@@ -24,6 +42,7 @@ const repo = require('./lib/repository');
 const fmt = require('./lib/format');
 const cmp = require('./lib/comparability');
 const trends = require('./lib/trends');
+const detail = require('./lib/detail-report');
 const { sparkline, CSS } = require('./lib/report');
 
 const esc = fmt.escapeHtml;
@@ -45,6 +64,63 @@ function parseArgs(argv) {
   }
   return o;
 }
+
+/**
+ * 감시·조사 두 화면이 함께 쓰는 CSS. 체제 띠는 양쪽에 모두 있어야 한다 —
+ * 조사 화면이 체제를 표시하지 않으면 원래의 실수(포화 회차 혼입)를 더 큰 규모로 반복한다.
+ */
+const EXTRA_CSS = `
+.hist-table { font-size: 12.5px; }
+.hist-table td, .hist-table th { padding: 6px 8px; white-space: nowrap; }
+
+/* 체제 띠 — 회차 하나가 블록 하나. 스파크라인보다 위에 두어 "이 선을 어떻게 읽을지"를 먼저 말한다. */
+.regime { margin: 0 0 14px; }
+.rg-row { display: flex; gap: 2px; flex-wrap: wrap; }
+.rg-row i {
+  display: block; width: 22px; height: 16px; border-radius: 3px;
+  background: var(--border); position: relative; cursor: help;
+}
+.rg-headroom   { background: var(--good) !important; }
+.rg-near_limit { background: var(--warning) !important; }
+.rg-saturated  { background: var(--critical) !important; }
+.rg-unknown,
+.rg-unassessed {
+  background: repeating-linear-gradient(45deg,
+    var(--border), var(--border) 3px, var(--plane) 3px, var(--plane) 6px) !important;
+}
+/* 대기 발생 — 체제 판정과 독립된 관측 사실이라 색이 아니라 테두리로 겹쳐 표시한다. */
+.rg-queued::after {
+  content: ''; position: absolute; inset: 0; border-radius: 3px;
+  border: 2px solid var(--critical);
+}
+/* 측정 불가 — 값 자체를 믿을 수 없는 회차. 위에 사선을 긋는다. */
+.rg-unmeasured::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to top right, transparent 45%, var(--ink) 45%,
+    var(--ink) 55%, transparent 55%);
+}
+.rg-legend {
+  display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+  margin-top: 8px; font-size: 11.5px; color: var(--ink-2);
+}
+.rg-legend span { display: flex; gap: 5px; align-items: center; }
+.rg-legend i { display: block; width: 14px; height: 11px; border-radius: 2px;
+  background: var(--border); position: relative; }
+
+/* 헤드라인 — 네 칸 고정. 질문이 네 개라서 네 칸이지, 지표를 네 개 골라서가 아니다. */
+.sparks-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 900px) { .sparks-4 { grid-template-columns: repeat(2, 1fr); } }
+
+/* 한 줄 판정 — 조사 화면의 표를 대신한다. 감시는 "파야 하는가"만 답하면 된다. */
+.verdict-line {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  margin-top: 12px; padding: 10px 14px; font-size: 13px;
+  background: var(--plane); border: 1px solid var(--border); border-radius: 6px;
+}
+.verdict-line .sep { color: var(--border); }
+.verdict-line a { margin-left: auto; white-space: nowrap; }
+.drill { font-size: 13px; font-weight: 400; margin-left: 10px; white-space: nowrap; }
+`;
 
 const TREND_METRICS = [
   { key: 'p95', label: 'P95 응답시간', unit: 'ms', dir: 'lower' },
@@ -131,7 +207,8 @@ function regimeStrip(rows) {
   }
   if (mix.queued) {
     notes.push(`커넥션 대기가 발생한 회차가 <b>${mix.queued}건</b> 있습니다. 그 회차의 응답시간에는 대기 시간이 `
-      + '섞여 있습니다 — 아래 안정성 표에서 제외했을 때의 값을 함께 보십시오.');
+      + '섞여 있습니다 — 아래 검출 한계는 그 회차를 <b>제외한</b> 표본으로 계산했습니다. '
+      + '두 표본의 차이는 상세 조사 화면에서 나란히 볼 수 있습니다.');
   }
   if (mix.allUnassessed) {
     notes.push('이 계열에는 포화 판정 기록이 없습니다(<code>saturation.js</code> 도입 2026-08-20 이전 실행). '
@@ -155,92 +232,77 @@ function regimeStrip(rows) {
 }
 
 /**
- * 안정성 패널 — CV 와 MDE. **개별 실행 리포트가 원리적으로 만들 수 없는 값이다(n=1).**
+ * ── 감시 레이어의 본체 ────────────────────────────────────────────────────
  *
- * MDE 를 띄우는 이유는 하나다: 이 값을 모르면 최적화 작업의 검증 가능 여부를 알 수 없다.
- * MDE 25% 인 계열에서 12% 개선을 하면 개선은 실재하는데 "차이 없음"으로 결론난다.
- * `localDocs/README.md` 가 "개선 후에는 개선 폭과 MDE 를 함께 기록"하라고 적고 있는데,
- * 그 MDE 를 계산해 주는 화면이 지금까지 없었다.
+ * 헤드라인 네 칸 — 지연 / 처리 / 비용 / 여유.
+ *
+ * **왜 네 칸으로 고정하는가.** 감시 화면이 답해야 하는 질문이 네 개이기 때문이다. "지표를
+ * 몇 개 보여줄까"로 정하면 카탈로그가 157개로 자랄 때 화면도 같이 자라고, 결국 아무도 안
+ * 본다. 질문 수로 정하면 지표가 늘어도 칸은 그대로다.
+ *
+ * '비용' 칸이 이 설계의 핵심이다. CPU 가 상한에 붙어 있으면 사용률은 신호가 아니고 요청당
+ * 비용만 움직이는데, 그 값이 지금까지 이력에 없었다(E-46 이 이 값 하나로 뒤집혔다).
+ *
+ * '여유' 칸은 고정 지표가 아니라 auto-pick 이다 — 포화도가 가장 높은 자원을 자동으로 고른다.
+ * 병목이 CPU 에서 커넥션 풀로 옮겨 가면 칸의 내용도 따라 바뀐다.
  */
-function stabilityPanel(rows) {
-  const sets = trends.sampleSets(rows);
-  const axes = trends.JUDGEMENT_AXES;
-
-  const head = sets.map((s) => `<th class="num" colspan="2">${esc(s.label)} (n=${s.rows.length})</th>`).join('');
-  const body = axes.map((a) => {
-    const cells = sets.map((s) => {
-      const st = trends.stats(s.rows.map((r) => r[a.key]));
-      if (!st || st.cv == null) return '<td class="num">—</td><td class="num">—</td>';
-      const m = trends.mde(st.cv, st.n);
-      const cvCls = st.cv > 30 ? 'd-bad' : st.cv > 15 ? 'd-flat' : 'd-good';
-      return `<td class="num"><span class="${cvCls}">${st.cv.toFixed(1)}%</span></td>`
-        + `<td class="num">${m == null ? '—' : m.toFixed(1) + '%'}</td>`;
-    }).join('');
-    const base = trends.stats(rows.map((r) => r[a.key]));
-    return `<tr><td><b>${esc(a.label)}</b><div class="sub" style="font-size:11px">평균 ${
-      base ? fmt.byUnit(base.mean, a.unit) : '—'}</div></td>${cells}</tr>`;
-  }).join('');
-
-  // 권고 축 — 가장 예민한(MDE 가 작은) 지연 축을 고른다.
-  const primary = sets.find((s) => s.key === 'no-queue') || sets[0];
-  const stability = trends.stabilityOf(primary.rows);
-  const rec = trends.recommendAxis(stability);
-  let advice = '';
-  if (rec.latency) {
-    const need = trends.runsNeededFor(10, rec.latency.stats.cv);
-    const others = stability.filter((s) => s.unit === 'ms' && s.key !== rec.latency.key && s.mde != null);
-    advice = `<div class="note">
-      <b>판정 축 권고 — ${esc(primary.label)} 기준</b><br>
-      지연 축 중 가장 예민한 것은 <b>${esc(rec.latency.label)}</b> 입니다 (CV ${rec.latency.stats.cv.toFixed(1)}% ·
-      MDE <b>${rec.latency.mde.toFixed(1)}%</b>). ${others.length
-        ? `비교: ${others.map((o) => `${esc(o.label)} MDE ${o.mde.toFixed(1)}%`).join(' · ')}`
-        : ''}<br>
-      10% 개선을 검출하려면 조건당 <b>${need ? (need.capped ? `${need.exact}회 (사실상 불가)` : `${need.n}회`) : '—'}</b>가
-      필요합니다.${need && need.capped
-        ? ' 이 정도면 <b>표본을 더 모아서 될 일이 아닙니다</b> — 반복이 아니라 변동원 제거(포화 회차 배제·조건 고정)가 먼저입니다.'
-        : ''}
+function headlineCards(rows) {
+  const cards = trends.headlineOf(rows).map((h) => {
+    const has = h.values.some((v) => v != null);
+    if (!has) {
+      return `<div class="spark">
+        <div class="st">${esc(h.title)}</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">${esc(h.label)}</span></div>
+      </div>`;
+    }
+    const cv = h.stats && h.stats.cv != null ? `CV ${h.stats.cv.toFixed(1)}%` : '';
+    return `<div class="spark">
+      <div class="st">${esc(h.title)} · ${esc(h.label)}</div>
+      <div class="sv">${fmt.byUnit(h.current, h.unit)}</div>
+      ${sparkline(h.values, { label: h.label })}
+      <div class="range">
+        <span>${h.stats ? `n=${h.stats.n}${cv ? ` · ${cv}` : ''}` : '—'}</span>
+        <span>${h.trend ? deltaSpan(h.trend.changePct, h.dir) : ''}</span>
+      </div>
     </div>`;
+  }).join('');
+  return `<div class="sparks sparks-4">${cards}</div>`;
+}
+
+/**
+ * 감시용 한 줄 판정 — "검출 가능한가"와 "무엇이 실패시켰나"를 각각 한 문장으로.
+ *
+ * 조사 화면에는 표본 구성 3세트 × 판정 축 5개의 표가 있고 실패 축도 전부 나열된다. 감시는
+ * 그걸 담지 않는다 — 감시가 답할 질문은 "여길 파야 하는가"이지 "무엇인가"가 아니다.
+ * 표를 감시에 넣으면 매번 훑어야 할 숫자가 계열마다 수십 개가 되고, 그러면 안 보게 된다.
+ */
+function verdictLine(rows, href) {
+  const line = trends.stabilityLine(rows);
+  const fail = trends.dominantFailure(rows);
+  const bits = [];
+
+  if (fail) {
+    const abs = fail.absolute > 0 ? ' <span class="d-bad">절대 게이트</span>' : '';
+    bits.push(`<b>실패 축</b> ${fail.runs}/${fail.total}회 <b>${esc(ruleName(fail.key))}</b>${abs}`
+      + `${fail.others ? ` <span style="color:var(--ink-muted)">외 ${fail.others}개</span>` : ''}`);
+  } else {
+    bits.push('<b>실패 축</b> 없음');
   }
 
-  return `<div class="card" style="margin-bottom:14px">
-    <b>안정성 — 이 계열에서 무엇을 검출할 수 있는가</b>
-    <div class="scroll" style="margin-top:8px"><table class="hist-table">
-      <thead>
-        <tr><th rowspan="2">판정 축</th>${head}</tr>
-        <tr>${sets.map(() => '<th class="num">CV</th><th class="num">MDE</th>').join('')}</tr>
-      </thead>
-      <tbody>${body}</tbody>
-    </table></div>
-    <div class="note">
-      <b>CV</b>(변동계수) = 표준편차 ÷ 평균. 같은 조건에서 값이 얼마나 흔들리는가.<br>
-      <b>MDE</b>(최소 검출 가능 효과) = 개선 전/후를 각각 n회 측정할 때 <b>이 값보다 작은 변화는 구분되지 않는다</b>.
-      정규 근사이므로 낙관적인 하한입니다 — n이 작으면 실제로는 더 큽니다.
-    </div>
-    ${advice}
-  </div>`;
+  if (line) {
+    const need = line.need
+      ? (line.need.capped ? `${line.need.exact}회 필요(사실상 불가)` : `${line.need.n}회 필요`)
+      : '—';
+    bits.push(`<b>검출 한계</b> MDE <b>${line.axis.mde.toFixed(1)}%</b>`
+      + ` (${esc(line.axis.label)} · ${esc(line.sampleLabel)} n=${line.n})`
+      + ` · 10% 개선 검출에 ${need}`);
+  }
+
+  return `<div class="verdict-line">${bits.join('<span class="sep">|</span>')}
+    <a href="${esc(href)}">근거 보기 →</a></div>`;
 }
 
-/** 이 계열을 실제로 실패시킨 게이트. FAIL 배지만으로는 "무엇이" 실패했는지 알 수 없다. */
-function failingAxisCard(rows) {
-  const axes = trends.failingAxes(rows);
-  if (!axes.length) return '';
-  const n = rows.length;
-  const items = axes.map((a) => {
-    const abs = a.absolute > 0 ? ' <span class="d-bad">절대 게이트</span>' : '';
-    return `<li><b>${esc(ruleName(a.key))}</b> — ${a.runs}/${n}회 실패${abs}
-      <code style="font-size:11px;color:var(--ink-muted)">${esc(a.key)}</code></li>`;
-  }).join('');
-  const dominant = axes[0];
-  const all = dominant.runs === n;
-  return `<div class="card" style="margin-bottom:14px">
-    <b>실패 축 — 무엇이 이 계열을 실패시켰나</b>
-    <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.9">${items}</ul>
-    ${all ? `<div class="note" style="border-color:var(--serious)">
-      <b>${n}회 전부 같은 축(${esc(ruleName(dominant.key))})에서 실패했습니다.</b>
-      매번 같은 곳에서 걸린다면 노이즈가 아니라 구조입니다. 다른 지표가 SLO 안에 있어도
-      이 축이 실패 원인이므로, 개선 대상은 이쪽입니다.</div>` : ''}
-  </div>`;
-}
 
 function renderHistory(runs, opts) {
   const scenarios = [...new Set(runs.map((r) => r.scenario))].sort();
@@ -262,22 +324,6 @@ function renderHistory(runs, opts) {
       ? `데이터셋 ${esc(cmp.describeCondition(cond, 'dataset'))} · ${esc(cmp.formatLoadProfile(cond.loadProfile))}`
       : '조건 미기록';
 
-    const cards = TREND_METRICS.map((m) => {
-      const raw = rows.map((r) => (r[m.key] == null ? null : r[m.key] * (m.scale || 1)));
-      if (!raw.some((v) => v != null)) return '';
-      const st = trendStat(raw);
-      const cur = raw[raw.length - 1];
-      return `<div class="spark">
-        <div class="st">${esc(m.label)}</div>
-        <div class="sv">${fmt.byUnit(cur, m.unit)}</div>
-        ${sparkline(raw, { label: m.label })}
-        <div class="range">
-          <span>${st ? `${st.n}회 · ` : ''}min ${fmt.byUnit(st ? st.min : null, m.unit)}</span>
-          <span>${st ? deltaSpan(st.changePct, m.dir) : ''}</span>
-        </div>
-      </div>`;
-    }).filter(Boolean).join('');
-
     // 회귀형 추세 요약 — 전반부 대비 후반부가 얼마나 나빠졌나
     const worsening = TREND_METRICS.map((m) => {
       const raw = rows.map((r) => (r[m.key] == null ? null : r[m.key] * (m.scale || 1)));
@@ -287,21 +333,23 @@ function renderHistory(runs, opts) {
       return bad > 10 ? { label: m.label, bad, st, unit: m.unit } : null;
     }).filter(Boolean).sort((a, b) => b.bad - a.bad);
 
+    const href = detail.detailHref({ scenario: sc, hash });
     return `<section>
-      <h2>${esc(sc)} — 추세 (${rows.length}회)</h2>
+      <h2>${esc(sc)} <span class="sub" style="font-weight:400">(${rows.length}회)</span>
+        <a class="drill" href="${esc(href)}">상세 조사 →</a></h2>
       <div class="sub" style="margin:-6px 0 12px">${seriesLabel}${hash ? ` · 계열 <code>${esc(hash)}</code>` : ''}</div>
       ${regimeStrip(rows)}
-      ${failingAxisCard(rows)}
-      ${stabilityPanel(rows)}
-      ${worsening.length ? `<div class="card" style="margin-bottom:14px">
+      ${headlineCards(rows)}
+      ${verdictLine(rows, href)}
+      ${worsening.length ? `<div class="card" style="margin-top:14px">
         <b>누적 저하 감지</b>
         <div class="note" style="border-color:var(--serious)">
           최근 ${rows.length}회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
           ${worsening.map((w) => `· <b>${esc(w.label)}</b> ${fmt.byUnit(w.st.older, w.unit)} → ${fmt.byUnit(w.st.newer, w.unit)} (${fmt.delta(w.st.changePct)})`).join('<br>')}
           <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+          <a href="${esc(href)}">상세 조사에서 회차별로 확인 →</a>
         </div>
       </div>` : ''}
-      <div class="sparks">${cards}</div>
     </section>`;
   }).filter(Boolean).join('');
 
@@ -349,43 +397,7 @@ function renderHistory(runs, opts) {
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Performance History</title>
-<style>${CSS}
-.hist-table { font-size: 12.5px; }
-.hist-table td, .hist-table th { padding: 6px 8px; white-space: nowrap; }
-
-/* 체제 띠 — 회차 하나가 블록 하나. 스파크라인보다 위에 두어 "이 선을 어떻게 읽을지"를 먼저 말한다. */
-.regime { margin: 0 0 14px; }
-.rg-row { display: flex; gap: 2px; flex-wrap: wrap; }
-.rg-row i {
-  display: block; width: 22px; height: 16px; border-radius: 3px;
-  background: var(--border); position: relative; cursor: help;
-}
-.rg-headroom   { background: var(--good) !important; }
-.rg-near_limit { background: var(--warning) !important; }
-.rg-saturated  { background: var(--critical) !important; }
-.rg-unknown,
-.rg-unassessed {
-  background: repeating-linear-gradient(45deg,
-    var(--border), var(--border) 3px, var(--plane) 3px, var(--plane) 6px) !important;
-}
-/* 대기 발생 — 체제 판정과 독립된 관측 사실이라 색이 아니라 테두리로 겹쳐 표시한다. */
-.rg-queued::after {
-  content: ''; position: absolute; inset: 0; border-radius: 3px;
-  border: 2px solid var(--critical);
-}
-/* 측정 불가 — 값 자체를 믿을 수 없는 회차. 위에 사선을 긋는다. */
-.rg-unmeasured::before {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(to top right, transparent 45%, var(--ink) 45%,
-    var(--ink) 55%, transparent 55%);
-}
-.rg-legend {
-  display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
-  margin-top: 8px; font-size: 11.5px; color: var(--ink-2);
-}
-.rg-legend span { display: flex; gap: 5px; align-items: center; }
-.rg-legend i { display: block; width: 14px; height: 11px; border-radius: 2px;
-  background: var(--border); position: relative; }
+<style>${CSS}${EXTRA_CSS}
 </style>
 </head><body>
 <div class="head"><div class="wrap">
@@ -485,7 +497,27 @@ function main() {
   const out = o.out || path.join(repo.PERF_ROOT, 'reports', 'history.html');
   repo.ensureDir(path.dirname(out));
   fs.writeFileSync(out, renderHistory(runs, o));
-  console.log(`History 생성: ${path.relative(repo.PERF_ROOT, out)} (${runs.length}건)`);
+  console.log(`감시 화면: ${path.relative(repo.PERF_ROOT, out)} (${runs.length}건)`);
+
+  /*
+   * 조사 화면 — 계열마다 한 장. 감시 화면이 "여길 파야 한다"고 가리키면 그 링크가 여기로 온다.
+   *
+   * 실행 1회짜리 계열도 만든다. 현재 43계열 중 34개가 그렇고, 그 페이지들은 추세 대신
+   * 회차별 원본 표만 보여준다 — "데이터 부족"으로 비우면 감시 화면의 링크가 죽은 링크가 된다.
+   */
+  const outDir = path.join(path.dirname(out), 'trends');
+  repo.ensureDir(outDir);
+  const series = trends.seriesOf(runs);
+  const reportExists = (r) => fs.existsSync(path.join(repo.PERF_ROOT, 'reports', 'runs', r.id, 'report.html'));
+  let n = 0;
+  for (const s of series) {
+    const html = detail.renderSeriesDetail(s, {
+      metrics: TREND_METRICS, ruleName, reportExists, extraCss: EXTRA_CSS,
+    });
+    fs.writeFileSync(path.join(outDir, detail.detailFileName(s)), html);
+    n++;
+  }
+  console.log(`조사 화면: ${path.relative(repo.PERF_ROOT, outDir)}/ (${n}개 계열)`);
 }
 
 if (require.main === module) main();
