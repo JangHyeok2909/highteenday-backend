@@ -152,6 +152,34 @@ tbody tr:last-child td { border-bottom: none; }
 .b-FAIL { color: var(--critical); border-color: var(--critical); }
 .b-SKIP { color: var(--ink-muted); border-color: var(--axis); }
 
+/* ① 신뢰 확인 줄 — 항상 표시된다 */
+.trust { border-left: 3px solid var(--good); }
+.trust.trust-bad { border-left-color: var(--critical); }
+.trust-head { font-weight: 650; font-size: 13px; margin-bottom: 9px; }
+.trust-row { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.trust-item { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; }
+.trust-k { color: var(--ink-muted); }
+.trust-v { font-weight: 650; font-variant-numeric: tabular-nums; }
+.trust-item.ok .trust-v { color: var(--good-text, var(--good)); }
+.trust-item.bad .trust-v { color: var(--critical); }
+.trust-n { color: var(--ink-2); font-size: 11.5px; }
+
+/* ② 요약의 경고 줄 — 전체 p95 가 감추는 것을 상단에서 알린다 */
+.lead { margin-top: 11px; padding: 9px 12px; border-radius: 6px;
+        background: color-mix(in srgb, var(--warning) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+        font-size: 12.5px; }
+.lead b { font-variant-numeric: tabular-nums; }
+.lead + .lead { margin-top: 6px; }
+
+/* 접히는 섹션 */
+details.fold > summary { cursor: pointer; font-size: 13px; font-weight: 650; padding: 9px 0;
+                         list-style: none; display: flex; align-items: center; gap: 8px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: '▸'; color: var(--ink-muted); }
+details.fold[open] > summary::before { content: '▾'; }
+details.fold > summary .sum-note { font-weight: 400; color: var(--ink-2); font-size: 12px; }
+
 .empty { color: var(--ink-muted); font-style: italic; padding: 10px 0; }
 .note { color: var(--ink-2); font-size: 12.5px; margin-top: 10px; padding-left: 11px; border-left: 2px solid var(--grid); }
 footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 34px; }
@@ -169,22 +197,25 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     <dl class="meta"><div><dt>시나리오</dt><dd>registration-day</dd></div><div><dt>환경</dt><dd>perf</dd></div><div><dt>브랜치</dt><dd>personal/localdocs</dd></div><div><dt>커밋</dt><dd>3e96d946</dd></div><div><dt>빌드</dt><dd>local</dd></div><div><dt>실행자</dt><dd>user@DESKTOP-DJJPASG</dd></div><div><dt>시작</dt><dd>2026-08-18 22:36:53 KST</dd></div><div><dt>종료</dt><dd>2026-08-18 22:40:27 KST</dd></div><div><dt>수행 시간</dt><dd>3m 34s</dd></div><div><dt>VU 최대</dt><dd>5</dd></div><div><dt>Ramp-up</dt><dd>—</dd></div><div><dt>데이터셋</dt><dd>smoke</dd></div><div><dt>부하 프로파일</dt><dd>ramping-vus 0→5@30s→5@1m0s→0@2m0s</dd></div><div><dt>측정 구간</dt><dd>steady-state · warmup 30s · measure 60s · rampdown 120s · gate:measure</dd></div><div><dt>스크립트 버전</dt><dd>sha256:baa44a1f1b79</dd></div><div><dt>측정 상태</dt><dd>MEASURED</dd></div><div><dt>조건 계열</dt><dd>a010e90a7e9b</dd></div><div><dt>Run ID</dt><dd>registration-day-2026-08-18T13-40-27</dd></div></dl>
   </div></div>
 <div class="wrap">
-  
-  <section><h2>병목 가설</h2><div class="card">
-    <div class="hint">
-      <div class="n">1</div>
-      <div><div class="t">CPU throttling 발생</div><div class="d">cgroup이 CPU를 강제 회수한 주기가 1.3%다. CPU 한계(2 core)를 올리거나 요청당 CPU 사용을 줄여야 p99가 안정된다.</div></div>
-    </div><div class="hint">
-      <div class="n">2</div>
-      <div><div class="t">HTTP 요청당 쿼리 수 과다</div><div class="d">요청 1건당 평균 16.3개 쿼리가 실행됐다. N+1 패턴 가능성이 높다.</div></div>
-    </div><div class="hint">
-      <div class="n">3</div>
-      <div><div class="t">Slow Query 다발</div><div class="d">요청 1000건당 418.8건의 slow query(&gt;100ms). 인덱스 또는 쿼리 계획 점검 대상.</div></div>
-    </div>
-    <div class="note">자동 규칙으로 뽑은 <b>가설</b>이지 확정된 원인이 아니다.
-    포화도가 높은 자원부터 나열했을 뿐이므로, 실제 원인은 Grafana에서 해당 구간을 직접 확인해 검증해야 한다.</div>
+  <section><div class="card trust trust-ok">
+    <div class="trust-head">이 실행은 판정에 쓸 수 있다</div>
+    <div class="trust-row"><div class="trust-item ok">
+    <span class="trust-k">측정</span>
+    <span class="trust-v">MEASURED</span>
+    
+  </div><div class="trust-item ok">
+    <span class="trust-k">체제</span>
+    <span class="trust-v">HEADROOM</span>
+    <span class="trust-n">p95 를 앱 지연으로 읽어도 된다</span>
+  </div><div class="trust-item ok">
+    <span class="trust-k">오류율</span>
+    <span class="trust-v">0.00%</span>
+    
+  </div></div>
   </div></section>
+  
   <section><h2>Performance Summary (measure 구간)</h2><div class="kpis">
+
     <div class="kpi"><div class="label">평균 응답시간</div><div class="value">30ms</div></div>
     <div class="kpi"><div class="label">P95</div><div class="value">84ms</div></div>
     <div class="kpi"><div class="label">P99</div><div class="value">138ms</div></div>
@@ -192,6 +223,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     <div class="kpi"><div class="label">RPS</div><div class="value">1.9</div></div>
     <div class="kpi"><div class="label">오류율</div><div class="value">0.00%</div></div>
   </div>
+  
 
   <h3>지연 분포</h3>
   <div class="card scroll"><table>
@@ -221,14 +253,249 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     </tbody>
   </table></div>
   </section>
-  <section><h2>Regression</h2><div class="card">
-      <p class="empty">비교 기준이 없습니다 — 이 시나리오의 과거 실행이 하나도 없습니다.</p>
-      <div class="note">다음 실행부터 이 결과가 기준선이 되어 자동으로 비교됩니다.
-      기준은 <b>같은 실행 조건</b>(시나리오·환경·데이터셋·부하 프로파일·측정 구간)으로
-      <b>정상 측정된</b> 직전 실행을 씁니다 — 그 실행이 SLO를 넘겼는지는 따지지 않습니다.
-      이 실행에는 절대 게이트(SLO)만 적용됐습니다.</div>
-    </div></section>
-  <section><h2>Infrastructure Summary</h2>
+  <section><h2>Breakdown</h2><h3>기능별 응답시간 (P95 내림차순)</h3>
+      <div class="card scroll"><table>
+        <thead><tr><th>feature</th><th class="num">요청 수</th><th class="num">평균</th>
+          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
+        <tbody><tr>
+        <td>reaction</td>
+        <td class="num">3</td>
+        <td class="num">71ms</td>
+        <td class="num">120ms</td>
+        <td class="num">130ms</td>
+        <td class="num">137ms</td>
+        <td class="num">139ms</td>
+      </tr><tr>
+        <td>auth</td>
+        <td class="num">39</td>
+        <td class="num">78ms</td>
+        <td class="num">112ms</td>
+        <td class="num">114ms</td>
+        <td class="num">275ms</td>
+        <td class="num">372ms</td>
+      </tr><tr>
+        <td>post</td>
+        <td class="num">62</td>
+        <td class="num">33ms</td>
+        <td class="num">42ms</td>
+        <td class="num">100ms</td>
+        <td class="num">204ms</td>
+        <td class="num">258ms</td>
+      </tr><tr>
+        <td>comment</td>
+        <td class="num">22</td>
+        <td class="num">36ms</td>
+        <td class="num">61ms</td>
+        <td class="num">77ms</td>
+        <td class="num">155ms</td>
+        <td class="num">176ms</td>
+      </tr><tr>
+        <td>scrap</td>
+        <td class="num">1</td>
+        <td class="num">60ms</td>
+        <td class="num">60ms</td>
+        <td class="num">60ms</td>
+        <td class="num">60ms</td>
+        <td class="num">60ms</td>
+      </tr><tr>
+        <td>notification</td>
+        <td class="num">7</td>
+        <td class="num">21ms</td>
+        <td class="num">41ms</td>
+        <td class="num">45ms</td>
+        <td class="num">49ms</td>
+        <td class="num">50ms</td>
+      </tr><tr>
+        <td>board</td>
+        <td class="num">13</td>
+        <td class="num">18ms</td>
+        <td class="num">24ms</td>
+        <td class="num">41ms</td>
+        <td class="num">60ms</td>
+        <td class="num">65ms</td>
+      </tr><tr>
+        <td>hot</td>
+        <td class="num">13</td>
+        <td class="num">27ms</td>
+        <td class="num">33ms</td>
+        <td class="num">35ms</td>
+        <td class="num">36ms</td>
+        <td class="num">36ms</td>
+      </tr><tr>
+        <td>timetable</td>
+        <td class="num">3</td>
+        <td class="num">19ms</td>
+        <td class="num">30ms</td>
+        <td class="num">32ms</td>
+        <td class="num">33ms</td>
+        <td class="num">34ms</td>
+      </tr><tr>
+        <td>mypage</td>
+        <td class="num">12</td>
+        <td class="num">17ms</td>
+        <td class="num">25ms</td>
+        <td class="num">29ms</td>
+        <td class="num">33ms</td>
+        <td class="num">34ms</td>
+      </tr><tr>
+        <td>chat</td>
+        <td class="num">40</td>
+        <td class="num">19ms</td>
+        <td class="num">26ms</td>
+        <td class="num">28ms</td>
+        <td class="num">48ms</td>
+        <td class="num">59ms</td>
+      </tr><tr>
+        <td>school</td>
+        <td class="num">5</td>
+        <td class="num">16ms</td>
+        <td class="num">25ms</td>
+        <td class="num">27ms</td>
+        <td class="num">29ms</td>
+        <td class="num">29ms</td>
+      </tr><tr>
+        <td>friend</td>
+        <td class="num">37</td>
+        <td class="num">15ms</td>
+        <td class="num">21ms</td>
+        <td class="num">23ms</td>
+        <td class="num">41ms</td>
+        <td class="num">50ms</td>
+      </tr></tbody></table></div><h3>오퍼레이션별 응답시간 (P95 내림차순)</h3>
+      <div class="card scroll"><table>
+        <thead><tr><th>op</th><th class="num">요청 수</th><th class="num">평균</th>
+          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
+        <tbody><tr>
+        <td>auth</td>
+        <td class="num">39</td>
+        <td class="num">78ms</td>
+        <td class="num">112ms</td>
+        <td class="num">114ms</td>
+        <td class="num">275ms</td>
+        <td class="num">372ms</td>
+      </tr></tbody></table></div><h3>목록 페이지별 응답시간 (P95 내림차순)</h3>
+      <div class="card scroll"><table>
+        <thead><tr><th>page</th><th class="num">요청 수</th><th class="num">평균</th>
+          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
+        <tbody><tr>
+        <td>0</td>
+        <td class="num">10</td>
+        <td class="num">43ms</td>
+        <td class="num">80ms</td>
+        <td class="num">124ms</td>
+        <td class="num">160ms</td>
+        <td class="num">169ms</td>
+      </tr><tr>
+        <td>4</td>
+        <td class="num">2</td>
+        <td class="num">35ms</td>
+        <td class="num">38ms</td>
+        <td class="num">38ms</td>
+        <td class="num">38ms</td>
+        <td class="num">39ms</td>
+      </tr><tr>
+        <td>1</td>
+        <td class="num">1</td>
+        <td class="num">20ms</td>
+        <td class="num">20ms</td>
+        <td class="num">20ms</td>
+        <td class="num">20ms</td>
+        <td class="num">20ms</td>
+      </tr></tbody></table></div><h3>expected_response 응답시간 (P95 내림차순)</h3>
+      <div class="card scroll"><table>
+        <thead><tr><th>expected_response</th><th class="num">요청 수</th><th class="num">평균</th>
+          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
+        <tbody><tr>
+        <td>true</td>
+        <td class="num">—</td>
+        <td class="num">33ms</td>
+        <td class="num">84ms</td>
+        <td class="num">107ms</td>
+        <td class="num">172ms</td>
+        <td class="num">372ms</td>
+      </tr></tbody></table></div><h3>phase 응답시간 (P95 내림차순)</h3>
+      <div class="card scroll"><table>
+        <thead><tr><th>phase</th><th class="num">요청 수</th><th class="num">평균</th>
+          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
+        <tbody><tr>
+        <td>warmup</td>
+        <td class="num">32</td>
+        <td class="num">65ms</td>
+        <td class="num">116ms</td>
+        <td class="num">172ms</td>
+        <td class="num">311ms</td>
+        <td class="num">372ms</td>
+      </tr><tr>
+        <td>rampdown</td>
+        <td class="num">113</td>
+        <td class="num">28ms</td>
+        <td class="num">58ms</td>
+        <td class="num">102ms</td>
+        <td class="num">109ms</td>
+        <td class="num">112ms</td>
+      </tr><tr>
+        <td>measure</td>
+        <td class="num">112</td>
+        <td class="num">30ms</td>
+        <td class="num">51ms</td>
+        <td class="num">84ms</td>
+        <td class="num">138ms</td>
+        <td class="num">258ms</td>
+      </tr></tbody></table></div>
+    <div class="note">P95가 가장 큰 항목이 곧 최적화 1순위 후보다. 요청 수가 적은데 P95가 크면
+    "느리지만 드문" 경로이므로 사용자 체감 영향은 작을 수 있다 — 요청 수와 같이 본다.</div></section>
+  <section><h2>작업량 — 요청 1건이 얼마나 일하는가</h2>
+    <div class="card scroll"><table>
+      <thead><tr><th>지표</th><th class="num" style="width:110px">값</th>
+        <th style="width:90px">판정</th><th>기준 · 읽는 법</th></tr></thead>
+      <tbody><tr>
+      <td title="요청 1건에 앱 컨테이너가 태운 CPU(ms). **CPU 포화 상태에서 성능 회귀를 직접 보는 값.** 오르면 같은 일을 더 비싸게 하고 있다.">요청당 앱 CPU</td>
+      <td class="num" >109ms</td>
+      <td></td>
+      <td style="color:var(--ink-muted);font-size:12px">요청 1건에 앱 컨테이너가 태운 CPU(ms). **CPU 포화 상태에서 성능 회귀를 직접 보는 값.** 오르면 같은 일을 더 비싸게 하고 있다.</td>
+    </tr><tr>
+      <td title="JVM 프로세스만의 요청당 CPU(ms). 앱 컨테이너 값과 크게 다르면 컨테이너 안에 다른 소비자가 있다.">요청당 JVM CPU</td>
+      <td class="num" >106ms</td>
+      <td></td>
+      <td style="color:var(--ink-muted);font-size:12px">JVM 프로세스만의 요청당 CPU(ms). 앱 컨테이너 값과 크게 다르면 컨테이너 안에 다른 소비자가 있다.</td>
+    </tr><tr>
+      <td title="요청 1건에 MySQL 이 태운 CPU(ms). 앱 값과 **같은 비율로** 움직이면 원인은 둘 다의 아래 층이다.">요청당 MySQL CPU</td>
+      <td class="num" >15ms</td>
+      <td></td>
+      <td style="color:var(--ink-muted);font-size:12px">요청 1건에 MySQL 이 태운 CPU(ms). 앱 값과 **같은 비율로** 움직이면 원인은 둘 다의 아래 층이다.</td>
+    </tr><tr>
+      <td title="요청 1건에 Redis 가 태운 CPU(ms).">요청당 Redis CPU</td>
+      <td class="num" >4.0ms</td>
+      <td></td>
+      <td style="color:var(--ink-muted);font-size:12px">요청 1건에 Redis 가 태운 CPU(ms).</td>
+    </tr><tr>
+      <td title="앱+MySQL+Redis 를 합친 요청당 CPU. 병목이 옮겨 다녀도 이 합계는 총비용을 그대로 보여준다.">요청당 스택 전체 CPU</td>
+      <td class="num" >127ms</td>
+      <td><span class="badge b-WARN">주의</span></td>
+      <td style="color:var(--ink-muted);font-size:12px">warn 50 / fail 200 · 요청 1건에 스택 전체가 태운 CPU</td>
+    </tr><tr>
+      <td title="쿼리 1건에 든 CPU(마이크로초). 요청당 쿼리 수는 그대로인데 이 값만 오르면 DB 자체가 비효율해진 것이다.">쿼리당 MySQL CPU</td>
+      <td class="num" >768.9</td>
+      <td><span class="badge b-WARN">주의</span></td>
+      <td style="color:var(--ink-muted);font-size:12px">warn 500 / fail 2000 · 쿼리 하나가 비싸면 인덱스·쿼리 계획 문제</td>
+    </tr><tr>
+      <td title="요청 1건이 만든 쿼리 수. 급증하면 N+1 이다. 위 두 지표를 해석할 때의 기준선.">요청당 쿼리 수</td>
+      <td class="num" >19</td>
+      <td><span class="badge b-WARN">주의</span></td>
+      <td style="color:var(--ink-muted);font-size:12px">warn 10 / fail 50 · 요청 1건이 이만큼 쿼리를 쓴다면 루프 안 조회를 의심한다</td>
+    </tr><tr>
+      <td title="요청 1건당 VM 전체 컨텍스트 스위치. CPU 는 그대로인데 이게 오르면 스케줄링 비용이 늘어난 것이다.">요청당 컨텍스트 스위치</td>
+      <td class="num" >3,279</td>
+      <td></td>
+      <td style="color:var(--ink-muted);font-size:12px">요청 1건당 VM 전체 컨텍스트 스위치. CPU 는 그대로인데 이게 오르면 스케줄링 비용이 늘어난 것이다.</td>
+    </tr></tbody></table></div>
+    <div class="note">자원이 남는데도 느리면 여기를 본다. 자원 부족은 위 '자원' 섹션이 답한다.
+    쿼리 <b>개수</b>가 많은 것(N+1)과 쿼리 <b>하나</b>가 비싼 것(인덱스)은 처방이 다르므로
+    <code>queriesPerReq</code>와 <code>dbCpuUsPerQuery</code>를 같이 읽는다.</div>
+  </section>
+  <details class="fold">
+    <summary>자원 — 부족한 것이 있는가 <span class="sum-note">자원 여유 있음 — 신호 4개 전부 임계 이하</span></summary>
+    <section><h2>Infrastructure Summary</h2>
     <h3>자원 포화도 (measure 구간 최대)</h3>
     
     <div class="card scroll"><table><tbody><tr>
@@ -878,239 +1145,38 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <td title="그 순간 붙어 있던 가상 사용자 수. 램프업 곡선과 지연 상승을 겹쳐 보는 축이다.">활성 VU p95</td>
         <td class="num">5</td>
         <td style="color:var(--ink-muted);font-size:12px">그 순간 붙어 있던 가상 사용자 수. 램프업 곡선과 지연 상승을 겹쳐 보는 축이다.</td>
-      </tr></tbody></table></div><h3>효율 (요청당 자원 비용)</h3><div class="card scroll"><table>
-      <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
-      <tbody><tr>
-        <td title="요청 1건에 앱 컨테이너가 태운 CPU(ms). **CPU 포화 상태에서 성능 회귀를 직접 보는 값.** 오르면 같은 일을 더 비싸게 하고 있다.">요청당 앱 CPU</td>
-        <td class="num">109ms</td>
-        <td style="color:var(--ink-muted);font-size:12px">요청 1건에 앱 컨테이너가 태운 CPU(ms). **CPU 포화 상태에서 성능 회귀를 직접 보는 값.** 오르면 같은 일을 더 비싸게 하고 있다.</td>
-      </tr><tr>
-        <td title="JVM 프로세스만의 요청당 CPU(ms). 앱 컨테이너 값과 크게 다르면 컨테이너 안에 다른 소비자가 있다.">요청당 JVM CPU</td>
-        <td class="num">106ms</td>
-        <td style="color:var(--ink-muted);font-size:12px">JVM 프로세스만의 요청당 CPU(ms). 앱 컨테이너 값과 크게 다르면 컨테이너 안에 다른 소비자가 있다.</td>
-      </tr><tr>
-        <td title="요청 1건에 MySQL 이 태운 CPU(ms). 앱 값과 **같은 비율로** 움직이면 원인은 둘 다의 아래 층이다.">요청당 MySQL CPU</td>
-        <td class="num">15ms</td>
-        <td style="color:var(--ink-muted);font-size:12px">요청 1건에 MySQL 이 태운 CPU(ms). 앱 값과 **같은 비율로** 움직이면 원인은 둘 다의 아래 층이다.</td>
-      </tr><tr>
-        <td title="요청 1건에 Redis 가 태운 CPU(ms).">요청당 Redis CPU</td>
-        <td class="num">4.0ms</td>
-        <td style="color:var(--ink-muted);font-size:12px">요청 1건에 Redis 가 태운 CPU(ms).</td>
-      </tr><tr>
-        <td title="앱+MySQL+Redis 를 합친 요청당 CPU. 병목이 옮겨 다녀도 이 합계는 총비용을 그대로 보여준다.">요청당 스택 전체 CPU</td>
-        <td class="num">127ms</td>
-        <td style="color:var(--ink-muted);font-size:12px">앱+MySQL+Redis 를 합친 요청당 CPU. 병목이 옮겨 다녀도 이 합계는 총비용을 그대로 보여준다.</td>
-      </tr><tr>
-        <td title="쿼리 1건에 든 CPU(마이크로초). 요청당 쿼리 수는 그대로인데 이 값만 오르면 DB 자체가 비효율해진 것이다.">쿼리당 MySQL CPU</td>
-        <td class="num">768.9</td>
-        <td style="color:var(--ink-muted);font-size:12px">쿼리 1건에 든 CPU(마이크로초). 요청당 쿼리 수는 그대로인데 이 값만 오르면 DB 자체가 비효율해진 것이다.</td>
-      </tr><tr>
-        <td title="요청 1건이 만든 쿼리 수. 급증하면 N+1 이다. 위 두 지표를 해석할 때의 기준선.">요청당 쿼리 수</td>
-        <td class="num">19</td>
-        <td style="color:var(--ink-muted);font-size:12px">요청 1건이 만든 쿼리 수. 급증하면 N+1 이다. 위 두 지표를 해석할 때의 기준선.</td>
-      </tr><tr>
-        <td title="요청 1건당 VM 전체 컨텍스트 스위치. CPU 는 그대로인데 이게 오르면 스케줄링 비용이 늘어난 것이다.">요청당 컨텍스트 스위치</td>
-        <td class="num">3,279</td>
-        <td style="color:var(--ink-muted);font-size:12px">요청 1건당 VM 전체 컨텍스트 스위치. CPU 는 그대로인데 이게 오르면 스케줄링 비용이 늘어난 것이다.</td>
       </tr></tbody></table></div>
     <div class="note">집계 구간 2026-08-18 22:37:23 KST ~ 2026-08-18 22:38:23 KST
       (1m 0s, measure 구간)
       · 이 구간은 k6.phases.measure와 같은 시간대다(T-03/S-08) — 더 이상 별도 계산이 아니다.
       · 쿼리 158건</div>
   </section>
-  <section><h2>Breakdown</h2><h3>기능별 응답시간 (P95 내림차순)</h3>
-      <div class="card scroll"><table>
-        <thead><tr><th>feature</th><th class="num">요청 수</th><th class="num">평균</th>
-          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
-        <tbody><tr>
-        <td>reaction</td>
-        <td class="num">3</td>
-        <td class="num">71ms</td>
-        <td class="num">120ms</td>
-        <td class="num">130ms</td>
-        <td class="num">137ms</td>
-        <td class="num">139ms</td>
-      </tr><tr>
-        <td>auth</td>
-        <td class="num">39</td>
-        <td class="num">78ms</td>
-        <td class="num">112ms</td>
-        <td class="num">114ms</td>
-        <td class="num">275ms</td>
-        <td class="num">372ms</td>
-      </tr><tr>
-        <td>post</td>
-        <td class="num">62</td>
-        <td class="num">33ms</td>
-        <td class="num">42ms</td>
-        <td class="num">100ms</td>
-        <td class="num">204ms</td>
-        <td class="num">258ms</td>
-      </tr><tr>
-        <td>comment</td>
-        <td class="num">22</td>
-        <td class="num">36ms</td>
-        <td class="num">61ms</td>
-        <td class="num">77ms</td>
-        <td class="num">155ms</td>
-        <td class="num">176ms</td>
-      </tr><tr>
-        <td>scrap</td>
-        <td class="num">1</td>
-        <td class="num">60ms</td>
-        <td class="num">60ms</td>
-        <td class="num">60ms</td>
-        <td class="num">60ms</td>
-        <td class="num">60ms</td>
-      </tr><tr>
-        <td>notification</td>
-        <td class="num">7</td>
-        <td class="num">21ms</td>
-        <td class="num">41ms</td>
-        <td class="num">45ms</td>
-        <td class="num">49ms</td>
-        <td class="num">50ms</td>
-      </tr><tr>
-        <td>board</td>
-        <td class="num">13</td>
-        <td class="num">18ms</td>
-        <td class="num">24ms</td>
-        <td class="num">41ms</td>
-        <td class="num">60ms</td>
-        <td class="num">65ms</td>
-      </tr><tr>
-        <td>hot</td>
-        <td class="num">13</td>
-        <td class="num">27ms</td>
-        <td class="num">33ms</td>
-        <td class="num">35ms</td>
-        <td class="num">36ms</td>
-        <td class="num">36ms</td>
-      </tr><tr>
-        <td>timetable</td>
-        <td class="num">3</td>
-        <td class="num">19ms</td>
-        <td class="num">30ms</td>
-        <td class="num">32ms</td>
-        <td class="num">33ms</td>
-        <td class="num">34ms</td>
-      </tr><tr>
-        <td>mypage</td>
-        <td class="num">12</td>
-        <td class="num">17ms</td>
-        <td class="num">25ms</td>
-        <td class="num">29ms</td>
-        <td class="num">33ms</td>
-        <td class="num">34ms</td>
-      </tr><tr>
-        <td>chat</td>
-        <td class="num">40</td>
-        <td class="num">19ms</td>
-        <td class="num">26ms</td>
-        <td class="num">28ms</td>
-        <td class="num">48ms</td>
-        <td class="num">59ms</td>
-      </tr><tr>
-        <td>school</td>
-        <td class="num">5</td>
-        <td class="num">16ms</td>
-        <td class="num">25ms</td>
-        <td class="num">27ms</td>
-        <td class="num">29ms</td>
-        <td class="num">29ms</td>
-      </tr><tr>
-        <td>friend</td>
-        <td class="num">37</td>
-        <td class="num">15ms</td>
-        <td class="num">21ms</td>
-        <td class="num">23ms</td>
-        <td class="num">41ms</td>
-        <td class="num">50ms</td>
-      </tr></tbody></table></div><h3>phase 응답시간 (P95 내림차순)</h3>
-      <div class="card scroll"><table>
-        <thead><tr><th>phase</th><th class="num">요청 수</th><th class="num">평균</th>
-          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
-        <tbody><tr>
-        <td>warmup</td>
-        <td class="num">32</td>
-        <td class="num">65ms</td>
-        <td class="num">116ms</td>
-        <td class="num">172ms</td>
-        <td class="num">311ms</td>
-        <td class="num">372ms</td>
-      </tr><tr>
-        <td>rampdown</td>
-        <td class="num">113</td>
-        <td class="num">28ms</td>
-        <td class="num">58ms</td>
-        <td class="num">102ms</td>
-        <td class="num">109ms</td>
-        <td class="num">112ms</td>
-      </tr><tr>
-        <td>measure</td>
-        <td class="num">112</td>
-        <td class="num">30ms</td>
-        <td class="num">51ms</td>
-        <td class="num">84ms</td>
-        <td class="num">138ms</td>
-        <td class="num">258ms</td>
-      </tr></tbody></table></div><h3>목록 페이지별 응답시간 (P95 내림차순)</h3>
-      <div class="card scroll"><table>
-        <thead><tr><th>page</th><th class="num">요청 수</th><th class="num">평균</th>
-          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
-        <tbody><tr>
-        <td>0</td>
-        <td class="num">10</td>
-        <td class="num">43ms</td>
-        <td class="num">80ms</td>
-        <td class="num">124ms</td>
-        <td class="num">160ms</td>
-        <td class="num">169ms</td>
-      </tr><tr>
-        <td>4</td>
-        <td class="num">2</td>
-        <td class="num">35ms</td>
-        <td class="num">38ms</td>
-        <td class="num">38ms</td>
-        <td class="num">38ms</td>
-        <td class="num">39ms</td>
-      </tr><tr>
-        <td>1</td>
-        <td class="num">1</td>
-        <td class="num">20ms</td>
-        <td class="num">20ms</td>
-        <td class="num">20ms</td>
-        <td class="num">20ms</td>
-        <td class="num">20ms</td>
-      </tr></tbody></table></div><h3>expected_response 응답시간 (P95 내림차순)</h3>
-      <div class="card scroll"><table>
-        <thead><tr><th>expected_response</th><th class="num">요청 수</th><th class="num">평균</th>
-          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
-        <tbody><tr>
-        <td>true</td>
-        <td class="num">—</td>
-        <td class="num">33ms</td>
-        <td class="num">84ms</td>
-        <td class="num">107ms</td>
-        <td class="num">172ms</td>
-        <td class="num">372ms</td>
-      </tr></tbody></table></div><h3>오퍼레이션별 응답시간 (P95 내림차순)</h3>
-      <div class="card scroll"><table>
-        <thead><tr><th>op</th><th class="num">요청 수</th><th class="num">평균</th>
-          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
-        <tbody><tr>
-        <td>auth</td>
-        <td class="num">39</td>
-        <td class="num">78ms</td>
-        <td class="num">112ms</td>
-        <td class="num">114ms</td>
-        <td class="num">275ms</td>
-        <td class="num">372ms</td>
-      </tr></tbody></table></div>
-    <div class="note">P95가 가장 큰 항목이 곧 최적화 1순위 후보다. 요청 수가 적은데 P95가 크면
-    "느리지만 드문" 경로이므로 사용자 체감 영향은 작을 수 있다 — 요청 수와 같이 본다.</div></section>
+  </details>
+  <section><h2>Regression</h2><div class="card">
+      <p class="empty">비교 기준이 없습니다 — 이 시나리오의 과거 실행이 하나도 없습니다.</p>
+      <div class="note">다음 실행부터 이 결과가 기준선이 되어 자동으로 비교됩니다.
+      기준은 <b>같은 실행 조건</b>(시나리오·환경·데이터셋·부하 프로파일·측정 구간)으로
+      <b>정상 측정된</b> 직전 실행을 씁니다 — 그 실행이 SLO를 넘겼는지는 따지지 않습니다.
+      이 실행에는 절대 게이트(SLO)만 적용됐습니다.</div>
+    </div></section>
+  <details class="fold">
+    <summary>병목 가설 (도구가 계산한 후보) <span class="sum-note">먼저 위에서 직접 좁혀 본 뒤 검산용으로 열 것</span></summary>
+    <section><h2>병목 가설</h2><div class="card">
+    <div class="hint">
+      <div class="n">1</div>
+      <div><div class="t">Slow Query 다발</div><div class="d">요청 1000건당 418.8건의 slow query(&gt;100ms, 총 47건). 인덱스 또는 쿼리 계획 점검 대상. (임계 warn 1 / fail 100)</div></div>
+    </div><div class="hint">
+      <div class="n">2</div>
+      <div><div class="t">HTTP 요청당 쿼리 수 과다</div><div class="d">요청 1건당 평균 16.3개 쿼리가 실행됐다. N+1 패턴 가능성이 높다. (임계 warn 10 / fail 50)</div></div>
+    </div>
+    <div class="note">자동 규칙으로 뽑은 <b>가설</b>이지 확정된 원인이 아니다.
+    포화도가 높은 자원부터 나열했을 뿐이므로, 실제 원인은 Grafana에서 해당 구간을 직접 확인해 검증해야 한다.</div>
+  </div></section>
+  </details>
   
-  <section><h2>SLO Thresholds</h2><div class="card scroll">
+  <details class="fold">
+    <summary>SLO Thresholds</summary>
+    <section><h2>SLO Thresholds</h2><div class="card scroll">
     <table><thead><tr><th>메트릭</th><th>조건</th><th>결과</th></tr></thead><tbody><tr>
     <td><code>http_req_duration{op:write,phase:measure}</code></td><td><code>p(95)&lt;500</code></td>
     <td><span class="badge b-PASS">✓ 통과</span></td>
@@ -1142,6 +1208,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     <div class="note">전 항목 충족 — k6 실행 중 판정된 SLO다.
     회귀(직전 대비)와 달리 <b>절대 기준</b>이므로, 성능이 개선됐어도 SLO를 못 넘으면 실패다.</div>
   </div></section>
+  </details>
   <section><h2>Grafana</h2><div class="card">
     
     <h3>measure 구간 (게이트가 본 구간)</h3>
@@ -1162,7 +1229,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     두 링크는 서로 다른 시간 범위를 가리킨다 — measure 링크가 실제 판정에 쓰인 구간이다.</div>
   </div></section>
   <footer>
-    생성 2026-08-18 22:40:48 KST · Run ID <code>registration-day-2026-08-18T13-40-27</code> ·
+    생성 2026-08-25 18:06:48 KST · Run ID <code>registration-day-2026-08-18T13-40-27</code> ·
     원본 <code>run.json</code> / <code>k6.json</code> 은 같은 디렉터리에 있습니다.
   </footer>
 </div>
