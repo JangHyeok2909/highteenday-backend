@@ -2684,7 +2684,7 @@
       }
     }
   },
-  "collectedAt": "2026-08-20T04:18:36.223Z",
+  "collectedAt": "2026-08-25T09:06:30.905Z",
   "infra": {
     "window": {
       "from": "2026-08-20T04:14:07.568Z",
@@ -3730,7 +3730,7 @@
           {
             "key": "k6ts.p95",
             "label": "k6 P95 (시계열)",
-            "value": 746.2680442398087,
+            "value": 746.2680442398084,
             "unit": "ms",
             "desc": "측정 구간 전체의 응답시간 P95. k6 요약본의 P95 와 같은 값이어야 한다 — 어긋나면 측정 창 계산을 의심한다."
           },
@@ -3744,14 +3744,14 @@
           {
             "key": "k6ts.p50",
             "label": "k6 P50 (시계열)",
-            "value": 7.669639436501302,
+            "value": 7.669639436501301,
             "unit": "ms",
             "desc": "응답시간 중앙값. P95 와의 벌어짐이 곧 꼬리 비대칭의 크기다."
           },
           {
             "key": "k6ts.p95Read",
             "label": "k6 P95 읽기",
-            "value": 807.0542212146042,
+            "value": 807.0542212146038,
             "unit": "ms",
             "desc": "읽기 요청만의 P95. SLO 기준 300ms."
           },
@@ -3779,7 +3779,7 @@
           {
             "key": "k6ts.rps",
             "label": "k6 RPS (시계열)",
-            "value": 11.79157266841169,
+            "value": 11.791572668411689,
             "unit": "per_sec",
             "desc": "측정 구간의 초당 요청 수. 닫힌 부하 루프라 지연이 오르면 이 값이 내려간다."
           },
@@ -4020,14 +4020,14 @@
       "loadgen.memBytes.avg": 182824448,
       "loadgen.memBytes.max": 188387328,
       "loadgen.memBytes.p95": 188294144,
-      "k6ts.p95": 746.2680442398087,
+      "k6ts.p95": 746.2680442398084,
       "k6ts.p99": 1814.2585690821252,
-      "k6ts.p50": 7.669639436501302,
-      "k6ts.p95Read": 807.0542212146042,
+      "k6ts.p50": 7.669639436501301,
+      "k6ts.p95Read": 807.0542212146038,
       "k6ts.p95Write": 47.433507508229425,
       "k6ts.waitingP95": 746.2680442398087,
       "k6ts.blockedP95": 0.011718048683987677,
-      "k6ts.rps": 11.79157266841169,
+      "k6ts.rps": 11.791572668411689,
       "k6ts.reqs": 1414.9887202094026,
       "k6ts.errorPct": 0,
       "k6ts.vus.avg": 28.25,
@@ -4305,10 +4305,27 @@
         "details": {}
       },
       {
-        "id": "normal-day-2026-08-20T01-58-05",
-        "startedAt": "2026-08-20T01:47:48.542Z",
+        "id": "normal-day-2026-08-19T14-32-46",
+        "startedAt": "2026-08-19T14:22:50.031Z",
         "reasonCode": "conditions",
         "mismatches": [
+          {
+            "key": "dataset",
+            "label": "데이터셋",
+            "materiality": "blocking",
+            "reason": "differs",
+            "current": {
+              "profile": "medium",
+              "fingerprint": "sha256:aae4bccfae5e",
+              "state": "sha256:ffe696d17416",
+              "snapshot": "medium-20260816-062210"
+            },
+            "baseline": {
+              "profile": "medium",
+              "fingerprint": "sha256:aae4bccfae5e"
+            },
+            "desc": "데이터셋: medium (생성 sha256:aae4bccfae5e · 상태 미판정(guard off)) → medium (생성 sha256:aae4bccfae5e · 상태 sha256:ffe696d17416)"
+          },
           {
             "key": "loadProfile",
             "label": "부하 프로파일",
@@ -4359,6 +4376,24 @@
               }
             },
             "desc": "부하 프로파일: ramping-vus 0→200@3m0s→200@5m0s→0@2m0s → ramping-arrival-rate 0→3@1m0s→3@2m0s→0@2m0s maxVU 600"
+          },
+          {
+            "key": "loadgen",
+            "label": "부하 발생기",
+            "materiality": "blocking",
+            "reason": "differs",
+            "current": "docker",
+            "baseline": "local",
+            "desc": "부하 발생기: local → docker"
+          },
+          {
+            "key": "remoteWrite",
+            "label": "k6 지표 전송",
+            "materiality": "degrading",
+            "reason": "differs",
+            "current": true,
+            "baseline": false,
+            "desc": "k6 지표 전송: 꺼짐 → 켜짐(Prometheus)"
           },
           {
             "key": "scriptVersion",
@@ -4394,97 +4429,18 @@
         "details": {}
       },
       {
-        "id": "normal-day-2026-08-20T01-45-09",
-        "startedAt": "2026-08-20T01:35:00.003Z",
-        "reasonCode": "conditions",
-        "mismatches": [
-          {
-            "key": "loadProfile",
-            "label": "부하 프로파일",
-            "materiality": "blocking",
-            "reason": "differs",
-            "current": {
-              "normal_day": {
-                "executor": "ramping-arrival-rate",
-                "startRate": 0,
-                "timeUnit": "1s",
-                "stages": [
-                  {
-                    "duration": "1m0s",
-                    "target": 3
-                  },
-                  {
-                    "duration": "2m0s",
-                    "target": 3
-                  },
-                  {
-                    "duration": "2m0s",
-                    "target": 0
-                  }
-                ],
-                "preAllocatedVUs": 100,
-                "maxVUs": 600
-              }
-            },
-            "baseline": {
-              "normal_day": {
-                "executor": "ramping-vus",
-                "startVUs": 0,
-                "stages": [
-                  {
-                    "duration": "3m0s",
-                    "target": 200
-                  },
-                  {
-                    "duration": "5m0s",
-                    "target": 200
-                  },
-                  {
-                    "duration": "2m0s",
-                    "target": 0
-                  }
-                ],
-                "gracefulRampDown": "30s"
-              }
-            },
-            "desc": "부하 프로파일: ramping-vus 0→200@3m0s→200@5m0s→0@2m0s → ramping-arrival-rate 0→3@1m0s→3@2m0s→0@2m0s maxVU 600"
-          },
-          {
-            "key": "scriptVersion",
-            "label": "부하 스크립트",
-            "materiality": "degrading",
-            "reason": "differs",
-            "current": "sha256:7912be298993",
-            "baseline": "sha256:7757707b0a2b",
-            "desc": "부하 스크립트: sha256:7757707b0a2b → sha256:7912be298993"
-          },
-          {
-            "key": "measurementProfile",
-            "label": "측정 구간 설계",
-            "materiality": "blocking",
-            "reason": "differs",
-            "current": {
-              "mode": "steady-state",
-              "warmupSec": 60,
-              "measureSec": 120,
-              "rampdownSec": 120,
-              "gatePhase": "measure"
-            },
-            "baseline": {
-              "mode": "steady-state",
-              "warmupSec": 180,
-              "measureSec": 300,
-              "rampdownSec": 120,
-              "gatePhase": "measure"
-            },
-            "desc": "측정 구간 설계: steady-state · warmup 180s · measure 300s · rampdown 120s · gate:measure → steady-state · warmup 60s · measure 120s · rampdown 120s · gate:measure"
-          }
-        ],
-        "details": {}
+        "id": "normal-day-2026-08-19T09-46-07",
+        "startedAt": "2026-08-19T09:38:50.168Z",
+        "reasonCode": "window-incomplete",
+        "mismatches": [],
+        "details": {
+          "measurementStatus": "PARTIAL",
+          "windowIncomplete": true
+        }
       },
       {
-        "id": "normal-day-2026-08-20T01-32-18",
-        "startedAt": "2026-08-20T01:22:00.690Z",
+        "id": "normal-day-2026-08-19T07-03-38",
+        "startedAt": "2026-08-19T06:59:03.728Z",
         "reasonCode": "conditions",
         "mismatches": [
           {
@@ -4521,12 +4477,12 @@
                 "startVUs": 0,
                 "stages": [
                   {
-                    "duration": "3m0s",
-                    "target": 200
+                    "duration": "2m0s",
+                    "target": 5
                   },
                   {
-                    "duration": "5m0s",
-                    "target": 200
+                    "duration": "30s",
+                    "target": 5
                   },
                   {
                     "duration": "2m0s",
@@ -4536,7 +4492,16 @@
                 "gracefulRampDown": "30s"
               }
             },
-            "desc": "부하 프로파일: ramping-vus 0→200@3m0s→200@5m0s→0@2m0s → ramping-arrival-rate 0→3@1m0s→3@2m0s→0@2m0s maxVU 600"
+            "desc": "부하 프로파일: ramping-vus 0→5@2m0s→5@30s→0@2m0s → ramping-arrival-rate 0→3@1m0s→3@2m0s→0@2m0s maxVU 600"
+          },
+          {
+            "key": "loadBench",
+            "label": "측정 중 대조 벤치",
+            "materiality": "degrading",
+            "reason": "differs",
+            "current": "off",
+            "baseline": "on@40s x3",
+            "desc": "측정 중 대조 벤치: on@40s x3 → off"
           },
           {
             "key": "scriptVersion",
@@ -4561,12 +4526,12 @@
             },
             "baseline": {
               "mode": "steady-state",
-              "warmupSec": 180,
-              "measureSec": 300,
+              "warmupSec": 120,
+              "measureSec": 30,
               "rampdownSec": 120,
               "gatePhase": "measure"
             },
-            "desc": "측정 구간 설계: steady-state · warmup 180s · measure 300s · rampdown 120s · gate:measure → steady-state · warmup 60s · measure 120s · rampdown 120s · gate:measure"
+            "desc": "측정 구간 설계: steady-state · warmup 120s · measure 30s · rampdown 120s · gate:measure → steady-state · warmup 60s · measure 120s · rampdown 120s · gate:measure"
           }
         ],
         "details": {}
@@ -4588,7 +4553,7 @@
     "counts": {
       "total": 33,
       "fail": 4,
-      "warn": 1,
+      "warn": 0,
       "gateFail": 2,
       "skipped": 0,
       "suppressed": 0
@@ -4614,6 +4579,8 @@
           }
         ],
         "skipped": null,
+        "noiseFloor": 115,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4637,6 +4604,8 @@
           }
         ],
         "skipped": null,
+        "noiseFloor": 210,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4654,6 +4623,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 23,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4671,6 +4642,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 0.001,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4688,6 +4661,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 0.5,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4705,6 +4680,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4722,6 +4699,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 0.005,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4739,6 +4718,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4753,15 +4734,11 @@
         "deltaAbs": null,
         "deltaPct": null,
         "badChangePct": null,
-        "verdict": "WARN",
-        "reasons": [
-          {
-            "type": "absolute",
-            "level": "WARN",
-            "desc": "3.46 > 상한 1.00"
-          }
-        ],
+        "verdict": "PASS",
+        "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4779,6 +4756,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 0.5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4796,6 +4775,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 52428800,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4813,6 +4794,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 3,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4830,6 +4813,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 52428800,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4847,6 +4832,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 52428800,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4864,6 +4851,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 20,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4881,6 +4870,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4898,6 +4889,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 20,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4915,6 +4908,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 10,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4932,6 +4927,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 3,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4949,6 +4946,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4966,6 +4965,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 0.5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4983,6 +4984,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -5000,6 +5003,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -5017,6 +5022,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -5034,6 +5041,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 10,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -5051,6 +5060,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 10485760,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -5074,6 +5085,8 @@
           }
         ],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -5097,6 +5110,8 @@
           }
         ],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -5114,6 +5129,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 2,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -5131,6 +5148,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -5148,6 +5167,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -5165,6 +5186,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1048576,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -5182,6 +5205,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1048576,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       }
@@ -5192,37 +5217,86 @@
       "infra.flat.saturation.hikariPct",
       "infra.flat.pool.hikariPending.max"
     ],
-    "warnings": [
-      "infra.flat.cpu.throttledPct"
-    ]
+    "warnings": []
   },
   "bottleneckHints": [
     {
-      "score": 100,
-      "title": "CPU throttling 발생",
-      "detail": "cgroup이 CPU를 강제 회수한 주기가 3.5%다. CPU 한계(2 core)를 올리거나 요청당 CPU 사용을 줄여야 p99가 안정된다."
-    },
-    {
       "score": 95,
       "title": "DB 커넥션 풀 대기 발생",
-      "detail": "최대 16개 스레드가 커넥션을 기다렸다. 풀 크기(10)가 동시성 대비 부족하거나, 커넥션 보유 시간이 긴 쿼리가 있다."
+      "detail": "최대 16개 스레드가 커넥션을 기다렸다. 풀 크기(10)가 동시성 대비 부족하거나, 커넥션 보유 시간이 긴 쿼리가 있다. (임계 warn 1 / fail 5)"
+    },
+    {
+      "score": 92,
+      "title": "HTTP 요청당 쿼리 수 과다",
+      "detail": "요청 1건당 평균 260.6개 쿼리가 실행됐다. N+1 패턴 가능성이 높다. (임계 warn 10 / fail 50)"
+    },
+    {
+      "score": 88,
+      "title": "Slow Query 다발",
+      "detail": "요청 1000건당 160.1건의 slow query(>100ms, 총 232건). 인덱스 또는 쿼리 계획 점검 대상. (임계 warn 1 / fail 100)"
     },
     {
       "score": 85,
       "title": "DB 커넥션 풀 포화",
-      "detail": "풀 사용률이 100%까지 올라갔다. 여유가 거의 없어 부하가 조금만 늘어도 대기가 생긴다."
-    },
-    {
-      "score": 72,
-      "title": "HTTP 요청당 쿼리 수 과다",
-      "detail": "요청 1건당 평균 260.6개 쿼리가 실행됐다. N+1 패턴 가능성이 높다."
-    },
-    {
-      "score": 60,
-      "title": "Slow Query 다발",
-      "detail": "요청 1000건당 160.1건의 slow query(>100ms). 인덱스 또는 쿼리 계획 점검 대상."
+      "detail": "풀 사용률이 100%까지 올라갔다. 여유가 거의 없어 부하가 조금만 늘어도 대기가 생긴다. (임계 warn 80 / fail 95)"
     }
   ],
+  "saturation": {
+    "status": "NEAR_LIMIT",
+    "signals": [
+      {
+        "key": "hikariPending",
+        "label": "DB 커넥션 대기 스레드",
+        "value": 2,
+        "level": "warn",
+        "warn": 1,
+        "fail": 5,
+        "why": "커넥션 풀 앞에 대기줄이 생겼다. 요청 지연에 대기 시간이 포함된다."
+      },
+      {
+        "key": "cpuThrottled",
+        "label": "앱 CPU throttled 비율",
+        "value": 3.46,
+        "level": "ok",
+        "warn": 30,
+        "fail": 80,
+        "why": "앱이 CPU 상한을 거의 매 주기 소진했다. 처리율이 상한에 묶여 지연이 대기로 나타난다."
+      },
+      {
+        "key": "cpuUtil",
+        "label": "앱 CPU 사용률(상한 대비)",
+        "value": 36.86,
+        "level": "ok",
+        "warn": 75,
+        "fail": 90,
+        "why": "CPU 상한에 근접했다. 이 구간에서는 작은 용량 변화가 큰 지연 변화로 증폭된다."
+      },
+      {
+        "key": "acquireShare",
+        "label": "커넥션 획득이 p95 에서 차지하는 비율",
+        "value": 0.14,
+        "level": "ok",
+        "warn": 20,
+        "fail": 40,
+        "why": "응답시간의 상당 부분이 커넥션 대기다. 애플리케이션 처리 시간이 아니다."
+      },
+      {
+        "key": "achievedRate",
+        "label": "도착률 달성도",
+        "value": 98.6,
+        "level": "ok",
+        "why": "부하 발생기가 계획한 도착률을 넣지 못했다. 시스템이 용량을 넘었다는 직접 증거다."
+      }
+    ],
+    "reasons": [
+      "DB 커넥션 대기 스레드 2 — 커넥션 풀 앞에 대기줄이 생겼다. 요청 지연에 대기 시간이 포함된다."
+    ],
+    "achievedRate": {
+      "target": 3,
+      "actual": 2.9583333333333335,
+      "pct": 98.61111111111111
+    }
+  },
   "links": {
     "full": {
       "uid": "htd-perf-overview",
