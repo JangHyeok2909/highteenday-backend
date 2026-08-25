@@ -192,6 +192,21 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
 .rg-legend span { display: flex; gap: 5px; align-items: center; }
 .rg-legend i { display: block; width: 14px; height: 11px; border-radius: 2px;
   background: var(--border); position: relative; }
+
+/* 헤드라인 — 네 칸 고정. 질문이 네 개라서 네 칸이지, 지표를 네 개 골라서가 아니다. */
+.sparks-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 900px) { .sparks-4 { grid-template-columns: repeat(2, 1fr); } }
+
+/* 한 줄 판정 — 조사 화면의 표를 대신한다. 감시는 "파야 하는가"만 답하면 된다. */
+.verdict-line {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  margin-top: 12px; padding: 10px 14px; font-size: 13px;
+  background: var(--plane); border: 1px solid var(--border); border-radius: 6px;
+}
+.verdict-line .sep { color: var(--border); }
+.verdict-line a { margin-left: auto; white-space: nowrap; }
+.drill { font-size: 13px; font-weight: 400; margin-left: 10px; white-space: nowrap; }
+
 </style>
 </head><body>
 <div class="head"><div class="wrap">
@@ -396,7 +411,8 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
   </section>
 
   <section>
-      <h2>auth — 추세 (2회)</h2>
+      <h2>auth <span class="sub" style="font-weight:400">(2회)</span>
+        <a class="drill" href="trends/auth-f7a91aa51a88.html">상세 조사 →</a></h2>
       <div class="sub" style="margin:-6px 0 12px">데이터셋 large (생성 지문 없음 · 상태 미판정(guard off)) · — · 계열 <code>f7a91aa51a88</code></div>
       <div class="regime">
     <div class="rg-row"><i class="rg-unassessed" title="#9 2026-08-05 17:43 · 체제 미판정 (saturation.js 도입 이전) · p95 —"></i><i class="rg-unassessed" title="#10 2026-08-05 17:44 · 체제 미판정 (saturation.js 도입 이전) · p95 —"></i></div>
@@ -411,117 +427,39 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     </div>
     <div class="note" style="border-color:var(--serious)">이 계열에는 포화 판정 기록이 없습니다(<code>saturation.js</code> 도입 2026-08-20 이전 실행). <b>판정 없음은 여유 있음이 아닙니다.</b> <code>node tools/collect.js &lt;runId&gt; --force --no-wait</code> 로 재수집하면 소급 판정됩니다(Prometheus 보관 기간 안이라면).</div>
   </div>
-      <div class="card" style="margin-bottom:14px">
-    <b>실패 축 — 무엇이 이 계열을 실패시켰나</b>
-    <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.9"><li><b>k6.overall.p95</b> — 1/2회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">k6.overall.p95</code></li><li><b>k6.overall.p99</b> — 1/2회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">k6.overall.p99</code></li></ul>
-    
-  </div>
-      <div class="card" style="margin-bottom:14px">
-    <b>안정성 — 이 계열에서 무엇을 검출할 수 있는가</b>
-    <div class="scroll" style="margin-top:8px"><table class="hist-table">
-      <thead>
-        <tr><th rowspan="2">판정 축</th><th class="num" colspan="2">전체 (n=2)</th></tr>
-        <tr><th class="num">CV</th><th class="num">MDE</th></tr>
-      </thead>
-      <tbody><tr><td><b>P95 응답시간</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>P99 응답시간</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>평균 응답시간</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>TPS</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>RPS</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr></tbody>
-    </table></div>
-    <div class="note">
-      <b>CV</b>(변동계수) = 표준편차 ÷ 평균. 같은 조건에서 값이 얼마나 흔들리는가.<br>
-      <b>MDE</b>(최소 검출 가능 효과) = 개선 전/후를 각각 n회 측정할 때 <b>이 값보다 작은 변화는 구분되지 않는다</b>.
-      정규 근사이므로 낙관적인 하한입니다 — n이 작으면 실제로는 더 큽니다.
-    </div>
-    
-  </div>
+      <div class="sparks sparks-4"><div class="spark">
+        <div class="st">지연</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">P95 응답시간</span></div>
+      </div><div class="spark">
+        <div class="st">처리</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">TPS</span></div>
+      </div><div class="spark">
+        <div class="st">비용</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">요청당 스택 CPU</span></div>
+      </div><div class="spark">
+      <div class="st">여유 · JVM Heap 포화도</div>
+      <div class="sv">54.7%</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="JVM Heap 포화도">
+  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+      <div class="range">
+        <span>n=2 · CV 46.0%</span>
+        <span></span>
+      </div>
+    </div></div>
+      <div class="verdict-line"><b>실패 축</b> 1/2회 <b>k6.overall.p95</b> <span style="color:var(--ink-muted)">외 1개</span>
+    <a href="trends/auth-f7a91aa51a88.html">근거 보기 →</a></div>
       
-      <div class="sparks"><div class="spark">
-        <div class="st">CPU 포화도</div>
-        <div class="sv">16.6%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Heap 최대</div>
-        <div class="sv">560 MB</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">GC 최대 정지</div>
-        <div class="sv">14ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Slow Query</div>
-        <div class="sv">41</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">MySQL QPS</div>
-        <div class="sv">66.2/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Redis 적중률</div>
-        <div class="sv">100.0%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div></div>
     </section><section>
-      <h2>boards — 추세 (3회)</h2>
+      <h2>boards <span class="sub" style="font-weight:400">(3회)</span>
+        <a class="drill" href="trends/boards-a63d426ee0b5.html">상세 조사 →</a></h2>
       <div class="sub" style="margin:-6px 0 12px">데이터셋 medium (생성 sha256:aae4bccfae5e · 상태 sha256:ffe696d17416) · constant-vus 5VU 1m0s · 계열 <code>a63d426ee0b5</code></div>
       <div class="regime">
     <div class="rg-row"><i class="rg-unassessed" title="#41 2026-08-18 14:15 · 체제 미판정 (saturation.js 도입 이전) · p95 24ms"></i><i class="rg-unassessed" title="#42 2026-08-18 15:14 · 체제 미판정 (saturation.js 도입 이전) · p95 17ms"></i><i class="rg-unassessed" title="#43 2026-08-18 15:19 · 체제 미판정 (saturation.js 도입 이전) · p95 14ms"></i></div>
@@ -536,201 +474,69 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     </div>
     <div class="note" style="border-color:var(--serious)">이 계열에는 포화 판정 기록이 없습니다(<code>saturation.js</code> 도입 2026-08-20 이전 실행). <b>판정 없음은 여유 있음이 아닙니다.</b> <code>node tools/collect.js &lt;runId&gt; --force --no-wait</code> 로 재수집하면 소급 판정됩니다(Prometheus 보관 기간 안이라면).</div>
   </div>
-      
-      <div class="card" style="margin-bottom:14px">
-    <b>안정성 — 이 계열에서 무엇을 검출할 수 있는가</b>
-    <div class="scroll" style="margin-top:8px"><table class="hist-table">
-      <thead>
-        <tr><th rowspan="2">판정 축</th><th class="num" colspan="2">전체 (n=3)</th></tr>
-        <tr><th class="num">CV</th><th class="num">MDE</th></tr>
-      </thead>
-      <tbody><tr><td><b>P95 응답시간</b><div class="sub" style="font-size:11px">평균 18ms</div></td><td class="num"><span class="d-flat">27.4%</span></td><td class="num">62.8%</td></tr><tr><td><b>P99 응답시간</b><div class="sub" style="font-size:11px">평균 80ms</div></td><td class="num"><span class="d-bad">123.5%</span></td><td class="num">282.6%</td></tr><tr><td><b>평균 응답시간</b><div class="sub" style="font-size:11px">평균 13ms</div></td><td class="num"><span class="d-bad">43.3%</span></td><td class="num">99.1%</td></tr><tr><td><b>TPS</b><div class="sub" style="font-size:11px">평균 1.0/s</div></td><td class="num"><span class="d-good">1.7%</span></td><td class="num">3.9%</td></tr><tr><td><b>RPS</b><div class="sub" style="font-size:11px">평균 1.9/s</div></td><td class="num"><span class="d-good">1.7%</span></td><td class="num">3.9%</td></tr></tbody>
-    </table></div>
-    <div class="note">
-      <b>CV</b>(변동계수) = 표준편차 ÷ 평균. 같은 조건에서 값이 얼마나 흔들리는가.<br>
-      <b>MDE</b>(최소 검출 가능 효과) = 개선 전/후를 각각 n회 측정할 때 <b>이 값보다 작은 변화는 구분되지 않는다</b>.
-      정규 근사이므로 낙관적인 하한입니다 — n이 작으면 실제로는 더 큽니다.
-    </div>
-    <div class="note">
-      <b>판정 축 권고 — 전체 기준</b><br>
-      지연 축 중 가장 예민한 것은 <b>P95 응답시간</b> 입니다 (CV 27.4% ·
-      MDE <b>62.8%</b>). 비교: P99 응답시간 MDE 282.6% · 평균 응답시간 MDE 99.1%<br>
-      10% 개선을 검출하려면 조건당 <b>119회</b>가
-      필요합니다.
-    </div>
-  </div>
-      
-      <div class="sparks"><div class="spark">
-        <div class="st">P95 응답시간</div>
-        <div class="sv">14ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+      <div class="sparks sparks-4"><div class="spark">
+      <div class="st">지연 · P95 응답시간</div>
+      <div class="sv">14ms</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
   <path d="M0.00,3.00 L50.00,26.29 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,3.00 L50.00,26.29 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">평균 응답시간</div>
-        <div class="sv">9.1ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
-  <path d="M0.00,3.00 L50.00,33.33 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L50.00,33.33 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">P99 응답시간</div>
-        <div class="sv">24ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P99 응답시간">
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,36.78 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,36.78" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="36.78" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">TPS</div>
-        <div class="sv">0.9/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+      <div class="range">
+        <span>n=3 · CV 27.4%</span>
+        <span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">처리 · TPS</div>
+      <div class="sv">0.9/s</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
   <path d="M0.00,3.00 L50.00,17.42 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,3.00 L50.00,17.42 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">RPS</div>
-        <div class="sv">1.9/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
-  <path d="M0.00,3.00 L50.00,17.42 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L50.00,17.42 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">오류율</div>
-        <div class="sv">0.0%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
-  <path d="M0.00,37.00 L50.00,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L50.00,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">CPU 포화도</div>
-        <div class="sv">2.9%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,36.72 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,36.72" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="36.72" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Heap 최대</div>
-        <div class="sv">751 MB</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
-  <path d="M0.00,37.00 L50.00,16.04 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L50.00,16.04 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">GC 최대 정지</div>
-        <div class="sv">126ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+      <div class="range">
+        <span>n=3 · CV 1.7%</span>
+        <span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">비용 · 요청당 스택 CPU</div>
+      <div class="sv">37ms</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="요청당 스택 CPU">
   <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Slow Query</div>
-        <div class="sv">94</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
-  <path d="M0.00,33.88 L50.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,33.88 L50.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+      <div class="range">
+        <span>n=2 · CV 9.5%</span>
+        <span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">여유 · JVM Heap 포화도</div>
+      <div class="sv">73.3%</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="JVM Heap 포화도">
+  <path d="M0.00,37.00 L50.00,16.04 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L50.00,16.04 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">MySQL QPS</div>
-        <div class="sv">11.1/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,17.59 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,17.59" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="17.59" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Redis 적중률</div>
-        <div class="sv">0.0%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
-  <path d="M0.00,37.00 L50.00,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L50.00,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div></div>
+      <div class="range">
+        <span>n=3 · CV 14.3%</span>
+        <span></span>
+      </div>
+    </div></div>
+      <div class="verdict-line"><b>실패 축</b> 없음<span class="sep">|</span><b>검출 한계</b> MDE <b>62.8%</b> (P95 응답시간 · 전체 n=3) · 10% 개선 검출에 119회 필요
+    <a href="trends/boards-a63d426ee0b5.html">근거 보기 →</a></div>
+      
     </section><section>
-      <h2>normal-day — 추세 (9회)</h2>
+      <h2>normal-day <span class="sub" style="font-weight:400">(9회)</span>
+        <a class="drill" href="trends/normal-day-bfa06492dbb5.html">상세 조사 →</a></h2>
       <div class="sub" style="margin:-6px 0 12px">데이터셋 medium (생성 sha256:aae4bccfae5e · 상태 sha256:ffe696d17416) · ramping-arrival-rate 0→4@3m0s→4@5m0s→0@2m0s maxVU 600 · 계열 <code>bfa06492dbb5</code></div>
       <div class="regime">
     <div class="rg-row"><i class="rg-unassessed" title="#61 2026-08-20 13:39 · 체제 미판정 (saturation.js 도입 이전) · p95 305ms"></i><i class="rg-unassessed" title="#62 2026-08-20 13:52 · 체제 미판정 (saturation.js 도입 이전) · p95 252ms"></i><i class="rg-unassessed" title="#63 2026-08-20 14:04 · 체제 미판정 (saturation.js 도입 이전) · p95 276ms"></i><i class="rg-near_limit rg-queued" title="#65 2026-08-20 16:06 · 체제 한계 근처 · p95 784ms · ⚠ 커넥션 대기 최대 21 · 도착률 달성 101%"></i><i class="rg-headroom" title="#66 2026-08-20 16:19 · 체제 여유 · p95 358ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#67 2026-08-20 20:32 · 체제 여유 · p95 425ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#68 2026-08-20 20:44 · 체제 여유 · p95 286ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#69 2026-08-20 20:58 · 체제 여유 · p95 376ms · 도착률 달성 99%"></i><i class="rg-headroom" title="#70 2026-08-20 21:10 · 체제 여유 · p95 368ms · 도착률 달성 100%"></i></div>
@@ -743,223 +549,79 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <span><i class="rg-headroom rg-unmeasured"></i> 측정 불가</span>
       <span style="margin-left:auto;color:var(--ink-muted)">← 오래된 순 · 마우스를 올리면 상세</span>
     </div>
-    <div class="note" style="border-color:var(--serious)"><b>이 계열에 서로 다른 체제가 섞여 있습니다.</b> 포화 영역의 p95 는 <code>R = N/X</code> 로 결정되고 비포화 영역의 p95 는 서비스 시간입니다 — <b>서로 다른 물리량</b>이라 아래 증감률에 의미가 없습니다.</div><div class="note" style="border-color:var(--serious)">커넥션 대기가 발생한 회차가 <b>1건</b> 있습니다. 그 회차의 응답시간에는 대기 시간이 섞여 있습니다 — 아래 안정성 표에서 제외했을 때의 값을 함께 보십시오.</div>
+    <div class="note" style="border-color:var(--serious)"><b>이 계열에 서로 다른 체제가 섞여 있습니다.</b> 포화 영역의 p95 는 <code>R = N/X</code> 로 결정되고 비포화 영역의 p95 는 서비스 시간입니다 — <b>서로 다른 물리량</b>이라 아래 증감률에 의미가 없습니다.</div><div class="note" style="border-color:var(--serious)">커넥션 대기가 발생한 회차가 <b>1건</b> 있습니다. 그 회차의 응답시간에는 대기 시간이 섞여 있습니다 — 아래 검출 한계는 그 회차를 <b>제외한</b> 표본으로 계산했습니다. 두 표본의 차이는 상세 조사 화면에서 나란히 볼 수 있습니다.</div>
   </div>
-      <div class="card" style="margin-bottom:14px">
-    <b>실패 축 — 무엇이 이 계열을 실패시켰나</b>
-    <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.9"><li><b>P99 응답시간</b> — 9/9회 실패 <span class="d-bad">절대 게이트</span>
-      <code style="font-size:11px;color:var(--ink-muted)">k6.phases.measure.p99</code></li><li><b>CPU throttling 비율</b> — 2/9회 실패 <span class="d-bad">절대 게이트</span>
-      <code style="font-size:11px;color:var(--ink-muted)">infra.flat.cpu.throttledPct</code></li><li><b>P95 응답시간</b> — 2/9회 실패 <span class="d-bad">절대 게이트</span>
-      <code style="font-size:11px;color:var(--ink-muted)">k6.phases.measure.p95</code></li><li><b>평균 응답시간</b> — 2/9회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">k6.phases.measure.avg</code></li><li><b>HikariCP 포화도</b> — 1/9회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">infra.flat.saturation.hikariPct</code></li><li><b>HikariCP 대기 스레드 최대</b> — 1/9회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">infra.flat.pool.hikariPending.max</code></li></ul>
-    <div class="note" style="border-color:var(--serious)">
-      <b>9회 전부 같은 축(P99 응답시간)에서 실패했습니다.</b>
-      매번 같은 곳에서 걸린다면 노이즈가 아니라 구조입니다. 다른 지표가 SLO 안에 있어도
-      이 축이 실패 원인이므로, 개선 대상은 이쪽입니다.</div>
-  </div>
-      <div class="card" style="margin-bottom:14px">
-    <b>안정성 — 이 계열에서 무엇을 검출할 수 있는가</b>
-    <div class="scroll" style="margin-top:8px"><table class="hist-table">
-      <thead>
-        <tr><th rowspan="2">판정 축</th><th class="num" colspan="2">전체 (n=9)</th><th class="num" colspan="2">대기 발생 회차 제외 (n=8)</th><th class="num" colspan="2">최근 5회 (n=5)</th></tr>
-        <tr><th class="num">CV</th><th class="num">MDE</th><th class="num">CV</th><th class="num">MDE</th><th class="num">CV</th><th class="num">MDE</th></tr>
-      </thead>
-      <tbody><tr><td><b>P95 응답시간</b><div class="sub" style="font-size:11px">평균 381ms</div></td><td class="num"><span class="d-bad">42.3%</span></td><td class="num">55.8%</td><td class="num"><span class="d-flat">18.0%</span></td><td class="num">25.3%</td><td class="num"><span class="d-good">13.8%</span></td><td class="num">24.4%</td></tr><tr><td><b>P99 응답시간</b><div class="sub" style="font-size:11px">평균 2.03s</div></td><td class="num"><span class="d-good">11.1%</span></td><td class="num">14.6%</td><td class="num"><span class="d-good">8.8%</span></td><td class="num">12.4%</td><td class="num"><span class="d-good">7.0%</span></td><td class="num">12.4%</td></tr><tr><td><b>평균 응답시간</b><div class="sub" style="font-size:11px">평균 85ms</div></td><td class="num"><span class="d-flat">24.8%</span></td><td class="num">32.8%</td><td class="num"><span class="d-good">13.0%</span></td><td class="num">18.3%</td><td class="num"><span class="d-good">11.9%</span></td><td class="num">21.1%</td></tr><tr><td><b>TPS</b><div class="sub" style="font-size:11px">평균 4.0/s</div></td><td class="num"><span class="d-good">0.5%</span></td><td class="num">0.6%</td><td class="num"><span class="d-good">0.4%</span></td><td class="num">0.5%</td><td class="num"><span class="d-good">0.4%</span></td><td class="num">0.7%</td></tr><tr><td><b>RPS</b><div class="sub" style="font-size:11px">평균 17.1/s</div></td><td class="num"><span class="d-good">2.1%</span></td><td class="num">2.7%</td><td class="num"><span class="d-good">2.2%</span></td><td class="num">3.1%</td><td class="num"><span class="d-good">2.6%</span></td><td class="num">4.6%</td></tr></tbody>
-    </table></div>
-    <div class="note">
-      <b>CV</b>(변동계수) = 표준편차 ÷ 평균. 같은 조건에서 값이 얼마나 흔들리는가.<br>
-      <b>MDE</b>(최소 검출 가능 효과) = 개선 전/후를 각각 n회 측정할 때 <b>이 값보다 작은 변화는 구분되지 않는다</b>.
-      정규 근사이므로 낙관적인 하한입니다 — n이 작으면 실제로는 더 큽니다.
-    </div>
-    <div class="note">
-      <b>판정 축 권고 — 대기 발생 회차 제외 기준</b><br>
-      지연 축 중 가장 예민한 것은 <b>P99 응답시간</b> 입니다 (CV 8.8% ·
-      MDE <b>12.4%</b>). 비교: P95 응답시간 MDE 25.3% · 평균 응답시간 MDE 18.3%<br>
-      10% 개선을 검출하려면 조건당 <b>13회</b>가
-      필요합니다.
-    </div>
-  </div>
-      <div class="card" style="margin-bottom:14px">
-        <b>누적 저하 감지</b>
-        <div class="note" style="border-color:var(--serious)">
-          최근 9회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
-          · <b>GC 최대 정지</b> 40ms → 99ms (+147.5%)<br>· <b>P95 응답시간</b> 290ms → 368ms (+26.8%)<br>· <b>평균 응답시간</b> 71ms → 81ms (+13.5%)<br>· <b>P99 응답시간</b> 1.85s → 2.07s (+12.1%)
-          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
-        </div>
-      </div>
-      <div class="sparks"><div class="spark">
-        <div class="st">P95 응답시간</div>
-        <div class="sv">368ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
-  <path d="M0.00,33.59 L12.50,37.00 L25.00,35.49 L37.50,3.00 L50.00,30.25 L62.50,25.92 L75.00,34.80 L87.50,29.11 L100.00,29.58 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,33.59 L12.50,37.00 L25.00,35.49 L37.50,3.00 L50.00,30.25 L62.50,25.92 L75.00,34.80 L87.50,29.11 L100.00,29.58" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="29.58" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>9회 · min 252ms</span>
-          <span><span class="d-bad">▲ +26.8%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">평균 응답시간</div>
-        <div class="sv">93ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
-  <path d="M0.00,37.00 L12.50,36.68 L25.00,34.51 L37.50,3.00 L50.00,30.67 L62.50,23.43 L75.00,33.51 L87.50,34.42 L100.00,24.45 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L12.50,36.68 L25.00,34.51 L37.50,3.00 L50.00,30.67 L62.50,23.43 L75.00,33.51 L87.50,34.42 L100.00,24.45" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="24.45" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>9회 · min 69ms</span>
-          <span><span class="d-bad">▲ +13.5%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">P99 응답시간</div>
-        <div class="sv">2.15s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P99 응답시간">
+      <div class="sparks sparks-4"><div class="spark">
+      <div class="st">지연 · P99 응답시간</div>
+      <div class="sv">2.15s</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P99 응답시간">
   <path d="M0.00,31.49 L12.50,37.00 L25.00,32.71 L37.50,3.00 L50.00,31.01 L62.50,11.97 L75.00,21.05 L87.50,24.00 L100.00,17.33 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,31.49 L12.50,37.00 L25.00,32.71 L37.50,3.00 L50.00,31.01 L62.50,11.97 L75.00,21.05 L87.50,24.00 L100.00,17.33" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="17.33" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>9회 · min 1.75s</span>
-          <span><span class="d-bad">▲ +12.1%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">TPS</div>
-        <div class="sv">4.0/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+      <div class="range">
+        <span>n=9 · CV 11.1%</span>
+        <span><span class="d-bad">▲ +12.1%</span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">처리 · TPS</div>
+      <div class="sv">4.0/s</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
   <path d="M0.00,23.00 L12.50,33.00 L25.00,15.00 L37.50,3.00 L50.00,13.00 L62.50,23.00 L75.00,21.00 L87.50,37.00 L100.00,35.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,23.00 L12.50,33.00 L25.00,15.00 L37.50,3.00 L50.00,13.00 L62.50,23.00 L75.00,21.00 L87.50,37.00 L100.00,35.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="35.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>9회 · min 4.0/s</span>
-          <span><span class="d-flat">▼ -0.2%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">RPS</div>
-        <div class="sv">16.5/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
-  <path d="M0.00,21.24 L12.50,27.21 L25.00,28.14 L37.50,22.99 L50.00,9.70 L62.50,3.00 L75.00,8.77 L87.50,24.53 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,21.24 L12.50,27.21 L25.00,28.14 L37.50,22.99 L50.00,9.70 L62.50,3.00 L75.00,8.77 L87.50,24.53 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+      <div class="range">
+        <span>n=9 · CV 0.5%</span>
+        <span><span class="d-flat">▼ -0.2%</span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">비용 · 요청당 스택 CPU</div>
+      <div class="sv">83ms</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="요청당 스택 CPU">
+  <path d="M0.00,36.12 L12.50,37.00 L25.00,36.46 L37.50,3.00 L50.00,24.89 L62.50,3.46 L75.00,28.09 L87.50,26.70 L100.00,15.57 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,36.12 L12.50,37.00 L25.00,36.46 L37.50,3.00 L50.00,24.89 L62.50,3.46 L75.00,28.09 L87.50,26.70 L100.00,15.57" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+  <circle cx="100.00" cy="15.57" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>9회 · min 16.5/s</span>
-          <span><span class="d-good">▲ +2.9%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">오류율</div>
-        <div class="sv">0.0%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
-  <path d="M0.00,37.00 L12.50,37.00 L25.00,37.00 L37.50,37.00 L50.00,37.00 L62.50,37.00 L75.00,37.00 L87.50,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L12.50,37.00 L25.00,37.00 L37.50,37.00 L50.00,37.00 L62.50,37.00 L75.00,37.00 L87.50,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">CPU 포화도</div>
-        <div class="sv">49.5%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
-  <path d="M0.00,37.00 L12.50,23.14 L25.00,29.88 L37.50,3.00 L50.00,29.97 L62.50,10.43 L75.00,30.50 L87.50,30.75 L100.00,24.92 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L12.50,23.14 L25.00,29.88 L37.50,3.00 L50.00,29.97 L62.50,10.43 L75.00,30.50 L87.50,30.75 L100.00,24.92" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="24.92" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>9회 · min 40.9%</span>
-          <span><span class="d-good">▼ -5.1%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Heap 최대</div>
-        <div class="sv">729 MB</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+      <div class="range">
+        <span>n=9 · CV 9.8%</span>
+        <span><span class="d-bad">▲ +9.2%</span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">여유 · JVM Heap 포화도</div>
+      <div class="sv">71.2%</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="JVM Heap 포화도">
   <path d="M0.00,16.47 L12.50,24.70 L25.00,9.30 L37.50,21.94 L50.00,13.96 L62.50,33.88 L75.00,7.82 L87.50,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,16.47 L12.50,24.70 L25.00,9.30 L37.50,21.94 L50.00,13.96 L62.50,33.88 L75.00,7.82 L87.50,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>9회 · min 729 MB</span>
-          <span><span class="d-flat">▲ +1.4%</span></span>
+      <div class="range">
+        <span>n=9 · CV 3.0%</span>
+        <span><span class="d-flat">▲ +1.4%</span></span>
+      </div>
+    </div></div>
+      <div class="verdict-line"><b>실패 축</b> 9/9회 <b>P99 응답시간</b> <span class="d-bad">절대 게이트</span> <span style="color:var(--ink-muted)">외 5개</span><span class="sep">|</span><b>검출 한계</b> MDE <b>12.4%</b> (P99 응답시간 · 대기 발생 회차 제외 n=8) · 10% 개선 검출에 13회 필요
+    <a href="trends/normal-day-bfa06492dbb5.html">근거 보기 →</a></div>
+      <div class="card" style="margin-top:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 9회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>GC 최대 정지</b> 40ms → 99ms (+147.5%)<br>· <b>P95 응답시간</b> 290ms → 368ms (+26.8%)<br>· <b>평균 응답시간</b> 71ms → 81ms (+13.5%)<br>· <b>P99 응답시간</b> 1.85s → 2.07s (+12.1%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+          <a href="trends/normal-day-bfa06492dbb5.html">상세 조사에서 회차별로 확인 →</a>
         </div>
-      </div><div class="spark">
-        <div class="st">GC 최대 정지</div>
-        <div class="sv">82ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
-  <path d="M0.00,34.94 L12.50,36.48 L25.00,37.00 L37.50,29.27 L50.00,28.11 L62.50,3.00 L75.00,22.96 L87.50,28.63 L100.00,30.30 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,34.94 L12.50,36.48 L25.00,37.00 L37.50,29.27 L50.00,28.11 L62.50,3.00 L75.00,22.96 L87.50,28.63 L100.00,30.30" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="30.30" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>9회 · min 30ms</span>
-          <span><span class="d-bad">▲ +147.5%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Slow Query</div>
-        <div class="sv">730</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
-  <path d="M0.00,24.82 L12.50,37.00 L25.00,24.82 L37.50,28.18 L50.00,3.00 L62.50,13.07 L75.00,12.66 L87.50,29.02 L100.00,34.48 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,24.82 L12.50,37.00 L25.00,24.82 L37.50,28.18 L50.00,3.00 L62.50,13.07 L75.00,12.66 L87.50,29.02 L100.00,34.48" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="34.48" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>9회 · min 724</span>
-          <span><span class="d-bad">▲ +4.3%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">MySQL QPS</div>
-        <div class="sv">4,544/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
-  <path d="M0.00,31.67 L12.50,36.31 L25.00,35.58 L37.50,9.96 L50.00,14.52 L62.50,3.00 L75.00,33.66 L87.50,37.00 L100.00,35.03 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,31.67 L12.50,36.31 L25.00,35.58 L37.50,9.96 L50.00,14.52 L62.50,3.00 L75.00,33.66 L87.50,37.00 L100.00,35.03" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="35.03" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>9회 · min 4,487/s</span>
-          <span><span class="d-flat">▼ -0.0%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Redis 적중률</div>
-        <div class="sv">99.3%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
-  <path d="M0.00,23.39 L12.50,25.26 L25.00,3.49 L37.50,35.81 L50.00,12.46 L62.50,3.00 L75.00,7.39 L87.50,37.00 L100.00,10.76 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,23.39 L12.50,25.26 L25.00,3.49 L37.50,35.81 L50.00,12.46 L62.50,3.00 L75.00,7.39 L87.50,37.00 L100.00,10.76" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="10.76" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>9회 · min 99.2%</span>
-          <span><span class="d-flat">▲ +0.1%</span></span>
-        </div>
-      </div></div>
+      </div>
     </section><section>
-      <h2>normal-day — 추세 (3회)</h2>
+      <h2>normal-day <span class="sub" style="font-weight:400">(3회)</span>
+        <a class="drill" href="trends/normal-day-782ab664be8d.html">상세 조사 →</a></h2>
       <div class="sub" style="margin:-6px 0 12px">데이터셋 medium (생성 sha256:aae4bccfae5e · 상태 sha256:ffe696d17416) · ramping-vus 0→5@2m0s→5@30s→0@2m0s · 계열 <code>782ab664be8d</code></div>
       <div class="regime">
     <div class="rg-row"><i class="rg-unassessed" title="#56 2026-08-19 15:59 · 체제 미판정 (saturation.js 도입 이전) · p95 396ms"></i><i class="rg-unassessed" title="#57 2026-08-20 11:18 · 체제 미판정 (saturation.js 도입 이전) · p95 232ms"></i><i class="rg-unassessed" title="#58 2026-08-20 11:31 · 체제 미판정 (saturation.js 도입 이전) · p95 91ms"></i></div>
@@ -974,207 +636,69 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     </div>
     <div class="note" style="border-color:var(--serious)">이 계열에는 포화 판정 기록이 없습니다(<code>saturation.js</code> 도입 2026-08-20 이전 실행). <b>판정 없음은 여유 있음이 아닙니다.</b> <code>node tools/collect.js &lt;runId&gt; --force --no-wait</code> 로 재수집하면 소급 판정됩니다(Prometheus 보관 기간 안이라면).</div>
   </div>
-      <div class="card" style="margin-bottom:14px">
-    <b>실패 축 — 무엇이 이 계열을 실패시켰나</b>
-    <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.9"><li><b>P99 응답시간</b> — 1/3회 실패 <span class="d-bad">절대 게이트</span>
-      <code style="font-size:11px;color:var(--ink-muted)">k6.phases.measure.p99</code></li><li><b>Heap 최대 사용량</b> — 1/3회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">infra.flat.heap.used.max</code></li></ul>
-    
-  </div>
-      <div class="card" style="margin-bottom:14px">
-    <b>안정성 — 이 계열에서 무엇을 검출할 수 있는가</b>
-    <div class="scroll" style="margin-top:8px"><table class="hist-table">
-      <thead>
-        <tr><th rowspan="2">판정 축</th><th class="num" colspan="2">전체 (n=3)</th></tr>
-        <tr><th class="num">CV</th><th class="num">MDE</th></tr>
-      </thead>
-      <tbody><tr><td><b>P95 응답시간</b><div class="sub" style="font-size:11px">평균 240ms</div></td><td class="num"><span class="d-bad">63.7%</span></td><td class="num">145.8%</td></tr><tr><td><b>P99 응답시간</b><div class="sub" style="font-size:11px">평균 1.24s</div></td><td class="num"><span class="d-bad">31.4%</span></td><td class="num">71.9%</td></tr><tr><td><b>평균 응답시간</b><div class="sub" style="font-size:11px">평균 71ms</div></td><td class="num"><span class="d-flat">23.2%</span></td><td class="num">53.1%</td></tr><tr><td><b>TPS</b><div class="sub" style="font-size:11px">평균 0.5/s</div></td><td class="num"><span class="d-flat">15.1%</span></td><td class="num">34.5%</td></tr><tr><td><b>RPS</b><div class="sub" style="font-size:11px">평균 2.3/s</div></td><td class="num"><span class="d-good">11.1%</span></td><td class="num">25.4%</td></tr></tbody>
-    </table></div>
-    <div class="note">
-      <b>CV</b>(변동계수) = 표준편차 ÷ 평균. 같은 조건에서 값이 얼마나 흔들리는가.<br>
-      <b>MDE</b>(최소 검출 가능 효과) = 개선 전/후를 각각 n회 측정할 때 <b>이 값보다 작은 변화는 구분되지 않는다</b>.
-      정규 근사이므로 낙관적인 하한입니다 — n이 작으면 실제로는 더 큽니다.
-    </div>
-    <div class="note">
-      <b>판정 축 권고 — 전체 기준</b><br>
-      지연 축 중 가장 예민한 것은 <b>평균 응답시간</b> 입니다 (CV 23.2% ·
-      MDE <b>53.1%</b>). 비교: P95 응답시간 MDE 145.8% · P99 응답시간 MDE 71.9%<br>
-      10% 개선을 검출하려면 조건당 <b>85회</b>가
-      필요합니다.
-    </div>
-  </div>
-      
-      <div class="sparks"><div class="spark">
-        <div class="st">P95 응답시간</div>
-        <div class="sv">91ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
-  <path d="M0.00,3.00 L50.00,21.25 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L50.00,21.25 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">평균 응답시간</div>
-        <div class="sv">59ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+      <div class="sparks sparks-4"><div class="spark">
+      <div class="st">지연 · 평균 응답시간</div>
+      <div class="sv">59ms</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
   <path d="M0.00,3.00 L50.00,29.47 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,3.00 L50.00,29.47 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">P99 응답시간</div>
-        <div class="sv">1.02s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P99 응답시간">
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,35.86 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,35.86" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="35.86" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">TPS</div>
-        <div class="sv">0.5/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+      <div class="range">
+        <span>n=3 · CV 23.2%</span>
+        <span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">처리 · TPS</div>
+      <div class="sv">0.5/s</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
   <path d="M0.00,37.00 L50.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L50.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">RPS</div>
-        <div class="sv">2.0/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
-  <path d="M0.00,18.87 L50.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,18.87 L50.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+      <div class="range">
+        <span>n=3 · CV 15.1%</span>
+        <span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">비용 · 요청당 스택 CPU</div>
+      <div class="sv">135ms</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="요청당 스택 CPU">
+  <path d="M0.00,37.00 L50.00,3.00 L100.00,19.20 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L50.00,3.00 L100.00,19.20" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+  <circle cx="100.00" cy="19.20" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">오류율</div>
-        <div class="sv">0.0%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
-  <path d="M0.00,37.00 L50.00,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L50.00,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">CPU 포화도</div>
-        <div class="sv">25.5%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
-  <path d="M0.00,34.20 L50.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,34.20 L50.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Heap 최대</div>
-        <div class="sv">756 MB</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+      <div class="range">
+        <span>n=3 · CV 22.9%</span>
+        <span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">여유 · JVM Heap 포화도</div>
+      <div class="sv">73.8%</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="JVM Heap 포화도">
   <path d="M0.00,20.43 L50.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,20.43 L50.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">GC 최대 정지</div>
-        <div class="sv">17ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,35.62 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,35.62" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="35.62" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Slow Query</div>
-        <div class="sv">19</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,25.68 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,25.68" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="25.68" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">MySQL QPS</div>
-        <div class="sv">532.2/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,19.12 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,19.12" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="19.12" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Redis 적중률</div>
-        <div class="sv">100.0%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
-  <path d="M0.00,37.00 L50.00,13.62 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L50.00,13.62 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div></div>
+      <div class="range">
+        <span>n=3 · CV 25.6%</span>
+        <span></span>
+      </div>
+    </div></div>
+      <div class="verdict-line"><b>실패 축</b> 1/3회 <b>P99 응답시간</b> <span class="d-bad">절대 게이트</span> <span style="color:var(--ink-muted)">외 1개</span><span class="sep">|</span><b>검출 한계</b> MDE <b>53.1%</b> (평균 응답시간 · 전체 n=3) · 10% 개선 검출에 85회 필요
+    <a href="trends/normal-day-782ab664be8d.html">근거 보기 →</a></div>
+      
     </section><section>
-      <h2>posts — 추세 (10회)</h2>
+      <h2>posts <span class="sub" style="font-weight:400">(10회)</span>
+        <a class="drill" href="trends/posts-dd5b9fa07060.html">상세 조사 →</a></h2>
       <div class="sub" style="margin:-6px 0 12px">데이터셋 large (생성 지문 없음 · 상태 미판정(guard off)) · — · 계열 <code>dd5b9fa07060</code></div>
       <div class="regime">
     <div class="rg-row"><i class="rg-unassessed" title="#23 2026-08-11 12:11 · 체제 미판정 (saturation.js 도입 이전) · p95 —"></i><i class="rg-unassessed" title="#24 2026-08-11 12:14 · 체제 미판정 (saturation.js 도입 이전) · p95 —"></i><i class="rg-unassessed" title="#25 2026-08-11 12:17 · 체제 미판정 (saturation.js 도입 이전) · p95 —"></i><i class="rg-unassessed" title="#26 2026-08-11 12:19 · 체제 미판정 (saturation.js 도입 이전) · p95 —"></i><i class="rg-unassessed" title="#27 2026-08-11 12:22 · 체제 미판정 (saturation.js 도입 이전) · p95 —"></i><i class="rg-unassessed" title="#28 2026-08-11 12:25 · 체제 미판정 (saturation.js 도입 이전) · p95 —"></i><i class="rg-unassessed rg-queued" title="#29 2026-08-11 12:27 · 체제 미판정 (saturation.js 도입 이전) · p95 — · ⚠ 커넥션 대기 최대 10"></i><i class="rg-unassessed" title="#30 2026-08-11 12:30 · 체제 미판정 (saturation.js 도입 이전) · p95 —"></i><i class="rg-unassessed rg-queued" title="#31 2026-08-11 12:33 · 체제 미판정 (saturation.js 도입 이전) · p95 — · ⚠ 커넥션 대기 최대 10"></i><i class="rg-unassessed rg-queued" title="#32 2026-08-11 12:36 · 체제 미판정 (saturation.js 도입 이전) · p95 — · ⚠ 커넥션 대기 최대 10"></i></div>
@@ -1187,132 +711,49 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <span><i class="rg-headroom rg-unmeasured"></i> 측정 불가</span>
       <span style="margin-left:auto;color:var(--ink-muted)">← 오래된 순 · 마우스를 올리면 상세</span>
     </div>
-    <div class="note" style="border-color:var(--serious)">커넥션 대기가 발생한 회차가 <b>3건</b> 있습니다. 그 회차의 응답시간에는 대기 시간이 섞여 있습니다 — 아래 안정성 표에서 제외했을 때의 값을 함께 보십시오.</div><div class="note" style="border-color:var(--serious)">이 계열에는 포화 판정 기록이 없습니다(<code>saturation.js</code> 도입 2026-08-20 이전 실행). <b>판정 없음은 여유 있음이 아닙니다.</b> <code>node tools/collect.js &lt;runId&gt; --force --no-wait</code> 로 재수집하면 소급 판정됩니다(Prometheus 보관 기간 안이라면).</div>
+    <div class="note" style="border-color:var(--serious)">커넥션 대기가 발생한 회차가 <b>3건</b> 있습니다. 그 회차의 응답시간에는 대기 시간이 섞여 있습니다 — 아래 검출 한계는 그 회차를 <b>제외한</b> 표본으로 계산했습니다. 두 표본의 차이는 상세 조사 화면에서 나란히 볼 수 있습니다.</div><div class="note" style="border-color:var(--serious)">이 계열에는 포화 판정 기록이 없습니다(<code>saturation.js</code> 도입 2026-08-20 이전 실행). <b>판정 없음은 여유 있음이 아닙니다.</b> <code>node tools/collect.js &lt;runId&gt; --force --no-wait</code> 로 재수집하면 소급 판정됩니다(Prometheus 보관 기간 안이라면).</div>
   </div>
-      <div class="card" style="margin-bottom:14px">
-    <b>실패 축 — 무엇이 이 계열을 실패시켰나</b>
-    <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.9"><li><b>k6.overall.p99</b> — 10/10회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">k6.overall.p99</code></li><li><b>HikariCP 포화도</b> — 5/10회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">infra.flat.saturation.hikariPct</code></li><li><b>HikariCP 대기 스레드 최대</b> — 3/10회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">infra.flat.pool.hikariPending.max</code></li><li><b>k6.overall.p95</b> — 2/10회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">k6.overall.p95</code></li><li><b>CPU throttling 비율</b> — 2/10회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">infra.flat.cpu.throttledPct</code></li></ul>
-    <div class="note" style="border-color:var(--serious)">
-      <b>10회 전부 같은 축(k6.overall.p99)에서 실패했습니다.</b>
-      매번 같은 곳에서 걸린다면 노이즈가 아니라 구조입니다. 다른 지표가 SLO 안에 있어도
-      이 축이 실패 원인이므로, 개선 대상은 이쪽입니다.</div>
-  </div>
-      <div class="card" style="margin-bottom:14px">
-    <b>안정성 — 이 계열에서 무엇을 검출할 수 있는가</b>
-    <div class="scroll" style="margin-top:8px"><table class="hist-table">
-      <thead>
-        <tr><th rowspan="2">판정 축</th><th class="num" colspan="2">전체 (n=10)</th><th class="num" colspan="2">대기 발생 회차 제외 (n=7)</th><th class="num" colspan="2">최근 5회 (n=5)</th></tr>
-        <tr><th class="num">CV</th><th class="num">MDE</th><th class="num">CV</th><th class="num">MDE</th><th class="num">CV</th><th class="num">MDE</th></tr>
-      </thead>
-      <tbody><tr><td><b>P95 응답시간</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>P99 응답시간</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>평균 응답시간</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>TPS</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>RPS</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr></tbody>
-    </table></div>
-    <div class="note">
-      <b>CV</b>(변동계수) = 표준편차 ÷ 평균. 같은 조건에서 값이 얼마나 흔들리는가.<br>
-      <b>MDE</b>(최소 검출 가능 효과) = 개선 전/후를 각각 n회 측정할 때 <b>이 값보다 작은 변화는 구분되지 않는다</b>.
-      정규 근사이므로 낙관적인 하한입니다 — n이 작으면 실제로는 더 큽니다.
-    </div>
-    
-  </div>
-      <div class="card" style="margin-bottom:14px">
+      <div class="sparks sparks-4"><div class="spark">
+        <div class="st">지연</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">P95 응답시간</span></div>
+      </div><div class="spark">
+        <div class="st">처리</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">TPS</span></div>
+      </div><div class="spark">
+        <div class="st">비용</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">요청당 스택 CPU</span></div>
+      </div><div class="spark">
+      <div class="st">여유 · HikariCP 포화도</div>
+      <div class="sv">100.0%</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="HikariCP 포화도">
+  <path d="M0.00,37.00 L11.11,37.00 L22.22,37.00 L33.33,37.00 L44.44,29.44 L55.56,3.00 L66.67,3.00 L77.78,3.00 L88.89,3.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L11.11,37.00 L22.22,37.00 L33.33,37.00 L44.44,29.44 L55.56,3.00 L66.67,3.00 L77.78,3.00 L88.89,3.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+      <div class="range">
+        <span>n=10 · CV 80.2%</span>
+        <span><span class="d-bad">▲ +900.0%</span></span>
+      </div>
+    </div></div>
+      <div class="verdict-line"><b>실패 축</b> 10/10회 <b>k6.overall.p99</b> <span style="color:var(--ink-muted)">외 4개</span>
+    <a href="trends/posts-dd5b9fa07060.html">근거 보기 →</a></div>
+      <div class="card" style="margin-top:14px">
         <b>누적 저하 감지</b>
         <div class="note" style="border-color:var(--serious)">
           최근 10회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
           · <b>Heap 최대</b> 604 MB → 705 MB (+16.7%)
           <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+          <a href="trends/posts-dd5b9fa07060.html">상세 조사에서 회차별로 확인 →</a>
         </div>
       </div>
-      <div class="sparks"><div class="spark">
-        <div class="st">CPU 포화도</div>
-        <div class="sv">82.4%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
-  <path d="M0.00,12.30 L11.11,11.01 L22.22,31.10 L33.33,19.79 L44.44,29.96 L55.56,37.00 L66.67,9.76 L77.78,3.00 L88.89,21.10 L100.00,3.40 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,12.30 L11.11,11.01 L22.22,31.10 L33.33,19.79 L44.44,29.96 L55.56,37.00 L66.67,9.76 L77.78,3.00 L88.89,21.10 L100.00,3.40" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.40" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>10회 · min 73.7%</span>
-          <span><span class="d-bad">▲ +3.4%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Heap 최대</div>
-        <div class="sv">705 MB</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
-  <path d="M0.00,4.86 L11.11,16.05 L22.22,31.44 L33.33,32.42 L44.44,25.80 L55.56,3.00 L66.67,5.36 L77.78,25.09 L88.89,37.00 L100.00,7.73 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,4.86 L11.11,16.05 L22.22,31.44 L33.33,32.42 L44.44,25.80 L55.56,3.00 L66.67,5.36 L77.78,25.09 L88.89,37.00 L100.00,7.73" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="7.73" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>10회 · min 542 MB</span>
-          <span><span class="d-bad">▲ +16.7%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">GC 최대 정지</div>
-        <div class="sv">14ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
-  <path d="M0.00,36.62 L11.11,37.00 L22.22,20.47 L33.33,22.91 L44.44,3.00 L55.56,26.67 L66.67,30.05 L77.78,31.36 L88.89,26.48 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,36.62 L11.11,37.00 L22.22,20.47 L33.33,22.91 L44.44,3.00 L55.56,26.67 L66.67,30.05 L77.78,31.36 L88.89,26.48 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>10회 · min 14ms</span>
-          <span><span class="d-good">▼ -42.7%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Slow Query</div>
-        <div class="sv">85</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
-  <path d="M0.00,27.35 L11.11,3.00 L22.22,34.34 L33.33,37.00 L44.44,29.66 L55.56,24.88 L66.67,15.89 L77.78,27.56 L88.89,8.88 L100.00,19.05 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,27.35 L11.11,3.00 L22.22,34.34 L33.33,37.00 L44.44,29.66 L55.56,24.88 L66.67,15.89 L77.78,27.56 L88.89,8.88 L100.00,19.05" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="19.05" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>10회 · min 73</span>
-          <span><span class="d-bad">▲ +9.2%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">MySQL QPS</div>
-        <div class="sv">87.3/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
-  <path d="M0.00,8.97 L11.11,12.31 L22.22,29.98 L33.33,9.75 L44.44,16.60 L55.56,27.98 L66.67,3.00 L77.78,37.00 L88.89,32.65 L100.00,28.44 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,8.97 L11.11,12.31 L22.22,29.98 L33.33,9.75 L44.44,16.60 L55.56,27.98 L66.67,3.00 L77.78,37.00 L88.89,32.65 L100.00,28.44" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="28.44" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>10회 · min 85.7/s</span>
-          <span><span class="d-good">▼ -3.2%</span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Redis 적중률</div>
-        <div class="sv">98.2%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
-  <path d="M0.00,32.48 L11.11,18.51 L22.22,32.75 L33.33,3.00 L44.44,13.99 L55.56,37.00 L66.67,15.29 L77.78,27.33 L88.89,36.62 L100.00,27.53 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,32.48 L11.11,18.51 L22.22,32.75 L33.33,3.00 L44.44,13.99 L55.56,37.00 L66.67,15.29 L77.78,27.33 L88.89,36.62 L100.00,27.53" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="27.53" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>10회 · min 98.1%</span>
-          <span><span class="d-flat">▼ -0.2%</span></span>
-        </div>
-      </div></div>
     </section><section>
-      <h2>posts — 추세 (3회)</h2>
+      <h2>posts <span class="sub" style="font-weight:400">(3회)</span>
+        <a class="drill" href="trends/posts-a3e3df546902.html">상세 조사 →</a></h2>
       <div class="sub" style="margin:-6px 0 12px">데이터셋 large (생성 sha256:bb5fdd9cb816 · 상태 sha256:c230eee635a4) · constant-vus 10VU 1m0s · 계열 <code>a3e3df546902</code></div>
       <div class="regime">
     <div class="rg-row"><i class="rg-unassessed" title="#36 2026-08-16 15:39 · 체제 미판정 (saturation.js 도입 이전) · p95 1.85s"></i><i class="rg-unassessed" title="#37 2026-08-16 15:43 · 체제 미판정 (saturation.js 도입 이전) · p95 2.01s"></i><i class="rg-unassessed" title="#38 2026-08-16 15:47 · 체제 미판정 (saturation.js 도입 이전) · p95 1.91s"></i></div>
@@ -1327,201 +768,59 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     </div>
     <div class="note" style="border-color:var(--serious)">이 계열에는 포화 판정 기록이 없습니다(<code>saturation.js</code> 도입 2026-08-20 이전 실행). <b>판정 없음은 여유 있음이 아닙니다.</b> <code>node tools/collect.js &lt;runId&gt; --force --no-wait</code> 로 재수집하면 소급 판정됩니다(Prometheus 보관 기간 안이라면).</div>
   </div>
-      
-      <div class="card" style="margin-bottom:14px">
-    <b>안정성 — 이 계열에서 무엇을 검출할 수 있는가</b>
-    <div class="scroll" style="margin-top:8px"><table class="hist-table">
-      <thead>
-        <tr><th rowspan="2">판정 축</th><th class="num" colspan="2">전체 (n=3)</th></tr>
-        <tr><th class="num">CV</th><th class="num">MDE</th></tr>
-      </thead>
-      <tbody><tr><td><b>P95 응답시간</b><div class="sub" style="font-size:11px">평균 1.93s</div></td><td class="num"><span class="d-good">4.3%</span></td><td class="num">9.9%</td></tr><tr><td><b>P99 응답시간</b><div class="sub" style="font-size:11px">평균 2.70s</div></td><td class="num"><span class="d-flat">29.3%</span></td><td class="num">67.1%</td></tr><tr><td><b>평균 응답시간</b><div class="sub" style="font-size:11px">평균 200ms</div></td><td class="num"><span class="d-flat">16.9%</span></td><td class="num">38.6%</td></tr><tr><td><b>TPS</b><div class="sub" style="font-size:11px">평균 1.0/s</div></td><td class="num"><span class="d-good">3.6%</span></td><td class="num">8.3%</td></tr><tr><td><b>RPS</b><div class="sub" style="font-size:11px">평균 3.8/s</div></td><td class="num"><span class="d-good">3.9%</span></td><td class="num">9.0%</td></tr></tbody>
-    </table></div>
-    <div class="note">
-      <b>CV</b>(변동계수) = 표준편차 ÷ 평균. 같은 조건에서 값이 얼마나 흔들리는가.<br>
-      <b>MDE</b>(최소 검출 가능 효과) = 개선 전/후를 각각 n회 측정할 때 <b>이 값보다 작은 변화는 구분되지 않는다</b>.
-      정규 근사이므로 낙관적인 하한입니다 — n이 작으면 실제로는 더 큽니다.
-    </div>
-    <div class="note">
-      <b>판정 축 권고 — 전체 기준</b><br>
-      지연 축 중 가장 예민한 것은 <b>P95 응답시간</b> 입니다 (CV 4.3% ·
-      MDE <b>9.9%</b>). 비교: P99 응답시간 MDE 67.1% · 평균 응답시간 MDE 38.6%<br>
-      10% 개선을 검출하려면 조건당 <b>3회</b>가
-      필요합니다.
-    </div>
-  </div>
-      
-      <div class="sparks"><div class="spark">
-        <div class="st">P95 응답시간</div>
-        <div class="sv">1.91s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+      <div class="sparks sparks-4"><div class="spark">
+      <div class="st">지연 · P95 응답시간</div>
+      <div class="sv">1.91s</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
   <path d="M0.00,37.00 L50.00,3.00 L100.00,24.42 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L50.00,3.00 L100.00,24.42" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="24.42" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">평균 응답시간</div>
-        <div class="sv">182ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,36.14 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,36.14" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="36.14" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">P99 응답시간</div>
-        <div class="sv">2.32s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P99 응답시간">
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,33.47 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,33.47" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="33.47" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">TPS</div>
-        <div class="sv">1.0/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+      <div class="range">
+        <span>n=3 · CV 4.3%</span>
+        <span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">처리 · TPS</div>
+      <div class="sv">1.0/s</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
   <path d="M0.00,37.00 L50.00,3.00 L100.00,26.15 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L50.00,3.00 L100.00,26.15" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="26.15" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
+      <div class="range">
+        <span>n=3 · CV 3.6%</span>
+        <span></span>
+      </div>
+    </div><div class="spark">
+        <div class="st">비용</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">요청당 스택 CPU</span></div>
       </div><div class="spark">
-        <div class="st">RPS</div>
-        <div class="sv">3.9/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
-  <path d="M0.00,37.00 L50.00,11.83 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L50.00,11.83 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">오류율</div>
-        <div class="sv">0.0%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
-  <path d="M0.00,37.00 L50.00,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L50.00,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">CPU 포화도</div>
-        <div class="sv">72.9%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+      <div class="st">여유 · CPU 포화도</div>
+      <div class="sv">72.9%</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
   <path d="M0.00,37.00 L50.00,3.00 L100.00,13.69 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L50.00,3.00 L100.00,13.69" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="13.69" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Heap 최대</div>
-        <div class="sv">439 MB</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,34.02 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,34.02" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="34.02" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">GC 최대 정지</div>
-        <div class="sv">12ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
-  <path d="M0.00,3.00 L50.00,17.57 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L50.00,17.57 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Slow Query</div>
-        <div class="sv">49</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,3.02 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,3.02" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.02" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">MySQL QPS</div>
-        <div class="sv">45.1/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,6.64 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,6.64" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="6.64" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Redis 적중률</div>
-        <div class="sv">97.2%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,32.03 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,32.03" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="32.03" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div></div>
+      <div class="range">
+        <span>n=3 · CV 2.8%</span>
+        <span></span>
+      </div>
+    </div></div>
+      <div class="verdict-line"><b>실패 축</b> 없음<span class="sep">|</span><b>검출 한계</b> MDE <b>9.9%</b> (P95 응답시간 · 전체 n=3) · 10% 개선 검출에 3회 필요
+    <a href="trends/posts-a3e3df546902.html">근거 보기 →</a></div>
+      
     </section><section>
-      <h2>posts — 추세 (2회)</h2>
+      <h2>posts <span class="sub" style="font-weight:400">(2회)</span>
+        <a class="drill" href="trends/posts-0f6234c5b1de.html">상세 조사 →</a></h2>
       <div class="sub" style="margin:-6px 0 12px">데이터셋 large (생성 지문 없음 · 상태 미판정(guard off)) · — · 계열 <code>0f6234c5b1de</code></div>
       <div class="regime">
     <div class="rg-row"><i class="rg-unassessed" title="#21 2026-08-11 12:07 · 체제 미판정 (saturation.js 도입 이전) · p95 —"></i><i class="rg-unassessed" title="#22 2026-08-11 12:08 · 체제 미판정 (saturation.js 도입 이전) · p95 —"></i></div>
@@ -1536,114 +835,39 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     </div>
     <div class="note" style="border-color:var(--serious)">이 계열에는 포화 판정 기록이 없습니다(<code>saturation.js</code> 도입 2026-08-20 이전 실행). <b>판정 없음은 여유 있음이 아닙니다.</b> <code>node tools/collect.js &lt;runId&gt; --force --no-wait</code> 로 재수집하면 소급 판정됩니다(Prometheus 보관 기간 안이라면).</div>
   </div>
-      <div class="card" style="margin-bottom:14px">
-    <b>실패 축 — 무엇이 이 계열을 실패시켰나</b>
-    <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.9"><li><b>k6.overall.p95</b> — 2/2회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">k6.overall.p95</code></li><li><b>k6.overall.p99</b> — 2/2회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">k6.overall.p99</code></li></ul>
-    <div class="note" style="border-color:var(--serious)">
-      <b>2회 전부 같은 축(k6.overall.p95)에서 실패했습니다.</b>
-      매번 같은 곳에서 걸린다면 노이즈가 아니라 구조입니다. 다른 지표가 SLO 안에 있어도
-      이 축이 실패 원인이므로, 개선 대상은 이쪽입니다.</div>
-  </div>
-      <div class="card" style="margin-bottom:14px">
-    <b>안정성 — 이 계열에서 무엇을 검출할 수 있는가</b>
-    <div class="scroll" style="margin-top:8px"><table class="hist-table">
-      <thead>
-        <tr><th rowspan="2">판정 축</th><th class="num" colspan="2">전체 (n=2)</th></tr>
-        <tr><th class="num">CV</th><th class="num">MDE</th></tr>
-      </thead>
-      <tbody><tr><td><b>P95 응답시간</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>P99 응답시간</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>평균 응답시간</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>TPS</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>RPS</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr></tbody>
-    </table></div>
-    <div class="note">
-      <b>CV</b>(변동계수) = 표준편차 ÷ 평균. 같은 조건에서 값이 얼마나 흔들리는가.<br>
-      <b>MDE</b>(최소 검출 가능 효과) = 개선 전/후를 각각 n회 측정할 때 <b>이 값보다 작은 변화는 구분되지 않는다</b>.
-      정규 근사이므로 낙관적인 하한입니다 — n이 작으면 실제로는 더 큽니다.
-    </div>
-    
-  </div>
+      <div class="sparks sparks-4"><div class="spark">
+        <div class="st">지연</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">P95 응답시간</span></div>
+      </div><div class="spark">
+        <div class="st">처리</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">TPS</span></div>
+      </div><div class="spark">
+        <div class="st">비용</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">요청당 스택 CPU</span></div>
+      </div><div class="spark">
+      <div class="st">여유 · CPU 포화도</div>
+      <div class="sv">69.1%</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+      <div class="range">
+        <span>n=2 · CV 0.8%</span>
+        <span></span>
+      </div>
+    </div></div>
+      <div class="verdict-line"><b>실패 축</b> 2/2회 <b>k6.overall.p95</b> <span style="color:var(--ink-muted)">외 1개</span>
+    <a href="trends/posts-0f6234c5b1de.html">근거 보기 →</a></div>
       
-      <div class="sparks"><div class="spark">
-        <div class="st">CPU 포화도</div>
-        <div class="sv">69.1%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
-  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Heap 최대</div>
-        <div class="sv">356 MB</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
-  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">GC 최대 정지</div>
-        <div class="sv">9.0ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none"></svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Slow Query</div>
-        <div class="sv">21</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">MySQL QPS</div>
-        <div class="sv">24.9/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Redis 적중률</div>
-        <div class="sv">95.9%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div></div>
     </section><section>
-      <h2>posts — 추세 (2회)</h2>
+      <h2>posts <span class="sub" style="font-weight:400">(2회)</span>
+        <a class="drill" href="trends/posts-f34be4a231c0.html">상세 조사 →</a></h2>
       <div class="sub" style="margin:-6px 0 12px">데이터셋 smoke (생성 지문 없음 · 상태 미판정(guard off)) · constant-vus 20VU 1m0s · 계열 <code>f34be4a231c0</code></div>
       <div class="regime">
     <div class="rg-row"><i class="rg-unassessed" title="#33 2026-08-11 21:02 · 체제 미판정 (saturation.js 도입 이전) · p95 —"></i><i class="rg-unassessed" title="#34 2026-08-11 21:03 · 체제 미판정 (saturation.js 도입 이전) · p95 —"></i></div>
@@ -1658,27 +882,29 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     </div>
     <div class="note" style="border-color:var(--serious)">이 계열에는 포화 판정 기록이 없습니다(<code>saturation.js</code> 도입 2026-08-20 이전 실행). <b>판정 없음은 여유 있음이 아닙니다.</b> <code>node tools/collect.js &lt;runId&gt; --force --no-wait</code> 로 재수집하면 소급 판정됩니다(Prometheus 보관 기간 안이라면).</div>
   </div>
+      <div class="sparks sparks-4"><div class="spark">
+        <div class="st">지연</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">P95 응답시간</span></div>
+      </div><div class="spark">
+        <div class="st">처리</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">TPS</span></div>
+      </div><div class="spark">
+        <div class="st">비용</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">요청당 스택 CPU</span></div>
+      </div><div class="spark">
+        <div class="st">여유</div>
+        <div class="sv" style="color:var(--ink-muted)">미수집</div>
+        <div class="range"><span style="color:var(--ink-muted)">CPU 포화도</span></div>
+      </div></div>
+      <div class="verdict-line"><b>실패 축</b> 없음
+    <a href="trends/posts-f34be4a231c0.html">근거 보기 →</a></div>
       
-      <div class="card" style="margin-bottom:14px">
-    <b>안정성 — 이 계열에서 무엇을 검출할 수 있는가</b>
-    <div class="scroll" style="margin-top:8px"><table class="hist-table">
-      <thead>
-        <tr><th rowspan="2">판정 축</th><th class="num" colspan="2">전체 (n=2)</th></tr>
-        <tr><th class="num">CV</th><th class="num">MDE</th></tr>
-      </thead>
-      <tbody><tr><td><b>P95 응답시간</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>P99 응답시간</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>평균 응답시간</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>TPS</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr><tr><td><b>RPS</b><div class="sub" style="font-size:11px">평균 —</div></td><td class="num">—</td><td class="num">—</td></tr></tbody>
-    </table></div>
-    <div class="note">
-      <b>CV</b>(변동계수) = 표준편차 ÷ 평균. 같은 조건에서 값이 얼마나 흔들리는가.<br>
-      <b>MDE</b>(최소 검출 가능 효과) = 개선 전/후를 각각 n회 측정할 때 <b>이 값보다 작은 변화는 구분되지 않는다</b>.
-      정규 근사이므로 낙관적인 하한입니다 — n이 작으면 실제로는 더 큽니다.
-    </div>
-    
-  </div>
-      
-      <div class="sparks"></div>
     </section><section>
-      <h2>read-heavy — 추세 (2회)</h2>
+      <h2>read-heavy <span class="sub" style="font-weight:400">(2회)</span>
+        <a class="drill" href="trends/read-heavy-fcc405b4e94c.html">상세 조사 →</a></h2>
       <div class="sub" style="margin:-6px 0 12px">데이터셋 smoke (생성 sha256:e8b64c4c2c8d · 상태 sha256:913bf8e8777c) · ramping-vus 0→5@30s→5@1m0s→0@2m0s · 계열 <code>fcc405b4e94c</code></div>
       <div class="regime">
     <div class="rg-row"><i class="rg-unassessed" title="#44 2026-08-18 21:50 · 체제 미판정 (saturation.js 도입 이전) · p95 50ms"></i><i class="rg-unassessed" title="#45 2026-08-18 21:56 · 체제 미판정 (saturation.js 도입 이전) · p95 51ms"></i></div>
@@ -1693,205 +919,66 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     </div>
     <div class="note" style="border-color:var(--serious)">이 계열에는 포화 판정 기록이 없습니다(<code>saturation.js</code> 도입 2026-08-20 이전 실행). <b>판정 없음은 여유 있음이 아닙니다.</b> <code>node tools/collect.js &lt;runId&gt; --force --no-wait</code> 로 재수집하면 소급 판정됩니다(Prometheus 보관 기간 안이라면).</div>
   </div>
-      <div class="card" style="margin-bottom:14px">
-    <b>실패 축 — 무엇이 이 계열을 실패시켰나</b>
-    <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.9"><li><b>RPS (초당 요청)</b> — 1/2회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">k6.phases.measure.rps</code></li><li><b>Heap 최대 사용량</b> — 1/2회 실패
-      <code style="font-size:11px;color:var(--ink-muted)">infra.flat.heap.used.max</code></li></ul>
-    
-  </div>
-      <div class="card" style="margin-bottom:14px">
-    <b>안정성 — 이 계열에서 무엇을 검출할 수 있는가</b>
-    <div class="scroll" style="margin-top:8px"><table class="hist-table">
-      <thead>
-        <tr><th rowspan="2">판정 축</th><th class="num" colspan="2">전체 (n=2)</th></tr>
-        <tr><th class="num">CV</th><th class="num">MDE</th></tr>
-      </thead>
-      <tbody><tr><td><b>P95 응답시간</b><div class="sub" style="font-size:11px">평균 50ms</div></td><td class="num"><span class="d-good">1.7%</span></td><td class="num">4.8%</td></tr><tr><td><b>P99 응답시간</b><div class="sub" style="font-size:11px">평균 84ms</div></td><td class="num"><span class="d-good">8.1%</span></td><td class="num">22.7%</td></tr><tr><td><b>평균 응답시간</b><div class="sub" style="font-size:11px">평균 23ms</div></td><td class="num"><span class="d-good">5.9%</span></td><td class="num">16.6%</td></tr><tr><td><b>TPS</b><div class="sub" style="font-size:11px">평균 0.4/s</div></td><td class="num"><span class="d-good">3.1%</span></td><td class="num">8.8%</td></tr><tr><td><b>RPS</b><div class="sub" style="font-size:11px">평균 2.4/s</div></td><td class="num"><span class="d-good">3.0%</span></td><td class="num">8.3%</td></tr></tbody>
-    </table></div>
-    <div class="note">
-      <b>CV</b>(변동계수) = 표준편차 ÷ 평균. 같은 조건에서 값이 얼마나 흔들리는가.<br>
-      <b>MDE</b>(최소 검출 가능 효과) = 개선 전/후를 각각 n회 측정할 때 <b>이 값보다 작은 변화는 구분되지 않는다</b>.
-      정규 근사이므로 낙관적인 하한입니다 — n이 작으면 실제로는 더 큽니다.
-    </div>
-    <div class="note">
-      <b>판정 축 권고 — 전체 기준</b><br>
-      지연 축 중 가장 예민한 것은 <b>P95 응답시간</b> 입니다 (CV 1.7% ·
-      MDE <b>4.8%</b>). 비교: P99 응답시간 MDE 22.7% · 평균 응답시간 MDE 16.6%<br>
-      10% 개선을 검출하려면 조건당 <b>1회</b>가
-      필요합니다.
-    </div>
-  </div>
+      <div class="sparks sparks-4"><div class="spark">
+      <div class="st">지연 · P95 응답시간</div>
+      <div class="sv">51ms</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+      <div class="range">
+        <span>n=2 · CV 1.7%</span>
+        <span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">처리 · TPS</div>
+      <div class="sv">0.4/s</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+      <div class="range">
+        <span>n=2 · CV 3.1%</span>
+        <span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">비용 · 요청당 스택 CPU</div>
+      <div class="sv">76ms</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="요청당 스택 CPU">
+  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+      <div class="range">
+        <span>n=2 · CV 11.4%</span>
+        <span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">여유 · JVM Heap 포화도</div>
+      <div class="sv">52.6%</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="JVM Heap 포화도">
+  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+      <div class="range">
+        <span>n=2 · CV 2.4%</span>
+        <span></span>
+      </div>
+    </div></div>
+      <div class="verdict-line"><b>실패 축</b> 1/2회 <b>RPS (초당 요청)</b> <span style="color:var(--ink-muted)">외 1개</span><span class="sep">|</span><b>검출 한계</b> MDE <b>4.8%</b> (P95 응답시간 · 전체 n=2) · 10% 개선 검출에 1회 필요
+    <a href="trends/read-heavy-fcc405b4e94c.html">근거 보기 →</a></div>
       
-      <div class="sparks"><div class="spark">
-        <div class="st">P95 응답시간</div>
-        <div class="sv">51ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">평균 응답시간</div>
-        <div class="sv">24ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">P99 응답시간</div>
-        <div class="sv">79ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P99 응답시간">
-  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">TPS</div>
-        <div class="sv">0.4/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
-  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">RPS</div>
-        <div class="sv">2.4/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="RPS">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">오류율</div>
-        <div class="sv">0.0%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
-  <path d="M0.00,37.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">CPU 포화도</div>
-        <div class="sv">9.8%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
-  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Heap 최대</div>
-        <div class="sv">538 MB</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">GC 최대 정지</div>
-        <div class="sv">30ms</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Slow Query</div>
-        <div class="sv">41</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">MySQL QPS</div>
-        <div class="sv">51.1/s</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="MySQL QPS">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div><div class="spark">
-        <div class="st">Redis 적중률</div>
-        <div class="sv">95.7%</div>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Redis 적중률">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
-        vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
-          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
-        <div class="range">
-          <span>min —</span>
-          <span></span>
-        </div>
-      </div></div>
     </section>
 
   <section>
@@ -3245,6 +2332,6 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     </div>
   </section>
 
-  <footer>생성 2026-08-21 10:25:05 KST · <code>reports/index.json</code> 기준</footer>
+  <footer>생성 2026-08-21 11:01:58 KST · <code>reports/index.json</code> 기준</footer>
 </div>
 </body></html>
