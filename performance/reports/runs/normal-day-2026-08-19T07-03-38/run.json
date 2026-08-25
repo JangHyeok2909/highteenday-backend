@@ -2318,7 +2318,7 @@
       }
     }
   },
-  "collectedAt": "2026-08-19T07:03:58.821Z",
+  "collectedAt": "2026-08-25T09:06:28.872Z",
   "infra": {
     "window": {
       "from": "2026-08-19T07:01:03.728Z",
@@ -3378,14 +3378,14 @@
           {
             "key": "k6ts.p50",
             "label": "k6 P50 (시계열)",
-            "value": 12.595616414862631,
+            "value": 12.59561641486263,
             "unit": "ms",
             "desc": "응답시간 중앙값. P95 와의 벌어짐이 곧 꼬리 비대칭의 크기다."
           },
           {
             "key": "k6ts.p95Read",
             "label": "k6 P95 읽기",
-            "value": 359.8074973357381,
+            "value": 359.80749733573805,
             "unit": "ms",
             "desc": "읽기 요청만의 P95. SLO 기준 300ms."
           },
@@ -3413,7 +3413,7 @@
           {
             "key": "k6ts.rps",
             "label": "k6 RPS (시계열)",
-            "value": 2.092153567827147,
+            "value": 2.0921535678271463,
             "unit": "per_sec",
             "desc": "측정 구간의 초당 요청 수. 닫힌 부하 루프라 지연이 오르면 이 값이 내려간다."
           },
@@ -3656,12 +3656,12 @@
       "loadgen.memBytes.p95": 34333491.2,
       "k6ts.p95": 356.9537777116563,
       "k6ts.p99": 1745.9139445121493,
-      "k6ts.p50": 12.595616414862631,
-      "k6ts.p95Read": 359.8074973357381,
+      "k6ts.p50": 12.59561641486263,
+      "k6ts.p95Read": 359.80749733573805,
       "k6ts.p95Write": 16.96847415674992,
       "k6ts.waitingP95": 356.9537777116563,
       "k6ts.blockedP95": 0.014651973829621353,
-      "k6ts.rps": 2.092153567827147,
+      "k6ts.rps": 2.0921535678271463,
       "k6ts.reqs": 62.76460703481439,
       "k6ts.errorPct": 0,
       "k6ts.vus.avg": 5,
@@ -3726,6 +3726,7 @@
         }
       },
       "loadgen": "docker",
+      "loadBench": "on@40s x3",
       "remoteWrite": true,
       "scriptVersion": "sha256:7757707b0a2b",
       "measurementProfile": {
@@ -3740,15 +3741,32 @@
     "comparability": null,
     "rejectedBaselines": [
       {
-        "id": "normal-day-2026-08-19T06-51-15",
-        "startedAt": "2026-08-19T06:41:02.951Z",
+        "id": "normal-day-2026-08-04T06-38-42",
+        "startedAt": "2026-08-04T06:29:38.201Z",
         "reasonCode": "conditions",
         "mismatches": [
+          {
+            "key": "dataset",
+            "label": "데이터셋",
+            "materiality": "blocking",
+            "reason": "differs",
+            "current": {
+              "profile": "medium",
+              "fingerprint": "sha256:aae4bccfae5e",
+              "state": "sha256:ffe696d17416",
+              "snapshot": "medium-20260816-062210"
+            },
+            "baseline": {
+              "profile": "small",
+              "fingerprint": null
+            },
+            "desc": "데이터셋: small (생성 지문 없음 · 상태 미판정(guard off)) → medium (생성 sha256:aae4bccfae5e · 상태 sha256:ffe696d17416)"
+          },
           {
             "key": "loadProfile",
             "label": "부하 프로파일",
             "materiality": "blocking",
-            "reason": "differs",
+            "reason": "unrecorded",
             "current": {
               "normal_day": {
                 "executor": "ramping-vus",
@@ -3770,34 +3788,50 @@
                 "gracefulRampDown": "30s"
               }
             },
-            "baseline": {
-              "normal_day": {
-                "executor": "ramping-vus",
-                "startVUs": 0,
-                "stages": [
-                  {
-                    "duration": "3m0s",
-                    "target": 200
-                  },
-                  {
-                    "duration": "5m0s",
-                    "target": 200
-                  },
-                  {
-                    "duration": "2m0s",
-                    "target": 0
-                  }
-                ],
-                "gracefulRampDown": "30s"
-              }
-            },
-            "desc": "부하 프로파일: ramping-vus 0→200@3m0s→200@5m0s→0@2m0s → ramping-vus 0→5@2m0s→5@30s→0@2m0s"
+            "baseline": null,
+            "desc": "부하 프로파일: 기준 후보에 기록되지 않음"
+          },
+          {
+            "key": "loadgen",
+            "label": "부하 발생기",
+            "materiality": "blocking",
+            "reason": "differs",
+            "current": "docker",
+            "baseline": "local",
+            "desc": "부하 발생기: local → docker"
+          },
+          {
+            "key": "loadBench",
+            "label": "측정 중 대조 벤치",
+            "materiality": "degrading",
+            "reason": "differs",
+            "current": "on@40s x3",
+            "baseline": "off",
+            "desc": "측정 중 대조 벤치: off → on@40s x3"
+          },
+          {
+            "key": "remoteWrite",
+            "label": "k6 지표 전송",
+            "materiality": "degrading",
+            "reason": "differs",
+            "current": true,
+            "baseline": false,
+            "desc": "k6 지표 전송: 꺼짐 → 켜짐(Prometheus)"
+          },
+          {
+            "key": "scriptVersion",
+            "label": "부하 스크립트",
+            "materiality": "degrading",
+            "reason": "differs",
+            "current": "sha256:7757707b0a2b",
+            "baseline": "sha256:bfcb57ab8a7b",
+            "desc": "부하 스크립트: sha256:bfcb57ab8a7b → sha256:7757707b0a2b"
           },
           {
             "key": "measurementProfile",
             "label": "측정 구간 설계",
             "materiality": "blocking",
-            "reason": "differs",
+            "reason": "unrecorded",
             "current": {
               "mode": "steady-state",
               "warmupSec": 120,
@@ -3805,326 +3839,8 @@
               "rampdownSec": 120,
               "gatePhase": "measure"
             },
-            "baseline": {
-              "mode": "steady-state",
-              "warmupSec": 180,
-              "measureSec": 300,
-              "rampdownSec": 120,
-              "gatePhase": "measure"
-            },
-            "desc": "측정 구간 설계: steady-state · warmup 180s · measure 300s · rampdown 120s · gate:measure → steady-state · warmup 120s · measure 30s · rampdown 120s · gate:measure"
-          }
-        ],
-        "details": {}
-      },
-      {
-        "id": "normal-day-2026-08-19T06-38-45",
-        "startedAt": "2026-08-19T06:28:31.823Z",
-        "reasonCode": "conditions",
-        "mismatches": [
-          {
-            "key": "loadProfile",
-            "label": "부하 프로파일",
-            "materiality": "blocking",
-            "reason": "differs",
-            "current": {
-              "normal_day": {
-                "executor": "ramping-vus",
-                "startVUs": 0,
-                "stages": [
-                  {
-                    "duration": "2m0s",
-                    "target": 5
-                  },
-                  {
-                    "duration": "30s",
-                    "target": 5
-                  },
-                  {
-                    "duration": "2m0s",
-                    "target": 0
-                  }
-                ],
-                "gracefulRampDown": "30s"
-              }
-            },
-            "baseline": {
-              "normal_day": {
-                "executor": "ramping-vus",
-                "startVUs": 0,
-                "stages": [
-                  {
-                    "duration": "3m0s",
-                    "target": 200
-                  },
-                  {
-                    "duration": "5m0s",
-                    "target": 200
-                  },
-                  {
-                    "duration": "2m0s",
-                    "target": 0
-                  }
-                ],
-                "gracefulRampDown": "30s"
-              }
-            },
-            "desc": "부하 프로파일: ramping-vus 0→200@3m0s→200@5m0s→0@2m0s → ramping-vus 0→5@2m0s→5@30s→0@2m0s"
-          },
-          {
-            "key": "measurementProfile",
-            "label": "측정 구간 설계",
-            "materiality": "blocking",
-            "reason": "differs",
-            "current": {
-              "mode": "steady-state",
-              "warmupSec": 120,
-              "measureSec": 30,
-              "rampdownSec": 120,
-              "gatePhase": "measure"
-            },
-            "baseline": {
-              "mode": "steady-state",
-              "warmupSec": 180,
-              "measureSec": 300,
-              "rampdownSec": 120,
-              "gatePhase": "measure"
-            },
-            "desc": "측정 구간 설계: steady-state · warmup 180s · measure 300s · rampdown 120s · gate:measure → steady-state · warmup 120s · measure 30s · rampdown 120s · gate:measure"
-          }
-        ],
-        "details": {}
-      },
-      {
-        "id": "normal-day-2026-08-19T06-26-18",
-        "startedAt": "2026-08-19T06:15:58.323Z",
-        "reasonCode": "conditions",
-        "mismatches": [
-          {
-            "key": "loadProfile",
-            "label": "부하 프로파일",
-            "materiality": "blocking",
-            "reason": "differs",
-            "current": {
-              "normal_day": {
-                "executor": "ramping-vus",
-                "startVUs": 0,
-                "stages": [
-                  {
-                    "duration": "2m0s",
-                    "target": 5
-                  },
-                  {
-                    "duration": "30s",
-                    "target": 5
-                  },
-                  {
-                    "duration": "2m0s",
-                    "target": 0
-                  }
-                ],
-                "gracefulRampDown": "30s"
-              }
-            },
-            "baseline": {
-              "normal_day": {
-                "executor": "ramping-vus",
-                "startVUs": 0,
-                "stages": [
-                  {
-                    "duration": "3m0s",
-                    "target": 200
-                  },
-                  {
-                    "duration": "5m0s",
-                    "target": 200
-                  },
-                  {
-                    "duration": "2m0s",
-                    "target": 0
-                  }
-                ],
-                "gracefulRampDown": "30s"
-              }
-            },
-            "desc": "부하 프로파일: ramping-vus 0→200@3m0s→200@5m0s→0@2m0s → ramping-vus 0→5@2m0s→5@30s→0@2m0s"
-          },
-          {
-            "key": "measurementProfile",
-            "label": "측정 구간 설계",
-            "materiality": "blocking",
-            "reason": "differs",
-            "current": {
-              "mode": "steady-state",
-              "warmupSec": 120,
-              "measureSec": 30,
-              "rampdownSec": 120,
-              "gatePhase": "measure"
-            },
-            "baseline": {
-              "mode": "steady-state",
-              "warmupSec": 180,
-              "measureSec": 300,
-              "rampdownSec": 120,
-              "gatePhase": "measure"
-            },
-            "desc": "측정 구간 설계: steady-state · warmup 180s · measure 300s · rampdown 120s · gate:measure → steady-state · warmup 120s · measure 30s · rampdown 120s · gate:measure"
-          }
-        ],
-        "details": {}
-      },
-      {
-        "id": "normal-day-2026-08-19T06-13-45",
-        "startedAt": "2026-08-19T06:03:25.496Z",
-        "reasonCode": "conditions",
-        "mismatches": [
-          {
-            "key": "loadProfile",
-            "label": "부하 프로파일",
-            "materiality": "blocking",
-            "reason": "differs",
-            "current": {
-              "normal_day": {
-                "executor": "ramping-vus",
-                "startVUs": 0,
-                "stages": [
-                  {
-                    "duration": "2m0s",
-                    "target": 5
-                  },
-                  {
-                    "duration": "30s",
-                    "target": 5
-                  },
-                  {
-                    "duration": "2m0s",
-                    "target": 0
-                  }
-                ],
-                "gracefulRampDown": "30s"
-              }
-            },
-            "baseline": {
-              "normal_day": {
-                "executor": "ramping-vus",
-                "startVUs": 0,
-                "stages": [
-                  {
-                    "duration": "3m0s",
-                    "target": 200
-                  },
-                  {
-                    "duration": "5m0s",
-                    "target": 200
-                  },
-                  {
-                    "duration": "2m0s",
-                    "target": 0
-                  }
-                ],
-                "gracefulRampDown": "30s"
-              }
-            },
-            "desc": "부하 프로파일: ramping-vus 0→200@3m0s→200@5m0s→0@2m0s → ramping-vus 0→5@2m0s→5@30s→0@2m0s"
-          },
-          {
-            "key": "measurementProfile",
-            "label": "측정 구간 설계",
-            "materiality": "blocking",
-            "reason": "differs",
-            "current": {
-              "mode": "steady-state",
-              "warmupSec": 120,
-              "measureSec": 30,
-              "rampdownSec": 120,
-              "gatePhase": "measure"
-            },
-            "baseline": {
-              "mode": "steady-state",
-              "warmupSec": 180,
-              "measureSec": 300,
-              "rampdownSec": 120,
-              "gatePhase": "measure"
-            },
-            "desc": "측정 구간 설계: steady-state · warmup 180s · measure 300s · rampdown 120s · gate:measure → steady-state · warmup 120s · measure 30s · rampdown 120s · gate:measure"
-          }
-        ],
-        "details": {}
-      },
-      {
-        "id": "normal-day-2026-08-19T06-01-00",
-        "startedAt": "2026-08-19T05:50:46.483Z",
-        "reasonCode": "conditions",
-        "mismatches": [
-          {
-            "key": "loadProfile",
-            "label": "부하 프로파일",
-            "materiality": "blocking",
-            "reason": "differs",
-            "current": {
-              "normal_day": {
-                "executor": "ramping-vus",
-                "startVUs": 0,
-                "stages": [
-                  {
-                    "duration": "2m0s",
-                    "target": 5
-                  },
-                  {
-                    "duration": "30s",
-                    "target": 5
-                  },
-                  {
-                    "duration": "2m0s",
-                    "target": 0
-                  }
-                ],
-                "gracefulRampDown": "30s"
-              }
-            },
-            "baseline": {
-              "normal_day": {
-                "executor": "ramping-vus",
-                "startVUs": 0,
-                "stages": [
-                  {
-                    "duration": "3m0s",
-                    "target": 200
-                  },
-                  {
-                    "duration": "5m0s",
-                    "target": 200
-                  },
-                  {
-                    "duration": "2m0s",
-                    "target": 0
-                  }
-                ],
-                "gracefulRampDown": "30s"
-              }
-            },
-            "desc": "부하 프로파일: ramping-vus 0→200@3m0s→200@5m0s→0@2m0s → ramping-vus 0→5@2m0s→5@30s→0@2m0s"
-          },
-          {
-            "key": "measurementProfile",
-            "label": "측정 구간 설계",
-            "materiality": "blocking",
-            "reason": "differs",
-            "current": {
-              "mode": "steady-state",
-              "warmupSec": 120,
-              "measureSec": 30,
-              "rampdownSec": 120,
-              "gatePhase": "measure"
-            },
-            "baseline": {
-              "mode": "steady-state",
-              "warmupSec": 180,
-              "measureSec": 300,
-              "rampdownSec": 120,
-              "gatePhase": "measure"
-            },
-            "desc": "측정 구간 설계: steady-state · warmup 180s · measure 300s · rampdown 120s · gate:measure → steady-state · warmup 120s · measure 30s · rampdown 120s · gate:measure"
+            "baseline": null,
+            "desc": "측정 구간 설계: 기준 후보에 기록되지 않음"
           }
         ],
         "details": {}
@@ -4165,6 +3881,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 115,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4188,6 +3906,8 @@
           }
         ],
         "skipped": null,
+        "noiseFloor": 210,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4205,6 +3925,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 23,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4222,6 +3944,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 0.001,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4239,6 +3963,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 0.5,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4256,6 +3982,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4273,6 +4001,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 0.005,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4290,6 +4020,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4307,6 +4039,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4324,6 +4058,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 0.5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4341,6 +4077,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 52428800,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4358,6 +4096,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 3,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4375,6 +4115,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 52428800,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4392,6 +4134,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 52428800,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4409,6 +4153,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 20,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4426,6 +4172,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4443,6 +4191,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 20,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4460,6 +4210,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 10,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4477,6 +4229,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 3,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4494,6 +4248,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4511,6 +4267,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 0.5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4528,6 +4286,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4545,6 +4305,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4562,6 +4324,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4579,6 +4343,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 10,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4596,6 +4362,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 10485760,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4613,6 +4381,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4630,6 +4400,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4647,6 +4419,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 2,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4664,6 +4438,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -4681,6 +4457,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4698,6 +4476,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1048576,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -4715,6 +4495,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1048576,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       }
@@ -4726,16 +4508,59 @@
   },
   "bottleneckHints": [
     {
-      "score": 72,
+      "score": 92,
       "title": "HTTP 요청당 쿼리 수 과다",
-      "detail": "요청 1건당 평균 107.5개 쿼리가 실행됐다. N+1 패턴 가능성이 높다."
+      "detail": "요청 1건당 평균 107.5개 쿼리가 실행됐다. N+1 패턴 가능성이 높다. (임계 warn 10 / fail 50)"
     },
     {
-      "score": 60,
+      "score": 88,
       "title": "Slow Query 다발",
-      "detail": "요청 1000건당 353.0건의 slow query(>100ms). 인덱스 또는 쿼리 계획 점검 대상."
+      "detail": "요청 1000건당 353.0건의 slow query(>100ms, 총 24건). 인덱스 또는 쿼리 계획 점검 대상. (임계 warn 1 / fail 100)"
     }
   ],
+  "saturation": {
+    "status": "HEADROOM",
+    "signals": [
+      {
+        "key": "hikariPending",
+        "label": "DB 커넥션 대기 스레드",
+        "value": 0,
+        "level": "ok",
+        "warn": 1,
+        "fail": 5,
+        "why": "커넥션 풀 앞에 대기줄이 생겼다. 요청 지연에 대기 시간이 포함된다."
+      },
+      {
+        "key": "cpuThrottled",
+        "label": "앱 CPU throttled 비율",
+        "value": 0,
+        "level": "ok",
+        "warn": 30,
+        "fail": 80,
+        "why": "앱이 CPU 상한을 거의 매 주기 소진했다. 처리율이 상한에 묶여 지연이 대기로 나타난다."
+      },
+      {
+        "key": "cpuUtil",
+        "label": "앱 CPU 사용률(상한 대비)",
+        "value": 10.02,
+        "level": "ok",
+        "warn": 75,
+        "fail": 90,
+        "why": "CPU 상한에 근접했다. 이 구간에서는 작은 용량 변화가 큰 지연 변화로 증폭된다."
+      },
+      {
+        "key": "acquireShare",
+        "label": "커넥션 획득이 p95 에서 차지하는 비율",
+        "value": 0.24,
+        "level": "ok",
+        "warn": 20,
+        "fail": 40,
+        "why": "응답시간의 상당 부분이 커넥션 대기다. 애플리케이션 처리 시간이 아니다."
+      }
+    ],
+    "reasons": [],
+    "achievedRate": null
+  },
   "links": {
     "full": {
       "uid": "htd-perf-overview",

@@ -1560,7 +1560,7 @@
       }
     }
   },
-  "collectedAt": "2026-08-18T05:20:32.129Z",
+  "collectedAt": "2026-08-25T09:06:17.934Z",
   "infra": {
     "window": {
       "from": "2026-08-18T05:15:23.643Z",
@@ -1571,7 +1571,7 @@
     },
     "prometheusUrl": "http://localhost:9090",
     "queryStats": {
-      "queries": 139,
+      "queries": 158,
       "failures": 0
     },
     "groups": [
@@ -1634,6 +1634,13 @@
             "value": 0,
             "unit": "percent",
             "desc": "cgroup이 CPU를 강제로 뺏은 주기 비율. >0 이면 CPU 한계가 지연에 직접 영향을 준다."
+          },
+          {
+            "key": "cpu.seconds",
+            "label": "앱 컨테이너 CPU 총초",
+            "value": 4.396370515470789,
+            "unit": "sec",
+            "desc": "측정 구간에 앱 컨테이너가 태운 CPU 초. 요청 수로 나누면 요청당 CPU 비용."
           },
           {
             "key": "cpu.throttledSeconds",
@@ -2126,6 +2133,48 @@
             "value": 0,
             "unit": "count",
             "desc": "롤백된 트랜잭션 수. 데드락·예외가 조용히 늘고 있는지 본다. (T-29)"
+          },
+          {
+            "key": "mysql.cpuCores.avg",
+            "label": "MySQL 컨테이너 CPU avg",
+            "value": 0.014549939309472426,
+            "unit": "cores",
+            "desc": "MySQL 컨테이너가 소비한 CPU 코어 수. 앱 CPU 와 나란히 놓고 본다."
+          },
+          {
+            "key": "mysql.cpuCores.max",
+            "label": "MySQL 컨테이너 CPU max",
+            "value": 0.015413456134307522,
+            "unit": "cores",
+            "desc": "MySQL 컨테이너가 소비한 CPU 코어 수. 앱 CPU 와 나란히 놓고 본다."
+          },
+          {
+            "key": "mysql.cpuCores.p95",
+            "label": "MySQL 컨테이너 CPU p95",
+            "value": 0.015268250380791788,
+            "unit": "cores",
+            "desc": "MySQL 컨테이너가 소비한 CPU 코어 수. 앱 CPU 와 나란히 놓고 본다."
+          },
+          {
+            "key": "mysql.cpuSeconds",
+            "label": "MySQL CPU 총초",
+            "value": 0.8091448066717215,
+            "unit": "sec",
+            "desc": "측정 구간에 MySQL 이 태운 CPU 초. 쿼리 수로 나누면 쿼리당 CPU 비용."
+          },
+          {
+            "key": "mysql.cpuLimitCores",
+            "label": "MySQL CPU 한계(코어)",
+            "value": 2,
+            "unit": "cores",
+            "desc": "MySQL 에 걸린 cgroup CPU 상한. 여유가 있는데 느리면 CPU 부족이 아니다."
+          },
+          {
+            "key": "mysql.throttledPct",
+            "label": "MySQL CPU throttled 비율",
+            "value": 0,
+            "unit": "percent",
+            "desc": "MySQL 이 cgroup 에 강제 정지된 주기 비율. >0 이면 DB 지연의 원인이 CPU 상한이다."
           }
         ]
       },
@@ -2139,6 +2188,34 @@
             "value": 2.5168344556303754,
             "unit": "per_sec",
             "desc": "초당 처리 명령 수."
+          },
+          {
+            "key": "redis.cpuCores.avg",
+            "label": "Redis 컨테이너 CPU avg",
+            "value": 0.004714636744915433,
+            "unit": "cores",
+            "desc": "Redis 컨테이너가 소비한 CPU 코어 수."
+          },
+          {
+            "key": "redis.cpuCores.max",
+            "label": "Redis 컨테이너 CPU max",
+            "value": 0.004900883665846783,
+            "unit": "cores",
+            "desc": "Redis 컨테이너가 소비한 CPU 코어 수."
+          },
+          {
+            "key": "redis.cpuCores.p95",
+            "label": "Redis 컨테이너 CPU p95",
+            "value": 0.004899492707542303,
+            "unit": "cores",
+            "desc": "Redis 컨테이너가 소비한 CPU 코어 수."
+          },
+          {
+            "key": "redis.cpuSeconds",
+            "label": "Redis CPU 총초",
+            "value": 0.2720340273487778,
+            "unit": "sec",
+            "desc": "측정 구간에 Redis 가 태운 CPU 초."
           },
           {
             "key": "redis.opsPerSecMax",
@@ -2618,6 +2695,68 @@
             "desc": "그 순간 붙어 있던 가상 사용자 수. 램프업 곡선과 지연 상승을 겹쳐 보는 축이다."
           }
         ]
+      },
+      {
+        "id": "efficiency",
+        "label": "효율 (요청당 자원 비용)",
+        "metrics": [
+          {
+            "key": "efficiency.appCpuMsPerReq",
+            "label": "요청당 앱 CPU",
+            "value": 35.20934318998404,
+            "unit": "ms",
+            "desc": "요청 1건에 앱 컨테이너가 태운 CPU(ms). **CPU 포화 상태에서 성능 회귀를 직접 보는 값.** 오르면 같은 일을 더 비싸게 하고 있다."
+          },
+          {
+            "key": "efficiency.jvmCpuMsPerReq",
+            "label": "요청당 JVM CPU",
+            "value": 35.87217730616878,
+            "unit": "ms",
+            "desc": "JVM 프로세스만의 요청당 CPU(ms). 앱 컨테이너 값과 크게 다르면 컨테이너 안에 다른 소비자가 있다."
+          },
+          {
+            "key": "efficiency.dbCpuMsPerReq",
+            "label": "요청당 MySQL CPU",
+            "value": 6.48022205777329,
+            "unit": "ms",
+            "desc": "요청 1건에 MySQL 이 태운 CPU(ms). 앱 값과 **같은 비율로** 움직이면 원인은 둘 다의 아래 층이다."
+          },
+          {
+            "key": "efficiency.cacheCpuMsPerReq",
+            "label": "요청당 Redis CPU",
+            "value": 2.1786469986028782,
+            "unit": "ms",
+            "desc": "요청 1건에 Redis 가 태운 CPU(ms)."
+          },
+          {
+            "key": "efficiency.stackCpuMsPerReq",
+            "label": "요청당 스택 전체 CPU",
+            "value": 43.86821224636021,
+            "unit": "ms",
+            "desc": "앱+MySQL+Redis 를 합친 요청당 CPU. 병목이 옮겨 다녀도 이 합계는 총비용을 그대로 보여준다."
+          },
+          {
+            "key": "efficiency.dbCpuUsPerQuery",
+            "label": "쿼리당 MySQL CPU",
+            "value": 1139.8856912998172,
+            "unit": "us",
+            "desc": "쿼리 1건에 든 CPU(마이크로초). 요청당 쿼리 수는 그대로인데 이 값만 오르면 DB 자체가 비효율해진 것이다."
+          },
+          {
+            "key": "efficiency.queriesPerReq",
+            "label": "요청당 쿼리 수",
+            "value": 5.684975350803695,
+            "unit": "count",
+            "desc": "요청 1건이 만든 쿼리 수. 급증하면 N+1 이다. 위 두 지표를 해석할 때의 기준선."
+          },
+          {
+            "key": "efficiency.ctxSwitchPerReq",
+            "label": "요청당 컨텍스트 스위치",
+            "value": 2792.607718170693,
+            "unit": "count",
+            "desc": "요청 1건당 VM 전체 컨텍스트 스위치. CPU 는 그대로인데 이게 오르면 스케줄링 비용이 늘어난 것이다."
+          }
+        ]
       }
     ],
     "flat": {
@@ -2629,6 +2768,7 @@
       "cpu.cores.p95": 1.4219215776450178,
       "cpu.limitCores": 2,
       "cpu.throttledPct": 0,
+      "cpu.seconds": 4.396370515470789,
       "cpu.throttledSeconds": 0,
       "memory.workingSet.avg": 1396142080,
       "memory.workingSet.max": 1426788352,
@@ -2695,7 +2835,17 @@
       "mysql.rowLockTimeMs": 0,
       "mysql.rowLockWaitCount": 0,
       "mysql.rollbacks": 0,
+      "mysql.cpuCores.avg": 0.014549939309472426,
+      "mysql.cpuCores.max": 0.015413456134307522,
+      "mysql.cpuCores.p95": 0.015268250380791788,
+      "mysql.cpuSeconds": 0.8091448066717215,
+      "mysql.cpuLimitCores": 2,
+      "mysql.throttledPct": 0,
       "redis.opsPerSec": 2.5168344556303754,
+      "redis.cpuCores.avg": 0.004714636744915433,
+      "redis.cpuCores.max": 0.004900883665846783,
+      "redis.cpuCores.p95": 0.004899492707542303,
+      "redis.cpuSeconds": 0.2720340273487778,
       "redis.opsPerSecMax": 2.563776205974871,
       "redis.connectedClients.avg": 3,
       "redis.connectedClients.max": 3,
@@ -2759,6 +2909,14 @@
       "k6ts.vus.avg": 5,
       "k6ts.vus.max": 5,
       "k6ts.vus.p95": 5,
+      "efficiency.appCpuMsPerReq": 35.20934318998404,
+      "efficiency.jvmCpuMsPerReq": 35.87217730616878,
+      "efficiency.dbCpuMsPerReq": 6.48022205777329,
+      "efficiency.cacheCpuMsPerReq": 2.1786469986028782,
+      "efficiency.stackCpuMsPerReq": 43.86821224636021,
+      "efficiency.dbCpuUsPerQuery": 1139.8856912998172,
+      "efficiency.queriesPerReq": 5.684975350803695,
+      "efficiency.ctxSwitchPerReq": 2792.607718170693,
       "saturation.cpuPct": 71.84049968987853,
       "saturation.cpuAvgPct": 49.43844659600841,
       "saturation.memoryPct": 53.15200805664062,
@@ -2796,6 +2954,7 @@
         }
       },
       "loadgen": "docker",
+      "loadBench": "off",
       "remoteWrite": true,
       "scriptVersion": "sha256:b969f6143d73",
       "measurementProfile": {
@@ -2854,6 +3013,15 @@
             "current": "docker",
             "baseline": "local",
             "desc": "부하 발생기: local → docker"
+          },
+          {
+            "key": "remoteWrite",
+            "label": "k6 지표 전송",
+            "materiality": "degrading",
+            "reason": "differs",
+            "current": true,
+            "baseline": false,
+            "desc": "k6 지표 전송: 꺼짐 → 켜짐(Prometheus)"
           },
           {
             "key": "scriptVersion",
@@ -2927,6 +3095,8 @@
         "verdict": "SKIP",
         "reasons": [],
         "skipped": "현재 값 없음",
+        "noiseFloor": 115,
+        "withinNoise": false,
         "applicable": false,
         "required": false
       },
@@ -2944,6 +3114,8 @@
         "verdict": "SKIP",
         "reasons": [],
         "skipped": "현재 값 없음",
+        "noiseFloor": 210,
+        "withinNoise": false,
         "applicable": false,
         "required": false
       },
@@ -2961,6 +3133,8 @@
         "verdict": "SKIP",
         "reasons": [],
         "skipped": "현재 값 없음",
+        "noiseFloor": 23,
+        "withinNoise": false,
         "applicable": false,
         "required": false
       },
@@ -2978,6 +3152,8 @@
         "verdict": "SKIP",
         "reasons": [],
         "skipped": "현재 값 없음",
+        "noiseFloor": 0.001,
+        "withinNoise": false,
         "applicable": false,
         "required": false
       },
@@ -2995,6 +3171,8 @@
         "verdict": "SKIP",
         "reasons": [],
         "skipped": "현재 값 없음",
+        "noiseFloor": 0.5,
+        "withinNoise": false,
         "applicable": false,
         "required": false
       },
@@ -3012,6 +3190,8 @@
         "verdict": "SKIP",
         "reasons": [],
         "skipped": "현재 값 없음",
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": false,
         "required": false
       },
@@ -3029,6 +3209,8 @@
         "verdict": "SKIP",
         "reasons": [],
         "skipped": "현재 값 없음",
+        "noiseFloor": 0.005,
+        "withinNoise": false,
         "applicable": false,
         "required": false
       },
@@ -3046,6 +3228,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3063,6 +3247,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -3080,6 +3266,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 0.5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3097,6 +3285,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 52428800,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3114,6 +3304,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 3,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3131,6 +3323,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 52428800,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3148,6 +3342,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 52428800,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3165,6 +3361,8 @@
         "verdict": "SKIP",
         "reasons": [],
         "skipped": "현재 값 없음",
+        "noiseFloor": 20,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3182,6 +3380,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3199,6 +3399,8 @@
         "verdict": "SKIP",
         "reasons": [],
         "skipped": "현재 값 없음",
+        "noiseFloor": 20,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3216,6 +3418,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 10,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -3233,6 +3437,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 3,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3250,6 +3456,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3267,6 +3475,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 0.5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3284,6 +3494,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3307,6 +3519,8 @@
           }
         ],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3324,6 +3538,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3341,6 +3557,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 10,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3358,6 +3576,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 10485760,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3375,6 +3595,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3392,6 +3614,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3409,6 +3633,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 2,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3426,6 +3652,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1,
+        "withinNoise": false,
         "applicable": true,
         "required": true
       },
@@ -3443,6 +3671,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 5,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3460,6 +3690,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1048576,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       },
@@ -3477,6 +3709,8 @@
         "verdict": "PASS",
         "reasons": [],
         "skipped": null,
+        "noiseFloor": 1048576,
+        "withinNoise": false,
         "applicable": true,
         "required": false
       }
@@ -3488,11 +3722,54 @@
   },
   "bottleneckHints": [
     {
-      "score": 60,
+      "score": 88,
       "title": "Slow Query 다발",
-      "detail": "요청 1000건당 728.3건의 slow query(>100ms). 인덱스 또는 쿼리 계획 점검 대상."
+      "detail": "요청 1000건당 728.3건의 slow query(>100ms, 총 90건). 인덱스 또는 쿼리 계획 점검 대상. (임계 warn 1 / fail 100)"
     }
   ],
+  "saturation": {
+    "status": "HEADROOM",
+    "signals": [
+      {
+        "key": "hikariPending",
+        "label": "DB 커넥션 대기 스레드",
+        "value": 0,
+        "level": "ok",
+        "warn": 1,
+        "fail": 5,
+        "why": "커넥션 풀 앞에 대기줄이 생겼다. 요청 지연에 대기 시간이 포함된다."
+      },
+      {
+        "key": "cpuThrottled",
+        "label": "앱 CPU throttled 비율",
+        "value": 0,
+        "level": "ok",
+        "warn": 30,
+        "fail": 80,
+        "why": "앱이 CPU 상한을 거의 매 주기 소진했다. 처리율이 상한에 묶여 지연이 대기로 나타난다."
+      },
+      {
+        "key": "cpuUtil",
+        "label": "앱 CPU 사용률(상한 대비)",
+        "value": 49.44,
+        "level": "ok",
+        "warn": 75,
+        "fail": 90,
+        "why": "CPU 상한에 근접했다. 이 구간에서는 작은 용량 변화가 큰 지연 변화로 증폭된다."
+      },
+      {
+        "key": "acquireShare",
+        "label": "커넥션 획득이 p95 에서 차지하는 비율",
+        "value": 4.13,
+        "level": "ok",
+        "warn": 20,
+        "fail": 40,
+        "why": "응답시간의 상당 부분이 커넥션 대기다. 애플리케이션 처리 시간이 아니다."
+      }
+    ],
+    "reasons": [],
+    "achievedRate": null
+  },
   "links": {
     "full": {
       "uid": "htd-perf-overview",
