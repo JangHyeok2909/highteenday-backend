@@ -73,11 +73,12 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
 | [perf-environment-essentials.md](perf-environment-essentials.md) | 스택을 어떻게 띄우고 왜 그렇게 구성했는가? | 환경을 직접 실행하거나 설명할 때 |
 | [perf-dataset-generation-problems.md](perf-dataset-generation-problems.md) | 현재 데이터셋 생성과 실제 DB 상태가 왜 성능 결과를 왜곡하는가? | 데이터셋 문제를 처음부터 쉽게 이해할 때 |
 | [perf-mastery-checklist.md](perf-mastery-checklist.md) | 내가 시스템 전체를 실제로 이해했는가? | 단계별 학습과 인수인계 때 |
+| [perf-report-redesign.md](perf-report-redesign.md) | **설계 문서.** 실행 리포트가 왜 읽히지 않는가(문서 순서 역전·판정 없는 숫자 165개·노이즈 증폭), 어떻게 다시 짤 것인가, 그 안의 약점은 무엇인가 | 리포트를 고치기 전, 리포트가 안 읽힌다고 느낄 때 |
 | [go-migration-rationale.md](go-migration-rationale.md) | **결정 기록.** 측정 도구를 Go로 옮길 정당한 이유는 무엇이고(무엇은 이유가 아닌가), 무엇을 어떤 순서로 옮기며, 이식 중 측정 무결성을 어떻게 지키는가? | Go 이식을 시작·재개하기 전, 이식 결정을 남에게 설명하기 전 |
 
 ## 문서들의 관계
 
-문서는 다섯 종류로 나뉜다.
+문서는 여섯 종류로 나뉜다.
 
 ```text
 실제 코드와 실행 결과
@@ -95,8 +96,11 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
         │
         ├─ 학습 장부: 내가 이것을 설명하고 판단할 수 있는가
         │
-        └─ 결정 기록: 무엇을 하기로 했고 왜인가
-             └─ go-migration   Go 이식의 명분·기각한 명분·단계별 계획
+        ├─ 결정 기록: 무엇을 하기로 했고 왜인가
+        │    └─ go-migration     Go 이식의 명분·기각한 명분·단계별 계획
+        │
+        └─ 설계 문서: 무엇을 어떻게 다시 지을 것인가
+             └─ report-redesign  실행 리포트 진단·리뉴얼안·자기 리뷰
 ```
 
 **이 장부는 측정 시스템의 결함만 다룬다.** 성능 작업 중 발견하는 문제는 세 종류이고
