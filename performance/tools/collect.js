@@ -177,7 +177,10 @@ function printConsole(record) {
   // 게이트가 실제로 보는 값(k6.phases.measure)을 우선 보여준다. 진단 시나리오나 과거
   // run.json처럼 measure 구간이 없으면 k6.all(전체 구간)로 폴백하고 그 사실을 밝힌다.
   const measure = record.k6.phases && record.k6.phases.measure;
-  const k = measure || record.k6.all;
+  // `k6.all` 이 없는 옛 레코드가 있다 — phase 인식 집계 도입 전에는 전체 구간 통계가
+  // `k6.overall` 에 있었다. 가드가 없어 저장된 73건 중 34건이 재생성에서 죽었다.
+  const all = record.k6.all || record.k6.overall || {};
+  const k = measure || all;
   const kLabel = measure ? 'measure 구간' : '전체 구간(측정 구간 미분리)';
   const f = record.infra.flat;
   const reg = record.regression;
@@ -212,7 +215,7 @@ function printConsole(record) {
     }
   }
   line(`  환경 ${r.environment}  |  브랜치 ${r.branch}  |  커밋 ${r.commitShort}  |  빌드 ${r.buildNumber}`);
-  line(`  시작 ${fmt.localTime(r.startedAt)}  |  수행 ${fmt.duration(r.durationSec)}  |  VU max ${record.k6.all.vusMax}`);
+  line(`  시작 ${fmt.localTime(r.startedAt)}  |  수행 ${fmt.duration(r.durationSec)}  |  VU max ${fmt.num(all.vusMax, 0)}`);
   // 비교 가능성을 가르는 조건 — 기준선이 왜 선택/탈락됐는지 읽으려면 이게 보여야 한다.
   line(`  데이터셋 ${r.dataset}  |  부하 ${cmp.formatLoadProfile(r.loadProfile)}`);
   line();
