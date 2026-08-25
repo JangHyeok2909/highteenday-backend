@@ -66,6 +66,57 @@ const BREAKDOWN_PAGES = [0, 1, 2, 3, 4];
  */
 const BREAKDOWN_OPS = ['read', 'write', 'auth'];
 
+/**
+ * 엔드포인트 축 — `tags()`의 **세 번째 인자**(`name`)로 요청을 가른다(T-39).
+ *
+ * 왜 필요한가. `feature` 축은 도메인 묶음이라 **`comment` 하나에 엔드포인트가 4개**
+ * (목록 조회·작성·수정·삭제) 들어간다. 성격이 완전히 다른 요청들이 한 값으로 뭉개져,
+ * "댓글이 느리다"까지는 알 수 있어도 **"댓글의 어느 API가 느린가"는 알 수 없었다.**
+ * 병목을 좁히는 마지막 한 단계가 통째로 없었던 셈이다.
+ *
+ * **태그는 원래부터 붙고 있었다.** `config.js`의 `tags(feature, op, name)`이 매 요청에
+ * `name`을 실어 보낸다. 다만 k6는 **threshold로 선언된 서브메트릭만** 집계하므로, 축을
+ * 선언하지 않은 이 값은 그대로 버려지고 있었다 — 수집된 서브메트릭 86개 중 `name:`을
+ * 포함한 것이 0개였다. **비용은 매 요청 지불하면서 수확만 안 하던 상태다.**
+ *
+ * 값은 실제 `tags()` 호출의 세 번째 인자와 정확히 일치해야 한다. 대조 명령:
+ *   grep -rhoE "tags\('[a-z_-]+',\s*'[a-z_-]+',\s*'[a-z_0-9-]+'" scripts/ scenarios/
+ *
+ * **카디널리티 주의.** 42개 × (지연 + 요청 수) = 서브메트릭 84개가 늘어난다. 기존 86개
+ * 였으므로 약 두 배다. k6 메모리와 remote-write 부하가 그만큼 커지므로 새 엔드포인트를
+ * 추가할 때는 smoke로 먼저 확인한다.
+ *
+ * **범위는 전체 구간이다** — `feature`·`page` 축과 같은 방식으로 선언한다. measure 구간으로
+ * 스코프하면 정확도는 오르지만 서브메트릭이 다시 두 배가 되고, `feature` 축과 범위가
+ * 달라져 같은 표 안에서 비교가 성립하지 않는다. 구간을 잘라 봐야 하면 `op` 축이 이미
+ * measure 스코프를 제공한다.
+ */
+const BREAKDOWN_NAMES = [
+  // auth
+  'login', 'logout', 'token_refresh',
+  // post
+  'post_list', 'post_detail', 'post_search', 'post_list_deep',
+  'post_create', 'post_update', 'post_delete',
+  // comment
+  'comment_list', 'comment_create', 'comment_update', 'comment_delete',
+  // board / hot
+  'board_list', 'hot_daily',
+  // reaction / scrap
+  'post_reaction', 'comment_reaction', 'scrap_list', 'scrap_toggle',
+  // notification
+  'notif_list', 'notif_unread_count', 'notif_read_one', 'notif_read_all',
+  // friend
+  'friend_list', 'friend_search', 'friend_req_received', 'friend_request', 'friend_respond',
+  // chat
+  'chat_rooms', 'chat_messages', 'chat_read_status', 'chat_mark_read',
+  // mypage
+  'user_info', 'my_posts', 'my_comments',
+  // school
+  'school_search', 'meal_today', 'meal_month',
+  // timetable
+  'timetable_today', 'subject_list', 'template_list',
+];
+
 export const BREAKDOWN_THRESHOLDS = {
   ...BREAKDOWN_FEATURES.reduce((acc, f) => {
     acc[buildSelector('http_req_duration', { feature: f })] = ['p(99)<600000'];
@@ -81,6 +132,15 @@ export const BREAKDOWN_THRESHOLDS = {
   }, {}),
   ...BREAKDOWN_OPS.reduce((acc, o) => {
     acc[buildSelector('http_reqs', { op: o })] = ['count>=0'];
+    return acc;
+  }, {}),
+  ...BREAKDOWN_NAMES.reduce((acc, n) => {
+    acc[buildSelector('http_req_duration', { name: n })] = ['p(99)<600000'];
+    // 요청 수 축을 따로 선언하는 이유는 page 축과 같다 — Trend 의 values 에 count 가
+    // 없어(k6 v2.1.0 실측) 지연 축만으로는 "이 API 가 몇 번 호출됐나"에 답할 수 없다.
+    // 엔드포인트 축에서는 그 값이 특히 중요하다: 느린데 호출이 드문 API 와 느리면서
+    // 자주 호출되는 API 는 우선순위가 완전히 다르다.
+    acc[buildSelector('http_reqs', { name: n })] = ['count>=0'];
     return acc;
   }, {}),
   // 인증은 도메인 쓰기 SLO에서 분리하되 별도 응답시간 분포는 리포트에 남긴다(S-02).

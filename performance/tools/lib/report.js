@@ -180,6 +180,34 @@ tbody tr:last-child td { border-bottom: none; }
 .b-FAIL { color: var(--critical); border-color: var(--critical); }
 .b-SKIP { color: var(--ink-muted); border-color: var(--axis); }
 
+/* ① 신뢰 확인 줄 — 항상 표시된다 */
+.trust { border-left: 3px solid var(--good); }
+.trust.trust-bad { border-left-color: var(--critical); }
+.trust-head { font-weight: 650; font-size: 13px; margin-bottom: 9px; }
+.trust-row { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.trust-item { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; }
+.trust-k { color: var(--ink-muted); }
+.trust-v { font-weight: 650; font-variant-numeric: tabular-nums; }
+.trust-item.ok .trust-v { color: var(--good-text, var(--good)); }
+.trust-item.bad .trust-v { color: var(--critical); }
+.trust-n { color: var(--ink-2); font-size: 11.5px; }
+
+/* ② 요약의 경고 줄 — 전체 p95 가 감추는 것을 상단에서 알린다 */
+.lead { margin-top: 11px; padding: 9px 12px; border-radius: 6px;
+        background: color-mix(in srgb, var(--warning) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+        font-size: 12.5px; }
+.lead b { font-variant-numeric: tabular-nums; }
+.lead + .lead { margin-top: 6px; }
+
+/* 접히는 섹션 */
+details.fold > summary { cursor: pointer; font-size: 13px; font-weight: 650; padding: 9px 0;
+                         list-style: none; display: flex; align-items: center; gap: 8px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: '▸'; color: var(--ink-muted); }
+details.fold[open] > summary::before { content: '▾'; }
+details.fold > summary .sum-note { font-weight: 400; color: var(--ink-2); font-size: 12px; }
+
 .empty { color: var(--ink-muted); font-style: italic; padding: 10px 0; }
 .note { color: var(--ink-2); font-size: 12.5px; margin-top: 10px; padding-left: 11px; border-left: 2px solid var(--grid); }
 footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 34px; }
@@ -262,6 +290,8 @@ function kpi(label, value, foot) {
 function sectionHeader(record) {
   const r = record.run;
   const reg = record.regression;
+  // 옛 스키마(k6.overall)와 결측을 함께 흡수한다 — sectionSummary 의 같은 줄 참고.
+  const all = record.k6.all || record.k6.overall || {};
   const v = reg.verdict;
   const verdictText = { PASS: '통과', WARN: '주의', FAIL: '실패' }[v] || v;
 
@@ -275,7 +305,7 @@ function sectionHeader(record) {
     ['시작', fmt.localTime(r.startedAt)],
     ['종료', fmt.localTime(r.endedAt)],
     ['수행 시간', fmt.duration(r.durationSec)],
-    ['VU 최대', fmt.num(record.k6.all.vusMax, 0)],
+    ['VU 최대', fmt.num(all.vusMax, 0)],
     ['Ramp-up', r.rampUp || '—'],
     ['데이터셋', r.dataset],
     // 선언된 부하 프로파일 — 위의 'VU 최대'는 관측값이라 서버가 느려지면 같이 움직인다.
@@ -310,6 +340,66 @@ function sectionHeader(record) {
  * 결과"인지 모르면 판정을 잘못 읽는다. 그래서 요약 지표보다 위에, 판정과 별도의 블록으로
  * 놓는다. 정상 측정이면 아무것도 그리지 않는다 — 항상 뜨는 배너는 곧 안 읽히는 배너다.
  */
+/**
+ * ① 이 실행을 믿어도 되는가 — **항상 한 줄로 표시한다.**
+ *
+ * 고치기 전에는 이 정보가 이상할 때만 나왔다. `saturation.js` 는 포화일 때만 경고를 띄우고
+ * `sectionMeasurement` 은 결측이 있을 때만 나타나므로, **정상임을 확인할 방법이 리포트에
+ * 없었다** — `run.json` 이나 `index.json` 을 열어야 했다. 사람이 기계 판독 파일을 열어야
+ * 한다면 그건 리포트의 실패다.
+ *
+ * **경고가 없는 것과 "확인했고 정상"은 다르다.** 전자는 판정이 아직 안 붙은 옛 실행일
+ * 수도 있다. E-46 이 닷새를 소모한 이유가 *"아무도 이 조합을 측정 무효화 조건으로 선언하지
+ * 않았다"* 였으므로, 선언 자체를 화면에 남긴다.
+ *
+ * 네 항목은 판정 전에 반드시 통과해야 하는 것들이다.
+ *   측정 무결성  지표가 다 있는가            MEASURED
+ *   측정 체제    p95 를 앱 지연으로 읽어도 되는가  HEADROOM
+ *   도달률      의도한 부하가 실제로 걸렸는가   100% 근처
+ *   오류율      요청이 실제로 성공했는가        0%
+ */
+function sectionTrust(record) {
+  const reg = record.regression || {};
+  const sat = record.saturation || {};
+  const k = (record.k6 && ((record.k6.phases && record.k6.phases.measure) || record.k6.all)) || {};
+
+  const cell = (label, value, ok, note) => `<div class="trust-item ${ok ? 'ok' : 'bad'}">
+    <span class="trust-k">${esc(label)}</span>
+    <span class="trust-v">${esc(value)}</span>
+    ${note ? `<span class="trust-n">${esc(note)}</span>` : ''}
+  </div>`;
+
+  const items = [];
+
+  const ms = reg.measurementStatus || '기록 없음';
+  items.push(cell('측정', ms, ms === 'MEASURED',
+    ms === 'MEASURED' ? '' : ms === 'PARTIAL' ? '참고 지표 일부 결측' : '판정 불가'));
+
+  const st = sat.status || null;
+  items.push(cell('체제', st || '판정 없음', st === 'HEADROOM',
+    st === 'HEADROOM' ? 'p95 를 앱 지연으로 읽어도 된다'
+      : st === 'NEAR_LIMIT' ? '큐가 생기기 시작했다 — 해석 주의'
+        : st === 'SATURATED' ? 'p95 는 큐 대기다. 앱 지연으로 인용 금지'
+          : '이 실행에는 포화 판정이 없다(옛 실행)'));
+
+  const rate = fmt.nz(k.achievedRatePct) ? k.achievedRatePct : null;
+  if (rate != null) {
+    items.push(cell('도달률', `${rate.toFixed(1)}%`, rate >= 95,
+      rate >= 95 ? '' : '의도한 부하가 걸리지 않았다'));
+  }
+
+  const err = fmt.nz(k.errorRate) ? k.errorRate * 100 : null;
+  if (err != null) {
+    items.push(cell('오류율', `${err.toFixed(2)}%`, err < 1, err < 1 ? '' : '실패 응답이 지연에 섞였다'));
+  }
+
+  const allOk = items.every((h) => h.includes('trust-item ok'));
+  return `<section><div class="card trust ${allOk ? 'trust-ok' : 'trust-bad'}">
+    <div class="trust-head">${allOk ? '이 실행은 판정에 쓸 수 있다' : '판정 전에 확인이 필요하다'}</div>
+    <div class="trust-row">${items.join('')}</div>
+  </div></section>`;
+}
+
 function sectionMeasurement(record) {
   const reg = record.regression;
   const status = reg.measurementStatus;
@@ -354,17 +444,93 @@ function sectionMeasurement(record) {
   </div></section>`;
 }
 
+/**
+ * 요약 바로 아래에 붙는 경고 줄 — **전체 p95 가 무엇을 감추고 있는지 상단에서 알린다.**
+ *
+ * 왜 필요한가. 실측에서 전체 p95 는 368ms 인데 `comment` 기능의 p95 는 2,185ms 였다.
+ * **5.9배 차이**인데 전자는 문서 12%, 후자는 79% 에 있어 어디에서도 나란히 놓이지 않았다.
+ * 상단만 보고 *"368ms, 직전 대비 −1.9%, 안정적"* 이라 판단하면 그대로 닫게 된다.
+ *
+ * **선정 기준은 단순 p95 최댓값이 아니다.** 요청 30건짜리 관리 API 가 3초면 1위가 되지만
+ * 사용자 체감 영향은 거의 없다. 그래서 **요청 수 상위 80% 안에서** 고른다 — 드물게 호출되는
+ * 느린 경로가 헤드라인을 차지하는 것을 막는다. 그런 경로는 아래 Breakdown 표에 그대로
+ * 남으므로 정보가 사라지지는 않는다.
+ */
+function leadLines(record, k) {
+  const bd = (record.k6 && record.k6.breakdown) || {};
+  const gatePhase = (record.run && record.run.phasePlan && record.run.phasePlan.gatePhase) || 'measure';
+  const overall = fmt.nz(k.p95) ? k.p95 : null;
+  if (!overall) return '';
+
+  const pick = (axis) => {
+    const rows = Object.entries(bd[axis] || {})
+      .map(([tag, s]) => ({ tag, s: normalizeCell(s, gatePhase) }))
+      .filter((r) => r.s && fmt.nz(r.s.p95) && r.s.p95 > 0 && fmt.nz(r.s.count) && r.s.count > 0);
+    if (rows.length < 2) return null;
+    // 요청 수 상위 80% 컷 — 누적이 아니라 "가장 많이 호출된 것의 20% 이상"으로 잡는다.
+    // 누적 80% 는 축이 고르게 퍼지면 대부분을 통과시켜 필터 역할을 못 한다.
+    const maxCount = Math.max(...rows.map((r) => r.s.count));
+    const eligible = rows.filter((r) => r.s.count >= maxCount * 0.2);
+    if (!eligible.length) return null;
+    eligible.sort((a, b) => b.s.p95 - a.s.p95);
+    const top = eligible[0];
+    if (top.s.p95 <= overall * 1.5) return null;   // 전체와 비슷하면 알릴 것이 없다
+    return top;
+  };
+
+  const total = fmt.nz(k.httpReqs) ? k.httpReqs : null;
+  const line = (label, hit) => {
+    const share = total ? ` · 전체 요청의 ${((hit.s.count / total) * 100).toFixed(0)}%` : '';
+    return `<div class="lead">가장 느린 ${esc(label)}: <b>${esc(hit.tag)} ${fmt.ms(hit.s.p95)}</b>
+      — 전체 P95(${fmt.ms(overall)})의 <b>${(hit.s.p95 / overall).toFixed(1)}배</b>
+      <span class="d-flat">(${fmt.num(hit.s.count, 0)}건${share}. 요청 수 상위 구간에서 선정)</span></div>`;
+  };
+
+  const out = [];
+  const byName = pick('name');
+  if (byName) out.push(line('API', byName));
+  const byFeature = pick('feature');
+  // API 축이 이미 같은 곳을 가리키면 기능 줄은 중복이다.
+  if (byFeature && !(byName && byName.tag.startsWith(byFeature.tag))) out.push(line('기능', byFeature));
+  return out.join('');
+}
+
 function sectionSummary(record, previous) {
   // 게이트가 실제로 보는 값(k6.phases.measure)을 기본으로 보여준다(T-03/S-08) — warmup·
   // rampdown이 섞인 전체 구간이 아니다. measure 구간이 없는 실행(진단 시나리오·과거
   // run.json)만 k6.all로 폴백하고, 그 사실을 라벨로 밝힌다(조용히 같은 것처럼 안 보인다).
   const measure = record.k6.phases && record.k6.phases.measure;
-  const k = measure || record.k6.all;
+  // **`k6.all` 이 없는 옛 실행이 있다.** phase 인식 집계 도입 전 스키마는 전체 구간 통계를
+  // `k6.overall` 에 두었고, 그 레코드로 리포트를 다시 그리면 여기서 죽었다 — 저장된 73건
+  // 중 34건이 재생성에 실패한 원인이 이것이다. 원자료는 멀쩡하므로 빈 객체로 받아 넘긴다.
+  const all = record.k6.all || record.k6.overall || {};
+  const k = measure || all;
   const prevPhases = previous && previous.k6.phases && previous.k6.phases.measure;
   const p = previous ? (prevPhases || previous.k6.all) : null;
+  // 회귀 판정이 이미 계산한 "노이즈 범위인가"를 그대로 쓴다(T-41). 같은 값을 두 번
+  // 계산하면 어긋날 수 있고, 판정 기준(rules.json 의 noiseFloor)이 한 곳에서만 나와야 한다.
+  const byKey = {};
+  for (const c of (record.regression && record.regression.comparisons) || []) byKey[c.key] = c;
+  const phaseKey = measure ? 'k6.phases.measure.' : 'k6.all.';
+
+  /**
+   * 변화율 셀 — **노이즈 범위면 화살표를 그리지 않는다.**
+   *
+   * 고치기 전에는 절대 변화가 아무리 작아도 퍼센트만 보고 굵은 화살표를 그렸다. 실측에서
+   * `평균 93ms ▲ +26.4%` 가 나왔는데 그 지표의 실제 표준편차는 11.3ms 였다 — 즉 아무것도
+   * 바뀌지 않아도 그 정도는 움직인다. 이런 표시가 반복되면 읽는 사람은 **변화율 전체를
+   * 무시하게 된다.**
+   *
+   * 숨기지는 않는다. 숨기면 "왜 안 보이지"가 되므로, **판정 결과를 문자로 적는다.**
+   */
   const cmp = (key, dir) => {
     if (!p || !fmt.nz(p[key]) || !fmt.nz(k[key]) || p[key] === 0) return '';
     const pctChange = ((k[key] - p[key]) / Math.abs(p[key])) * 100;
+    const c = byKey[phaseKey + key];
+    if (c && c.withinNoise) {
+      const floor = c.noiseFloor != null ? ` ±${fmt.ms(c.noiseFloor)}` : '';
+      return `<span class="d-flat">노이즈 범위${esc(floor)}</span><span class="d-flat">직전 대비</span>`;
+    }
     const improved = dir === 'higher' ? pctChange > 0 : pctChange < 0;
     const cls = Math.abs(pctChange) < 1 ? 'd-flat' : improved ? 'd-good' : 'd-bad';
     const arrow = pctChange > 0 ? '▲' : pctChange < 0 ? '▼' : '·';
@@ -372,6 +538,7 @@ function sectionSummary(record, previous) {
   };
 
   return `<section><h2>Performance Summary (${measure ? 'measure 구간' : '전체 구간 — 측정 구간 미분리'})</h2><div class="kpis">
+
     ${kpi('평균 응답시간', fmt.ms(k.avg), cmp('avg', 'lower'))}
     ${kpi('P95', fmt.ms(k.p95), cmp('p95', 'lower'))}
     ${kpi('P99', fmt.ms(k.p99), cmp('p99', 'lower'))}
@@ -379,6 +546,7 @@ function sectionSummary(record, previous) {
     ${kpi('RPS', fmt.num(k.rps, 1), cmp('rps', 'higher'))}
     ${kpi('오류율', fmt.pct(k.errorRate * 100, 2), cmp('errorRate', 'lower'))}
   </div>
+  ${leadLines(record, k)}
 
   <h3>지연 분포</h3>
   <div class="card scroll"><table>
@@ -397,29 +565,67 @@ function sectionSummary(record, previous) {
     <tbody>
       <tr><td>총 HTTP 요청</td><td class="num">${fmt.num(k.httpReqs, 0)}</td>
           <td>완료 Iteration</td><td class="num">${fmt.num(k.iterations, 0)}</td></tr>
-      <tr><td>실패 요청 (전체 구간)</td><td class="num">${fmt.num(record.k6.all.failedRequests, 0)}</td>
+      <tr><td>실패 요청 (전체 구간)</td><td class="num">${fmt.num(all.failedRequests, 0)}</td>
           <td>Check 성공률</td><td class="num">${fmt.pct(k.checkRate * 100, 2)}</td></tr>
-      <tr><td>서버 대기(waiting) 평균 (전체 구간)</td><td class="num">${fmt.ms(record.k6.all.waitingAvgMs)}</td>
-          <td>서버 대기 P95 (전체 구간)</td><td class="num">${fmt.ms(record.k6.all.waitingP95Ms)}</td></tr>
-      <tr><td>Iteration 평균 소요 (전체 구간)</td><td class="num">${fmt.ms(record.k6.all.iterationDurationAvgMs)}</td>
-          <td>연결(blocked) 평균 (전체 구간)</td><td class="num">${fmt.ms(record.k6.all.blockedAvgMs)}</td></tr>
-      <tr><td>수신 데이터 (전체 구간)</td><td class="num">${fmt.bytes(record.k6.all.dataReceivedBytes)}</td>
-          <td>송신 데이터 (전체 구간)</td><td class="num">${fmt.bytes(record.k6.all.dataSentBytes)}</td></tr>
+      <tr><td>서버 대기(waiting) 평균 (전체 구간)</td><td class="num">${fmt.ms(all.waitingAvgMs)}</td>
+          <td>서버 대기 P95 (전체 구간)</td><td class="num">${fmt.ms(all.waitingP95Ms)}</td></tr>
+      <tr><td>Iteration 평균 소요 (전체 구간)</td><td class="num">${fmt.ms(all.iterationDurationAvgMs)}</td>
+          <td>연결(blocked) 평균 (전체 구간)</td><td class="num">${fmt.ms(all.blockedAvgMs)}</td></tr>
+      <tr><td>수신 데이터 (전체 구간)</td><td class="num">${fmt.bytes(all.dataReceivedBytes)}</td>
+          <td>송신 데이터 (전체 구간)</td><td class="num">${fmt.bytes(all.dataSentBytes)}</td></tr>
     </tbody>
   </table></div>
   </section>`;
 }
 
+/**
+ * breakdown 한 칸을 **판정에 쓸 수 있는 형태로 정규화한다** (T-38).
+ *
+ * 같은 축 안에서 레코드 모양이 두 가지다. `summary.js` 의 `breakdown()` 이 태그 구성에
+ * 따라 다르게 만들기 때문이다.
+ *
+ *   {feature:comment}              → 전체 구간 통계가 **최상위**에      { count, p95, ... }
+ *   {op:read,phase:measure}        → 구간 통계가 **byPhase 아래**에     { count, byPhase:{measure:{...}} }
+ *
+ * 두 번째 모양이 생기는 이유는 `op:read`·`op:write` 가 실제 SLO 축이라 measure 구간으로만
+ * 선언되기 때문이다(S-28) — 태그 없는 형태를 만들면 warmup 이상치가 실행 전체를 FAIL
+ * 시킨다.
+ *
+ * **이 함수가 없던 동안 read·write 의 응답시간이 리포트에 0 으로 표시됐다.** 실측 예:
+ * read 의 실제 p95 는 436.9ms·p99 2,179ms(6,840건)인데 화면에는 0 이었고, 값이 최상위에
+ * 있는 auth(154건, 요청의 2%)만 정상으로 보였다. 전체 p99 가 2,148ms 인데 read 의 p99 가
+ * 2,179ms 였으므로, **꼬리를 만드는 것이 read 라는 결정적 단서를 리포트가 감추고 있었다.**
+ *
+ * `count` 는 항상 최상위에 있다(요청 수 축은 태그 없이 선언되므로). 그래서 구간 통계에
+ * 최상위 `count` 를 얹어 돌려준다.
+ */
+function normalizeCell(cell, gatePhase) {
+  if (!cell) return null;
+  if (fmt.nz(cell.p95)) return cell;                       // 최상위에 값이 있으면 그대로
+  const scoped = cell.byPhase && (cell.byPhase[gatePhase] || cell.byPhase.measure);
+  if (!scoped) return cell;
+  return { ...scoped, count: cell.count != null ? cell.count : scoped.count };
+}
+
 function sectionBreakdown(record) {
   const bd = record.k6.breakdown || {};
+  const gatePhase = (record.run && record.run.phasePlan && record.run.phasePlan.gatePhase) || 'measure';
   const axes = Object.keys(bd).filter((a) => Object.keys(bd[a] || {}).length);
   if (!axes.length) return '';
 
   const labels = { feature: '기능별', op: '오퍼레이션별', name: '엔드포인트별', page: '목록 페이지별' };
+  // 엔드포인트 축을 먼저 보여준다 — 병목을 좁히는 마지막 단계이므로 가장 자주 쓰인다(T-39).
+  const ORDER = ['name', 'feature', 'op', 'page', 'expected_response'];
+  axes.sort((a, b) => {
+    const ia = ORDER.indexOf(a), ib = ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+
   const blocks = axes.map((axis) => {
     // 이 시나리오에서 호출되지 않은 기능은 서브메트릭이 0으로 생성된다 — 표에서 제외한다.
     // (모든 기능 축을 미리 선언해 두기 때문에 생기는 빈 행이다.)
     const rows = Object.entries(bd[axis])
+      .map(([tag, s]) => [tag, normalizeCell(s, gatePhase)])
       .filter(([, s]) => s && fmt.nz(s.p95) && s.p95 > 0)
       .sort((a, b) => (b[1].p95 || 0) - (a[1].p95 || 0))
       .map(([tag, s]) => `<tr>
@@ -443,6 +649,64 @@ function sectionBreakdown(record) {
   return `<section><h2>Breakdown</h2>${blocks}
     <div class="note">P95가 가장 큰 항목이 곧 최적화 1순위 후보다. 요청 수가 적은데 P95가 크면
     "느리지만 드문" 경로이므로 사용자 체감 영향은 작을 수 있다 — 요청 수와 같이 본다.</div></section>`;
+}
+
+/**
+ * ④-b 왜 느린가 — **일을 너무 많이 하는가.**
+ *
+ * 병목의 원인은 두 종류뿐이다. *자원이 부족한가* 와 *일이 많은가*. 앞은 인프라 표가
+ * 답하지만, **자원이 남는데도 느린 경우**는 그 표로 답할 수 없다. 그때 유일한 답이
+ * 요청당 비용이다.
+ *
+ * 실측이 그 사례였다 — CPU 50%, Hikari 30%, Heap 71% 로 자원은 전부 여유였는데 요청당
+ * 쿼리가 **275개**였다. 인프라 표만 보면 "이상 없음"으로 끝난다.
+ *
+ * 그런데 이 그룹이 인프라 12개 섹션 사이 문서 70% 위치에 묻혀 있었다. 접기를 도입하면
+ * 아예 안 보이게 되므로 **밖으로 꺼내 항상 표시한다.**
+ *
+ * 판정을 함께 붙인다. `queriesPerReq` 275 는 목록 조회 하나가 보통 한 자릿수 쿼리로
+ * 끝난다는 점을 모르면 많은 값인지 알 수 없다 — **판정 없는 숫자는 읽히지 않는다.**
+ */
+const EFFICIENCY_THRESHOLDS = {
+  'efficiency.queriesPerReq': { warn: 10, fail: 50, hint: '요청 1건이 이만큼 쿼리를 쓴다면 루프 안 조회를 의심한다' },
+  'efficiency.stackCpuMsPerReq': { warn: 50, fail: 200, hint: '요청 1건에 스택 전체가 태운 CPU' },
+  'efficiency.dbCpuUsPerQuery': { warn: 500, fail: 2000, hint: '쿼리 하나가 비싸면 인덱스·쿼리 계획 문제' },
+};
+
+function sectionEfficiency(record) {
+  const infra = record.infra || {};
+  const g = (infra.groups || []).find((x) => x.id === 'efficiency');
+  if (!g) return '';
+  const metrics = (g.metrics || []).filter((m) => m.value != null);
+  if (!metrics.length) return '';
+
+  const rows = metrics.map((m) => {
+    const t = EFFICIENCY_THRESHOLDS[m.key];
+    let badge = '';
+    let cls = '';
+    if (t) {
+      if (m.value > t.fail) { badge = `<span class="badge b-FAIL">임계 초과</span>`; cls = 'style="color:var(--critical);font-weight:650"'; }
+      else if (m.value > t.warn) { badge = `<span class="badge b-WARN">주의</span>`; }
+      else { badge = `<span class="badge b-PASS">정상</span>`; }
+    }
+    const scale = t ? `warn ${t.warn} / fail ${t.fail}` : '';
+    return `<tr>
+      <td title="${esc(m.desc || '')}">${esc(m.label)}</td>
+      <td class="num" ${cls}>${fmt.byUnit(m.value, m.unit)}</td>
+      <td>${badge}</td>
+      <td style="color:var(--ink-muted);font-size:12px">${esc(t ? `${scale} · ${t.hint}` : (m.desc || ''))}</td>
+    </tr>`;
+  }).join('');
+
+  return `<section><h2>작업량 — 요청 1건이 얼마나 일하는가</h2>
+    <div class="card scroll"><table>
+      <thead><tr><th>지표</th><th class="num" style="width:110px">값</th>
+        <th style="width:90px">판정</th><th>기준 · 읽는 법</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="note">자원이 남는데도 느리면 여기를 본다. 자원 부족은 위 '자원' 섹션이 답한다.
+    쿼리 <b>개수</b>가 많은 것(N+1)과 쿼리 <b>하나</b>가 비싼 것(인덱스)은 처방이 다르므로
+    <code>queriesPerReq</code>와 <code>dbCpuUsPerQuery</code>를 같이 읽는다.</div>
+  </section>`;
 }
 
 function sectionInfra(record) {
@@ -471,7 +735,10 @@ function sectionInfra(record) {
       <td class="num" style="color:var(--ink-2)">${esc(detail)}</td>
     </tr>`).join('');
 
-  const groups = (infra.groups || []).map((g) => {
+  // `efficiency` 는 여기서 뺀다 — sectionEfficiency 가 접히지 않는 자리에서 따로 그린다.
+  // 자원이 남아도 느린 경우(요청당 일을 너무 많이 하는 경우)를 답하는 유일한 그룹이라
+  // 인프라 접기 안에 들어가면 정작 필요할 때 보이지 않는다.
+  const groups = (infra.groups || []).filter((g) => g.id !== 'efficiency').map((g) => {
     const rows = g.metrics
       .filter((m) => m.value != null)
       .map((m) => `<tr>
@@ -786,8 +1053,40 @@ function sectionLinks(record) {
 
 /* ─────────────────────────── 조립 ─────────────────────────── */
 
+/**
+ * 정상인 섹션을 접는다 — **판정으로 요약하고 접는다.**
+ *
+ * 왜 필요한가. 인프라 12개 섹션이 문서의 44% 를 차지하는데 대부분의 실행에서 답이
+ * "이상 없음"이다. 가장 자주 아무 문제 없는 섹션이 가장 큰 자리를 차지하고, 그 사이에
+ * 정작 봐야 할 Breakdown 이 79% 위치로 밀려나 있었다.
+ *
+ * **접는 것이 정보를 줄이는 것은 아니다.** 요약 줄이 "정상"임을 **판정으로** 말하면
+ * 펼치지 않아도 결론을 얻는다 — `"인프라 (12개 섹션)"` 은 접은 것이고
+ * `"자원 여유 있음 — 신호 4개 전부 임계 이하"` 는 판정한 것이다. 후자만 접을 자격이 있다.
+ */
+function foldable(html, { open, title, note }) {
+  if (!html) return '';
+  return `<details class="fold"${open ? ' open' : ''}>
+    <summary>${esc(title)}${note ? ` <span class="sum-note">${esc(note)}</span>` : ''}</summary>
+    ${html}
+  </details>`;
+}
+
+function infraSummaryLine(record) {
+  const sat = record.saturation || {};
+  const signals = sat.signals || [];
+  const bad = signals.filter((s) => s.level && s.level !== 'ok');
+  if (!signals.length) return { open: true, note: '포화 판정 없음 — 값을 직접 확인할 것' };
+  if (!bad.length) return { open: false, note: `자원 여유 있음 — 신호 ${signals.length}개 전부 임계 이하` };
+  return {
+    open: true,
+    note: `주의 ${bad.length}건 — ${bad.map((s) => s.label).join(' · ')}`,
+  };
+}
+
 function renderReport(record, opts = {}) {
   const r = record.run;
+  const infraFold = infraSummaryLine(record);
   return `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -796,14 +1095,20 @@ function renderReport(record, opts = {}) {
 </head><body>
 ${sectionHeader(record)}
 <div class="wrap">
+  ${sectionTrust(record)}
   ${sectionMeasurement(record)}
-  ${sectionHints(record)}
   ${sectionSummary(record, opts.previous)}
-  ${sectionRegression(record)}
-  ${sectionInfra(record)}
   ${sectionBreakdown(record)}
+  ${sectionEfficiency(record)}
+  ${foldable(sectionInfra(record), {
+    open: infraFold.open, title: '자원 — 부족한 것이 있는가', note: infraFold.note,
+  })}
+  ${sectionRegression(record)}
+  ${foldable(sectionHints(record), {
+    open: false, title: '병목 가설 (도구가 계산한 후보)', note: '먼저 위에서 직접 좁혀 본 뒤 검산용으로 열 것',
+  })}
   ${sectionTrend(record, opts.trend)}
-  ${sectionThresholds(record)}
+  ${foldable(sectionThresholds(record), { open: false, title: 'SLO Thresholds' })}
   ${sectionLinks(record)}
   <footer>
     생성 ${fmt.localTime(record.collectedAt)} · Run ID <code>${esc(r.id)}</code> ·
