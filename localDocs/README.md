@@ -49,17 +49,20 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
 
 ### 시스템 전체를 처음부터 공부하고 싶을 때
 
-1. [perf-mastery-checklist.md](perf-mastery-checklist.md)
-2. 각 단계가 안내하는 실제 코드와 실행 결과 확인
-3. 단계 끝의 자가진단과 결정 안건 작성
+1. [perf-beginner-guide.md](perf-beginner-guide.md) — 학습 순서부터 첫 실행, 개선 전후 측정,
+   리포트 판독, 용어까지 한 번에 익힌다
+2. [perf-mastery-checklist.md](perf-mastery-checklist.md)
+3. 각 단계가 안내하는 실제 코드와 실행 결과 확인
+4. 단계 끝의 자가진단과 결정 안건 작성
 
 ## 문서 지도
 
 | 문서 | 답하는 질문 | 언제 읽나 |
 |---|---|---|
+| [perf-beginner-guide.md](perf-beginner-guide.md) | 처음 무엇부터 이해하고, 어떻게 실행하고, 리포트를 어떤 순서로 읽어야 하는가? | 성능 시스템을 처음 사용할 때 |
 | [perf-review-summary.md](perf-review-summary.md) | 현재 무엇을 믿을 수 있고 무엇부터 고쳐야 하는가? | 항상 가장 먼저 |
 | [NEXT-DAY-PERF-TASKS.md](NEXT-DAY-PERF-TASKS.md) | 아직 남은 문제를 어떤 우선순위와 순서로 고칠 것인가? | 다음 작업을 시작할 때 |
-| [perf-trust-levels.md](perf-trust-levels.md) | 성능 개선을 이어가려면 **어디까지** 고쳐야 하고, 어디서 멈춰도 되는가? | 어디까지 할지 정할 때, 개선 작업을 시작하기 전 |
+| [perf-trust-levels.md](perf-trust-levels.md) | 성능 개선을 이어가려면 **어디까지** 고쳐야 하고, 어디서 멈춰도 되는가? **지금 어느 조합이 레벨 몇인가?** (레벨은 시스템 전체가 아니라 시나리오×운용점 조합마다 붙는다) | 어디까지 할지 정할 때, 개선 작업을 시작하기 전, 수치를 인용하기 전 |
 | [perf-findings-tools.md](perf-findings-tools.md) | 수집·기준선·회귀 판정·리포트 도구에 어떤 문제가 있는가? | PASS/FAIL이나 비교 결과를 점검할 때 |
 | [perf-findings-scripts.md](perf-findings-scripts.md) | k6가 실제 사용자를 제대로 흉내 내고 있는가? | 부하 모델과 SLO를 점검할 때 |
 | [perf-findings-environment.md](perf-findings-environment.md) | 환경·데이터셋·Prometheus·CI가 결과를 왜곡하지 않는가? | 재현성과 운영 절차를 점검할 때 |
@@ -69,10 +72,11 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
 | [perf-environment-essentials.md](perf-environment-essentials.md) | 스택을 어떻게 띄우고 왜 그렇게 구성했는가? | 환경을 직접 실행하거나 설명할 때 |
 | [perf-dataset-generation-problems.md](perf-dataset-generation-problems.md) | 현재 데이터셋 생성과 실제 DB 상태가 왜 성능 결과를 왜곡하는가? | 데이터셋 문제를 처음부터 쉽게 이해할 때 |
 | [perf-mastery-checklist.md](perf-mastery-checklist.md) | 내가 시스템 전체를 실제로 이해했는가? | 단계별 학습과 인수인계 때 |
+| [go-migration-rationale.md](go-migration-rationale.md) | **결정 기록.** 측정 도구를 Go로 옮길 정당한 이유는 무엇이고(무엇은 이유가 아닌가), 무엇을 어떤 순서로 옮기며, 이식 중 측정 무결성을 어떻게 지키는가? | Go 이식을 시작·재개하기 전, 이식 결정을 남에게 설명하기 전 |
 
 ## 문서들의 관계
 
-문서는 세 종류로 나뉜다.
+문서는 다섯 종류로 나뉜다.
 
 ```text
 실제 코드와 실행 결과
@@ -87,7 +91,10 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
         │
         ├─ 총평: 무엇을 먼저 고칠 것인가
         │
-        └─ 학습 장부: 내가 이것을 설명하고 판단할 수 있는가
+        ├─ 학습 장부: 내가 이것을 설명하고 판단할 수 있는가
+        │
+        └─ 결정 기록: 무엇을 하기로 했고 왜인가
+             └─ go-migration   Go 이식의 명분·기각한 명분·단계별 계획
 ```
 
 **이 장부는 측정 시스템의 결함만 다룬다.** 성능 작업 중 발견하는 문제는 세 종류이고
@@ -107,6 +114,10 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
   현재 결론만 남기고, 실험 설계·측정값·기각 근거는 이쪽에 모은다.
 - **총평**은 여러 결함을 우선순위와 실행 계획으로 묶는다.
 - **학습 장부**는 코드를 읽고 실행한 사람이 직접 답을 써서 이해도를 확인한다.
+- **결정 기록**은 결함이 아니라 **선택**을 남긴다. 무엇을 하기로 했는지, 어떤 근거를
+  채택하고 어떤 근거를 기각했는지, 어떤 조건에서 그 결정이 무효가 되는지를 적는다.
+  나중에 "왜 이렇게 했지"에 답하기 위한 문서라는 점에서 발견 장부의 인용블록과 목적이
+  같고, 규모가 커서 분리한 것이다.
 
 상세 발견을 수정하면 총평의 상태도 함께 갱신한다. 중요한 설계 결정을 내렸다면 학습 장부의
 결정 안건과 관련 발견 항목에 같은 결론을 남긴다.
