@@ -197,6 +197,12 @@ function evaluateRule(rule, current, baseline) {
     verdict: 'PASS',
     reasons: [],
     skipped: null,
+    // 이 지표에서 "변화라고 부를 수 있는 최소 절대량". 리포트가 화살표 대신 "노이즈 범위"
+    // 라고 쓸 수 있게 판정 결과를 그대로 내보낸다(T-41). 예전에는 belowNoise 를 내부에서만
+    // 쓰고 밖으로 알리지 않아, 노이즈 범위의 변화도 굵은 퍼센트로 표시됐다 — 그러면 읽는
+    // 사람이 곧 변화율 전체를 무시하게 된다(경보 피로).
+    noiseFloor: rule.noiseFloor != null ? rule.noiseFloor : null,
+    withinNoise: false,
   };
 
   if (cur == null) {
@@ -234,6 +240,7 @@ function evaluateRule(rule, current, baseline) {
     const baselineTooSmall = rule.minBaseline != null && Math.abs(base) < rule.minBaseline;
 
     if (belowNoise) {
+      out.withinNoise = true;
       out.skipped = `변화 ${fmtNum(absDelta)} < 노이즈 하한 ${fmtNum(rule.noiseFloor)}`;
     } else if (baselineTooSmall) {
       out.skipped = `기준값 ${fmtNum(base)} < 비교 하한 ${fmtNum(rule.minBaseline)}`;
@@ -474,6 +481,38 @@ function bottleneckHints(record) {
   const hints = [];
   const push = (score, title, detail) => hints.push({ score, title, detail });
 
+  /**
+   * 심각도 기반 점수 (T-40).
+   *
+   * **고치기 전 무엇이 문제였나.** 임계가 이 함수 안에 하드코딩돼 있었고 점수가 고정이었다.
+   * 그래서 `cpu.throttledPct > 1` 이면 8.6% 든 71% 든 똑같이 100점(최고 순위)이 됐다.
+   * 같은 리포트의 포화 판정은 같은 값을 `ok`(warn 30 / fail 80)라고 말했으므로, 두 섹션이
+   * 정반대로 읽혔다 — 실사용자 반응이 *"포화가 아닌데도 왜 있는지 모르겠다"* 였다.
+   * 두 진술이 어긋나면 읽는 사람은 **둘 다 믿지 않게 된다.**
+   *
+   * **지금 규칙.** 임계는 `saturation.js` 의 `SIGNALS` 와 같은 값을 쓰고, 점수는
+   * `기본 우선순위 × 심각도` 로 매긴다. 심각도는 warn 에서 0, fail 이상에서 1 이다.
+   *   - warn 미만이면 **아예 표시하지 않는다** (포화 판정이 `ok` 라고 한 것을 병목이라
+   *     부르지 않는다)
+   *   - fail 을 넘으면 기본 우선순위 그대로
+   *
+   * `base` 는 "이 종류의 병목이 얼마나 근본적인가"이고 임계와는 별개 축이다. 커넥션 대기가
+   * CPU throttling 보다 base 가 낮은 이유는 덜 심각해서가 아니라, throttling 이 있으면
+   * 그것이 대기의 원인일 수 있어 먼저 봐야 하기 때문이다.
+   */
+  const severity = (value, warnAt, failAt) => {
+    if (value == null || !Number.isFinite(value) || value <= warnAt) return 0;
+    if (value >= failAt) return 1;
+    return (value - warnAt) / (failAt - warnAt);
+  };
+  const pushScaled = (base, value, warnAt, failAt, title, detail) => {
+    const s = severity(value, warnAt, failAt);
+    if (s <= 0) return;
+    // 0.55~1.0 구간으로 눌러 둔다. warn 을 갓 넘은 항목이 0점에 수렴해 순서가 뒤집히는
+    // 것을 막으면서, fail 을 넘은 항목이 확실히 위로 오게 한다.
+    push(Math.round(base * (0.55 + 0.45 * s)), title, `${detail} (임계 warn ${warnAt} / fail ${failAt})`);
+  };
+
   // 어떤 병목보다 먼저 봐야 하는 건 "이 측정을 믿어도 되는가"다.
   // k6 의 http_req_failed 는 비 2xx 를 실패로 세는데 check 는 스크립트가 정의한다.
   // 둘이 어긋나면 check 단정이 4xx 를 통과시키고 있다는 뜻이고, 그러면 기록된 지연은
@@ -486,20 +525,22 @@ function bottleneckHints(record) {
       `아래 병목 가설을 보기 전에 스크립트의 check부터 확인할 것.`);
   }
 
-  if (f['cpu.throttledPct'] > 1) {
-    push(100, 'CPU throttling 발생',
+  // 임계는 saturation.js SIGNALS 와 같은 값이다 — 같은 지표를 두 섹션이 다르게 판정하면
+  // 안 된다(T-40).
+  if (f['cpu.throttledPct'] != null) {
+    pushScaled(100, f['cpu.throttledPct'], 30, 80, 'CPU throttling 발생',
       `cgroup이 CPU를 강제 회수한 주기가 ${f['cpu.throttledPct'].toFixed(1)}%다. CPU 한계(${f['cpu.limitCores']} core)를 올리거나 요청당 CPU 사용을 줄여야 p99가 안정된다.`);
   }
-  if (f['pool.hikariPending.max'] > 0) {
-    push(95, 'DB 커넥션 풀 대기 발생',
+  if (f['pool.hikariPending.max'] != null) {
+    pushScaled(95, f['pool.hikariPending.max'], 1, 5, 'DB 커넥션 풀 대기 발생',
       `최대 ${f['pool.hikariPending.max']}개 스레드가 커넥션을 기다렸다. 풀 크기(${f['pool.hikariMax']})가 동시성 대비 부족하거나, 커넥션 보유 시간이 긴 쿼리가 있다.`);
   }
-  if (f['saturation.hikariPct'] > 90) {
-    push(85, 'DB 커넥션 풀 포화',
+  if (f['saturation.hikariPct'] != null) {
+    pushScaled(85, f['saturation.hikariPct'], 80, 95, 'DB 커넥션 풀 포화',
       `풀 사용률이 ${f['saturation.hikariPct'].toFixed(0)}%까지 올라갔다. 여유가 거의 없어 부하가 조금만 늘어도 대기가 생긴다.`);
   }
-  if (f['saturation.cpuPct'] > 85) {
-    push(80, 'CPU 포화',
+  if (f['saturation.cpuPct'] != null) {
+    pushScaled(80, f['saturation.cpuPct'], 75, 90, 'CPU 포화',
       `CPU 사용이 한계의 ${f['saturation.cpuPct'].toFixed(0)}%에 도달했다.`);
   }
   if (f['gc.overheadPct.avg'] > 5) {
@@ -524,22 +565,23 @@ function bottleneckHints(record) {
   }
   if (f['mysql.slowQueries'] > 0 && k6.httpReqs) {
     const per1k = (f['mysql.slowQueries'] / k6.httpReqs) * 1000;
-    if (per1k > 1) {
-      push(60, 'Slow Query 다발',
-        `요청 1000건당 ${per1k.toFixed(1)}건의 slow query(>100ms). 인덱스 또는 쿼리 계획 점검 대상.`);
-    }
+    // 1건/1000요청이면 드문 예외, 100건/1000요청이면 요청 10건 중 1건이 느린 쿼리를
+    // 밟는다는 뜻이라 구조적 문제다. 실측에서 147/1000 이 나왔는데 고정 60점이라
+    // 순위에 묻혔다 — "과다한 게 티가 안 난다"는 지적의 원인이 이것이다.
+    pushScaled(88, per1k, 1, 100, 'Slow Query 다발',
+      `요청 1000건당 ${per1k.toFixed(1)}건의 slow query(>100ms, 총 ${f['mysql.slowQueries'].toFixed(0)}건). 인덱스 또는 쿼리 계획 점검 대상.`);
   }
   // RPS 대비 QPS 비율 — N+1의 직접 신호
   const rps = k6.rps;
   if (rps > 0 && f['mysql.qps'] > 0) {
     const qpr = f['mysql.qps'] / rps;
-    if (qpr > 10) {
-      push(72, 'HTTP 요청당 쿼리 수 과다',
-        `요청 1건당 평균 ${qpr.toFixed(1)}개 쿼리가 실행됐다. N+1 패턴 가능성이 높다.`);
-    }
+    // 목록 조회 하나는 보통 한 자릿수 쿼리로 끝난다. 10을 넘으면 의심, 50을 넘으면
+    // 루프 안 조회가 거의 확실하다. 실측 275 는 fail 을 한참 넘는다.
+    pushScaled(92, qpr, 10, 50, 'HTTP 요청당 쿼리 수 과다',
+      `요청 1건당 평균 ${qpr.toFixed(1)}개 쿼리가 실행됐다. N+1 패턴 가능성이 높다.`);
   }
-  if (f['saturation.memoryPct'] > 90) {
-    push(62, '컨테이너 메모리 포화',
+  if (f['saturation.memoryPct'] != null) {
+    pushScaled(62, f['saturation.memoryPct'], 85, 95, '컨테이너 메모리 포화',
       `메모리 사용이 한계의 ${f['saturation.memoryPct'].toFixed(0)}%다. OOM Kill 위험 구간.`);
   }
 
