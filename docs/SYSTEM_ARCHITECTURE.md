@@ -1,4 +1,9 @@
-> 이 문서는 구버전 상태로 방치되어 코드와 다수 불일치한다 ([KNOWN-ISSUES.md#ki-10](KNOWN-ISSUES.md#ki-10-system_architecturemd가-구버전-상태로-방치됨)). 현행 기준은 [02-architecture.md](02-architecture.md)를 따른다.
+> **역할.** 이 문서는 다이어그램·패키지 트리·API 흐름 예시처럼 **전체 그림을 한눈에 보는 용도**다.
+> 레이어 규칙·Port/Adapter·이벤트·배포 토폴로지의 **현행 기준은 [02-architecture.md](02-architecture.md)**이며,
+> 두 문서가 어긋나면 그쪽이 맞다.
+>
+> 2026-08-28에 구버전 서술(Next.js·duckdns 도메인, 통합 전 `PostLike`/`PostDislike` 스키마,
+> 잘못된 OAuth 콜백 경로, 삭제된 `RecentHotPost`)을 코드 기준으로 정정했다 ([KI-10](KNOWN-ISSUES.md#ki-10-system_architecturemd가-구버전-상태로-방치됨)).
 
 # HighTeenDay 시스템 아키텍처
 
@@ -11,7 +16,7 @@
 ```mermaid
 flowchart TB
     subgraph Client["클라이언트"]
-        FE[프론트엔드<br/>React/Next.js<br/>localhost:3000 | highteenday.duckdns.org]
+        FE[프론트엔드<br/>React<br/>localhost:3000 / www.highteenday.org]
     end
 
     subgraph Backend["백엔드 (Spring Boot)"]
@@ -91,10 +96,10 @@ erDiagram
     User ||--o{ Scrap : creates
     User }o--|| School : belongs
     School ||--o{ SchoolMeal : has
-    Post ||--o{ PostLike : has
-    Post ||--o{ PostDislike : has
-    User ||--o{ PostLike : creates
-    User ||--o{ PostDislike : creates
+    Post ||--o{ PostReaction : has
+    User ||--o{ PostReaction : creates
+    Comment ||--o{ CommentReaction : has
+    User ||--o{ CommentReaction : creates
 
     User {
         Long id PK
@@ -136,9 +141,10 @@ erDiagram
 
 | 항목 | 내용 |
 |------|------|
-| 예상 도메인 | `http://localhost:3000`, `https://highteenday.duckdns.org` |
+| 도메인 | `http://localhost:3000`(로컬), `https://www.highteenday.org`(운영, S3+CloudFront) |
+| API 도메인 | `https://api.highteenday.org` (ALB → EC2:8080) |
 | 통신 방식 | REST API, JSON, JWT 쿠키 인증 |
-| CORS 허용 | `localhost:3000`, `localhost:8080`, `highteenday.duckdns.org` |
+| CORS 허용 | `app.cors.allowed-origins` 프로퍼티로 프로파일마다 지정 |
 
 프론트엔드에서 `/api/*` 엔드포인트로 HTTP 요청을 보내고, 인증이 필요한 요청에는 `accessToken` 쿠키를 함께 전송합니다.
 
@@ -237,8 +243,8 @@ src/main/java/com/example/highteenday_backend/
 │   │   ├── Friend.java, FriendRepository.java
 │   │   └── FriendReq.java, FriendReqRepository.java
 │   ├── hot/
-│   │   ├── RecentHotPost.java
-│   │   └── RecentHotPostRepository.java
+│   │   ├── DailyHotPost.java
+│   │   └── DailyHotPostRepository.java
 │   ├── medias/
 │   │   ├── Media.java
 │   │   └── MediaRepository.java
@@ -382,7 +388,7 @@ Board ──(1:N)──> Post
 Post ──(1:N)──> Comment
 User ──(1:N)──> Comment
 Post ──(1:N)──> Scrap ──(N:1)──> User
-Post ──(1:N)──> PostLike / PostDislike ──(N:1)──> User
+Post ──(1:N)──> PostReaction (kind=LIKE|DISLIKE) ──(N:1)──> User
 School ──(1:N)──> User
 School ──(1:N)──> SchoolMeal
 ```
@@ -415,7 +421,7 @@ School ──(1:N)──> SchoolMeal
    └── MySQL에서 Post 조회 (isValid=true)
 
 6. Controller에서 추가 처리
-   └── PostReactionService.getLikeSatateDto(post, user) → PostLike/PostDislike 테이블
+   └── PostReactionService.getLikeSatateDto(post, user) → posts_reactions 테이블
    └── ScrapService.isScraped(post, user) → scraps 테이블
    └── ViewCountService.increaseViewCount(postId, userId) → Redis (조회수 중복 방지 + 카운트)
 
@@ -457,17 +463,20 @@ School ──(1:N)──> SchoolMeal
    └── Google 인증 페이지로 리다이렉트
 
 2. 사용자 로그인 후 콜백
-   └── GET /login/oauth2/code/google?code=...
+   └── GET /oauth2/login/code/google?code=...
+   └── 기본 경로(/login/oauth2/code/*)가 아니라 SecurityConfig.filterChain()이
+       redirectionEndpoint로 바꿔 둔 커스텀 경로다
 
 3. CustomOAuth2UserService.loadUser()
    └── 토큰 교환, 사용자 정보 조회
-   └── 기존 유저면 ROLE_USER, 신규면 ROLE_GUEST
+   └── 신규 유저면 registerOAuthUser()로 자동 가입 후 principal에 isNewUser=true
+   └── 기존 유저면 isNewUser=false (Role로 신규 여부를 나타내지 않는다)
 
 4. OAuth2SuccessHandler.onAuthenticationSuccess()
    └── TokenProvider.generateAccessToken()
-   └── TokenProvider.generateRefreshToken() → Redis에 저장
+   └── TokenProvider.generateRefreshToken() → Token 엔티티(DB)에 저장
    └── Set-Cookie: accessToken=... (HttpOnly, Secure, SameSite=None)
-   └── 회원가입 필요 시 /register, 아니면 /post/view로 리다이렉트
+   └── isNewUser면 {frontend-url}/welcome, 아니면 {frontend-url}로 리다이렉트
 ```
 
 ---
@@ -476,11 +485,14 @@ School ──(1:N)──> SchoolMeal
 
 | 서비스 | 용도 |
 |--------|------|
-| MySQL | 주 데이터 저장소 (유저, 게시글, 댓글, 학교, 급식 등) |
-| Redis | 조회수 캐시, 핫스코어 ZSET, 리프레시 토큰 |
+| MySQL | 주 데이터 저장소 (유저, 게시글, 댓글, 학교, 급식 등). 스키마는 Flyway가 소유 |
+| Redis | 조회수 카운터, 게시글 목록·카운트 캐시, 핫스코어 ZSET |
 | AWS S3 | 프로필 이미지, 게시글/댓글 이미지 |
 | NEIS API | 학교 급식 정보 |
-| Google / Kakao / Naver OAuth2 | 소셜 로그인 |
+| Google OAuth2 | 소셜 로그인. Kakao/Naver는 provider 엔드포인트만 준비돼 있고 registration은 주석 처리 상태 |
+
+리프레시 토큰은 Redis가 아니라 `Token` 엔티티(테이블 `tokens`)에 저장된다 — 서버 측 폐기를
+위해서다 (`services/domain/TokenService`).
 
 ---
 
@@ -493,7 +505,8 @@ School ──(1:N)──> SchoolMeal
 | /api/boards/{boardId}/posts | 게시판별 게시글 목록 |
 | /api/posts | 게시글 CRUD, 검색 |
 | /api/posts/{postId}/comments | 댓글 CRUD |
-| /api/posts/{postId}/like, /dislike | 게시글 반응 |
+| /api/posts/{postId}/reaction?type=LIKE\|DISLIKE | 게시글 반응 |
+| /api/comments/{commentId}/reaction?type=LIKE\|DISLIKE | 댓글 반응 |
 | /api/posts/{postId}/scraps | 스크랩 |
 | /api/mypage/* | 내 글, 댓글, 스크랩 |
 | /api/hotposts/daily | 일간 핫게시글 |
