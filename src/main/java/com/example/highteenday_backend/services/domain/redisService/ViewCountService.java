@@ -28,7 +28,14 @@ public class ViewCountService {
         return viewCountStore.getCount(postId);
     }
 
-    public Map<Long, Integer> drainViewCounts() {
-        return viewCountStore.consumePendingCounts();
+    /** DB 반영 대기 중인 증가분을 읽는다. 읽기만 하고 지우지 않는다 (KI-23). */
+    public Map<Long, Integer> peekPendingViewCounts() {
+        return viewCountStore.peekPendingCounts();
+    }
+
+    /** DB 반영에 성공한 만큼만 카운터에서 뺀다 (KI-23). */
+    public void settleViewCounts(Map<Long, Integer> applied) {
+        if (applied.isEmpty()) return;
+        viewCountStore.settleCounts(applied);
     }
 }
