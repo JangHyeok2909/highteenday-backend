@@ -1,11 +1,10 @@
 package com.example.highteenday_backend.controllers;
 
-import com.example.highteenday_backend.domain.schools.School;
+import com.example.highteenday_backend.dtos.SchoolDto;
 import com.example.highteenday_backend.services.domain.SchoolService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,9 +23,11 @@ public class SchoolController {
 
     @Operation(summary = "학교 이름으로 검색")
     @GetMapping("/search")
-    public ResponseEntity<List<School>> searchSchools(@RequestParam("name") String name) {
+    public ResponseEntity<List<SchoolDto>> searchSchools(@RequestParam("name") String name) {
         name = name.replaceAll(" ", "");
-        List<School> schools = schoolService.searchSchoolName(name);
+        List<SchoolDto> schools = schoolService.searchSchoolName(name).stream()
+                .map(SchoolDto::fromEntity)
+                .toList();
         return ResponseEntity.ok(schools);
     }
 }
