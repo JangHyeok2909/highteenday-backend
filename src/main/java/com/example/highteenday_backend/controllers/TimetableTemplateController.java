@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.controllers;
 
 
+import jakarta.validation.Valid;
 import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.ImportTimetableTemplateDto;
@@ -40,7 +41,7 @@ public class TimetableTemplateController {
     @Operation(summary = "시간표 템플릿 생성")
     @PostMapping
     public ResponseEntity<TimetableTemplateDto> createTimetableTemplate(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-                                                                        @RequestBody RequestTimetableTemplateDto dto){
+                                                                        @Valid @RequestBody RequestTimetableTemplateDto dto){
 
 
         User user = userPrincipal.getUser();
@@ -71,7 +72,7 @@ public class TimetableTemplateController {
     @PostMapping("/import")
     public ResponseEntity<TimetableTemplateDto> importTimetableTemplate(
             @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-            @RequestBody ImportTimetableTemplateDto dto
+            @Valid @RequestBody ImportTimetableTemplateDto dto
     ){
         User user = userPrincipal.getUser();
         TimetableTemplate imported = templateService.importTemplate(user, dto);
@@ -82,7 +83,7 @@ public class TimetableTemplateController {
     @PatchMapping("/{timetableTemplateId}")
     public ResponseEntity<TimetableTemplateDto> updateTimetableTemplate(
             @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-            @RequestBody RequestTimetableTemplateDto dto,
+            @Valid @RequestBody RequestTimetableTemplateDto dto,
             @PathVariable Long timetableTemplateId
     ){
         User user = userPrincipal.getUser();

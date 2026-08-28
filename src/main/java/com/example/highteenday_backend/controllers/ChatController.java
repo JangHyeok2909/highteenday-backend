@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.controllers;
 
+import jakarta.validation.Valid;
 import com.example.highteenday_backend.dtos.Chat.*;
 import com.example.highteenday_backend.enums.ChatRole;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
@@ -29,7 +30,7 @@ public class ChatController {
     @PostMapping("/rooms")
     public ResponseEntity<ChatRoomDto> createOrGetRoom(
             @AuthenticationPrincipal CustomUserPrincipal user,
-            @RequestBody CreateChatRoomDto dto
+            @Valid @RequestBody CreateChatRoomDto dto
     ) {
         return ResponseEntity.ok(chatService.getOrCreatePrivateRoom(user.getUser(), dto.friendId()));
     }
@@ -39,7 +40,7 @@ public class ChatController {
     @PostMapping("/rooms/group")
     public ResponseEntity<ChatRoomDto> createGroupRoom(
             @AuthenticationPrincipal CustomUserPrincipal user,
-            @RequestBody CreateGroupRoomDto dto
+            @Valid @RequestBody CreateGroupRoomDto dto
     ) {
         return ResponseEntity.ok(chatService.createGroupRoom(user.getUser(), dto));
     }
@@ -68,7 +69,7 @@ public class ChatController {
     public ResponseEntity<ChatRoomDto> updateRoom(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @PathVariable Long roomId,
-            @RequestBody UpdateChatRoomDto dto
+            @Valid @RequestBody UpdateChatRoomDto dto
     ) {
         return ResponseEntity.ok(chatService.updateRoomName(user.getUser(), roomId, dto.name()));
     }
@@ -131,7 +132,7 @@ public class ChatController {
     public ResponseEntity<List<ChatMemberDto>> inviteMembers(
             @AuthenticationPrincipal CustomUserPrincipal user,
             @PathVariable Long roomId,
-            @RequestBody InviteMembersDto dto
+            @Valid @RequestBody InviteMembersDto dto
     ) {
         return ResponseEntity.ok(chatService.inviteMembers(user.getUser(), roomId, dto.memberIds()));
     }

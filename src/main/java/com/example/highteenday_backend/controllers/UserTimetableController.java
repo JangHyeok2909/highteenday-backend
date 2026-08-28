@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.controllers;
 
+import jakarta.validation.Valid;
 import com.example.highteenday_backend.domain.schools.UserTimetables.UserTimetable;
 import com.example.highteenday_backend.domain.schools.subjects.Subject;
 import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
@@ -64,7 +65,7 @@ public class UserTimetableController {
     @PostMapping("/{timetableTemplatesId}/userTimetables")
     public ResponseEntity<UserTimetableDto> addTimetable(
             @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-            @RequestBody RequestTimetableDto dto,
+            @Valid @RequestBody RequestTimetableDto dto,
             @PathVariable Long timetableTemplatesId
     ){
         User user = userPrincipal.getUser();

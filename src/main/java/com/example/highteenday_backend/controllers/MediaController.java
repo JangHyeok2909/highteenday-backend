@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.controllers;
 
 
+import jakarta.validation.Valid;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.UpdateProfileImageDto;
 import com.example.highteenday_backend.dtos.UploadedResult;
@@ -45,7 +46,7 @@ public class MediaController {
     @PatchMapping("/profile-image")
     public ResponseEntity<?> updateProfileImage(
             @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-            @RequestBody UpdateProfileImageDto dto
+            @Valid @RequestBody UpdateProfileImageDto dto
     ) {
         mediaProcessingService.updateProfileImage(userPrincipal.getUser().getId(), dto.url());
         return ResponseEntity.ok("프로필 이미지 변경 완료");

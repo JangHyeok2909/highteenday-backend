@@ -107,7 +107,7 @@ public class UserController {
     @Operation(summary = "회원가입")
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(
-            @RequestBody RegisterUserDto registerUserDto,
+            @Valid @RequestBody RegisterUserDto registerUserDto,
             HttpServletResponse response
             ){
         jwtCookieService.setJwtCookie(userService.register(registerUserDto), response);
@@ -175,7 +175,7 @@ public class UserController {
     @PostMapping("/password/verify")
     public ResponseEntity<Boolean> verifyPassword(
         @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-        @RequestBody VerifyPasswordDto dto
+        @Valid @RequestBody VerifyPasswordDto dto
     ) {
         boolean matched = userService.verifyPassword(userPrincipal.getUser(), dto.password());
         return ResponseEntity.ok(matched);
@@ -186,7 +186,7 @@ public class UserController {
     @PatchMapping("/password")
     public ResponseEntity<?> modifyPassword(
         @AuthenticationPrincipal CustomUserPrincipal user,
-        @RequestBody ChangePasswordDto passwordDto
+        @Valid @RequestBody ChangePasswordDto passwordDto
     ){
         userService.updatePassword(user.getUser().getId(), passwordDto);
         return ResponseEntity.ok("비밀번호 변경 완료");
@@ -197,7 +197,7 @@ public class UserController {
     @PatchMapping("/nickname")
     public ResponseEntity<?> modifyNickname(
             @AuthenticationPrincipal CustomUserPrincipal user,
-            @RequestBody ChangeNicknameDto nicknameDto
+            @Valid @RequestBody ChangeNicknameDto nicknameDto
     ){
         userService.updateNickname(user.getUser().getId(), nicknameDto);
         return ResponseEntity.ok("닉네임 변경 완료");
@@ -206,7 +206,7 @@ public class UserController {
     @Operation(summary = "학교/학년/반 변경")
     @PatchMapping("/school")
     public ResponseEntity<?> modifySchool(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-                                          @RequestBody SchoolIdDto dto){
+                                          @Valid @RequestBody SchoolIdDto dto){
         userService.updateSchool(userPrincipal.getUser().getId(), dto);
         return ResponseEntity.ok().build();
     }
@@ -214,7 +214,7 @@ public class UserController {
     @Operation(summary = "전화번호 변경")
     @PatchMapping("/phone")
     public ResponseEntity<?> modifyPhone(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-                                         @RequestBody ChangePhoneDto dto){
+                                         @Valid @RequestBody ChangePhoneDto dto){
         userService.updatePhone(userPrincipal.getUser().getId(), dto);
         return ResponseEntity.ok().build();
     }
@@ -249,7 +249,7 @@ public class UserController {
 
 //    @PostMapping("/authentication/phone")
 //    public ResponseEntity<?> authenticationPhone(
-//            @RequestBody RequestPhoneDto phoneDto
+//            @Valid @RequestBody RequestPhoneDto phoneDto
 //    ){
 //        phoneDto.phoneNum()
 //    }
