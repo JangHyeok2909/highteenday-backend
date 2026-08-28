@@ -19,9 +19,14 @@ public class RequestTimetableTemplateDto {
     @Builder.Default
     private boolean isDefault=false;
 
+    /**
+     * 이름이 없으면 학년·학기로 기본 이름을 만든다. 수정 요청은 바꿀 필드만 보내므로
+     * 재료(grade·semester)가 없을 수 있고, 그때는 null 을 돌려 "이름 변경 없음"이 된다.
+     */
     public String getTemplateName() {
-        if(templateName ==null || templateName.isEmpty()) return grade.getField()+" "+semester;
-        else return templateName;
+        if (templateName != null && !templateName.isEmpty()) return templateName;
+        if (grade == null || semester == null) return null;
+        return grade.getField() + " " + semester;
     }
 
 }
