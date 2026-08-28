@@ -14,11 +14,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -95,7 +98,7 @@ class MediaProcessingServiceTest {
             assertThat(post.getContent()).contains(FINAL_URL);
             assertThat(post.getContent()).doesNotContain(TMP_URL);
             verify(fileStorage).copyToFinalLocation(TMP_URL, POST_ID, MediaOwner.POST);
-            verify(fileStorage).deleteUserTmp(USER_ID);
+            verify(fileStorage).deletePromotedTmpFiles(List.of(TMP_URL));
             verify(mediaService).createMedia(defaultFileInfo);
         }
 
@@ -136,7 +139,7 @@ class MediaProcessingServiceTest {
             mediaProcessingService.processUpdatePostMedia(USER_ID, post, newContent, oldContent);
 
             verify(fileStorage).copyToFinalLocation(newTmpUrl, POST_ID, MediaOwner.POST);
-            verify(fileStorage).deleteUserTmp(USER_ID);
+            verify(fileStorage).deletePromotedTmpFiles(List.of(newTmpUrl));
             verify(fileStorage).deleteByUrl(oldUrl);
         }
 
@@ -205,7 +208,44 @@ class MediaProcessingServiceTest {
             mediaProcessingService.processCreateCommentMedia(USER_ID, comment, dto);
 
             assertThat(comment.getS3Url()).isEqualTo(COMMENT_FINAL_URL);
-            verify(fileStorage).deleteUserTmp(USER_ID);
+            verify(fileStorage).deletePromotedTmpFiles(List.of(TMP_URL));
+        }
+
+        /**
+         * 동시 작성 이미지 유실 회귀 방지 (docs/KNOWN-ISSUES.md KI-36).
+         *
+         * 예전에는 사용자의 {@code tmp/{userId}/} 전체를 지웠기 때문에, 탭 두 개로
+         * 동시에 글을 쓰면 먼저 확정한 쪽이 아직 확정하지 않은 다른 글의 임시 이미지까지
+         * 지웠다. 지금은 이번 요청이 승격시킨 URL 만 넘기므로, 같은 사용자의 다른 임시
+         * 파일은 인자에 들어가지 않는다.
+         */
+        @Test
+        @DisplayName("같은 사용자의 다른 임시 파일은 삭제 대상에 들어가지 않는다")
+        void doesNotTouchOtherDraftsOfTheSameUser() {
+            String otherDraftTmpUrl = "https://s3.amazonaws.com/bucket/tmp/1/uuid-other-draft.png";
+
+            Comment comment = Comment.builder().id(COMMENT_ID).content("댓글").s3Url("").build();
+            RequestCommentDto dto = RequestCommentDto.builder().content("댓글").url(TMP_URL).build();
+
+            when(fileStorage.copyToFinalLocation(TMP_URL, COMMENT_ID, MediaOwner.COMMENT))
+                    .thenReturn(COMMENT_FINAL_URL);
+            FileInfo info = FileInfo.builder()
+                    .key("comment-file/20/uuid-image.png").url(COMMENT_FINAL_URL)
+                    .size(512L).originalFilename("uuid-image.png").contentType("image/png").build();
+            when(fileStorage.getFileInfo(COMMENT_FINAL_URL)).thenReturn(info);
+            when(mediaService.createMedia(info))
+                    .thenReturn(Media.builder().id(200L).url(COMMENT_FINAL_URL).build());
+
+            mediaProcessingService.processCreateCommentMedia(USER_ID, comment, dto);
+
+            ArgumentCaptor<java.util.Collection<String>> captor =
+                    ArgumentCaptor.forClass(java.util.Collection.class);
+            verify(fileStorage).deletePromotedTmpFiles(captor.capture());
+
+            assertThat(captor.getValue())
+                    .as("다른 초안의 임시 파일이 삭제 대상에 들어가면 그 글의 이미지가 사라진다")
+                    .containsExactly(TMP_URL)
+                    .doesNotContain(otherDraftTmpUrl);
         }
 
         @Test
@@ -378,7 +418,7 @@ class MediaProcessingServiceTest {
 
             verify(fileStorage).deleteByUrl(oldProfileUrl);
             assertThat(user.getProfileUrl()).isEqualTo(newFinalUrl);
-            verify(fileStorage).deleteUserTmp(USER_ID);
+            verify(fileStorage).deletePromotedTmpFiles(List.of(newTmpUrl));
         }
 
         @Test

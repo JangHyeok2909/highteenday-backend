@@ -36,10 +36,13 @@ public class LocalFileStorageAdapter implements FileStoragePort {
     }
 
     @Override
-    public void deleteUserTmp(Long userId) {
-        String prefix = "tmp/" + userId + "/";
-        files.keySet().removeIf(k -> k.startsWith(prefix));
-        metadata.keySet().removeIf(k -> k.startsWith(prefix));
+    public void deletePromotedTmpFiles(java.util.Collection<String> tmpUrls) {
+        for (String url : tmpUrls) {
+            if (url == null || url.isEmpty()) continue;
+            String key = extractKey(url);
+            files.remove(key);
+            metadata.remove(key);
+        }
     }
 
     @Override
