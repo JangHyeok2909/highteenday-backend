@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.controllers;
 
 
+import jakarta.validation.Valid;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.posts.Post;
 import com.example.highteenday_backend.domain.users.User;
@@ -82,7 +83,7 @@ public class CommentController {
     @PostMapping()
     public ResponseEntity createComment(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                         @PathVariable Long postId,
-                                        @RequestBody RequestCommentDto dto
+                                        @Valid @RequestBody RequestCommentDto dto
                                         ){
         User user = userPrincipal.getUser();
         Post post = postService.findById(postId);
@@ -94,7 +95,7 @@ public class CommentController {
     @Operation(summary = "댓글 수정")
     @PatchMapping("/{commentId}")
     public ResponseEntity updateComment(@PathVariable Long commentId,
-                                        @RequestBody RequestCommentDto dto,
+                                        @Valid @RequestBody RequestCommentDto dto,
                                         @AuthenticationPrincipal CustomUserPrincipal userPrincipal){
         User user = userPrincipal.getUser();
         commentService.updateComment(commentId,user.getId(),dto);
@@ -133,7 +134,7 @@ public class CommentController {
 //    @PostMapping("/test/{userId}")
 //    public ResponseEntity createCommentTest(@PathVariable Long postId,
 //                                            @PathVariable Long userId,
-//                                            @RequestBody RequestCommentDto dto){
+//                                            @Valid @RequestBody RequestCommentDto dto){
 //        User user = userService.findById(userId);
 //        Post post = postService.findById(postId);
 //        Comment comment = commentService.creatComment(post, user,dto);
@@ -146,7 +147,7 @@ public class CommentController {
 //    @PutMapping("/{commentId}/test/{userId}")
 //    public ResponseEntity updateCommentTest(@PathVariable Long commentId,
 //                                            @PathVariable Long userId,
-//                                            @RequestBody RequestCommentDto dto){
+//                                            @Valid @RequestBody RequestCommentDto dto){
 //        commentService.updateComment(commentId,userId,dto);
 //        return ResponseEntity.ok("수정 완료.");
 //    }

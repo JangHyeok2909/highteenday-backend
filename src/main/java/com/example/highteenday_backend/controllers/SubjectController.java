@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.controllers;
 
+import jakarta.validation.Valid;
 import com.example.highteenday_backend.domain.schools.subjects.Subject;
 import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
 import com.example.highteenday_backend.domain.users.User;
@@ -45,7 +46,7 @@ public class SubjectController {
     @PostMapping
     public ResponseEntity<SubjectDto> addSubject(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                                  @PathVariable Long timetableTemplatesId,
-                                                 @RequestBody RequestSubjectDto dto){
+                                                 @Valid @RequestBody RequestSubjectDto dto){
         User user = userPrincipal.getUser();
         TimetableTemplate template = templateService.findById(timetableTemplatesId);
         if(!user.getId().equals(template.getUser().getId())) return ResponseEntity.badRequest().build();
@@ -60,7 +61,7 @@ public class SubjectController {
     @PatchMapping("/{subjectId}")
     public ResponseEntity<SubjectDto> updateSubject(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                                     @PathVariable Long subjectId,
-                                                    @RequestBody RequestSubjectDto dto
+                                                    @Valid @RequestBody RequestSubjectDto dto
                                                     ){
         User user = userPrincipal.getUser();
         Subject subject = subjectService.findById(subjectId);
