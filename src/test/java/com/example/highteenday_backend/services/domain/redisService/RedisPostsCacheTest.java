@@ -32,9 +32,8 @@ import static org.mockito.Mockito.when;
 @DisplayName("RedisPostsCache")
 class RedisPostsCacheTest {
 
-    @Mock private RedisTemplate<String, Long> boardTemplate;
+    @Mock private RedisTemplate<String, Long> longRedisTemplate;
     @Mock private RedisTemplate<String, PostPreviewDto> postTemplate;
-    @Mock private RedisTemplate<String, Long> countingTemplate;
     @Mock private PostRepository postRepository;
     @Mock private ValueOperations<String, Long> countValueOps;
     @Mock private ListOperations<String, Long> boardListOps;
@@ -46,7 +45,7 @@ class RedisPostsCacheTest {
 
     @BeforeEach
     void setUp() {
-        redisPostsCache = new RedisPostsCache(boardTemplate, postTemplate, countingTemplate, postRepository);
+        redisPostsCache = new RedisPostsCache(longRedisTemplate, postTemplate, postRepository);
     }
 
     @Nested
@@ -56,7 +55,7 @@ class RedisPostsCacheTest {
         @Test
         @DisplayName("Redis 장애 시 DB에서 직접 조회하여 반환한다")
         void fallsBackToDbWhenRedisDown() {
-            when(boardTemplate.opsForList())
+            when(longRedisTemplate.opsForList())
                     .thenThrow(new RedisConnectionFailureException("down"));
 
             PostPreviewDto dto = PostPreviewDto.builder().id(1L).build();
@@ -76,7 +75,7 @@ class RedisPostsCacheTest {
             PostPreviewDto p1 = PostPreviewDto.builder().id(11L).build();
             PostPreviewDto p2 = PostPreviewDto.builder().id(12L).build();
 
-            when(boardTemplate.opsForList()).thenReturn(boardListOps);
+            when(longRedisTemplate.opsForList()).thenReturn(boardListOps);
             when(boardListOps.size(BOARD_KEY)).thenReturn(0L);
             when(postRepository.findByBoard(any(PostListingDto.class))).thenReturn(List.of(p1, p2));
             when(boardListOps.range(BOARD_KEY, 0L, 9L)).thenReturn(List.of(11L, 12L));
@@ -92,7 +91,7 @@ class RedisPostsCacheTest {
         @Test
         @DisplayName("리스트가 차 있으면 요청 구간이 리스트 밖이어도 DB를 다시 읽지 않는다")
         void doesNotReloadWhenListIsPopulatedButWindowIsOutOfRange() {
-            when(boardTemplate.opsForList()).thenReturn(boardListOps);
+            when(longRedisTemplate.opsForList()).thenReturn(boardListOps);
             when(boardListOps.size(BOARD_KEY)).thenReturn(50L);
             when(boardListOps.range(BOARD_KEY, 60L, 79L)).thenReturn(List.of());
 
@@ -110,7 +109,7 @@ class RedisPostsCacheTest {
         @Test
         @DisplayName("Redis 장애 시 DB 카운트를 반환한다")
         void fallsBackToDbWhenRedisDown() {
-            when(countingTemplate.opsForValue())
+            when(longRedisTemplate.opsForValue())
                     .thenThrow(new RedisConnectionFailureException("down"));
             when(postRepository.countTotal(1L)).thenReturn(42L);
 
@@ -129,7 +128,7 @@ class RedisPostsCacheTest {
         @DisplayName("Redis 장애 시에도 DB 카운트를 반환한다")
         void returnsDbCountWhenRedisDown() {
             when(postRepository.countTotal(1L)).thenReturn(5L);
-            when(countingTemplate.opsForValue()).thenReturn(countValueOps);
+            when(longRedisTemplate.opsForValue()).thenReturn(countValueOps);
             org.mockito.Mockito.doThrow(new RedisConnectionFailureException("down"))
                     .when(countValueOps).set(anyString(), anyLong(), any(java.time.Duration.class));
 
