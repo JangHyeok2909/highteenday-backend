@@ -52,7 +52,8 @@ public class PostService {
     }
 
     public Page<Post> searchPagedPosts(String query,int page, PostSearchType searchType){
-        Sort sort = Sort.by(Sort.Direction.ASC, "createdAt").descending();
+        // 정렬 속성은 컬럼명이 아니라 엔티티 필드명(created)이어야 QPost 경로로 해석된다.
+        Sort sort = Sort.by(Sort.Direction.DESC, "created");
         Pageable pageable = PageRequest.of(page,SIZE, sort);
         Page<Post> pagedPost;
         pagedPost = postRepository.searchKeywordsAll(query, searchType,pageable);
