@@ -48,7 +48,7 @@ public class Media {
 
     //null이 아닐 경우 유저 프로필 이미지
     @ManyToOne(fetch = FetchType.LAZY ,optional = true)
-    @JoinColumn(name = "USR_profile_owner_id_", foreignKey = @ForeignKey(name = "fk_medias_usr_profile"))
+    @JoinColumn(name = "USR_profile_owner_id", foreignKey = @ForeignKey(name = "fk_medias_usr_profile"))
     private User profileOwner;
 
     //null이 아닐 경우 댓글 이미지
