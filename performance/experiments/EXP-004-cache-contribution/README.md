@@ -1,6 +1,6 @@
 # EXP-004: 캐시 기여도 정량화 — Cold Start vs Cache Warm
 
-> 상태: 계획
+> 상태: 계획 (미착수) — 사유는 [experiments/README.md](../README.md) 실험 목록 아래 참고
 > 날짜: | 담당: | 관련: BTL-004 (cache stampede)
 
 ## 1. 목적
