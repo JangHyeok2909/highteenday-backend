@@ -15,6 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -75,7 +76,7 @@ class HotPostServiceTest {
 
             hotPostService.updateLeaderboardDayScore(postId);
 
-            verify(hotPostRanking).addScore(eq(expectedKey), eq(postId), anyDouble());
+            verify(hotPostRanking).addScore(eq(expectedKey), eq(postId), anyDouble(), eq(Duration.ofDays(2)));
         }
 
         @Test
@@ -219,7 +220,7 @@ class HotPostServiceTest {
 
             hotPostService.updateRecentScore(post);
 
-            verify(hotPostRanking).addScore(anyString(), eq(1L), anyDouble());
+            verify(hotPostRanking).addScore(anyString(), eq(1L), anyDouble(), eq(Duration.ofMinutes(30)));
         }
     }
 
