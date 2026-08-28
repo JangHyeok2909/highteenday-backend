@@ -9,9 +9,22 @@
 
 ## 3줄 요약
 
-- 기본 프로파일(local)은 설정 파일이 없어 실패하므로 **dev 프로파일**로 띄운다 ([KI-02](KNOWN-ISSUES.md#ki-02-기본-프로파일-local의-프로퍼티-파일이-없음)).
-- `docker compose up` 전체 기동은 현재 불가능하다 ([KI-01](KNOWN-ISSUES.md#ki-01-docker-composeyml이-실행-불가)) — Redis만 compose로 띄우고 MySQL과 앱은 개별 기동한다.
+- **가장 빠른 길은 `docker compose up -d`** — MySQL·Redis·앱이 한 번에 뜬다. 환경변수를 하나도 안 넣어도 더미 기본값으로 부팅된다.
+- 앱만 IDE에서 띄우려면 **dev 프로파일**을 쓴다. 기본 프로파일(local)은 개인 설정 파일이 필요하므로 `application-local.properties.example`을 복사해서 만든다.
 - 부팅하면 시드 데이터가 자동 생성되며 `test1@gmail.com / asd`로 로그인할 수 있다.
+
+## 0. 가장 빠른 길 — compose 전체 기동
+
+```bash
+docker compose up -d
+```
+
+MySQL(3306) · Redis(6379) · 앱(8080)이 함께 뜬다. `.env`가 없어도 `docker-compose.yml`에
+박아 둔 더미 기본값으로 부팅된다. 구글 로그인·S3 업로드·NEIS 급식 수집처럼 외부
+자격증명이 필요한 기능만 동작하지 않는다 — 그 기능을 쓰려면 `.env.example`을 `.env`로
+복사해 값을 채운다.
+
+아래 1~3단계는 **앱을 IDE나 gradle로 직접 띄우고 싶을 때**의 절차다.
 
 ## 사전 요구사항
 
@@ -24,7 +37,7 @@
 
 ## 1. 인프라 기동 (Redis, MySQL)
 
-Redis — compose 파일의 redis 서비스만 단독 기동한다 (전체 `up`은 KI-01로 실패):
+Redis — compose 파일의 redis 서비스만 단독 기동한다:
 
 ```bash
 docker compose up -d redis
@@ -40,9 +53,15 @@ docker run -d --name highteenday-mysql -p 3306:3306 \
 
 dev 프로파일의 datasource 기본값은 `jdbc:mysql://localhost:3306/highteenday_db`, 사용자 `root`, 비밀번호 빈 문자열이다 (`application-dev.properties`). 위처럼 비밀번호를 설정했다면 환경변수로 덮어쓴다(아래 2단계).
 
+MySQL — compose 파일의 mysql 서비스만 단독 기동해도 되고, 로컬 설치본을 써도 된다:
+
+```bash
+docker compose up -d mysql
+```
+
 ## 2. 환경변수 설정
 
-dev 프로파일이 요구하는 값 (`application-dev.properties` 기준). 기본값이 없는 항목은 반드시 넣어야 부팅된다:
+**전부 기본값이 있어 아무것도 넣지 않아도 부팅된다.** 아래는 무엇을 덮어쓸 수 있는지의 목록이다:
 
 | 환경변수 | 기본값 | 필수 여부 · 설명 |
 |---|---|---|
@@ -50,23 +69,29 @@ dev 프로파일이 요구하는 값 (`application-dev.properties` 기준). 기�
 | `DB_USERNAME` | `root` | 선택 |
 | `DB_PASSWORD` | (빈 문자열) | MySQL 설정에 맞게 |
 | `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` | 선택 |
-| `JWT_KEY` | 없음 | **필수.** HMAC-SHA512 서명 키이므로 64바이트 이상의 임의 문자열 권장 (`security/TokenProvider.java`) |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 없음 | **필수(부팅용).** 소셜 로그인을 실제로 쓸 게 아니면 임의 문자열로도 부팅은 된다. 실제 구글 로그인 테스트에는 유효한 자격증명 필요 |
-| `NEIS_API_KEY` | 없음 | **필수(부팅용).** 급식 데이터 외부 수집을 쓰지 않으면 임의 문자열 가능. `[미확인: 급식 JSON 파일이 없는 달에는 부팅 시 NEIS 호출이 발생하는데(아래 4단계), 무효 키일 때의 정확한 동작은 실행으로 검증하지 않음]` |
+| `JWT_KEY` | `local-dev-jwt-...`(로컬 전용 더미) | 선택. HMAC-SHA512 서명 키이므로 64바이트 이상의 임의 문자열 권장 (`security/TokenProvider.java`). **배포되는 dev 서버에서는 반드시 덮어쓴다** |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `dummy-client-id` / `dummy-client-secret` | 선택. 실제 구글 로그인 테스트에만 유효한 자격증명 필요 |
+| `NEIS_API_KEY` | `dummy-neis-key` | 선택. 급식 데이터 외부 수집을 실제로 할 때만 유효한 키 필요 |
 | `S3_BUCKET` | `highteenday-bucket-0906` | 이미지 업로드를 실제 테스트할 때만 유효한 버킷·자격증명 필요 |
 
-PowerShell 예시:
+MySQL에 root 비밀번호를 설정했다면 그것만 덮어쓰면 된다 (PowerShell 예시):
 
 ```powershell
-$env:JWT_KEY = "local-dev-jwt-signing-key-must-be-at-least-64-bytes-long-0123456789abcdef"
-$env:GOOGLE_CLIENT_ID = "dummy"; $env:GOOGLE_CLIENT_SECRET = "dummy"
-$env:NEIS_API_KEY = "dummy"; $env:DB_PASSWORD = "root"
+$env:DB_PASSWORD = "root"
 ```
 
 ## 3. 서버 기동
 
 ```bash
 ./gradlew bootRun --args='--spring.profiles.active=dev'
+```
+
+기본 프로파일(local)로 띄우고 싶다면 개인 설정 파일을 먼저 만든다 — 이 파일은
+개인 자격증명이 들어가므로 `.gitignore` 대상이라 저장소에 없다:
+
+```bash
+cp src/main/resources/application-local.properties.example \
+   src/main/resources/application-local.properties
 ```
 
 스키마는 부팅 시 Flyway가 만든다 — 빈 DB라면 `db/migration/`의 마이그레이션(V1 baseline부터)이
