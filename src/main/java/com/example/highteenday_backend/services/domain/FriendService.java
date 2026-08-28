@@ -9,9 +9,7 @@ import com.example.highteenday_backend.domain.users.UserRepository;
 import com.example.highteenday_backend.dtos.Friends.*;
 import com.example.highteenday_backend.dtos.UserProfileDto;
 import com.example.highteenday_backend.enums.*;
-import com.example.highteenday_backend.eventEntities.events.FriendBlockedEvent;
 import com.example.highteenday_backend.eventEntities.events.FriendRequestAcceptedEvent;
-import com.example.highteenday_backend.eventEntities.events.FriendRequestDeclinedEvent;
 import com.example.highteenday_backend.eventEntities.events.FriendRequestSentEvent;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
@@ -154,11 +152,10 @@ public class FriendService {
         // 응답자가 차단 했을거니까 응답자만 차단 상태 요청자는 모름
         else if (friendReqDto.status().equalsIgnoreCase(FriendRequestStatus.BLOCKED.name())) {
             friendRepository.save(Friend.createBlock(receiver, requester));
-            eventPublisher.publishEvent(new FriendBlockedEvent(receiver.getId(), requester.getId()));
         }
         // 요청 거절시 아무 응답 없음
         else if (friendReqDto.status().equalsIgnoreCase(FriendRequestStatus.DECLINED.name())) {
-            eventPublisher.publishEvent(new FriendRequestDeclinedEvent(requester.getId(), receiver.getId()));
+            // 알리지 않는다. 아래에서 요청만 종결된다.
         }
 
         friendReq.delete();
