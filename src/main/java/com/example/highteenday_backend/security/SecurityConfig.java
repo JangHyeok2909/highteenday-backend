@@ -19,14 +19,32 @@ import java.util.List;
 /**
  * Spring Security 설정 — 인가 규칙, CORS, OAuth2 로그인, JWT 필터 배치.
  *
- * 인가 규칙을 읽을 때 주의: GET은 "명시된 경로만 인증, 나머지 전부 공개"인
- * 블랙리스트 구조다 (아래 GET /** permitAll). 새 GET 엔드포인트를 추가하면
- * 기본값이 전체 공개가 되므로, 인증이 필요하면 반드시 위의 authenticated()
- * 목록에 경로를 추가해야 한다 (docs/KNOWN-ISSUES.md KI-04).
- * 반대로 GET 이외 메서드는 화이트리스트 구조다 — 명시된 permitAll 외에는 전부 인증.
+ * 인가 규칙은 **화이트리스트**다: 명시적으로 permitAll 한 경로만 공개이고
+ * 나머지는 전부 {@code anyRequest().authenticated()} 로 떨어진다. 새 엔드포인트를
+ * 추가하면 메서드와 무관하게 기본값이 "차단"이므로, 공개하려면 아래 목록에
+ * 직접 적어야 한다.
+ *
+ * 예전에는 GET 만 블랙리스트였다 — 마지막에 {@code GET /**} 가 permitAll 이라
+ * 새 GET 이 기본 공개가 됐고, 그런 핸들러가 {@code @AuthenticationPrincipal} 을
+ * null 체크 없이 쓰면 비인증 요청이 401 이 아니라 NPE 500 으로 터졌다
+ * (docs/KNOWN-ISSUES.md KI-04). 인가 매트릭스는 {@code AuthorizationMatrixTest} 가 고정한다.
  */
 @Configuration
 public class SecurityConfig {
+
+    /**
+     * 브라우저에서 이 API 를 부를 수 있는 출처.
+     *
+     * <p>CORS 허용 목록과 CSRF Origin 검증({@link CsrfOriginValidationFilter})이
+     * <b>같은 목록</b>을 본다. 둘이 갈라지면 "CORS 는 통과하는데 쓰기는 403" 같은
+     * 설명하기 어려운 상태가 생긴다.
+     */
+    private static final List<String> ALLOWED_ORIGINS = List.of(
+            "https://highteenday.org",
+            "https://www.highteenday.org",
+            "http://localhost:3000",
+            "http://localhost:8080"
+    );
 
     @Autowired
     private CustomOAuth2UserService customOAuth2UserService;
@@ -43,6 +61,9 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http
+                // 스프링의 CSRF 토큰 방식은 끈 채로 둔다 — 토큰을 켜면 프론트엔드가
+                // XSRF 토큰을 되돌려 보내도록 함께 고쳐야 하는데 프론트는 별도 저장소다.
+                // 대신 쓰기 요청의 출처를 검사하는 최소 방어를 아래 필터로 넣었다 (KI-06).
                 .csrf(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
@@ -59,12 +80,7 @@ public class SecurityConfig {
                 .cors(cors -> cors
                         .configurationSource(request -> {
                             CorsConfiguration config = new CorsConfiguration();
-                            config.setAllowedOriginPatterns(List.of(
-                                    "https://highteenday.org",
-                                    "https://www.highteenday.org",
-                                    "http://localhost:3000",
-                                    "http://localhost:8080"
-                            ));
+                            config.setAllowedOriginPatterns(ALLOWED_ORIGINS);
                             config.setAllowCredentials(true);
                             config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
                             config.setAllowedHeaders(List.of("*"));
@@ -80,40 +96,46 @@ public class SecurityConfig {
                         }))
                 )
                 .authorizeHttpRequests(auth -> auth
-                        // WebSocket 엔드포인트 (SockJS 핸드셰이크)
+                        // ── 인프라 경로 ──
+                        // WebSocket 엔드포인트 (SockJS 핸드셰이크). 실제 인증은
+                        // WebSocketAuthChannelInterceptor 가 STOMP CONNECT 에서 한다.
                         .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/error").permitAll()
+                        // CORS 프리플라이트에는 쿠키가 실리지 않는다. 막으면 브라우저 요청이 전부 죽는다.
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // 관측 지표. prod 는 management.server.port=8081 이라 이 체인에 오지 않지만,
+                        // perf 프로파일은 포트를 비워 8080 에서 서빙하므로 이 규칙이 없으면
+                        // Prometheus 스크레이프(app:8080/actuator/prometheus)가 401 이 된다.
+                        .requestMatchers("/actuator/**").permitAll()
+                        // OAuth2 로그인 시작·콜백. 해당 필터가 인가 단계 전에 처리하지만
+                        // 규칙을 명시해 의도를 남긴다.
+                        .requestMatchers("/oauth2/**").permitAll()
 
-                        // 중복 체크는 인증 불필요 (GET /api/user/** authenticated 규칙보다 먼저 선언)
-                        .requestMatchers(HttpMethod.GET, "/api/user/check/**").permitAll()
-
-                        // GET 요청 중 인증 필요 경로
-                        .requestMatchers(HttpMethod.GET,
-                                "/api/user/OAuth2UserInfo",
-                                "/api/user/loginUser",
-                                "/api/user/**",
-                                "/api/mypage/**",
-                                "/api/timetableTemplates/**",
-                                "/api/schools/meals/**",
-                                "/api/notifications/**",
-                                "/api/chat/**"
-                        ).authenticated()
-
-                        // POST/DELETE 요청 중 인증 필요 경로
-                        .requestMatchers(HttpMethod.POST, "/api/user/logout").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/user/account").authenticated()
-
-                        // POST 요청 중 인증 없이 허용하는 경로
+                        // ── 인증 없이 허용하는 쓰기 (로그인·가입·토큰 재발급) ──
                         .requestMatchers(HttpMethod.POST,
                                 "/api/user/register",
                                 "/api/user/login",
-                                "/api/token/refresh",
-                                "/error"
+                                "/api/token/refresh"
                         ).permitAll()
-                        // 그 외 모든 GET 요청은 허용 — 게시글·댓글 조회를 비로그인에 열기 위한
-                        // 선택이지만, 새 GET 엔드포인트가 기본 공개가 되는 부작용이 있다 (KI-04)
-                        .requestMatchers(HttpMethod.GET, "/**").permitAll()
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // 그 외 모든 요청은 인증 필요
+
+                        // ── 인증 없이 허용하는 읽기 ──
+                        // 비로그인 열람을 의도한 경로만 여기 적는다. 목록에 없는 GET 은
+                        // 아래 anyRequest() 에서 인증 요구로 떨어진다.
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/boards",                  // 게시판 목록
+                                "/api/boards/*/posts",          // 게시판별 글 목록
+                                "/api/posts/search",            // 글 검색
+                                "/api/posts/*",                 // 글 상세
+                                "/api/posts/*/comments",        // 댓글 목록
+                                "/api/posts/*/comments/*",      // 댓글 단건
+                                "/api/hotposts/**",             // 인기글
+                                "/api/schools/search",          // 학교 검색 (가입 절차에서 필요)
+                                "/api/user/check/**"            // 닉네임·이메일·전화 중복 확인
+                        ).permitAll()
+
+                        // ── 그 외 전부 인증 필요 ──
+                        // 화이트리스트다. 새 엔드포인트는 GET 이든 아니든 기본값이 "차단"이므로,
+                        // 공개해야 하면 위 목록에 명시적으로 추가해야 한다 (KI-04).
                         .anyRequest().authenticated()
                 )
 
@@ -132,7 +154,9 @@ public class SecurityConfig {
                         .successHandler(oAuth2SuccessHandler))
 
                 .addFilterBefore(tokenAuthenticationFilter(), ExceptionTranslationFilter.class)
-                .addFilterBefore(new TokenExceptionFilter(), TokenAuthenticationFilter.class);
+                .addFilterBefore(new TokenExceptionFilter(), TokenAuthenticationFilter.class)
+                // 인증 작업을 하기 전에 출처부터 끊는다 (KI-06).
+                .addFilterBefore(new CsrfOriginValidationFilter(ALLOWED_ORIGINS), TokenExceptionFilter.class);
         return http.build();
     }
 
