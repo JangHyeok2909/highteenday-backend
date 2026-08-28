@@ -72,28 +72,4 @@ public class HotScoreCalculator {
         double decay = Math.pow(ageHours + 2, 1.5);
         return Math.round((sign * order / decay) * 1_000_000d) / 1_000_000d;
     }
-
-
-    public static double calculateRecentHotScoreTest(int likeCount, int dislikeCount, int scrapCount, int viewCount, int commentCount, LocalDateTime createdAt){
-        // 가중치
-        final double W_Likes = 5.0;
-        final double W_DISLIKES = 2.0;
-        final double W_SCRAPS = 2.0;
-        final double W_COMMENTS = 3;
-        final double W_VIEWS = 1;
-
-        // 1) 각 항목별 가중치를 반영해 총 점수 계산
-        double score = W_Likes * likeCount
-                - W_DISLIKES * dislikeCount
-                + W_SCRAPS * scrapCount
-                + W_COMMENTS * commentCount
-                + W_VIEWS * viewCount;
-
-        // 2) 로그 스케일 변환 (최소값 1로 보정)
-        double order = Math.log10(Math.max(Math.abs(score), 1));
-
-        // 3) 점수 부호 계산 (양수:1, 음수:-1, 0:0)
-        int sign = (score > 0) ? 1 : (score < 0) ? -1 : 0;
-        return sign*order;
-    }
 }
