@@ -97,6 +97,10 @@ public class TokenProvider {
         CustomUserPrincipal customUserPrincipal = (CustomUserPrincipal) authentication.getPrincipal();
 
         return Jwts.builder()
+                // iat/exp 는 초 단위라, 같은 사용자에게 같은 초에 두 번 발급하면 토큰
+                // 문자열이 완전히 같아진다. 그러면 리프레시 토큰 rotation 이 무효가 되고
+                // (옛 토큰이 그대로 유효) tokens 테이블의 UNIQUE 제약과도 부딪힌다.
+                .setId(UUID.randomUUID().toString())
                 .setSubject(customUserPrincipal.getUser().getEmailValue())
                 .claim(KEY_ROLE, authorities)
                 .claim("name", customUserPrincipal.getUser().getNameValue())

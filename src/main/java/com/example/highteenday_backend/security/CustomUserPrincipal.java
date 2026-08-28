@@ -3,7 +3,6 @@ package com.example.highteenday_backend.security;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.Login.OAuth2UserInfo;
 import com.example.highteenday_backend.enums.Provider;
-import com.example.highteenday_backend.enums.Role;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -26,7 +25,7 @@ public class CustomUserPrincipal implements UserDetails, OAuth2User{
         this.user = user;
         this.oAuth2UserInfo = null;
         this.attributes = Collections.emptyMap();
-        this.authorities = List.of(new SimpleGrantedAuthority(user.getRole().name()));
+        this.authorities = List.of(new SimpleGrantedAuthority(user.getRole().getKey()));
         this.isNewUser = false;
     }
 
@@ -34,7 +33,8 @@ public class CustomUserPrincipal implements UserDetails, OAuth2User{
         this.user = user;
         this.oAuth2UserInfo = null;
         this.attributes = attributes;
-        this.authorities = List.of(new SimpleGrantedAuthority(Role.USER.getKey()));
+        // 예전에는 Role.USER 를 하드코딩해 GUEST/ADMIN 분기가 도달 불가였다.
+        this.authorities = List.of(new SimpleGrantedAuthority(user.getRole().getKey()));
         this.isNewUser = isNewUser;
     }
 
