@@ -26,6 +26,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import com.example.highteenday_backend.services.global.AfterCommitExecutor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.List;
@@ -44,6 +45,7 @@ class NotificationServiceTest {
     @Mock private NotificationRepository notificationRepository;
     @Mock private UserService userService;
     @Mock private SimpMessagingTemplate messagingTemplate;
+    @Mock private AfterCommitExecutor afterCommitExecutor;
 
     @InjectMocks private NotificationService notificationService;
 
@@ -53,6 +55,11 @@ class NotificationServiceTest {
 
     @BeforeEach
     void setUp() {
+        // 커밋 이후 발행(KI-24)을 테스트에서는 즉시 실행으로 본다.
+        org.mockito.Mockito.doAnswer(inv -> {
+            inv.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(afterCommitExecutor).run(org.mockito.ArgumentMatchers.any(Runnable.class));
         owner = User.builder().id(1L).nickname(new Nickname("owner")).build();
         otherUser = User.builder().id(2L).nickname(new Nickname("other")).build();
         sender = User.builder().id(3L).nickname(new Nickname("sender")).build();
@@ -110,6 +117,25 @@ class NotificationServiceTest {
             verify(messagingTemplate).convertAndSendToUser(
                     eq("1"), eq("/queue/notifications"), any(NotificationDto.class));
             verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+        }
+
+        /**
+         * 유령 알림 회귀 방지 (docs/KNOWN-ISSUES.md KI-24).
+         * 예약된 작업을 일부러 실행하지 않아 "아직 커밋 전" 상태를 만든다.
+         */
+        @Test
+        @DisplayName("커밋 전에는 푸시하지 않는다 — 롤백되면 DB 에 없는 알림이 떠 있게 된다")
+        void doesNotPushBeforeCommit() {
+            when(userService.findById(3L)).thenReturn(sender);
+            when(userService.findById(1L)).thenReturn(owner);
+            org.mockito.Mockito.doNothing().when(afterCommitExecutor)
+                    .run(org.mockito.ArgumentMatchers.any(Runnable.class));
+
+            notificationService.createCommentNotification(3L, 1L, 100L, "댓글 내용");
+
+            verify(afterCommitExecutor).run(org.mockito.ArgumentMatchers.any(Runnable.class));
+            verify(messagingTemplate, never()).convertAndSendToUser(
+                    anyString(), anyString(), any(Object.class));
         }
     }
 
