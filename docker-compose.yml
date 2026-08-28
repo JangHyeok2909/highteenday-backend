@@ -2,8 +2,29 @@ services:
 
   # ==============================
   # MySQL
+  #
+  # app 이 depends_on 으로 참조하므로 이 정의가 없으면 compose 가
+  # "service app depends on undefined service mysql" 로 즉시 실패한다.
+  # 값은 .env 로 덮어쓸 수 있고, 없으면 아래 기본값으로 그대로 뜬다.
   # ==============================
-
+  mysql:
+    image: mysql:8
+    container_name: highteenday-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-highteenday_db}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # -p 를 붙여야 root 비밀번호가 설정된 상태에서도 ping 이 성공한다.
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   # ==============================
   # Redis
@@ -35,16 +56,17 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-highteenday_db}
       DB_USERNAME: root
-      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      JWT_KEY: ${JWT_KEY}
-      S3_BUCKET: ${S3_BUCKET}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      NEIS_API_KEY: ${NEIS_API_KEY}
+      # 아래 넷은 값이 없으면 부팅이 실패하는 항목이다. 실제 기능을 쓰려면 .env 에 채운다.
+      JWT_KEY: ${JWT_KEY:-local-compose-jwt-signing-key-must-be-at-least-64-bytes-long-0123456789abcdef}
+      S3_BUCKET: ${S3_BUCKET:-highteenday-bucket-0906}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dummy-client-id}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-dummy-client-secret}
+      NEIS_API_KEY: ${NEIS_API_KEY:-dummy-neis-key}
 
 volumes:
   mysql-data:
