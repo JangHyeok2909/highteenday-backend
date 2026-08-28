@@ -96,6 +96,10 @@ public class TimetableTemplateService {
     }
     @Transactional
     public TimetableTemplate save(TimetableTemplate template){
+        // NOT NULL 컬럼이라 없이 들어오면 INSERT 에서 무결성 위반(409)이 난다. 400으로 막는다.
+        if(template.getGrade() == null || template.getSemester() == null){
+            throw new CustomException(ErrorCode.INVALID_REQUEST, "학년(grade)과 학기(semester)는 필수입니다.");
+        }
         if(template.isDefault()) selectDefaultTemplate(template.getUser(),template);
         return timetableTemplateRepository.save(template);
     }
