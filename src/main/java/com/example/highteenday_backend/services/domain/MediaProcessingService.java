@@ -40,7 +40,9 @@ public class MediaProcessingService {
             replaceUrlContent = replaceUrlContent.replace(u, postFileUrl);
         }
         post.editContent(replaceUrlContent);
-        fileStorage.deleteUserTmp(userId);
+        // 이 글이 실제로 승격시킨 임시 파일만 지운다. 사용자의 tmp/ 전체를 지우면
+        // 탭 두 개로 동시에 쓰던 다른 글의 이미지까지 날아간다 (KI-36).
+        fileStorage.deletePromotedTmpFiles(urls);
     }
 
     @Transactional
@@ -65,7 +67,7 @@ public class MediaProcessingService {
                 replaceUrlContent = replaceUrlContent.replace(u, postFileUrl);
             }
             post.editContent(replaceUrlContent);
-            fileStorage.deleteUserTmp(userId);
+            fileStorage.deletePromotedTmpFiles(addedUrls);
             for (String ru : removedUrls) {
                 fileStorage.deleteByUrl(ru);
             }
@@ -82,7 +84,7 @@ public class MediaProcessingService {
         Media media = processAndLink(dto.getUrl(), comment.getId(), MediaOwner.COMMENT,
                 m -> m.setComment(comment));
         comment.changeImage(media.getUrl());
-        fileStorage.deleteUserTmp(userId);
+        fileStorage.deletePromotedTmpFiles(List.of(dto.getUrl()));
     }
 
     @Transactional
@@ -122,7 +124,7 @@ public class MediaProcessingService {
         Media media = processAndLink(newImage, user.getId(), MediaOwner.PROFILE,
                 m -> m.setProfileOwner(user));
         user.updateProfileUrl(media.getUrl());
-        fileStorage.deleteUserTmp(user.getId());
+        fileStorage.deletePromotedTmpFiles(List.of(newImage));
     }
 
     public void deleteOldS3Image(String currentUrl) {

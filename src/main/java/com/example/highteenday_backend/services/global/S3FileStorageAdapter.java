@@ -14,6 +14,7 @@ import software.amazon.awssdk.services.s3.model.*;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Collection;
 import java.util.UUID;
 
 @Service
@@ -47,20 +48,14 @@ public class S3FileStorageAdapter implements FileStoragePort {
     }
 
     @Override
-    public void deleteUserTmp(Long userId) {
-        String prefix = "tmp/" + userId + "/";
-
-        ListObjectsV2Response listRes = s3Client.listObjectsV2(
-                ListObjectsV2Request.builder()
-                        .bucket(bucket)
-                        .prefix(prefix)
-                        .build()
-        );
-
-        for (S3Object s3Object : listRes.contents()) {
+    public void deletePromotedTmpFiles(Collection<String> tmpUrls) {
+        // 넘어온 URL 만 지운다. 예전에는 tmp/{userId}/ 접두어로 목록을 훑어 전부 지웠고,
+        // 그래서 같은 사용자가 동시에 작성 중이던 다른 글의 이미지까지 날아갔다 (KI-36).
+        for (String url : tmpUrls) {
+            if (url == null || url.isEmpty()) continue;
             s3Client.deleteObject(DeleteObjectRequest.builder()
                     .bucket(bucket)
-                    .key(s3Object.key())
+                    .key(getKeyByUrl(url))
                     .build());
         }
     }
