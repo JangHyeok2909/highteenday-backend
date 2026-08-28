@@ -1,0 +1,50 @@
+# ============================================================
+# CI — 테스트 게이트
+#
+# 왜 별도 워크플로인가: deploy.yml 은 main 푸시에만 돈다. 그 시점에 테스트가
+# 처음 돌면 이미 병합된 뒤라 게이트 역할을 못 한다. 이 워크플로는 develop 으로
+# 들어오는 PR 과 develop 푸시에서 테스트를 돌려, 병합 전에 실패를 잡는다.
+# (docs/KNOWN-ISSUES.md KI-12)
+# ============================================================
+name: CI
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+  push:
+    branches: [ develop ]
+
+# 같은 브랜치에 새 푸시가 오면 이전 실행을 취소한다. 러너 시간을 아끼고,
+# 머지 판단에 쓰이는 결과가 항상 최신 커밋의 것이 되게 한다.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+
+      # 실패했을 때 로그만 보고 원인을 찾기 어려우므로 리포트를 아티팩트로 남긴다.
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/test
+          retention-days: 7
+          if-no-files-found: ignore
