@@ -59,6 +59,12 @@ public class DataInitializer {
     private final TimetableSubjectService timetableSubjectService;
     private final ApplicationEventPublisher eventPublisher;
 
+    /**
+     * 시드 게시글 수. 댓글·스크랩은 이 게시글들에 달리므로 이 값을 넘어설 수 없다.
+     * 예전에는 각자 11·12로 하드코딩돼 있어 빈 DB 첫 부팅이 "post does not exist"로 실패했다.
+     */
+    private static final int SEED_POST_COUNT = 10;
+
     @Transactional
     public void dataInit() {
         userDataInit();
@@ -92,7 +98,7 @@ public class DataInitializer {
     }
 
     public void postDataInit(User user){
-        int postCount = 10;
+        int postCount = SEED_POST_COUNT;
         for(int i=1;i<=postCount;i++){
             long boardId = (i-1)%5+1;
             RequestPostDto requestPostDto = RequestPostDto.builder()
@@ -106,7 +112,7 @@ public class DataInitializer {
         log.info("Test posts initialized. count={}", postCount);
     }
     public void commentDataInit(User user){
-        int commentCount = 11;
+        int commentCount = SEED_POST_COUNT;
         for(int i=1;i<=commentCount;i++){
             RequestCommentDto dto = RequestCommentDto.builder()
                     .content("testUser1이 postId=" + i + "인 게시글에 다는 댓글" + i)
@@ -117,7 +123,7 @@ public class DataInitializer {
         log.info("Test comments initialized. count={}", commentCount);
     }
     public void likeAndDislikeDataInit(User user){
-        int likeCount = 11;
+        int likeCount = SEED_POST_COUNT;
         for(int i=1;i<=likeCount;i++){
             if(i%2==0) postReactionService.likeReact(postService.findById((long)i),user);
             else postReactionService.dislikeReact(postService.findById((long)i),user);
@@ -136,7 +142,7 @@ public class DataInitializer {
     }
 
     public void scrapDataInit(User user){
-        int scrapCount= 12;
+        int scrapCount = SEED_POST_COUNT;
         for (int i = 1; i <= scrapCount; i++) {
             scrapService.toggleScrap((long) i, user);
         }

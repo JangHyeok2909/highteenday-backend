@@ -30,13 +30,15 @@ public class AppStartupRunner {
 
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
-        dataInitializer.dataInit();
+        // 학교를 먼저 적재한다. dataInitializer 가 시드 사용자마다 학교를 배정하므로,
+        // 순서가 반대면 빈 DB 첫 부팅이 "school does not exist" 로 실패한다.
         if (schoolRepository.count() == 0) {
             log.info("No school data found. Importing from schools.json...");
             schoolInfoService.loadAllSchools();
             schoolInfoService.importSchoolsFromJson();
             log.info("School data import complete. count={}", schoolRepository.count());
         }
+        dataInitializer.dataInit();
         LocalDate now = LocalDate.now();
         int year = now.getYear();
         int month = now.getMonthValue();
