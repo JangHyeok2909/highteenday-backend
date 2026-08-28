@@ -110,7 +110,7 @@ public class UserController {
             @RequestBody RegisterUserDto registerUserDto,
             HttpServletResponse response
             ){
-        userService.register(registerUserDto, response);
+        jwtCookieService.setJwtCookie(userService.register(registerUserDto), response);
         return ResponseEntity.ok("회원가입 성공");
     }
 
