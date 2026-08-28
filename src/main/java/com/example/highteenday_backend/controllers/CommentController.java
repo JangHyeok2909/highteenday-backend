@@ -7,6 +7,8 @@ import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.CommentDto;
 import com.example.highteenday_backend.dtos.LikeStateDto;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
+import com.example.highteenday_backend.enums.ErrorCode;
+import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.*;
 import io.swagger.v3.oas.annotations.Operation;
@@ -60,9 +62,20 @@ public class CommentController {
 
     @Operation(summary = "댓글 한개 조회", description = "댓글 id를 통해 댓글 하나 조회")
     @GetMapping("/{commentId}")
-    public ResponseEntity<CommentDto> getCommentByIdTest(@PathVariable Long commentId){
-        Comment comment = commentService.findCommentById(commentId);
-        return ResponseEntity.ok(CommentDto.fromEntity(comment));
+    public ResponseEntity<CommentDto> getCommentById(@PathVariable Long postId,
+                                                     @PathVariable Long commentId){
+        // "익명N"의 N은 댓글 등장 순서로 매겨지므로, 목록과 같은 번호를 내려면
+        // 같은 게시글의 댓글 전체를 문맥으로 넣어야 한다.
+        Post post = postService.findById(postId);
+        List<Comment> comments = commentService.getCommentsByPost(post);
+        List<CommentDto> dtos = commentAnonymizationService.anonymize(post, comments);
+
+        for (int i = 0; i < comments.size(); i++) {
+            if (comments.get(i).getId().equals(commentId)) {
+                return ResponseEntity.ok(dtos.get(i));
+            }
+        }
+        throw new CustomException(ErrorCode.COMMENT_NOT_FOUND, "commentId=" + commentId);
     }
 
     @Operation(summary = "댓글 생성")
