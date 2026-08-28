@@ -61,6 +61,7 @@ public class PostReactionService {
                 .isLiked(isLiked)
                 .isDisliked(isDisliked)
                 .likeCount(post.getLikeCount())
+                .dislikeCount(post.getDislikeCount())
                 .build();
     }
 
@@ -68,6 +69,7 @@ public class PostReactionService {
         postReactionRepository.findByPostAndUser(post, user)
                 .ifPresent(r -> r.cancel());
         syncCounts(post);
+        eventPublisher.publishEvent(new PostReactedEvent(post.getId()));
     }
 
     private void createReaction(Post post, User user, PostReactionKind kind) {

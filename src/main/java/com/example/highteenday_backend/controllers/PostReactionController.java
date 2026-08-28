@@ -36,11 +36,6 @@ public class PostReactionController {
             postReactionService.dislikeReact(post, user);
         }
 
-        LikeStateDto stateDto = LikeStateDto.builder()
-                .postId(postId)
-                .likeCount(post.getLikeCount())
-                .dislikeCount(post.getDislikeCount())
-                .build();
-        return ResponseEntity.ok(stateDto);
+        return ResponseEntity.ok(postReactionService.getLikeSatateDto(post, user));
     }
 }

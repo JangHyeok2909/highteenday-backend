@@ -26,8 +26,6 @@ public class HotPostEventListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onScrapToggled(ScrapToggledEvent event) {
-        if (event.isNewScrap()) {
-            hotPostService.updateLeaderboardDayScore(event.getPostId());
-        }
+        hotPostService.updateLeaderboardDayScore(event.getPostId());
     }
 }
