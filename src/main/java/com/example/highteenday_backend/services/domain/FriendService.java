@@ -143,23 +143,49 @@ public class FriendService {
         User requester = friendReq.getRequester();
         User receiver = friendReq.getReceiver();
 
-        //요청 수락
-        if (friendReqDto.status().equalsIgnoreCase(FriendRequestStatus.ACCEPTED.name())) {
-            friendRepository.save(Friend.createFriendship(requester, receiver));
-            friendRepository.save(Friend.createFriendship(receiver, requester));
-            eventPublisher.publishEvent(new FriendRequestAcceptedEvent(requester.getId(), receiver.getId()));
-        }
-        // 응답자가 차단 했을거니까 응답자만 차단 상태 요청자는 모름
-        else if (friendReqDto.status().equalsIgnoreCase(FriendRequestStatus.BLOCKED.name())) {
-            friendRepository.save(Friend.createBlock(receiver, requester));
-        }
-        // 요청 거절시 아무 응답 없음
-        else if (friendReqDto.status().equalsIgnoreCase(FriendRequestStatus.DECLINED.name())) {
-            // 알리지 않는다. 아래에서 요청만 종결된다.
+        // 응답 값을 먼저 검증한다. 예전에는 세 분기 중 어디에도 걸리지 않는 값이 오면
+        // 아무 처리도 없이 아래에서 요청만 종결돼, 오타 하나로 친구 요청이 소리 없이
+        // 사라졌다 (docs/KNOWN-ISSUES.md KI-42).
+        FriendResponse response = FriendResponse.from(friendReqDto.status());
+
+        switch (response) {
+            // 요청 수락
+            case ACCEPTED -> {
+                friendRepository.save(Friend.createFriendship(requester, receiver));
+                friendRepository.save(Friend.createFriendship(receiver, requester));
+                eventPublisher.publishEvent(new FriendRequestAcceptedEvent(requester.getId(), receiver.getId()));
+            }
+            // 응답자가 차단 했을거니까 응답자만 차단 상태 요청자는 모름
+            case BLOCKED -> friendRepository.save(Friend.createBlock(receiver, requester));
+            // 요청 거절시 아무 응답 없음. 아래에서 요청만 종결된다.
+            case DECLINED -> { }
         }
 
         friendReq.delete();
 
+    }
+
+    /**
+     * 친구 요청에 대해 <b>응답으로 허용되는</b> 값 (docs/KNOWN-ISSUES.md KI-42).
+     *
+     * <p>{@link FriendRequestStatus} 를 그대로 쓰지 않는 이유: 그 enum 에는
+     * {@code REQUESTED} 도 들어 있는데, "요청함"은 요청의 초기 상태이지 응답이 아니다.
+     * 응답으로 받으면 세 분기 어디에도 걸리지 않아 원래 결함이 그대로 재현된다.
+     * 받을 수 있는 값만 따로 세어 두면 그런 값이 400 으로 막힌다.
+     */
+    private enum FriendResponse {
+        ACCEPTED, DECLINED, BLOCKED;
+
+        static FriendResponse from(String raw) {
+            if (raw == null) {
+                throw new CustomException(ErrorCode.INVALID_REQUEST, "친구 요청 응답 값이 없습니다.");
+            }
+            for (FriendResponse value : values()) {
+                if (value.name().equalsIgnoreCase(raw.trim())) return value;
+            }
+            throw new CustomException(ErrorCode.INVALID_REQUEST,
+                    "친구 요청 응답은 ACCEPTED, DECLINED, BLOCKED 중 하나여야 합니다.");
+        }
     }
 
     // 친구 삭제 | A B 둘다 삭제
@@ -170,7 +196,10 @@ public class FriendService {
             throw new CustomException(ErrorCode.FRIEND_NOT_FOUND);
         }
 
-        friendRepository.deleteAll(relations);
+        // 물리 삭제 대신 soft delete. `is_valid=false` 로 두면 관계 이력이 남고,
+        // BaseEntity 를 쓰는 다른 엔티티와 규칙이 같아진다 (docs/KNOWN-ISSUES.md KI-43).
+        // FriendRepository 의 모든 조회가 is_valid 를 걸러 주므로 끊긴 친구는 보이지 않는다.
+        relations.forEach(Friend::delete);
     }
 
     // 친구 차단
