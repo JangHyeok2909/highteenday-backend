@@ -25,8 +25,6 @@ import com.example.highteenday_backend.enums.Role;
 import com.example.highteenday_backend.enums.Semester;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
-import com.example.highteenday_backend.services.security.JwtCookieService;
-import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -64,10 +62,8 @@ import static org.mockito.Mockito.when;
 class UserServiceTest {
 
     @Mock private UserRepository userRepository;
-    @Mock private JwtCookieService jwtCookieService;
     @Mock private TimetableTemplateRepository timetableTemplateRepository;
     @Mock private SchoolService schoolService;
-    @Mock private HttpServletResponse response;
 
     /** 해시 구현이 아니라 서비스 분기를 보는 테스트이므로 결정적인 가짜 인코더를 쓴다. */
     private final PasswordEncoder passwordEncoder = new PasswordEncoder() {
@@ -88,7 +84,7 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, passwordEncoder, jwtCookieService,
+        userService = new UserService(userRepository, passwordEncoder,
                 timetableTemplateRepository, schoolService);
 
         existing = User.builder()
@@ -214,11 +210,11 @@ class UserServiceTest {
         }
 
         @Test
-        @DisplayName("정상 가입 — 비밀번호를 해시로 저장하고 기본 시간표를 만들고 쿠키를 심는다")
+        @DisplayName("정상 가입 — 비밀번호를 해시로 저장하고 기본 시간표를 만들고 Authentication을 돌려준다")
         void registersUser() {
             when(userRepository.findByEmail("new@test.com")).thenReturn(Optional.empty());
 
-            userService.register(validDto().build(), response);
+            Authentication authentication = userService.register(validDto().build());
 
             ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
             verify(userRepository).saveAndFlush(captor.capture());
@@ -229,7 +225,11 @@ class UserServiceTest {
             assertThat(saved.getProvider()).isEqualTo(Provider.DEFAULT);
 
             verify(timetableTemplateRepository).save(any(TimetableTemplate.class));
-            verify(jwtCookieService).setJwtCookie(any(Authentication.class), any());
+
+            // 쿠키는 컨트롤러가 굽는다. 서비스는 그 재료인 Authentication 까지만 만든다.
+            assertThat(authentication).isNotNull();
+            assertThat(((CustomUserPrincipal) authentication.getPrincipal()).getUserEmail())
+                    .isEqualTo("new@test.com");
         }
 
         @Test
@@ -237,7 +237,7 @@ class UserServiceTest {
         void createsDefaultTimetableTemplate() {
             when(userRepository.findByEmail("new@test.com")).thenReturn(Optional.empty());
 
-            userService.register(validDto().build(), response);
+            userService.register(validDto().build());
 
             ArgumentCaptor<TimetableTemplate> captor =
                     ArgumentCaptor.forClass(TimetableTemplate.class);
@@ -253,11 +253,10 @@ class UserServiceTest {
         void throwsWhenEmailTaken() {
             when(userRepository.findByEmail("new@test.com")).thenReturn(Optional.of(existing));
 
-            assertThatThrownBy(() -> userService.register(validDto().build(), response))
+            assertThatThrownBy(() -> userService.register(validDto().build()))
                     .satisfies(ex -> assertErrorCode(ex, ErrorCode.ALREADY_EXISTS_USER));
 
             verify(userRepository, never()).saveAndFlush(any());
-            verify(jwtCookieService, never()).setJwtCookie(any(), any());
         }
 
         @Test
@@ -265,7 +264,7 @@ class UserServiceTest {
         void defaultsProviderWhenNull() {
             when(userRepository.findByEmail("new@test.com")).thenReturn(Optional.empty());
 
-            userService.register(validDto().provider(null).build(), response);
+            userService.register(validDto().provider(null).build());
 
             ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
             verify(userRepository).saveAndFlush(captor.capture());
@@ -277,7 +276,7 @@ class UserServiceTest {
         void acceptsLowercaseProvider() {
             when(userRepository.findByEmail("new@test.com")).thenReturn(Optional.empty());
 
-            userService.register(validDto().provider("google").build(), response);
+            userService.register(validDto().provider("google").build());
 
             ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
             verify(userRepository).saveAndFlush(captor.capture());
@@ -291,7 +290,7 @@ class UserServiceTest {
             // 현재 동작을 고정해 둔다 — 검증을 추가하려면 이 테스트를 함께 고쳐야 한다.
             when(userRepository.findByEmail("new@test.com")).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> userService.register(validDto().provider("facebook").build(), response))
+            assertThatThrownBy(() -> userService.register(validDto().provider("facebook").build()))
                     .isInstanceOf(IllegalArgumentException.class);
         }
 
@@ -301,7 +300,7 @@ class UserServiceTest {
         void rejectsInvalidPassword(String password) {
             when(userRepository.findByEmail("new@test.com")).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> userService.register(validDto().password(password).build(), response))
+            assertThatThrownBy(() -> userService.register(validDto().password(password).build()))
                     .satisfies(ex -> assertErrorCode(ex, ErrorCode.INVALID_PASSWORD_FORMAT));
 
             verify(userRepository, never()).saveAndFlush(any());
@@ -312,7 +311,7 @@ class UserServiceTest {
         void rejectsInvalidNickname() {
             when(userRepository.findByEmail("new@test.com")).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> userService.register(validDto().nickname("a").build(), response))
+            assertThatThrownBy(() -> userService.register(validDto().nickname("a").build()))
                     .satisfies(ex -> assertErrorCode(ex, ErrorCode.INVALID_NICKNAME_FORMAT));
         }
 
@@ -322,7 +321,7 @@ class UserServiceTest {
             when(userRepository.findByEmail("new@test.com")).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> userService.register(
-                    validDto().birthDate(LocalDate.now().minusYears(10)).build(), response))
+                    validDto().birthDate(LocalDate.now().minusYears(10)).build()))
                     .satisfies(ex -> assertErrorCode(ex, ErrorCode.INVALID_BIRTHDATE));
         }
     }
