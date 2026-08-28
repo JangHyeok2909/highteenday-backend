@@ -19,9 +19,8 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 public class RedisPostsCache implements PostPrevCache{
-    private final RedisTemplate<String, Long> boardTemplate;
+    private final RedisTemplate<String, Long> longRedisTemplate;
     private final RedisTemplate<String, PostPreviewDto> postTemplate;
-    private final RedisTemplate<String, Long> countingTemplate;
     private final PostRepository postRepository;
 
     private static final Duration POST_TTL = Duration.ofMinutes(30);
@@ -39,7 +38,7 @@ public class RedisPostsCache implements PostPrevCache{
             // 재적재 여부는 range 결과가 아니라 리스트 길이로 판정한다. range 가 빈 값을
             // 돌려주는 이유는 "캐시가 비었다"와 "요청 구간이 리스트 밖이다" 두 가지인데,
             // 뒤쪽에서 재적재하면 길이가 그대로라 다시 빈 값이 나온다 (KI-57).
-            Long cachedSize = boardTemplate.opsForList().size(idKey);
+            Long cachedSize = longRedisTemplate.opsForList().size(idKey);
             if(cachedSize == null || cachedSize == 0) {
                 List<PostPreviewDto> postPreviewDtos = postRepository.findByBoard(PostListingDto.builder()
                         .boardId(boardId)
@@ -54,7 +53,7 @@ public class RedisPostsCache implements PostPrevCache{
                 }
             }
 
-            List<Long> ids = boardTemplate.opsForList().range(idKey, start, end);
+            List<Long> ids = longRedisTemplate.opsForList().range(idKey, start, end);
             if(ids == null || ids.isEmpty()) return Collections.emptyList();
 
             List<String> keys = ids
@@ -116,15 +115,15 @@ public class RedisPostsCache implements PostPrevCache{
     @Override
     public void addPostToBoard(Long boardId, Long postId) {
         String key = createBoardKey(boardId);
-        boardTemplate.opsForList().rightPush(key,postId);
-        boardTemplate.expire(key,BOARD_TTL);
-        boardTemplate.opsForList().trim(key,0,MAX_CACHED_POSTS-1);
+        longRedisTemplate.opsForList().rightPush(key,postId);
+        longRedisTemplate.expire(key,BOARD_TTL);
+        longRedisTemplate.opsForList().trim(key,0,MAX_CACHED_POSTS-1);
     }
 
     @ResilientRedis
     @Override
     public void evictBoard(Long boardId) {
-        boardTemplate.delete(createBoardKey(boardId));
+        longRedisTemplate.delete(createBoardKey(boardId));
     }
 
     @ResilientRedis
@@ -137,16 +136,16 @@ public class RedisPostsCache implements PostPrevCache{
     @Override
     public void incrementBoardCount(Long boardId) {
         String key = createCountingKey(boardId);
-        boardTemplate.opsForValue().increment(key, 1);
-        boardTemplate.expire(key, BOARD_TTL);
+        longRedisTemplate.opsForValue().increment(key, 1);
+        longRedisTemplate.expire(key, BOARD_TTL);
     }
 
     @ResilientRedis
     @Override
     public void decrementBoardCount(Long boardId) {
         String key = createCountingKey(boardId);
-        boardTemplate.opsForValue().decrement(key, 1);
-        boardTemplate.expire(key, BOARD_TTL);
+        longRedisTemplate.opsForValue().decrement(key, 1);
+        longRedisTemplate.expire(key, BOARD_TTL);
     }
 
     // ── AOP 미적용: DB fallback 필요 ──
@@ -155,7 +154,7 @@ public class RedisPostsCache implements PostPrevCache{
     public Long getCount(Long boardId) {
         try {
             String key = createCountingKey(boardId);
-            Long count = countingTemplate.opsForValue().get(key);
+            Long count = longRedisTemplate.opsForValue().get(key);
             return (count==null) ? createCount(boardId):count;
         } catch (Exception e) {
             log.warn("Redis unavailable for getCount boardId={}, falling back to DB", boardId, e);
@@ -168,7 +167,7 @@ public class RedisPostsCache implements PostPrevCache{
         Long count = postRepository.countTotal(boardId);
         try {
             String key = createCountingKey(boardId);
-            countingTemplate.opsForValue().set(key,count,Duration.ofMinutes(5));
+            longRedisTemplate.opsForValue().set(key,count,Duration.ofMinutes(5));
         } catch (Exception e) {
             log.warn("Redis unavailable, skipping createCount cache. boardId={}", boardId, e);
         }

@@ -23,8 +23,13 @@ public class RedisConfig {
         return objectMapper;
     }
 
+    /**
+     * Long 값을 다루는 공용 템플릿. 게시판 목록·카운트·핫랭킹이 모두 이 하나를 쓴다.
+     * 예전에는 구성이 완전히 같은 빈이 셋(boardTemplate·countingTemplate·hotPidTemplate)
+     * 있었고, 같은 키를 증감은 A로 조회는 B로 하는 코드가 있어 읽는 사람을 혼란시켰다.
+     */
     @Bean
-    public RedisTemplate<String, Long> boardTemplate(RedisConnectionFactory connectionFactory) {
+    public RedisTemplate<String, Long> longRedisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Long> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
         template.setKeySerializer(new StringRedisSerializer());
@@ -48,28 +53,6 @@ public class RedisConfig {
         template.setValueSerializer(serializer);
         template.setHashValueSerializer(serializer);
         template.afterPropertiesSet();
-        return template;
-    }
-
-    @Bean
-    public RedisTemplate<String, Long> countingTemplate(RedisConnectionFactory connectionFactory) {
-        RedisTemplate<String, Long> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
-
-
-        template.setKeySerializer(new StringRedisSerializer());
-        template.setValueSerializer(new GenericToStringSerializer<>(Long.class));
-        return template;
-    }
-
-    @Bean
-    public RedisTemplate<String, Long> hotPidTemplate(RedisConnectionFactory connectionFactory) {
-        RedisTemplate<String, Long> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
-
-
-        template.setKeySerializer(new StringRedisSerializer());
-        template.setValueSerializer(new GenericToStringSerializer<>(Long.class));
         return template;
     }
 
