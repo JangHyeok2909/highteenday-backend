@@ -42,6 +42,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import com.example.highteenday_backend.services.global.AfterCommitExecutor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -76,6 +77,7 @@ class ChatServiceTest {
     @Mock private FriendRepository friendRepository;
     @Mock private FriendService friendService;
     @Mock private SimpMessagingTemplate messagingTemplate;
+    @Mock private AfterCommitExecutor afterCommitExecutor;
 
     @InjectMocks private ChatService chatService;
 
@@ -85,6 +87,11 @@ class ChatServiceTest {
 
     @BeforeEach
     void setUp() {
+        // 커밋 이후 발행(KI-24)을 테스트에서는 즉시 실행으로 본다.
+        org.mockito.Mockito.doAnswer(inv -> {
+            inv.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(afterCommitExecutor).run(org.mockito.ArgumentMatchers.any(Runnable.class));
         me = user(1L, "me");
         friend = user(2L, "friend");
         stranger = user(3L, "stranger");
@@ -821,6 +828,22 @@ class ChatServiceTest {
 
             assertThatThrownBy(() -> chatService.markAsRead(stranger, 10L, 9L))
                     .satisfies(ex -> assertErrorCode(ex, ErrorCode.CHAT_NOT_PARTICIPANT));
+        }
+
+        /**
+         * 유령 이벤트 회귀 방지 (docs/KNOWN-ISSUES.md KI-24).
+         * 예약된 작업을 일부러 실행하지 않아 "아직 커밋 전" 상태를 만든다.
+         */
+        @Test
+        @DisplayName("커밋 전에는 발행하지 않는다 — 롤백되면 유령 이벤트가 된다")
+        void doesNotPublishBeforeCommit() {
+            org.mockito.Mockito.doNothing().when(afterCommitExecutor)
+                    .run(org.mockito.ArgumentMatchers.any(Runnable.class));
+
+            chatService.markAsRead(me, 10L, 9L);
+
+            verify(afterCommitExecutor).run(org.mockito.ArgumentMatchers.any(Runnable.class));
+            verify(messagingTemplate, never()).convertAndSend(any(String.class), any(Object.class));
         }
     }
 
