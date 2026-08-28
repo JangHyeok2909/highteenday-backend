@@ -57,7 +57,7 @@ public class PostController {
     @PatchMapping("/{postId}")
     public ResponseEntity updatePost(@AuthenticationPrincipal CustomUserPrincipal userPrincipal,
                                      @PathVariable Long postId,
-                                     @RequestBody UpdatePostDto dto){
+                                     @Valid @RequestBody UpdatePostDto dto){
         User user = userPrincipal.getUser();
         postService.updatePost(postId,user.getId(),dto);
         return ResponseEntity.ok("수정 완료.");

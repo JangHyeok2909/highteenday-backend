@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.controllers;
 
+import jakarta.validation.Valid;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.Friends.*;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
@@ -56,7 +57,7 @@ public class FriendController {
     @DeleteMapping("/delete")
     public ResponseEntity<?> deleteFriends(
             @AuthenticationPrincipal CustomUserPrincipal user,
-            @RequestBody DeleteFriendDto deleteFriendDto
+            @Valid @RequestBody DeleteFriendDto deleteFriendDto
     ) {
         User findFriends = userService.findByEmail(deleteFriendDto.email());
 
@@ -74,7 +75,7 @@ public class FriendController {
     @PatchMapping("/block")
     public ResponseEntity<?> blockUser(
             @AuthenticationPrincipal CustomUserPrincipal user,
-            @RequestBody BlockUserDto blockUserDto
+            @Valid @RequestBody BlockUserDto blockUserDto
     ) {
         User findBlockUser = userService.findByEmail(blockUserDto.email());
 
@@ -87,7 +88,7 @@ public class FriendController {
     @PatchMapping("/unBlock")
     public ResponseEntity<?> unBlockUser(
             @AuthenticationPrincipal CustomUserPrincipal user,
-            @RequestBody UnBlockUserDto unBlockUserDto
+            @Valid @RequestBody UnBlockUserDto unBlockUserDto
     ) {
         User findUnBlockUser = userService.findByEmail(unBlockUserDto.email());
 
@@ -100,7 +101,7 @@ public class FriendController {
     @PostMapping("/search")
     public ResponseEntity<?> searchFriend(
             @AuthenticationPrincipal CustomUserPrincipal user,
-            @RequestBody SelectFriendDto selectFriendDto
+            @Valid @RequestBody SelectFriendDto selectFriendDto
     ){
         return ResponseEntity.ok(friendService.searchUsersByNickname(user.getUser(), selectFriendDto));
     }
@@ -109,7 +110,7 @@ public class FriendController {
     @PostMapping("/request")
     public ResponseEntity<?> requestFriends(
             @AuthenticationPrincipal CustomUserPrincipal requesterPrincipal,
-            @RequestBody RequestFriendDto receiverDto
+            @Valid @RequestBody RequestFriendDto receiverDto
     ) {
 
         friendService.sendFriendsRequest(requesterPrincipal, receiverDto);
@@ -133,7 +134,7 @@ public class FriendController {
     @PostMapping("/respond")
     public ResponseEntity<?> respondFriends(
             @AuthenticationPrincipal CustomUserPrincipal receiver,
-            @RequestBody RespondFriendRequestDto friendReqDto
+            @Valid @RequestBody RespondFriendRequestDto friendReqDto
     ) {
 
         friendService.respondToFriendRequest(receiver, friendReqDto);
