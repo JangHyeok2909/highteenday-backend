@@ -20,6 +20,25 @@
 병목 문서는 `TEMPLATE.md` 양식을 따른다. 각 문서의 "재현 방법"은
 이 저장소의 시나리오/스크립트 명령으로 완결되어야 한다.
 
+### BTL-008~012 — 번호만 여기 있는 애플리케이션 결함
+
+아래 다섯은 **병목이 아니라 결함**이다. 부하 테스트를 돌리다 발견해 이 폴더에 번호를 받았지만,
+"느려서 문제"가 아니라 "틀려서 문제"라 위 카탈로그의 상태 어휘(의심 → 확정 → 해소, EXP로 검증)가
+맞지 않는다. 그 구분은 아래 "여기 없는 것 — 애플리케이션 결함" 절에서 정했고, 이 다섯은 그
+구분이 서기 전에 등록된 것들이다. **전부 해소됐고, 적용된 Flyway 마이그레이션 주석과 커밋이
+이 번호를 참조하고 있어 삭제하지 않는다.**
+
+| ID | 결함 | 해소 방법 |
+|----|------|-----------|
+| [BTL-008](BTL-008-token-table-case-mismatch.md) | `Token` 테이블명 대소문자 불일치 (Linux에서 인증 전 기능 장애) | `@Table(name="tokens")` + V5 마이그레이션 |
+| [BTL-009](BTL-009-daily-hot-post-table-missing.md) | `DailyHotPost`가 쿼리하는 테이블이 생성되지 않음 | V6 마이그레이션으로 정식 생성 |
+| [BTL-010](BTL-010-comment-update-npe.md) | 이미지 없던 댓글 수정 시 NPE | `processUpdateCommentMedia()` null 가드 |
+| [BTL-011](BTL-011-notification-entityid-column-mismatch.md) | `Notification.entityId` 컬럼명 불일치 (알림 목록 전면 장애) | V3 마이그레이션으로 컬럼명 통일 |
+| [BTL-012](BTL-012-scrap-toggle-race-duplicate.md) | 스크랩 토글 경쟁 상태로 중복 행 → 게시글 상세 장애 | `UNIQUE(USR_id, PST_id)`(V7) + upsert 단일 문장 |
+
+앞으로 발견되는 애플리케이션 결함은 여기가 아니라
+[`docs/KNOWN-ISSUES.md`](../../docs/KNOWN-ISSUES.md)에 등록한다.
+
 ## 개선 전 공통 선행 조건
 
 **어느 병목을 고치든 아래 넷이 먼저다.** 병목마다 다른 조건은 각 문서의 "개선 전 선행 조건"
