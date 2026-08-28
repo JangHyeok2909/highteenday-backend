@@ -12,7 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.mockito.Mockito.never;
+
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -79,8 +79,8 @@ class HotPostEventListenerTest {
         }
 
         @Test
-        @DisplayName("스크랩 취소 → Hot Score 갱신하지 않음")
-        void skipsOnScrapCancel() {
+        @DisplayName("스크랩 취소 → Hot Score 갱신 (부풀려진 점수가 남지 않도록)")
+        void updatesHotScoreOnScrapCancel() {
             ScrapToggledEvent event = ScrapToggledEvent.builder()
                     .postId(30L)
                     .newScrap(false)
@@ -88,7 +88,7 @@ class HotPostEventListenerTest {
 
             listener.onScrapToggled(event);
 
-            verify(hotPostService, never()).updateLeaderboardDayScore(30L);
+            verify(hotPostService).updateLeaderboardDayScore(30L);
         }
     }
 }
