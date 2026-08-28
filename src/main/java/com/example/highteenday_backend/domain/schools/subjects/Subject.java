@@ -22,7 +22,7 @@ public class Subject {
     @Column(name = "SBJ_name", nullable = false)
     private String subjectName;
     @Builder.Default
-    @Column(name="SBJ_hours_per_Week")
+    @Column(name="SBJ_hours_per_week")
     private Integer hoursPerWeek=0;
 
     @ManyToOne(fetch = FetchType.LAZY)
