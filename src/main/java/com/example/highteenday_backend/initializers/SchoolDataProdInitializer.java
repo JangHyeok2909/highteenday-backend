@@ -39,16 +39,19 @@ public class SchoolDataProdInitializer {
         int month = now.getMonthValue();
         String mealJsonPath = SchoolFileConstants.getMealJsonPath(year, month);
         File file = new File(mealJsonPath);
-        if(schoolMealRepository.count() == 0 && file.exists()){
 
-            if(file.exists()){
+        // 바깥 조건에서 file.exists() 를 뺐다. 예전에는 `count == 0 && file.exists()` 였는데,
+        // 그러면 안쪽 else(= 파일이 없을 때 NEIS 에서 최초 수집) 가 도달할 수 없어
+        // 급식 JSON 이 없는 prod 환경에서는 급식이 영영 수집되지 않았다 (KI-45).
+        if (schoolMealRepository.count() == 0) {
+            if (file.exists()) {
                 log.info("No meal data found. Importing from meals.json...");
                 schoolMealInitializer.saveToDbFromJson();
                 log.info("Meal data initial load complete. year={}, month={}", year, month);
-            } else{
+            } else {
+                log.info("No meal data and no meal JSON. Collecting from NEIS. year={}, month={}", year, month);
                 schoolMealInitializer.loadDataAndSaveToDb();
             }
-
         }
     }
 }
