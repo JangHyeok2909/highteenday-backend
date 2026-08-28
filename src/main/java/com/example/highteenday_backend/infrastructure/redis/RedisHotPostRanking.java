@@ -16,18 +16,18 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class RedisHotPostRanking implements HotPostRankingPort {
 
-    private final RedisTemplate<String, Long> hotPidTemplate;
+    private final RedisTemplate<String, Long> longRedisTemplate;
 
     @ResilientRedis
     @Override
     public void addScore(String key, Long postId, double score) {
-        hotPidTemplate.opsForZSet().add(key, postId, score);
+        longRedisTemplate.opsForZSet().add(key, postId, score);
     }
 
     @ResilientRedis
     @Override
     public Set<Long> topPostIds(String key, int count) {
-        Set<Long> ids = hotPidTemplate.opsForZSet().reverseRange(key, 0, (long) count - 1);
+        Set<Long> ids = longRedisTemplate.opsForZSet().reverseRange(key, 0, (long) count - 1);
         return ids != null ? ids : Collections.emptySet();
     }
 
@@ -35,7 +35,7 @@ public class RedisHotPostRanking implements HotPostRankingPort {
     @Override
     public List<ScoredPost> topPostsWithScores(String key, int count) {
         Set<ZSetOperations.TypedTuple<Long>> tuples =
-                hotPidTemplate.opsForZSet().reverseRangeWithScores(key, 0, (long) count - 1);
+                longRedisTemplate.opsForZSet().reverseRangeWithScores(key, 0, (long) count - 1);
         if (tuples == null || tuples.isEmpty()) return Collections.emptyList();
 
         List<ScoredPost> result = new ArrayList<>(tuples.size());
@@ -48,6 +48,6 @@ public class RedisHotPostRanking implements HotPostRankingPort {
     @ResilientRedis
     @Override
     public void remove(String key, Long postId) {
-        hotPidTemplate.opsForZSet().remove(key, postId);
+        longRedisTemplate.opsForZSet().remove(key, postId);
     }
 }
