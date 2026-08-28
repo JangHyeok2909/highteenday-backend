@@ -217,6 +217,14 @@ public class SchoolMealService {
 
     /**
      * JSON 파일에서 모든 학교의 급식 데이터를 읽어 DB에 저장합니다.
+     *
+     * <p>재적재는 <b>전부 아니면 전무</b>다 (docs/KNOWN-ISSUES.md KI-45).
+     * 새로 저장할 행을 다 만든 뒤에야 기존 데이터를 지우고, 만들어진 행이 하나도 없으면
+     * 기존 데이터를 <b>건드리지 않고</b> 돌아간다. {@code @Transactional} 이 삭제와 저장을
+     * 한 단위로 묶으므로 중간에 실패해도 옛 데이터가 남는다.
+     *
+     * <p>예전에는 파일을 읽자마자 {@code deleteAll()} 을 불렀다. 그래서 수집이 실패했거나
+     * 학교 코드가 하나도 매칭되지 않으면 급식 데이터가 전량 사라진 채 아무것도 채워지지 않았다.
      */
     @Transactional
     public void importMealsFromJson(int year, int month) {
@@ -231,9 +239,9 @@ public class SchoolMealService {
         try {
             List<MealRecord> records = objectMapper.readValue(file, new TypeReference<List<MealRecord>>() {});
 
-            schoolMealRepository.deleteAll();
-            log.info("Existing meal data cleared.");
-
+            // 기존 데이터 삭제는 새 데이터를 다 만든 뒤에 한다. 예전에는 파싱 직후 곧바로
+            // deleteAll() 을 불러서, 학교 코드가 하나도 매칭되지 않거나 중간에 실패하면
+            // 급식 데이터가 전량 사라진 채로 아무것도 채워지지 않았다 (KI-45).
             List<SchoolMeal> meals = new ArrayList<>();
             for (MealRecord record : records) {
                 School school = schoolRepository.findByCode(Integer.parseInt(record.getSchoolCode())).orElse(null);
@@ -258,6 +266,15 @@ public class SchoolMealService {
                         .date(localDate)
                         .build());
             }
+            if (meals.isEmpty()) {
+                // 수집에 실패했거나 학교 코드가 하나도 매칭되지 않은 경우다.
+                // 여기서 기존 데이터를 지우면 급식 조회가 통째로 죽는다 — 그대로 둔다.
+                log.warn("Meal JSON produced no usable rows. Keeping existing data. year={}, month={}, records={}",
+                        year, month, records.size());
+                return;
+            }
+
+            schoolMealRepository.deleteAll();
             schoolMealRepository.saveAll(meals);
 
             log.info("Meal data loaded from JSON into DB. year={}, month={}, count={}", year, month, meals.size());
