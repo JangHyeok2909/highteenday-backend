@@ -43,6 +43,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -373,22 +374,79 @@ class FriendServiceTest {
             verify(friendReqRepository, never()).delete(any());
             verify(eventPublisher, never()).publishEvent(any());
         }
+
+        /**
+         * 미지의 status 로 요청이 소실되던 문제 (docs/KNOWN-ISSUES.md KI-42).
+         *
+         * 예전에는 세 분기(ACCEPTED/BLOCKED/DECLINED) 중 어디에도 걸리지 않는 값이 오면
+         * 아무 처리 없이 아래에서 요청만 종결됐다. 오타 하나로 친구 요청이 소리 없이 사라지고,
+         * 사용자는 왜 요청이 없어졌는지 알 수 없었다.
+         */
+        @Test
+        @DisplayName("알 수 없는 status 는 400 이고 요청이 살아남는다")
+        void unknownStatusIsRejectedAndRequestSurvives() {
+            RespondFriendRequestDto dto = new RespondFriendRequestDto(10L, "ACCEPT");  // 오타
+
+            assertThatThrownBy(() -> friendService.respondToFriendRequest(receiverPrincipal, dto))
+                    .isInstanceOf(CustomException.class)
+                    .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode())
+                            .isEqualTo(ErrorCode.INVALID_REQUEST));
+
+            assertThat(friendReq.getIsValid())
+                    .as("요청이 종결되면 사용자는 왜 사라졌는지 알 수 없다")
+                    .isTrue();
+            verify(friendRepository, never()).save(any());
+            verify(eventPublisher, never()).publishEvent(any());
+        }
+
+        @Test
+        @DisplayName("응답이 아닌 REQUESTED 도 400 이다 — 요청의 초기 상태이지 응답이 아니다")
+        void requestedStatusIsNotAValidResponse() {
+            RespondFriendRequestDto dto = new RespondFriendRequestDto(10L, "REQUESTED");
+
+            assertThatThrownBy(() -> friendService.respondToFriendRequest(receiverPrincipal, dto))
+                    .isInstanceOf(CustomException.class)
+                    .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode())
+                            .isEqualTo(ErrorCode.INVALID_REQUEST));
+
+            assertThat(friendReq.getIsValid()).isTrue();
+        }
+
+        @Test
+        @DisplayName("status 가 null 이어도 400 이다 — NPE 로 500 이 되지 않는다")
+        void nullStatusIsRejected() {
+            RespondFriendRequestDto dto = new RespondFriendRequestDto(10L, null);
+
+            assertThatThrownBy(() -> friendService.respondToFriendRequest(receiverPrincipal, dto))
+                    .isInstanceOf(CustomException.class)
+                    .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode())
+                            .isEqualTo(ErrorCode.INVALID_REQUEST));
+
+            assertThat(friendReq.getIsValid()).isTrue();
+        }
     }
 
     @Nested
     @DisplayName("deleteFriends")
     class DeleteFriends {
 
+        /**
+         * soft delete 회귀 방지 (docs/KNOWN-ISSUES.md KI-43).
+         * 예전에는 {@code deleteAll()} 로 행을 물리 삭제해 관계 이력이 사라졌다.
+         */
         @Test
-        @DisplayName("정상 삭제 → deleteAll 호출")
-        void deletesAllRelations() {
+        @DisplayName("정상 삭제 → 양방향 행이 soft delete 되고 물리 삭제는 하지 않는다")
+        void softDeletesBothRelations() {
             Friend f1 = Friend.builder().id(1L).user(requester).friend(receiver).status(FriendStatus.FRIEND).build();
             Friend f2 = Friend.builder().id(2L).user(receiver).friend(requester).status(FriendStatus.FRIEND).build();
             when(friendRepository.findFriendsRelations(1L, 2L)).thenReturn(List.of(f1, f2));
 
             friendService.deleteFriends(requester, receiver);
 
-            verify(friendRepository).deleteAll(List.of(f1, f2));
+            assertThat(f1.getIsValid()).isFalse();
+            assertThat(f2.getIsValid()).isFalse();
+            verify(friendRepository, never()).deleteAll(anyList());
+            verify(friendRepository, never()).delete(any(Friend.class));
         }
 
         @Test
