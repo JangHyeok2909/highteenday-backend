@@ -12,6 +12,8 @@ import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.enums.Role;
 import com.example.highteenday_backend.enums.SortType;
 import com.example.highteenday_backend.eventEntities.events.CommentCreatedEvent;
+import com.example.highteenday_backend.enums.ErrorCode;
+import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -265,18 +267,19 @@ class CommentServiceTest {
         }
 
         @Test
-        @DisplayName("작성자 확인을 하지 않는다 — 소유권 검증은 컨트롤러 책임이다")
-        void doesNotVerifyOwnership() {
-            // 서비스는 userId를 updatedBy 기록에만 쓴다. 남의 댓글도 수정된다.
-            // 컨트롤러에서 소유권을 막고 있다는 전제를 고정해 둔다.
+        @DisplayName("작성자 본인의 수정은 통과하고 updatedBy 에 본인 id 가 남는다")
+        void ownerCanUpdate() {
+            // 이 자리에는 원래 "서비스는 소유권을 확인하지 않는다"를 고정하는 테스트가 있었다.
+            // 그러나 컨트롤러에도 검증이 없어 실제로는 아무도 막지 않는 상태였고(KI-05),
+            // 검증을 서비스로 들여오면서 그 전제 자체가 폐기됐다.
             Comment comment = Comment.create(author, post, "원래 내용", true, null);
             ReflectionTestUtils.setField(comment, "id", 500L);
             when(commentRepository.findById(500L)).thenReturn(Optional.of(comment));
 
-            commentService.updateComment(500L, 999L, dto("남이 바꿈", null, null));
+            commentService.updateComment(500L, author.getId(), dto("본인이 바꿈", null, null));
 
-            assertThat(comment.getContent()).isEqualTo("남이 바꿈");
-            assertThat(comment.getUpdatedBy()).isEqualTo(999L);
+            assertThat(comment.getContent()).isEqualTo("본인이 바꿈");
+            assertThat(comment.getUpdatedBy()).isEqualTo(author.getId());
         }
     }
 
@@ -348,6 +351,69 @@ class CommentServiceTest {
                     org.mockito.ArgumentMatchers.eq(author), captor.capture());
             assertThat(captor.getValue()).isEqualTo(PageRequest.of(2, 10,
                     Sort.by(Sort.Direction.DESC, SortType.RECENT.getField())));
+        }
+    }
+
+    /**
+     * IDOR 회귀 방지 (docs/KNOWN-ISSUES.md KI-05).
+     * 소유권 검사를 지우면 남의 댓글이 수정·삭제되므로 아래 테스트가 실패한다.
+     */
+    @Nested
+    @DisplayName("소유권 검증 — 남의 댓글은 손댈 수 없다")
+    class Ownership {
+
+        private static final Long COMMENT_ID = 500L;
+        private static final Long STRANGER_ID = 999L;
+
+        private Comment ownedComment() {
+            Comment comment = Comment.create(author, post, "원래 내용", false, null);
+            ReflectionTestUtils.setField(comment, "id", COMMENT_ID);
+            return comment;
+        }
+
+        @Test
+        @DisplayName("남의 댓글 수정은 403 이고 내용이 바뀌지 않는다")
+        void updateByStrangerIsForbidden() {
+            Comment comment = ownedComment();
+            when(commentRepository.findById(COMMENT_ID)).thenReturn(Optional.of(comment));
+
+            RequestCommentDto request = dto("탈취", null, null);
+
+            assertThatThrownBy(() -> commentService.updateComment(COMMENT_ID, STRANGER_ID, request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting(e -> ((CustomException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.NO_ACCESS);
+
+            assertThat(comment.getContent()).isEqualTo("원래 내용");
+            verify(mediaProcessingService, never()).processUpdateCommentMedia(any(), any());
+        }
+
+        @Test
+        @DisplayName("글쓴이라도 남의 댓글은 지울 수 없다 — 댓글 수도 줄지 않는다")
+        void deleteByPostAuthorIsForbidden() {
+            Comment comment = ownedComment();
+            when(commentRepository.findById(COMMENT_ID)).thenReturn(Optional.of(comment));
+
+            // postAuthor 는 글쓴이지만 이 댓글의 작성자는 아니다.
+            assertThatThrownBy(() -> commentService.deleteComment(COMMENT_ID, postAuthor.getId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting(e -> ((CustomException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.NO_ACCESS);
+
+            assertThat(comment.getIsValid()).isTrue();
+            verify(postRepository, never()).decrementCommentCount(anyLong());
+        }
+
+        @Test
+        @DisplayName("작성자 본인의 삭제는 통과하고 댓글 수가 줄어든다")
+        void deleteByOwnerSucceeds() {
+            Comment comment = ownedComment();
+            when(commentRepository.findById(COMMENT_ID)).thenReturn(Optional.of(comment));
+
+            commentService.deleteComment(COMMENT_ID, author.getId());
+
+            assertThat(comment.getIsValid()).isFalse();
+            verify(postRepository).decrementCommentCount(post.getId());
         }
     }
 }

@@ -8,6 +8,8 @@ import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.enums.SortType;
 import com.example.highteenday_backend.eventEntities.events.CommentCreatedEvent;
+import com.example.highteenday_backend.enums.ErrorCode;
+import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -85,6 +87,7 @@ public class CommentService {
     @Transactional
     public void updateComment(Long commentId, Long userId, RequestCommentDto dto){
         Comment comment = findCommentById(commentId);
+        validateOwnership(comment, userId);
         comment.editContent(dto.getContent());
         comment.setUpdatedBy(userId);
         mediaProcessingService.processUpdateCommentMedia(comment,dto);
@@ -94,6 +97,7 @@ public class CommentService {
     @Transactional
     public void deleteComment(Long commentId,Long userId){
         Comment comment = findCommentById(commentId);
+        validateOwnership(comment, userId);
         Long postId = comment.getPost().getId();
         comment.delete();
         comment.setUpdatedBy(userId);
@@ -101,5 +105,18 @@ public class CommentService {
         // 이 쿼리가 컨텍스트를 비운 뒤 comment.getPost() 를 다시 타지 않기 위해서다.
         postRepository.decrementCommentCount(postId);
         log.info("comment deleted. commentId={}, deletedBy={}",commentId,userId);
+    }
+
+    /**
+     * 요청자가 댓글 작성자인지 확인한다 (docs/KNOWN-ISSUES.md KI-05).
+     *
+     * 익명 댓글이라도 작성자 id 는 남아 있으므로 판정 기준은 같다. 게시글 작성자에게
+     * 남의 댓글을 지울 권한을 주지는 않았다 — 신고·모더레이션 기능이 따로 없는 상태에서
+     * 그 권한을 열면 "글쓴이가 불리한 댓글을 지운다"는 다른 문제가 생긴다.
+     */
+    private void validateOwnership(Comment comment, Long userId) {
+        if (userId == null || !comment.getUser().getId().equals(userId)) {
+            throw new CustomException(ErrorCode.NO_ACCESS);
+        }
     }
 }
