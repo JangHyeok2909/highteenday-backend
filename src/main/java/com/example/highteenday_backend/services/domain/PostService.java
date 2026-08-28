@@ -11,9 +11,11 @@ import com.example.highteenday_backend.dtos.paged.PageResponse;
 import com.example.highteenday_backend.dtos.paged.PostListingDto;
 import com.example.highteenday_backend.enums.PostSearchType;
 import com.example.highteenday_backend.enums.SortType;
+import com.example.highteenday_backend.enums.ErrorCode;
+import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.services.domain.redisService.PostPrevCache;
-import jakarta.validation.Valid;
+import com.example.highteenday_backend.services.global.AfterCommitExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -34,6 +36,7 @@ public class PostService {
     private final BoardService boardService;
     private final MediaProcessingService mediaProcessingService;
     private final PostPrevCache postPrevCache;
+    private final AfterCommitExecutor afterCommitExecutor;
     private final static int SIZE = 10;
 
     public Post findById(Long postId) {
@@ -97,20 +100,30 @@ public class PostService {
         mediaProcessingService.processCreatePostMedia(user.getId(),post);
         post.setUpdatedDate(null);
 
-        // 주의: 아직 트랜잭션 커밋 전에 캐시를 갱신한다. 이후 롤백되면 존재하지 않는
-        // 게시글이 목록 캐시에 남는다 (TTL 만료까지) — docs/KNOWN-ISSUES.md KI-22.
-        postPrevCache.evictBoard(post.getBoard().getId());
-        postPrevCache.cachePostPrev(PostPreviewDto.fromEntity(post));
-        postPrevCache.incrementBoardCount(post.getBoard().getId());
+        // 캐시 갱신은 커밋 이후로 미룬다. 커밋 전에 실으면 이후 롤백 시 존재하지 않는
+        // 게시글이 TTL 만료까지 목록 캐시에 남고 게시판 카운트도 어긋난다 (KI-22).
+        // DTO 는 여기서 만든다 — 커밋 후에는 영속성 컨텍스트가 닫혀 지연 로딩이 깨진다.
+        Long boardId = post.getBoard().getId();
+        PostPreviewDto preview = PostPreviewDto.fromEntity(post);
+        afterCommitExecutor.run(() -> {
+            postPrevCache.evictBoard(boardId);
+            postPrevCache.cachePostPrev(preview);
+            postPrevCache.incrementBoardCount(boardId);
+        });
 
         return savedPost;
     }
+    // 예전에는 dto 에 @Valid 가 붙어 있었지만 이 클래스에 @Validated 가 없어 아무 일도
+    // 하지 않는 장식이었다 (docs/KNOWN-ISSUES.md KI-16). 검증은 웹 계층에서 한다 —
+    // 컨트롤러의 @RequestBody 에 @Valid 를 걸어 두었고, 그쪽이 실패를 400 으로
+    // 내보내는 정식 통로다. 여기 남겨 두면 "검증되고 있다"는 착각만 준다.
     @Transactional
-    public void updatePost(Long postId,Long userId, @Valid UpdatePostDto dto){
+    public void updatePost(Long postId,Long userId, UpdatePostDto dto){
         String newTile = dto.getTitle();
         String newContent = dto.getContent();
 
         Post post = findById(postId);
+        validateOwnership(post, userId);
         String oldTiltle = post.getTitle();
         String oldContent = post.getContent();
         if(!newTile.equals(oldTiltle)) {
@@ -126,13 +139,53 @@ public class PostService {
     @Transactional
     public Post deletePost(Long postId,Long userId) {
         Post post = findById(postId);
+        validateOwnership(post, userId);
         post.delete();
         post.setUpdatedBy(userId);
-        postPrevCache.evictBoard(post.getBoard().getId());
-        postPrevCache.evictPostPrev(postId);
-        postPrevCache.decrementBoardCount(post.getBoard().getId());
+
+        // 생성과 같은 이유로 커밋 이후에 처리한다. 삭제가 롤백되면 살아 있는 글이
+        // 목록에서 사라지고 카운트가 하나 모자란 채로 남는다 (KI-22).
+        Long boardId = post.getBoard().getId();
+        afterCommitExecutor.run(() -> {
+            postPrevCache.evictBoard(boardId);
+            postPrevCache.evictPostPrev(postId);
+            postPrevCache.decrementBoardCount(boardId);
+        });
         log.info("post delete. postId = {}, deletedBy = {}", post.getId(), userId);
         return post;
+    }
+
+    /**
+     * Redis 에 버퍼링된 조회수 증가분을 게시글에 반영한다 ({@code ViewCountScheduler} 전용).
+     *
+     * <p>이 메서드가 스케줄러가 아니라 여기 있는 이유: 예전에는 스케줄러가
+     * {@code this.applyViewCount()} 로 자기 자신을 직접 불러 {@code @Transactional} 이
+     * 프록시를 거치지 않았고, 배치 전체가 바깥 트랜잭션 하나로 묶였다. 그러면 게시글
+     * 하나의 실패가 그 주기 전체를 되돌린다 (docs/KNOWN-ISSUES.md KI-23).
+     * 별도 빈의 메서드로 옮기면 호출이 프록시를 타므로 <b>게시글 하나당 트랜잭션 하나</b>가
+     * 실제로 성립한다.
+     */
+    @Transactional
+    public void applyViewCount(Long postId, int increment) {
+        Post post = findById(postId);
+        post.addViewCount(increment);
+        log.debug("View count applied. postId={}, increment={}", postId, increment);
+    }
+
+    /**
+     * 요청자가 글 작성자인지 확인한다 (docs/KNOWN-ISSUES.md KI-05).
+     *
+     * 컨트롤러가 아니라 서비스에 두는 이유: 수정·삭제 경로가 컨트롤러 외에
+     * 스케줄러나 다른 서비스에서도 불릴 수 있고, 그때 검증이 빠지면 같은 구멍이
+     * 다시 생긴다. {@code NotificationService.validateOwnership()},
+     * {@code ChatService.requireParticipant()} 와 같은 자리다.
+     *
+     * 익명 글도 작성자 id 는 남아 있으므로 판정 기준은 동일하다.
+     */
+    private void validateOwnership(Post post, Long userId) {
+        if (userId == null || !post.getUser().getId().equals(userId)) {
+            throw new CustomException(ErrorCode.NO_ACCESS);
+        }
     }
 
 
