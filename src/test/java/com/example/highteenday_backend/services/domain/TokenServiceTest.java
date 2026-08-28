@@ -23,6 +23,10 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import com.example.highteenday_backend.enums.ErrorCode;
+import com.example.highteenday_backend.exceptions.CustomException;
+import org.springframework.http.HttpStatus;
+
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -283,6 +287,71 @@ class TokenServiceTest {
 
             assertThat(token.getAccessToken()).isEqualTo("new-access");
             verify(tokenRepository).save(token);
+        }
+    }
+
+    /**
+     * 실패가 어떤 HTTP 상태로 나가는지 고정한다 (docs/KNOWN-ISSUES.md KI-14).
+     *
+     * raw RuntimeException 으로 되돌아가면 GlobalExceptionHandler 의 500 경로로 떨어져
+     * 아래 단언이 전부 깨진다. 상태 코드까지 보는 이유: 예외 타입만 보면
+     * "던지긴 하는데 클라이언트는 여전히 500 을 받는" 상태를 못 잡는다.
+     */
+    @Nested
+    @DisplayName("실패의 HTTP 상태 (KI-14)")
+    class FailureStatus {
+
+        private CustomException thrownBy(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
+            return (CustomException) org.assertj.core.api.Assertions.catchThrowable(call);
+        }
+
+        @Test
+        @DisplayName("리프레시 토큰 만료는 401 TOKEN_EXPIRED — 500 이 아니다")
+        void expiredRefreshTokenIsUnauthorized() {
+            LocalDateTime past = LocalDateTime.now().minusSeconds(1);
+            Token token = Token.builder().user(user).refreshToken("expired").expiresAt(past).build();
+            when(tokenCache.get("expired")).thenReturn(Optional.empty());
+            when(tokenRepository.findByRefreshToken("expired")).thenReturn(Optional.of(token));
+
+            CustomException e = thrownBy(() -> tokenService.findByRefreshTokenOrThrow("expired"));
+
+            assertThat(e).isInstanceOf(CustomException.class);
+            assertThat(e.getErrorCode()).isEqualTo(ErrorCode.TOKEN_EXPIRED);
+            assertThat(e.getErrorCode().getHttpStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+
+        @Test
+        @DisplayName("없는 리프레시 토큰은 401 INVALID_TOKEN")
+        void unknownRefreshTokenIsUnauthorized() {
+            when(tokenCache.get("nope")).thenReturn(Optional.empty());
+            when(tokenRepository.findByRefreshToken("nope")).thenReturn(Optional.empty());
+
+            CustomException e = thrownBy(() -> tokenService.findByRefreshTokenOrThrow("nope"));
+
+            assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_TOKEN);
+            assertThat(e.getErrorCode().getHttpStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+
+        @Test
+        @DisplayName("없는 액세스 토큰은 401 INVALID_TOKEN")
+        void unknownAccessTokenIsUnauthorized() {
+            when(tokenRepository.findByAccessToken("nope")).thenReturn(Optional.empty());
+
+            CustomException e = thrownBy(() -> tokenService.findByAccessTokenOrThrow("nope"));
+
+            assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_TOKEN);
+            assertThat(e.getErrorCode().getHttpStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 사용자로 토큰 저장 시 404 USER_NOT_FOUND")
+        void unknownUserIsNotFound() {
+            when(userRepository.findByEmail("ghost@test.com")).thenReturn(Optional.empty());
+
+            CustomException e = thrownBy(() -> tokenService.saveOrUpdate("ghost@test.com", "r", "a"));
+
+            assertThat(e.getErrorCode()).isEqualTo(ErrorCode.USER_NOT_FOUND);
+            assertThat(e.getErrorCode().getHttpStatus()).isEqualTo(HttpStatus.NOT_FOUND);
         }
     }
 }
