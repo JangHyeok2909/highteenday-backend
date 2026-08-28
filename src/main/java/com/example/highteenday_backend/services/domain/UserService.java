@@ -20,8 +20,6 @@ import com.example.highteenday_backend.enums.Provider;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.SchoolService;
-import com.example.highteenday_backend.services.security.JwtCookieService;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -43,7 +41,6 @@ import java.util.Map;
 public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtCookieService jwtCookieService;
     private final TimetableTemplateRepository timetableTemplateRepository;
     private final SchoolService schoolService;
 
@@ -90,8 +87,13 @@ public class UserService {
         return userRepository.existsByPhone(phone);
     }
 
+    /**
+     * 회원가입. 가입된 사용자의 Authentication 을 돌려주고, 쿠키를 굽는 것은 호출한
+     * 컨트롤러가 한다. 도메인 서비스가 HttpServletResponse 를 받으면 웹 계층 관심사가
+     * 역류해 재사용·테스트가 어려워진다.
+     */
     @Transactional
-    public void register(RegisterUserDto registerUserDto, HttpServletResponse response) {
+    public Authentication register(RegisterUserDto registerUserDto) {
         String email = registerUserDto.email();
 
         if (userRepository.findByEmail(email).isPresent()) {
@@ -134,13 +136,11 @@ public class UserService {
 
         CustomUserPrincipal userDetails = new CustomUserPrincipal(savedUser, attributes, false);
 
-        Authentication authentication = new UsernamePasswordAuthenticationToken(
+        return new UsernamePasswordAuthenticationToken(
                 userDetails,
                 null,
                 userDetails.getAuthorities()
         );
-
-        jwtCookieService.setJwtCookie(authentication,response);
     }
 
 
