@@ -46,6 +46,9 @@ public enum ErrorCode {
     INVALID_NAME_FORMAT(BAD_REQUEST, "이름은 2~8자여야 합니다."),
     INVALID_BIRTHDATE(BAD_REQUEST, "생년월일은 15~30세 범위여야 합니다."),
 
+    // comment
+    COMMENT_NOT_FOUND(NOT_FOUND, "댓글을 찾을 수 없습니다."),
+
     // school
     SCHOOL_NOT_ASSIGNED(BAD_REQUEST, "급식 조회를 위해 학교 배정이 필요합니다."),
 
