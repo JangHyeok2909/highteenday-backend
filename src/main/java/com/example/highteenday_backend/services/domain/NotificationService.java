@@ -57,6 +57,11 @@ public class NotificationService {
     private void saveNotification(User sender, User receiver, NotificationCategory category,
                                   EntityType entityType, Long entityId,
                                   String message, String contentMessage) {
+        // 자기 자신에게는 알림을 보내지 않는다 (내 글에 내가 댓글을 단 경우 등).
+        if (sender.getId().equals(receiver.getId())) {
+            return;
+        }
+
         Notification notification = notificationRepository.save(
                 Notification.builder()
                         .receiver(receiver)
