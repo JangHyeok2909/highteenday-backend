@@ -22,8 +22,6 @@ import com.example.highteenday_backend.security.CustomUserPrincipal;
 import com.example.highteenday_backend.services.domain.SchoolService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -188,25 +186,28 @@ public class UserService {
         timetableTemplateRepository.save(defaultTemplate);
     }
 
-    // 회원 탈퇴
+    /**
+     * 회원 탈퇴 (docs/KNOWN-ISSUES.md KI-34).
+     *
+     * <p>예전에는 사용자 행을 <b>물리 삭제</b>했다. 글·댓글이 그 사용자를 참조하고 있으면
+     * 외래 키 제약에 걸려 탈퇴 자체가 실패했고, 성공하더라도 프로젝트의 soft delete
+     * 컨벤션을 위반했다. 이제 {@code User.withdraw()} 로 지움 표시만 하고 이메일을
+     * 표식값으로 비켜 준다.
+     *
+     * <p>외래 키 충돌·DB 오류를 잡던 try/catch 는 제거했다. DELETE 를 하지 않으므로
+     * 그 예외가 발생할 수 없고, 일어날 수 없는 경우를 위한 처리는 남겨 두면 읽는 사람을
+     * 오도한다.
+     *
+     * <p>탈퇴 후에는 이 계정으로 로그인할 수 없다 — 조회 경로가 지움 표시를 걸러 내고,
+     * 원래 이메일은 테이블에서 사라져 인증 시 사용자를 찾지 못한다.
+     */
     @Transactional
     public void deleteAccount(User user){
-        // 두번 검사하는거임, 하지말까 유난인가?
         User findUser = userRepository.findByEmail(user.getEmailValue())
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        try{
-            userRepository.delete(findUser);
-        } catch (DataIntegrityViolationException e) {
-            // 외래 키 충돌, 무결성 위반 (예: 참조된 댓글, 게시글이 남아있을 때)
-            throw new CustomException(ErrorCode.DATA_INTEGRITY_ERROR);
-        } catch (JpaSystemException e) {
-            // JPA 내부 오류
-            throw new CustomException(ErrorCode.DATABASE_ERROR);
-        } catch (Exception e) {
-            // 그 외 예외
-            throw new CustomException(ErrorCode.INTERNAL_ERROR);
-        }
+        findUser.withdraw();
+        log.info("User withdrawn. userId={}", findUser.getId());
     }
 
     // 현재 비밀번호 일치 여부 확인

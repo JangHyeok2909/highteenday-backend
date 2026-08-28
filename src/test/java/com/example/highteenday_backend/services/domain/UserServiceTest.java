@@ -39,8 +39,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -52,6 +50,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -750,12 +749,30 @@ class UserServiceTest {
             when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(existing));
         }
 
+        // 아래 테스트들은 KI-34 로 물리 삭제 → soft delete 전환된 뒤의 계약이다.
+        // 예전에는 `userRepository.delete()` 호출과 그때 나는 FK 위반·JPA 오류의
+        // ErrorCode 변환을 고정하고 있었다. DELETE 를 하지 않으므로 그 예외들은
+        // 더 이상 발생할 수 없어, 해당 테스트는 함께 제거했다.
+
         @Test
-        @DisplayName("정상 탈퇴")
-        void deletesUser() {
+        @DisplayName("정상 탈퇴 — 행을 지우지 않고 지움 표시만 한다")
+        void marksUserAsWithdrawnWithoutDeleting() {
             userService.deleteAccount(existing);
 
-            verify(userRepository).delete(existing);
+            assertThat(existing.getIsValid()).isFalse();
+            verify(userRepository, never()).delete(any(User.class));
+            verify(userRepository, never()).deleteById(anyLong());
+        }
+
+        @Test
+        @DisplayName("탈퇴하면 이메일이 표식값으로 비켜 같은 이메일로 재가입할 수 있다")
+        void releasesEmailForReRegistration() {
+            userService.deleteAccount(existing);
+
+            assertThat(existing.getEmailValue())
+                    .as("원래 이메일이 남아 있으면 중복 제약 때문에 재가입이 막힌다")
+                    .isNotEqualTo("user@test.com")
+                    .isEqualTo("deleted-1@deleted.invalid");
         }
 
         @Test
@@ -765,36 +782,6 @@ class UserServiceTest {
 
             assertThatThrownBy(() -> userService.deleteAccount(existing))
                     .satisfies(ex -> assertErrorCode(ex, ErrorCode.USER_NOT_FOUND));
-        }
-
-        @Test
-        @DisplayName("FK 제약 위반은 DATA_INTEGRITY_ERROR로 변환된다")
-        void mapsDataIntegrityViolation() {
-            org.mockito.Mockito.doThrow(new DataIntegrityViolationException("fk"))
-                    .when(userRepository).delete(existing);
-
-            assertThatThrownBy(() -> userService.deleteAccount(existing))
-                    .satisfies(ex -> assertErrorCode(ex, ErrorCode.DATA_INTEGRITY_ERROR));
-        }
-
-        @Test
-        @DisplayName("JPA 내부 오류는 DATABASE_ERROR로 변환된다")
-        void mapsJpaSystemException() {
-            org.mockito.Mockito.doThrow(new JpaSystemException(new RuntimeException("jpa")))
-                    .when(userRepository).delete(existing);
-
-            assertThatThrownBy(() -> userService.deleteAccount(existing))
-                    .satisfies(ex -> assertErrorCode(ex, ErrorCode.DATABASE_ERROR));
-        }
-
-        @Test
-        @DisplayName("그 외 예외는 INTERNAL_ERROR로 변환된다")
-        void mapsUnexpectedException() {
-            org.mockito.Mockito.doThrow(new IllegalStateException("boom"))
-                    .when(userRepository).delete(existing);
-
-            assertThatThrownBy(() -> userService.deleteAccount(existing))
-                    .satisfies(ex -> assertErrorCode(ex, ErrorCode.INTERNAL_ERROR));
         }
     }
 

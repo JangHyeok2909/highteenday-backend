@@ -149,6 +149,27 @@ public class User extends BaseEntity {
         this.role = role;
     }
 
+    /**
+     * 회원 탈퇴 (docs/KNOWN-ISSUES.md KI-34).
+     *
+     * <p>행을 지우지 않고 {@code isValid=false} 로 두면서, 이메일을 <b>되돌릴 수 없는
+     * 표식값으로 바꾼다.</b>
+     *
+     * <p>이메일을 바꾸는 이유: {@code users.USR_email} 에 중복 방지 제약이 있어, 원래
+     * 이메일을 그대로 두면 <b>같은 이메일로 다시 가입할 수 없다.</b> 표식값으로 비켜 주면
+     * 스키마를 건드리지 않고 재가입이 가능해진다. 대가는 탈퇴 회원의 원래 이메일을
+     * 복구할 수 없다는 것이고, 그건 의도된 것이다 — 탈퇴한 계정의 연락처를 계속 들고
+     * 있을 이유가 없다.
+     *
+     * <p>표식값 형식은 {@code Email} VO 의 형식 검사를 통과해야 하므로 실제 이메일 모양을
+     * 지킨다. {@code .invalid} 는 표준이 "절대 실재하지 않는다"고 못박은 도메인이라
+     * 실수로 메일이 발송될 수 없다.
+     */
+    public void withdraw() {
+        this.email = new Email("deleted-" + this.id + "@deleted.invalid");
+        delete();
+    }
+
     // === 편의 접근자 (기존 코드 호환) ===
 
     public String getEmailValue() {
