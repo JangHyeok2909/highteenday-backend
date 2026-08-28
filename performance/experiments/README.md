@@ -25,10 +25,18 @@ flowchart LR
 
 | ID | 제목 | 상태 | 가설 요지 | 관련 |
 |----|------|------|-----------|------|
-| [EXP-001](EXP-001-baseline-normal-day/README.md) | 기준선 측정 (Normal Day) | 계획 | 현재 시스템의 SLO 충족 여부와 기준 수치 확보 | — |
-| [EXP-002](EXP-002-capacity-limit/README.md) | 한계 용량 탐색 | 계획 | 400 VU 부근에서 HikariCP 고갈이 최초 병목일 것 | BTL-002 |
-| [EXP-003](EXP-003-hot-row-contention/README.md) | 인기글 카운터 락 경합 | 계획 | Zipf 반응 부하에서 P99가 row lock wait에 지배될 것 | BTL-003 |
-| [EXP-004](EXP-004-cache-contribution/README.md) | 캐시 기여도 (cold vs warm) | 계획 | 웜 캐시가 읽기 P95를 60% 이상 낮출 것 | BTL-004 |
-| [EXP-005](EXP-005-comment-nplus1/README.md) | 댓글 조회 쿼리 폭발 | 계획 | 댓글 100개 글 조회 시 쿼리 수가 O(N)일 것 | BTL-005 |
+| [EXP-000](EXP-000-measurement-integrity/README.md) | 부하 발생기 이주 (측정 신뢰도) | **부분 실행** — M1 Before 측정 완료, After 미실행 | k6를 Docker로 옮기면 측정이 더 안정적일 것 | 측정 시스템 |
+| [EXP-001](EXP-001-baseline-normal-day/README.md) | 기준선 측정 (Normal Day) | **완료** (2026-08-16) — H1 **기각**, 병목은 앱 CPU 2코어 한계 | 현재 시스템의 SLO 충족 여부와 기준 수치 확보 | — |
+| [EXP-002](EXP-002-capacity-limit/README.md) | 한계 용량 탐색 | 계획 (미착수) | 400 VU 부근에서 HikariCP 고갈이 최초 병목일 것 | BTL-002 |
+| [EXP-003](EXP-003-hot-row-contention/README.md) | 인기글 카운터 락 경합 | 계획 (미착수) | Zipf 반응 부하에서 P99가 row lock wait에 지배될 것 | BTL-003 |
+| [EXP-004](EXP-004-cache-contribution/README.md) | 캐시 기여도 (cold vs warm) | 계획 (미착수) | 웜 캐시가 읽기 P95를 60% 이상 낮출 것 | BTL-004 |
+| [EXP-005](EXP-005-comment-nplus1/README.md) | 댓글 조회 쿼리 폭발 | 계획 — **다음 실행 대상** | 댓글 100개 글 조회 시 쿼리 수가 O(N)일 것 | BTL-005 |
 
 번호는 실행 순서다: **기준선(001) 없이는 어떤 실험도 시작하지 않는다.**
+
+**EXP-002~004가 미착수인 이유**는 우선순위다. EXP-001이 앱 CPU 2코어를 먼저 만나는 것을
+확인했으므로, 커넥션 풀(002)·락 경합(003)·캐시(004)를 지금 재도 CPU 포화에 가려 원인을
+분리할 수 없다. 개선 폭이 가장 크고 코드 경로가 명확한 댓글 N+1(005)을 먼저 끝낸 뒤 재개한다.
+
+**EXP-000의 After가 미실행인 이유**도 같다. 부하 발생기 이주는 측정 인프라 변경이라
+지문이 갈려 기존 기준선과의 자동 비교가 끊긴다. 개선 실험(005)이 끝난 뒤에 한다.
