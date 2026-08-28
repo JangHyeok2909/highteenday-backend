@@ -37,6 +37,10 @@ COPY settings.gradle .
 COPY src src
 COPY schoolData schoolData
 
+# 테스트는 여기서 돌리지 않는다. CI 의 별도 test 잡이 이미 통과해야만 이 빌드가
+# 시작되므로(.github/workflows/deploy.yml 의 `build: needs: test`), 이미지 빌드 안에서
+# 다시 돌리면 같은 검증을 두 번 하면서 배포 시간만 늘어난다. 로컬에서 이 Dockerfile 을
+# 직접 빌드할 때는 테스트를 건너뛴다는 뜻이므로, 그 경우 `./gradlew test` 를 따로 돌릴 것.
 RUN chmod +x gradlew && ./gradlew build -x test --no-daemon
 
 # ==============================
