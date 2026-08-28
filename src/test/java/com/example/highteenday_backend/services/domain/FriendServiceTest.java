@@ -19,9 +19,7 @@ import com.example.highteenday_backend.enums.FriendRequestStatus;
 import com.example.highteenday_backend.enums.FriendStatus;
 import com.example.highteenday_backend.enums.RelationStatus;
 import com.example.highteenday_backend.enums.Role;
-import com.example.highteenday_backend.eventEntities.events.FriendBlockedEvent;
 import com.example.highteenday_backend.eventEntities.events.FriendRequestAcceptedEvent;
-import com.example.highteenday_backend.eventEntities.events.FriendRequestDeclinedEvent;
 import com.example.highteenday_backend.eventEntities.events.FriendRequestSentEvent;
 import com.example.highteenday_backend.exceptions.CustomException;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
@@ -305,7 +303,7 @@ class FriendServiceTest {
         }
 
         @Test
-        @DisplayName("차단 → Friend 1건 저장(receiver→requester BLOCKED) + FriendBlockedEvent 발행")
+        @DisplayName("차단 → Friend 1건 저장(receiver→requester BLOCKED), 요청자에게는 알리지 않음")
         void blockCreatesBlockedRelation() {
             RespondFriendRequestDto dto = new RespondFriendRequestDto(10L, "BLOCKED");
 
@@ -317,28 +315,24 @@ class FriendServiceTest {
             assertThat(friendCaptor.getValue().getFriend()).isSameAs(requester);
             assertThat(friendCaptor.getValue().getStatus()).isEqualTo(FriendStatus.BLOCKED);
 
-            ArgumentCaptor<FriendBlockedEvent> eventCaptor = ArgumentCaptor.forClass(FriendBlockedEvent.class);
-            verify(eventPublisher).publishEvent(eventCaptor.capture());
-            assertThat(eventCaptor.getValue().getBlockerId()).isEqualTo(2L);
-            assertThat(eventCaptor.getValue().getBlockedUserId()).isEqualTo(1L);
+            // 차단 비가시성 정책: 요청자는 차단 사실을 알 수 없어야 한다.
+            verify(eventPublisher, never()).publishEvent(any(Object.class));
 
             assertThat(friendReq.getIsValid()).isFalse();
             verify(friendReqRepository, never()).delete(friendReq);
         }
 
         @Test
-        @DisplayName("거절 → Friend 저장 없음 + 이벤트 발행 + FriendReq 소프트 삭제")
-        void declinePublishesEventWithoutFriendSave() {
+        @DisplayName("거절 → Friend 저장 없음 + 알림 없음 + FriendReq 소프트 삭제")
+        void declineClosesRequestWithoutFriendSave() {
             RespondFriendRequestDto dto = new RespondFriendRequestDto(10L, "DECLINED");
 
             friendService.respondToFriendRequest(receiverPrincipal, dto);
 
             verify(friendRepository, never()).save(any());
 
-            ArgumentCaptor<FriendRequestDeclinedEvent> eventCaptor = ArgumentCaptor.forClass(FriendRequestDeclinedEvent.class);
-            verify(eventPublisher).publishEvent(eventCaptor.capture());
-            assertThat(eventCaptor.getValue().getRequesterId()).isEqualTo(1L);
-            assertThat(eventCaptor.getValue().getReceiverId()).isEqualTo(2L);
+
+            verify(eventPublisher, never()).publishEvent(any(Object.class));
 
             assertThat(friendReq.getIsValid()).isFalse();
             verify(friendReqRepository, never()).delete(friendReq);
