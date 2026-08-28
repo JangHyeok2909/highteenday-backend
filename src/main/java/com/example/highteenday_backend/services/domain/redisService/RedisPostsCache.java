@@ -26,6 +26,17 @@ public class RedisPostsCache implements PostPrevCache{
     private static final Duration POST_TTL = Duration.ofMinutes(30);
     private static final Duration BOARD_TTL = Duration.ofMinutes(60);
 
+    /**
+     * 게시판 글 개수 캐시의 수명. 생성 경로와 증감 경로가 <b>같은 값</b>을 써야 한다.
+     *
+     * <p>예전에는 생성이 5분, 증감이 60분이라 어긋나 있었다. 5분 뒤 키가 사라진 상태에서
+     * 글이 하나 써지면 증감 경로가 키를 60분짜리로 새로 만들었고, 그 사이 조회는 전부
+     * 캐시 히트라 재집계가 돌지 않았다 (KI-56). 60분에 맞춘 이유는 게시글 목록 캐시
+     * ({@link #BOARD_TTL})와 같은 주기로 만료시켜 두 캐시가 따로 놀지 않게 하기 위해서다.
+     * 값 자체의 정확성은 TTL 이 아니라 증감이 지킨다.
+     */
+    private static final Duration COUNT_TTL = BOARD_TTL;
+
     // ── AOP 미적용: DB fallback + self-invocation ──
     @Override
     public List<PostPreviewDto> getPostPrevs(Long boardId,int page,int size) {
@@ -135,17 +146,40 @@ public class RedisPostsCache implements PostPrevCache{
     @ResilientRedis
     @Override
     public void incrementBoardCount(Long boardId) {
-        String key = createCountingKey(boardId);
-        longRedisTemplate.opsForValue().increment(key, 1);
-        longRedisTemplate.expire(key, BOARD_TTL);
+        applyCountDelta(boardId, 1);
     }
 
     @ResilientRedis
     @Override
     public void decrementBoardCount(Long boardId) {
+        applyCountDelta(boardId, -1);
+    }
+
+    /**
+     * 게시판 글 개수 캐시를 delta 만큼 옮긴다. 키가 없었으면 증감 대신 DB 로 다시 센다.
+     *
+     * <p>왜 키 존재 여부를 따지는가: Redis {@code INCRBY} 는 <b>키가 없으면 0 을 만든 뒤
+     * 증가</b>시킨다. 값 직렬화가 평문 십진 문자열이라 타입 오류로 막히지도 않는다.
+     * 그래서 캐시가 만료된 뒤 첫 글이 써지면 총 개수가 실제 5만이든 얼마든 <b>{@code 1}</b>
+     * 이 됐고, 그 뒤 조회는 전부 캐시 히트라 다시 세어지지 않았다. 클라이언트는 이 값으로
+     * 전체 페이지 수를 계산하므로 페이지네이션이 1페이지로 접혔다
+     * (docs/KNOWN-ISSUES.md KI-56).
+     *
+     * <p>판정은 {@code INCRBY} 의 반환값으로 한다 — 반환값이 delta 와 같으면 직전 값이
+     * 0, 즉 키가 없었다는 신호다. 별도로 {@code EXISTS} 를 먼저 부르면 확인과 증감
+     * 사이에 키가 만료될 수 있어 오히려 틈이 생긴다. 실제로 개수가 정확히 1(또는 -1)이
+     * 되는 경우에도 재집계가 도는데, DB 를 한 번 더 세는 것뿐이라 결과는 같다.
+     */
+    private void applyCountDelta(Long boardId, long delta) {
         String key = createCountingKey(boardId);
-        longRedisTemplate.opsForValue().decrement(key, 1);
-        longRedisTemplate.expire(key, BOARD_TTL);
+        Long updated = longRedisTemplate.opsForValue().increment(key, delta);
+
+        if (updated == null || updated == delta) {
+            // 키가 없던 상태에서 만들어진 값이다. 버리고 DB 기준으로 다시 채운다.
+            createCount(boardId);
+            return;
+        }
+        longRedisTemplate.expire(key, COUNT_TTL);
     }
 
     // ── AOP 미적용: DB fallback 필요 ──
@@ -167,7 +201,7 @@ public class RedisPostsCache implements PostPrevCache{
         Long count = postRepository.countTotal(boardId);
         try {
             String key = createCountingKey(boardId);
-            longRedisTemplate.opsForValue().set(key,count,Duration.ofMinutes(5));
+            longRedisTemplate.opsForValue().set(key,count,COUNT_TTL);
         } catch (Exception e) {
             log.warn("Redis unavailable, skipping createCount cache. boardId={}", boardId, e);
         }

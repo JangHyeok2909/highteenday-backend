@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -23,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -138,4 +140,75 @@ class RedisPostsCacheTest {
         }
     }
 
+    /**
+     * 글 개수 캐시가 만료 후 첫 쓰기에서 1로 되살아나던 문제 (docs/KNOWN-ISSUES.md KI-56).
+     *
+     * Redis INCRBY 는 키가 없으면 0 을 만든 뒤 증가시키므로, 반환값이 delta 와 같다는 것은
+     * "직전 값이 0", 즉 키가 없었다는 신호다. 그때는 증감분을 믿지 말고 DB 로 다시 세야 한다.
+     */
+    @Nested
+    @DisplayName("글 개수 증감 (KI-56)")
+    class CountDelta {
+
+        private static final String COUNT_KEY = "board:1:count";
+
+        @Test
+        @DisplayName("키가 없는 상태의 증가는 1을 남기지 않고 DB 로 재집계한다")
+        void incrementOnMissingKeyRecountsFromDb() {
+            when(longRedisTemplate.opsForValue()).thenReturn(countValueOps);
+            // 키가 없어 INCRBY 가 0 에서 시작 → 반환값 1
+            when(countValueOps.increment(COUNT_KEY, 1L)).thenReturn(1L);
+            when(postRepository.countTotal(1L)).thenReturn(50_000L);
+
+            redisPostsCache.incrementBoardCount(1L);
+
+            verify(postRepository).countTotal(1L);
+            // 재집계 값으로 덮어써야 한다. 1 이 그대로 남으면 페이지네이션이 1페이지로 접힌다.
+            verify(countValueOps).set(eq(COUNT_KEY), eq(50_000L), any(java.time.Duration.class));
+        }
+
+        @Test
+        @DisplayName("키가 없는 상태의 감소도 -1을 남기지 않고 DB 로 재집계한다")
+        void decrementOnMissingKeyRecountsFromDb() {
+            when(longRedisTemplate.opsForValue()).thenReturn(countValueOps);
+            when(countValueOps.increment(COUNT_KEY, -1L)).thenReturn(-1L);
+            when(postRepository.countTotal(1L)).thenReturn(50_000L);
+
+            redisPostsCache.decrementBoardCount(1L);
+
+            verify(postRepository).countTotal(1L);
+            verify(countValueOps).set(eq(COUNT_KEY), eq(50_000L), any(java.time.Duration.class));
+        }
+
+        @Test
+        @DisplayName("키가 살아 있으면 DB 를 다시 세지 않고 증감만 한다")
+        void incrementOnLiveKeySkipsDb() {
+            when(longRedisTemplate.opsForValue()).thenReturn(countValueOps);
+            when(countValueOps.increment(COUNT_KEY, 1L)).thenReturn(50_001L);
+
+            redisPostsCache.incrementBoardCount(1L);
+
+            verify(postRepository, never()).countTotal(anyLong());
+            verify(longRedisTemplate).expire(eq(COUNT_KEY), any(java.time.Duration.class));
+        }
+
+        @Test
+        @DisplayName("생성 경로와 증감 경로의 TTL 이 같다 — 어긋나면 만료 후 되살아남이 재현된다")
+        void createAndDeltaShareTheSameTtl() {
+            when(longRedisTemplate.opsForValue()).thenReturn(countValueOps);
+            when(postRepository.countTotal(1L)).thenReturn(7L);
+            when(countValueOps.increment(COUNT_KEY, 1L)).thenReturn(50_001L);
+
+            redisPostsCache.createCount(1L);
+            redisPostsCache.incrementBoardCount(1L);
+
+            ArgumentCaptor<java.time.Duration> setTtl = ArgumentCaptor.forClass(java.time.Duration.class);
+            verify(countValueOps).set(eq(COUNT_KEY), anyLong(), setTtl.capture());
+
+            ArgumentCaptor<java.time.Duration> expireTtl = ArgumentCaptor.forClass(java.time.Duration.class);
+            verify(longRedisTemplate).expire(eq(COUNT_KEY), expireTtl.capture());
+
+            assertThat(setTtl.getValue()).isEqualTo(expireTtl.getValue());
+        }
+    }
 }
