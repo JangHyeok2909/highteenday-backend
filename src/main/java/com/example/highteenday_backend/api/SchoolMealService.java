@@ -193,6 +193,13 @@ public class SchoolMealService {
             }
         });
 
+        // 수집 결과가 비면 저장하지 않는다. 급식 JSON 은 저장소에 커밋된 시드 파일이라,
+        // 키가 무효하거나 NEIS 가 응답하지 않을 때 빈 배열로 덮어쓰면 해당 월 데이터를 잃는다.
+        if (allRecords.isEmpty()) {
+            log.warn("NEIS returned no meals — keeping the existing meal JSON. year={}, month={}", year, month);
+            return;
+        }
+
         String path = SchoolFileConstants.getMealJsonPath(year, month);
         File file = new File(path);
         File parentDir = file.getParentFile();

@@ -104,6 +104,14 @@ public class SchoolInfoService {
                 break;
             }
         }
+        // 수집 결과가 비면 저장하지 않는다. schools.json 은 저장소에 커밋된 시드 파일이라,
+        // 키가 무효하거나 NEIS 가 응답하지 않을 때 빈 배열로 덮어쓰면 기존 학교 데이터를
+        // 통째로 잃는다 (그 뒤 부팅은 schoolId 를 찾지 못해 실패한다).
+        if (schoolDtos.isEmpty()) {
+            log.warn("NEIS returned no schools — keeping the existing schools.json instead of overwriting it.");
+            return;
+        }
+
         File file = new File(SchoolFileConstants.SCHOOL_JSON_PATH);
         // 경로의 부모 디렉토리 존재 여부 확인
         File parentDir = file.getParentFile();
