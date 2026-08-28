@@ -10,11 +10,13 @@ import com.example.highteenday_backend.enums.SortType;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.ComparableExpressionBase;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,12 +28,23 @@ public class PostRepositoryCustomImpl implements PostRepositoryCustom {
 
     @Override
     public Page<Post> searchKeywordsAll(String keywords, PostSearchType searchType, Pageable pageable) {
+        return searchPage(null, keywords, searchType, pageable);
+    }
+
+    @Override
+    public Page<Post> searchKeywords(Long boardId, String keywords, PostSearchType searchType, Pageable pageable) {
+        return searchPage(boardId, keywords, searchType, pageable);
+    }
+
+    /** boardId 가 null 이면 전체 게시판, 아니면 해당 게시판으로 한정한다. */
+    private Page<Post> searchPage(Long boardId, String keywords, PostSearchType searchType, Pageable pageable) {
         QPost post = QPost.post;
 
         String safeKeywords = keywords == null ? "" : keywords.trim();
         String[] keywordArr = safeKeywords.isEmpty() ? new String[0] : safeKeywords.split("\\s+");
         BooleanBuilder builder = new BooleanBuilder();
         builder.and(post.isValid.eq(true));
+        if (boardId != null) builder.and(post.board.id.eq(boardId));
         if(searchType == PostSearchType.TITLE_CONTENT){ //제목+본문
             for(String keyword:keywordArr){
                 if (keyword == null || keyword.isBlank()) continue;
@@ -55,6 +68,7 @@ public class PostRepositoryCustomImpl implements PostRepositoryCustom {
 
         List<Post> posts = queryFactory.selectFrom(post)
                         .where(builder)
+                        .orderBy(toOrderSpecifiers(pageable.getSort(), post))
                         .offset(pageable.getOffset())
                         .limit(pageable.getPageSize())
                         .fetch();
@@ -69,9 +83,27 @@ public class PostRepositoryCustomImpl implements PostRepositoryCustom {
         return new PageImpl<>(posts, pageable, totalElements);
     }
 
-    @Override
-    public Page<Post> searchKeywords(Long boardId, String keywords, PostSearchType searchType, Pageable pageable) {
-        return null;
+    /**
+     * Pageable 의 Sort 를 QPost 경로로 옮긴다. 인식하지 못하는 속성명은 무시한다.
+     * 마지막에 유일 키인 id 를 덧붙여야 정렬 키가 같은 글들 사이의 순서까지 고정되어
+     * OFFSET 페이징에서 중복·누락이 생기지 않는다.
+     */
+    private OrderSpecifier<?>[] toOrderSpecifiers(Sort sort, QPost post) {
+        List<OrderSpecifier<?>> specifiers = new ArrayList<>();
+        for (Sort.Order order : sort) {
+            ComparableExpressionBase<?> path = switch (order.getProperty()) {
+                case "created", "createdAt" -> post.created;
+                case "likeCount" -> post.likeCount;
+                case "viewCount" -> post.viewCount;
+                case "commentCount" -> post.commentCount;
+                case "id" -> post.id;
+                default -> null;
+            };
+            if (path == null) continue;
+            specifiers.add(order.isAscending() ? path.asc() : path.desc());
+        }
+        specifiers.add(post.id.desc());
+        return specifiers.toArray(new OrderSpecifier<?>[0]);
     }
 
     @Override
