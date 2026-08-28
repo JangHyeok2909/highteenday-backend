@@ -280,19 +280,22 @@ controllers/ChatController.java       엔드포인트 8개 추가
 
 ## 8. 알려진 한계
 
-**트랜잭션 커밋 전에 WebSocket 메시지가 나갑니다.**
-`writeSystemMessage()`와 `publishMemberEvent()`는 `@Transactional` 안에서
-`messagingTemplate.convertAndSend()`를 호출합니다. 이후 트랜잭션이 롤백되면
-클라이언트는 실제로 저장되지 않은 이벤트를 이미 받은 상태가 됩니다.
+**~~트랜잭션 커밋 전에 WebSocket 메시지가 나갑니다.~~ → 해소 (2026-08-28)**
 
-기존 `markAsRead()`도 같은 방식이라 이번에 새로 생긴 문제는 아니지만,
-멤버 변경처럼 되돌리기 어려운 이벤트가 늘어난 만큼 정리하는 편이 좋습니다.
-`TransactionSynchronizationManager.registerSynchronization()`으로
-`afterCommit` 시점에 발행하도록 옮기는 것이 표준적인 해법입니다.
+발견 당시 기록: `writeSystemMessage()`와 `publishMemberEvent()`는 `@Transactional` 안에서
+`messagingTemplate.convertAndSend()`를 호출했습니다. 이후 트랜잭션이 롤백되면
+클라이언트는 실제로 저장되지 않은 이벤트를 이미 받은 상태가 됩니다.
+`markAsRead()`도 같은 방식이었습니다.
+
+**해소 방법**: 세 곳 모두 발행을 `AfterCommitExecutor.run(...)` 안으로 옮겨
+`afterCommit` 시점에 실행합니다 (`services/global/AfterCommitExecutor`,
+`docs/KNOWN-ISSUES.md` KI-24). 페이로드 DTO는 커밋 전에 미리 만들어 둡니다 —
+커밋 이후에는 영속성 컨텍스트가 닫혀 지연 로딩이 깨지기 때문입니다.
+회귀 방지 테스트는 `ChatServiceTest.MarkAsRead.doesNotPublishBeforeCommit()`입니다.
 
 ## 9. 남은 작업
 
-1. **커밋 후 발행으로 전환** — 위 한계 항목
+1. ~~**커밋 후 발행으로 전환**~~ — 완료 (8절 참고)
 2. **읽음 이벤트 서버측 디바운스** — 대형 방 부하 확인 후
 2. **`ChatContext` per-user queue 전환** — 현재 프론트가 방마다 STOMP 구독을 걸어
    방 수에 비례해 구독이 늘어납니다. `feature/realtime-notification`의 per-user queue 패턴을

@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import com.example.highteenday_backend.services.global.AfterCommitExecutor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -29,6 +30,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserService userService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createCommentNotification(Long senderId, Long receiverId, Long postId, String content) {
@@ -74,10 +76,13 @@ public class NotificationService {
                         .build()
         );
 
+        // 커밋 이후에 발행한다. 커밋 전에 보내면 롤백 시 DB 에 없는 알림이 클라이언트
+        // 알림함에 떠 있고, 새로고침하면 사라지는 유령 알림이 된다 (docs/KNOWN-ISSUES.md KI-24).
         NotificationDto dto = NotificationDto.fromEntity(notification);
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(receiver.getId()), "/queue/notifications", dto
-        );
+        String receiverId = String.valueOf(receiver.getId());
+        afterCommitExecutor.run(() -> messagingTemplate.convertAndSendToUser(
+                receiverId, "/queue/notifications", dto
+        ));
     }
 
     @Transactional(readOnly = true)
