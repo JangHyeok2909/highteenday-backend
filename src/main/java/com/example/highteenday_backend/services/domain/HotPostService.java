@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -48,6 +49,23 @@ public class HotPostService {
 
     private static final DateTimeFormatter LEADERBOARD_DAY_SUFFIX = DateTimeFormatter.ofPattern("yyyyMMdd");
 
+    /**
+     * 일자 리더보드 ZSET 수명 (KI-20).
+     *
+     * 하루가 아니라 이틀인 이유: 키 이름이 날짜라 자정에 새 키로 넘어가는데, 마지막
+     * 쓰기 직후 만료되면 그날 남은 조회가 DB fallback 으로 새 버린다. 이틀이면
+     * 어느 시점에 써도 그날 내내 살아 있고, 동시에 남는 키는 최대 2개로 묶인다.
+     */
+    private static final Duration LEADERBOARD_DAY_TTL = Duration.ofDays(2);
+
+    /**
+     * 게시판별 5분 실시간 버킷 수명 (KI-20).
+     *
+     * 5분 버킷이므로 30분이면 최근 6개만 남는다. 버킷 하나의 수명을 5분에 딱 맞추지
+     * 않은 것은, 경계 직전에 쓰인 버킷을 직후 조회가 읽을 수 있게 하기 위해서다.
+     */
+    private static final Duration REALTIME_BUCKET_TTL = Duration.ofMinutes(30);
+
     private final HotPostRankingPort hotPostRanking;
     private final PostService postService;
     private final DailyHotPostRepository dailyHotPostRepository;
@@ -64,7 +82,7 @@ public class HotPostService {
         Long postId = post.getId();
         String key=getKey(boardId);
         double score = HotScoreCalculator.calculateDailyHotScore(post);
-        hotPostRanking.addScore(key, postId, score);
+        hotPostRanking.addScore(key, postId, score, REALTIME_BUCKET_TTL);
     }
 
     public List<PostPreviewDto> getRecentHotPosts(Long boardId){
@@ -83,7 +101,7 @@ public class HotPostService {
         String key = leaderboardDayRedisKey(LocalDate.now());
         postService.findOptionalById(postId).ifPresentOrElse(post -> {
             double score = HotScoreCalculator.calculateDailyHotScore(post);
-            hotPostRanking.addScore(key, postId, score);
+            hotPostRanking.addScore(key, postId, score, LEADERBOARD_DAY_TTL);
             log.debug("hot score updated, postId={} score={}", postId, score);
         }, () -> {
             hotPostRanking.remove(key, postId);

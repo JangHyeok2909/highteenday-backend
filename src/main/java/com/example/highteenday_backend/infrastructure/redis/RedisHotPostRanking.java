@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -20,8 +21,11 @@ public class RedisHotPostRanking implements HotPostRankingPort {
 
     @ResilientRedis
     @Override
-    public void addScore(String key, Long postId, double score) {
+    public void addScore(String key, Long postId, double score, Duration ttl) {
         longRedisTemplate.opsForZSet().add(key, postId, score);
+        // 쓸 때마다 만료 시각을 다시 건다. 버킷은 마지막 쓰기 이후 ttl 만큼만 살아 있고,
+        // 그 뒤 Redis 가 알아서 지운다 — 정리 스케줄러가 따로 필요 없다 (KI-20).
+        longRedisTemplate.expire(key, ttl);
     }
 
     @ResilientRedis
