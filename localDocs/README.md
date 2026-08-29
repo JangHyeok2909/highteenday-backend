@@ -78,6 +78,23 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
 | [perf-report-redesign.md](perf-report-redesign.md) | **설계 문서.** 실행 리포트에 아직 남은 과제는 무엇인가 (첫 그리드가 포화된 자원을 지목하지 않음 · 신뢰도 색이 2단계뿐) | 리포트를 고치기 전 |
 | [go-migration-rationale.md](go-migration-rationale.md) | **결정 기록.** 측정 도구를 Go로 옮길 정당한 이유는 무엇이고(무엇은 이유가 아닌가), 무엇을 어떤 순서로 옮기며, 이식 중 측정 무결성을 어떻게 지키는가? | Go 이식을 시작·재개하기 전, 이식 결정을 남에게 설명하기 전 |
 
+### 이직 준비 문서 (성능 시스템 장부와 별개 계열)
+
+아래 문서들은 **측정 시스템의 결함을 다루지 않는다.** 이 프로젝트의 결과물을
+바깥(채용 전형)에서 어떻게 쓸 것인가를 다루므로 계열을 분리한다.
+
+| 문서 | 답하는 질문 | 언제 읽나 |
+|---|---|---|
+| [resume-assets.md](resume-assets.md) | **토스 Server Developer [산업기능요원/전문연구요원] (Product) 공고의 각 줄에 이 프로젝트의 무엇으로 답하는가?** 답할 것이 없는 줄은 어디이고 무엇을 만들어야 채워지는가? | 이력서를 쓰기 전, **프로젝트 고도화 항목을 고를 때** |
+| [paytalab-application.md](paytalab-application.md) | **페이타랩(패스오더) 백엔드 공고의 각 줄에 무엇으로 답하는가?** 커피 주문 앱 도메인과 내 병목 사례는 어떻게 연결되는가? | 페이타랩에 지원하기 전, 다른 병역지정업체 지원 시 재사용 |
+| [toss-product-playbook.md](toss-product-playbook.md) | **컨설턴트 관점.** 토스 Product 병특 전형의 각 단계가 무엇을 거르고, 무엇이 사람을 떨어뜨리며, 스프린트 항목을 "어떻게" 해야 합격으로 이어지는가? 핵심가치 8개 대조, 편입 행정 | 이력서를 쓰기 전, 모의면접 전, 합격 후 편입 절차 때 |
+| [toss-sprint-1month.md](toss-sprint-1month.md) | 한 달 안에 무엇을 어떤 순서로 할 것인가? | 매주 계획을 세울 때 |
+| [toss-target-role.md](toss-target-role.md) | 어느 직무·경로로 갈 것이고 왜인가? (병역 규정 포함) | 지원 대상을 정할 때 |
+| [toss-gap-analysis.md](toss-gap-analysis.md) | 부족한 것의 전체 목록은 무엇인가? | 중장기 학습 계획을 세울 때 |
+| [toss-interview-questions.md](toss-interview-questions.md) · [toss-interview-concepts.md](toss-interview-concepts.md) | 무엇을 물어보고 어떻게 답하는가? | 면접 직전 |
+| [toss-infra-essentials.md](toss-infra-essentials.md) | 인프라 쪽에서 최소한 알아야 할 것은? | 면접 준비 중 |
+| [delegation-scope.md](delegation-scope.md) · [fix-log.md](fix-log.md) | 어떤 결함을 위임했고 무엇이 어떻게 고쳐졌는가? | 위임 결과를 확인할 때 |
+
 ## 문서들의 관계
 
 문서는 여섯 종류로 나뉜다.
