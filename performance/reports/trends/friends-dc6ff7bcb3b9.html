@@ -152,6 +152,34 @@ tbody tr:last-child td { border-bottom: none; }
 .b-FAIL { color: var(--critical); border-color: var(--critical); }
 .b-SKIP { color: var(--ink-muted); border-color: var(--axis); }
 
+/* ① 신뢰 확인 줄 — 항상 표시된다 */
+.trust { border-left: 3px solid var(--good); }
+.trust.trust-bad { border-left-color: var(--critical); }
+.trust-head { font-weight: 650; font-size: 13px; margin-bottom: 9px; }
+.trust-row { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.trust-item { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; }
+.trust-k { color: var(--ink-muted); }
+.trust-v { font-weight: 650; font-variant-numeric: tabular-nums; }
+.trust-item.ok .trust-v { color: var(--good-text, var(--good)); }
+.trust-item.bad .trust-v { color: var(--critical); }
+.trust-n { color: var(--ink-2); font-size: 11.5px; }
+
+/* ② 요약의 경고 줄 — 전체 p95 가 감추는 것을 상단에서 알린다 */
+.lead { margin-top: 11px; padding: 9px 12px; border-radius: 6px;
+        background: color-mix(in srgb, var(--warning) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+        font-size: 12.5px; }
+.lead b { font-variant-numeric: tabular-nums; }
+.lead + .lead { margin-top: 6px; }
+
+/* 접히는 섹션 */
+details.fold > summary { cursor: pointer; font-size: 13px; font-weight: 650; padding: 9px 0;
+                         list-style: none; display: flex; align-items: center; gap: 8px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: '▸'; color: var(--ink-muted); }
+details.fold[open] > summary::before { content: '▾'; }
+details.fold > summary .sum-note { font-weight: 400; color: var(--ink-2); font-size: 12px; }
+
 .empty { color: var(--ink-muted); font-style: italic; padding: 10px 0; }
 .note { color: var(--ink-2); font-size: 12.5px; margin-top: 10px; padding-left: 11px; border-left: 2px solid var(--grid); }
 footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 34px; }
@@ -216,7 +244,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
   <dl class="meta">
     <div><dt>실행 수</dt><dd>1</dd></div>
     <div><dt>기간</dt><dd style="font-size:12px">2026-08-05 ~ 2026-08-05</dd></div>
-    <div><dt>실패</dt><dd>1</dd></div>
+    <div><dt>실패</dt><dd>0</dd></div>
     <div><dt>대기 발생</dt><dd>0</dd></div>
     <div><dt>판정 축 MDE</dt><dd>—</dd></div>
   </dl>
@@ -225,7 +253,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
 <div class="wrap">
   <section>
     <h2>체제 — 이 배경 위에서 아래 수치를 읽는다</h2>
-    <div class="regime"><div class="rg-row"><i class="rg-unassessed" title="#15 2026-08-05 17:58 · 체제 미판정 · p95 —"></i></div>
+    <div class="regime"><div class="rg-row"><i class="rg-headroom" title="#17 2026-08-05 17:58 · 체제 여유 · p95 —"></i></div>
     <div class="rg-legend">
       <span><i class="rg-headroom"></i> 여유</span>
       <span><i class="rg-near_limit"></i> 한계 근처</span>
@@ -233,25 +261,11 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <span><i class="rg-unassessed"></i> 미판정</span>
       <span><i class="rg-headroom rg-queued"></i> 커넥션 대기 발생</span>
     </div></div>
-    <div class="note" style="border-color:var(--serious)">포화 판정 기록이 없는 계열입니다(<code>saturation.js</code> 도입 2026-08-20 이전). <b>판정 없음은 여유 있음이 아닙니다.</b></div><div class="note" style="border-color:var(--serious)">실행이 1회뿐이라 <b>추세와 변동성을 계산하지 않습니다</b>(최소 4회). 아래 회차별 원본 표만 유효합니다.</div>
+    <div class="note" style="border-color:var(--serious)">실행이 1회뿐이라 <b>추세와 변동성을 계산하지 않습니다</b>(최소 4회). 아래 회차별 원본 표만 유효합니다.</div>
   </section>
 
   
-  <section>
-    <h2>실패 축 — 무엇이 이 계열을 실패시켰나</h2>
-    <div class="card"><div class="scroll"><table class="hist-table">
-      <thead><tr><th>규칙</th><th class="num">실패 회차</th><th>사유</th><th>키</th></tr></thead>
-      <tbody><tr>
-    <td><b>k6.overall.p99</b></td>
-    <td class="num">1 / 1</td>
-    <td>상대 비교</td>
-    <td><code style="font-size:11px">k6.overall.p99</code></td>
-  </tr></tbody>
-    </table></div>
-    <div class="note"><b>절대 게이트</b>는 기준선과 무관하게 SLO 를 넘겨 걸린 것이다 —
-    이전 대비 개선됐더라도 실패한다(삶은 개구리 방지).</div>
-    </div>
-  </section>
+  <section><h2>실패 축</h2><div class="card"><div class="note">이 계열에는 실패한 게이트가 없습니다.</div></div></section>
   
   <section>
     <h2>회차별 원본 (1회, 최신순)</h2>
@@ -264,7 +278,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <th>체제</th><th>판정</th><th>실패 축</th>
       </tr></thead>
       <tbody><tr>
-      <td class="num">15</td>
+      <td class="num">17</td>
       <td style="font-size:12px;white-space:nowrap"><a href="../runs/friends-2026-08-05T09-00-06/report.html">2026-08-05 17:58</a></td>
       <td><code style="font-size:11px">f31f0a9b</code></td>
       <td class="num">—</td>
@@ -277,9 +291,9 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <td class="num">0</td>
       <td class="num">1.0ms</td>
       <td class="num">—</td>
-      <td>미판정</td>
-      <td><span class="badge b-FAIL">FAIL</span></td>
-      <td style="font-size:11.5px;color:var(--ink-2)">k6.overall.p99</td>
+      <td>여유</td>
+      <td><span class="badge b-WARN">WARN</span></td>
+      <td style="font-size:11.5px;color:var(--ink-2)">—</td>
     </tr></tbody>
     </table>
     <div class="note">시작 시각을 클릭하면 그 실행의 단일 보고서로 이동한다.
@@ -291,7 +305,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     <div class="note">이 조건이 하나라도 다르면 <b>다른 계열</b>이고, 두 계열의 수치를 나란히 놓는 것은
     비교가 아니다. 조건 전체를 해시한 값이 <code>seriesHash</code> 다.</div></div></section>
 
-  <footer>생성 2026-08-21 11:01:58 KST · <code>reports/index.json</code> 기준 ·
+  <footer>생성 2026-08-31 14:10:52 KST · <code>reports/index.json</code> 기준 ·
   계산은 <code>tools/lib/trends.js</code> 가 소유한다</footer>
 </div>
 </body></html>
