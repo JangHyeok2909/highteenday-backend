@@ -7,7 +7,7 @@
 > 가설·정량화·해결안 판단은 전부 여기 모은다.
 > 짝 문서: [perf-session-drift.md](perf-session-drift.md)(E-46 포화),
 > [perf-host-clock-cycle.md](perf-host-clock-cycle.md)(E-50 호스트 CPU),
-> [perf-trust-levels.md](perf-trust-levels.md)(CV·MDE)
+> [perf-trust-levels.md](../planning/perf-trust-levels.md)(CV·MDE)
 > 관련: `docs/KNOWN-ISSUES.md` KI-27, `performance/bottlenecks/BTL-002`
 
 ---

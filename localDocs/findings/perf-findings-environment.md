@@ -1109,7 +1109,7 @@ CI에서 k6 버전을 고정하고 실제 사용 버전을 런 메타데이터�
 
 이전에는 `compare.js + thresholds.json`과 `regression.js + rules.json`이 서로 다른 기준으로 함께 존재했다.
 
-`compare.js`와 `thresholds.json`을 삭제해 하나의 판정 시스템만 남겼다. 자세한 내용은 `localDocs/perf-findings-tools.md`의 T-20을 참고한다.
+`compare.js`와 `thresholds.json`을 삭제해 하나의 판정 시스템만 남겼다. 자세한 내용은 `localDocs/findings/perf-findings-tools.md`의 T-20을 참고한다.
 
 ## 재현성
 
@@ -1692,10 +1692,10 @@ instance ID를 모두 저장해야 한다. 읽기 테스트는 실행 전후 핵
 > 5. 이 항목이 CRITICAL 이었던 이유("저장된 기준선을 Before 로 쓸 수 없다")는 해소됐지만,
 >    **2번 때문에 과거 기준선은 여전히 쓸 수 없다.** 새 운용점에서 기준선을 새로 쌓아야 한다.
 >
-> 상세 분석·기각된 가설 12개·오독의 회고는 [perf-session-drift.md](perf-session-drift.md)
+> 상세 분석·기각된 가설 12개·오독의 회고는 [perf-session-drift.md](../investigations/perf-session-drift.md)
 > 0절과 8-h 절에 있다.
 
-> **상세 기록은 [perf-session-drift.md](perf-session-drift.md) 에 있다.** 조사가 실험 4건,
+> **상세 기록은 [perf-session-drift.md](../investigations/perf-session-drift.md) 에 있다.** 조사가 실험 4건,
 > 기각된 가설 11개 규모로 커져 장부 한 항목에 담기 어려워졌다. 이 항목은 "무엇이 문제이고
 > 지금 무엇을 믿을 수 없는가"만 들고, 실험 설계·측정값·가설 기각 근거·다음 계획은 전부
 > 그쪽에 있다.
@@ -1726,7 +1726,7 @@ instance ID를 모두 저장해야 한다. 읽기 테스트는 실행 전후 핵
 >
 > **해결 전까지의 운용 규칙.** Before 와 After 를 연달아 잰다(저장된 기준선 재사용 금지).
 > VM·Docker 재시작 직후에는 측정하지 않는다. 실행마다 CPU 벤치를 5초 찍어 둔다.
-> 전체 규칙과 근거는 [perf-session-drift.md](perf-session-drift.md) 12절.
+> 전체 규칙과 근거는 [perf-session-drift.md](../investigations/perf-session-drift.md) 12절.
 >
 > **새 증거 — 같은 현상이 한 시간 안에서도 일어난다(2026-08-18).** 같은 조건 5회를 한
 > 시간에 걸쳐 반복하니 **아무것도 바꾸지 않았는데 p95 가 15,564 → 13,823ms 로 11.2%
@@ -1735,7 +1735,7 @@ instance ID를 모두 저장해야 한다. 읽기 테스트는 실행 전후 핵
 > 같은 구간에 Windows 호스트의 CPU 실동작 주파수가 86.0 → 107.8% 로 같이 올랐다(p95 와
 > 순위상관 −0.70). **드리프트가 이틀이 아니라 한 시간 단위로 재현될 수 있다는 뜻이고,
 > 그렇다면 실험 회전 속도가 통째로 달라진다.** 이에 따라 기존의 "세트 안 추세 없음"
-> 판정을 철회했다. 상세는 [perf-session-drift.md](perf-session-drift.md) 8절과 부록 A.
+> 판정을 철회했다. 상세는 [perf-session-drift.md](../investigations/perf-session-drift.md) 8절과 부록 A.
 >
 > **운용 규칙 추가.** 세트끼리 비교할 때는 평균이 아니라 **같은 회차 위치끼리** 비교한다.
 > 평균으로 보면 08-17 대비 +11.7% 인데 마지막 회차끼리 보면 +6.2% 다.
@@ -1968,7 +1968,7 @@ vmmemwsl 5.9%, IDE·브라우저 등으로 **전체 CPU 23.9%, 주파수 107.9%*
 시간 동안의 유효 명령량"이다. 클럭이 20% 내려가면 처리율이 20% 내려간다. 그리고 부하가
 closed model(`ramping-vus` 200 VU)이라 응답시간은 `R = N / X` 로 기계적으로 늘어난다.
 작은 클럭 변화가 큰 p95 차이로 증폭되는 경로다. 상세는
-[perf-session-drift.md](perf-session-drift.md) 8-d 절.
+[perf-session-drift.md](../investigations/perf-session-drift.md) 8-d 절.
 
 #### 남은 불확실성 — 역인과
 
@@ -2074,7 +2074,7 @@ loadbench 는 40초 × 2코어로 600초 창의 약 0.67% 다. 이것만으로 �
 
 5. **실험 후 전원 설정을 원래 값으로 되돌린다**(AC 최소 프로세서 상태 5%).
 
-> 관련: [perf-session-drift.md](perf-session-drift.md) 8-e, T-37(hostProbe 계측 결함)
+> 관련: [perf-session-drift.md](../investigations/perf-session-drift.md) 8-e, T-37(hostProbe 계측 결함)
 
 ##### 실측 — 개입은 예측과 **반대 방향**으로 작동했다 (2026-08-20)
 
@@ -2164,7 +2164,7 @@ loadbench 는 40초 × 2코어로 600초 창의 약 0.67% 다. 이것만으로 �
 >   붙여야 확인되며, E-49 완료 기준 4번이 같은 것을 요구한다. 다만 이 항목의 결론(무해)은
 >   원인을 몰라도 성립한다.
 >
-> **상세 문서:** [perf-host-clock-cycle.md](perf-host-clock-cycle.md)
+> **상세 문서:** [perf-host-clock-cycle.md](../investigations/perf-host-clock-cycle.md)
 > **관련:** E-46(세션 간 편차), E-49(유효 CPU 처리 능력), T-37(호스트 프로브 구간 분리)
 
 ---
@@ -2260,7 +2260,7 @@ loadbench 는 40초 × 2코어로 600초 창의 약 0.67% 다. 이것만으로 �
 > 실험 이후로 미룬다** — 기대 개선 폭이 표본 분산보다 훨씬 크고, 지금 바꾸면 확보한 Before
 > 5회가 무효가 되며, KI-27 수정 자체가 542배 편중을 없애기 때문이다.
 >
-> **상세 문서:** [perf-request-cost-skew.md](perf-request-cost-skew.md)
+> **상세 문서:** [perf-request-cost-skew.md](../investigations/perf-request-cost-skew.md)
 > (기각한 후보 11개 · 시계열 해부 · 정량화 · 해결안 판단)
 >
 > **관련:** BTL-002(Tomcat 400 스레드 대 Hikari 10), KI-27(댓글 목록 루프 내 쿼리),

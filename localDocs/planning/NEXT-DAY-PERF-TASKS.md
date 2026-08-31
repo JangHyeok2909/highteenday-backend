@@ -564,7 +564,7 @@ CPU 한계 변경 실험과 묶으면 전환 비용이 0이다. 그 전에 smoke
 
 #### 우선순위 재조정 (2026-08-19 저녁, 실험 6 이후)
 
-**이 항목은 P0 에 두되 지금 당장 하지는 않는다.** 실험 6([perf-session-drift.md](perf-session-drift.md) 8-b절)이
+**이 항목은 P0 에 두되 지금 당장 하지는 않는다.** 실험 6([perf-session-drift.md](../investigations/perf-session-drift.md) 8-b절)이
 두 가지를 바꿨다.
 
 1. **지금은 잴 대상이 없다.** PMU 는 대조 계측기다 — 열화 상태와 정상 상태의 IPC 를 비교해야
@@ -603,7 +603,7 @@ CPU 시간 = 명령어 수 ÷ (사이클당 명령어 × 클럭 주파수)
 
 `efficiency.*` 계열은 분자(CPU 시간)가 상한에 묶여 고정이고 분모(요청 수)만 변해서 전부
 처리량의 역수로 붕괴한다. 그래서 이들을 설명 변수로 쓰면 순환 논증이 된다. 상세 근거와
-실측 회귀식은 [perf-findings-tools.md](perf-findings-tools.md) T-36 에 있다.
+실측 회귀식은 [perf-findings-tools.md](../findings/perf-findings-tools.md) T-36 에 있다.
 
 #### 현재 상태 — 2026-08-19 확인 결과
 
@@ -664,7 +664,7 @@ PMU 의 존재 자체를 가리고 있다**는 뜻이고, 그래서 게스트 �
    ```
 6. 아래 "검증" 을 수행한다.
 7. **벤치가 정상 범위로 돌아온 뒤에 측정을 시작한다.** VM 재기동 직후 3회는 5~14% 느리다
-   ([perf-session-drift.md](perf-session-drift.md) 5절). `node tools/cpu-bench.js --repeat 3`
+   ([perf-session-drift.md](../investigations/perf-session-drift.md) 5절). `node tools/cpu-bench.js --repeat 3`
    의 `single` 이 4,950~5,050ms 로 돌아오는지 확인한다.
 
 #### 검증 — 무엇을 보면 켜진 것인가
@@ -793,7 +793,7 @@ PMU 가 열려도 바로 `perf stat` 이 되는 것은 아니다. 세 가지가 
 2. `perf stat` 이 `instructions`·`cycles` 를 0 이 아닌 값으로 돌려준다.
 3. PMU on/off 대조 세트로 오버헤드를 정량화하고, 계열을 이어 쓸지 가를지 결정했다.
 4. `run.json` 에 IPC 와 요청당 명령어 수가 자동으로 기록된다.
-5. [perf-findings-environment.md](perf-findings-environment.md) 의 E-48 에 검증 결과를
+5. [perf-findings-environment.md](../findings/perf-findings-environment.md) 의 E-48 에 검증 결과를
    기록했다.
 
 #### 안 되면 — 확인 순서
@@ -1337,7 +1337,7 @@ large 생성은 오래 걸린다는 이유로 검증을 생략하지 않는다. 
    `전역 fetch 없음`으로 **즉시 죽는다**(실제로 겪었다). `nvm use 22` 를 먼저 하거나
    `C:\Users\user\AppData\Local\nvm\v22.23.1\node.exe` 를 절대 경로로 쓴다.
 3. **시작 직전에 `node tools/cpu-bench.js` 를 한 번 찍는다.** VM·Docker 재시작 직후 3회는
-   5~14% 느리다([perf-session-drift.md](perf-session-drift.md) 5절). 값이 평소(single 약
+   5~14% 느리다([perf-session-drift.md](../investigations/perf-session-drift.md) 5절). 값이 평소(single 약
    4,950~5,050ms)로 돌아온 뒤 시작한다.
 4. **도구를 고친 직후라면 걸지 않는다.** `localDocs/CLAUDE.md`의 smoke 규칙대로 3~5분짜리
    확인을 먼저 통과시킨다. 밤새 돌려놓고 아침에 배관 오류로 전부 버리는 것이 최악이다.
@@ -1433,7 +1433,7 @@ node tools/repeatability.js scenarios/normal-day.js --runs 10 \
 
 아침에 볼 것: 회차별 p95 를 6회차 기준으로 앞뒤로 나눠 각각 기울기를 낸다. 뒤 절반의
 기울기가 0에 가까우면 예열이다. 상세 배경은
-[perf-session-drift.md](perf-session-drift.md) 8절.
+[perf-session-drift.md](../investigations/perf-session-drift.md) 8절.
 
 ### 3. normal-day 20분 measure 5회
 

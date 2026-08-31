@@ -54,7 +54,8 @@
 ## 조사가 커지면 별도 문서로 뺀다
 
 한 발견 항목의 조사가 **실험 여러 건 + 기각된 가설 여러 개** 규모가 되면 장부 항목 하나에
-담지 않는다. `perf-<주제>.md` 로 조사 기록을 분리하고, 장부에는 이것만 남긴다.
+담지 않는다. `investigations/perf-<주제>.md` 로 조사 기록을 분리하고, 장부에는 이것만 남긴다.
+(발견 장부 자체는 `findings/` 에 있다. 디렉터리 계열은 `README.md` 의 "문서들의 관계" 참고.)
 
 1. 무엇이 문제인가 (한두 문단 + 핵심 수치 표)
 2. 왜 이 등급인가 — 실무에 어떤 제약이 생기는가
@@ -70,7 +71,7 @@
 다른 문서의 링크를 새 위치로 고친다. 발견 ID(`E-46` 등)는 그대로 두어 기존 상호참조가
 깨지지 않게 한다.
 
-**선례**: E-46(세션 간 성능 편차) → [perf-session-drift.md](perf-session-drift.md)
+**선례**: E-46(세션 간 성능 편차) → [perf-session-drift.md](investigations/perf-session-drift.md)
 
 ---
 
@@ -90,10 +91,10 @@
 
 ## 함께 갱신할 것
 
-- 발견 사항의 상태를 바꿨으면 [perf-review-summary.md](perf-review-summary.md)의
+- 발견 사항의 상태를 바꿨으면 [perf-review-summary.md](planning/perf-review-summary.md)의
   P0/P1/P2 실행 계획에서 해당 항목 상태도 같이 맞춘다 — 두 문서가 어긋나면
   백로그로서 신뢰를 잃는다
-- 학습 장부([perf-mastery-checklist.md](perf-mastery-checklist.md))의 **결정 안건**에서
+- 학습 장부([perf-mastery-checklist.md](guides/perf-mastery-checklist.md))의 **결정 안건**에서
   나온 결정으로 상태가 바뀐 경우, 인용블록에 어느 안건에서 나온 결정인지 적는다
 
 ## 하지 말 것

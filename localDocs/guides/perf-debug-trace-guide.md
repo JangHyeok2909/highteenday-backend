@@ -15,7 +15,7 @@
 | **2부** | 트레이싱 가이드 — **어떤 흐름을 어떤 순서로 추적할 것인가** | 추적을 시작할 때마다 |
 | **3부** | 세션 기록 양식 — 추적한 결과를 남기는 틀 | 추적 한 건이 끝날 때마다 |
 
-추적한 사실은 반드시 어딘가로 흘러가야 한다. [perf-findings-tools.md](perf-findings-tools.md)
+추적한 사실은 반드시 어딘가로 흘러가야 한다. [perf-findings-tools.md](../findings/perf-findings-tools.md)
 의 발견 항목이 되거나, [perf-measurement-explained.md](perf-measurement-explained.md)의
 설명을 고치거나, 최소한 3부의 세션 기록으로 남아야 한다. **추적만 하고 아무 데도 안 남으면
 2주 뒤에 같은 자리를 처음부터 다시 판다.**

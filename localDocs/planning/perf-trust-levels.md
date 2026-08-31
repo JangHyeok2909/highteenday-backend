@@ -4,7 +4,7 @@
 > 답하는 질문: **"이 테스트 결과를 근거로 성능 개선을 이어가려면, 남은 문제 중 어디까지
 > 고쳐야 하는가?"**
 > 짝 문서: 무엇이 문제인지는 `perf-findings-*.md`, 어떤 순서로 고칠지는
-> `NEXT-DAY-PERF-TASKS.md`, E-46 조사 전문은 [perf-session-drift.md](perf-session-drift.md).
+> `NEXT-DAY-PERF-TASKS.md`, E-46 조사 전문은 [perf-session-drift.md](../investigations/perf-session-drift.md).
 > 이 문서는 **어디서 멈춰도 되는지**를 정한다.
 >
 > **2026-08-25 갱신 요약** — E-46 해결(2026-08-21)을 반영해 세 가지를 바꿨다.
@@ -149,7 +149,7 @@
 > - ❌ "같은 조건으로 **다시** 재면 비슷한 값이 나온다" — 세션이 바뀌면 45%
 >
 > **레벨 1은 E-46 이 해결돼야 달성된다.** 그때까지는 레벨 0과 1 사이다.
-> 조사 경과는 [perf-session-drift.md](perf-session-drift.md).
+> 조사 경과는 [perf-session-drift.md](../investigations/perf-session-drift.md).
 >
 > 실무 영향: 저장된 기준선을 며칠 뒤 Before 로 쓸 수 없다. 개선 실험은 Before/After 를
 > 연달아 재야 하고, 실험 하나당 약 5시간(5회+5회)이 든다.
@@ -238,14 +238,14 @@
 > 통제해도 CV 는 내려가지 않는다는 뜻이므로, MDE 를 낮추려면 다른 축(판정 지표, 운용점)을
 > 봐야 한다.
 >
-> **측정 시각을 고정할 필요는 없다.** 상세: [perf-host-clock-cycle.md](perf-host-clock-cycle.md)
+> **측정 시각을 고정할 필요는 없다.** 상세: [perf-host-clock-cycle.md](../investigations/perf-host-clock-cycle.md)
 
 > ### (대체됨) 2026-08-17 정정 — 세트 안 추세 가설
 >
 > 이 자리에는 "세트 안에서 값이 한쪽으로 기운다"는 관측이 적혀 있었다(ρ +0.90, −0.88).
 > **세 번째 세트에서 ρ −0.10 이 나와 기각됐다** — 표본 5~8개에서 |ρ| 가 크게 나오는 것은
 > 우연으로도 흔하다. 실제 문제는 세트 안이 아니라 **세트 사이**에 있었다(위 08-18 정정).
-> 원문 기록은 [perf-session-drift.md](perf-session-drift.md) 의 **부록 A** 로 옮겨졌다.
+> 원문 기록은 [perf-session-drift.md](../investigations/perf-session-drift.md) 의 **부록 A** 로 옮겨졌다.
 
 앞의 둘이 없었으면 이 CV는 의미가 없었다. 매 회차가 다른 데이터셋에서 시작하면 편차가 환경
 노이즈인지 데이터 증가분인지 구분할 수 없기 때문이다.
@@ -666,7 +666,7 @@ p95 :  1.26 ×  9.9%  ≈ 12.5%   →  약  43ms 이상
 > 수 있다.
 >
 > 해결안(공통 난수 CRN)은 **KI-27 실험 이후로 미뤘다.** 근거와 트레이드오프:
-> [perf-request-cost-skew.md](perf-request-cost-skew.md) 6절.
+> [perf-request-cost-skew.md](../investigations/perf-request-cost-skew.md) 6절.
 
 ### 해야 할 일 — 반복 세트가 아니라 CV 를 낮추는 것
 
@@ -691,7 +691,7 @@ p95 :  1.26 ×  9.9%  ≈ 12.5%   →  약  43ms 이상
 상세: 무효화된 옛 확정치의 원 기록은
 `performance/experiments/EXP-001-baseline-normal-day/README.md`의 6.1절(사전 판정 기준)과
 7.4절(MDE). **그 문서를 읽을 때는 200 VU closed model 에서 잰 값이라는 점을 함께 볼 것.**
-포화가 왜 이 값들을 무효화하는지는 [perf-session-drift.md](perf-session-drift.md) 0절.
+포화가 왜 이 값들을 무효화하는지는 [perf-session-drift.md](../investigations/perf-session-drift.md) 0절.
 
 ### 이게 왜 유용한가
 
@@ -960,7 +960,7 @@ P2 전부(E-23~E-31). **레벨 2가 안정적으로 유지되는 것을 여러 �
 
 - 무엇이 문제인가 → `perf-findings-scripts.md`, `perf-findings-tools.md`,
   `perf-findings-environment.md`
-- **포화가 왜 레벨 판정을 뒤집었나 → [perf-session-drift.md](perf-session-drift.md)**
+- **포화가 왜 레벨 판정을 뒤집었나 → [perf-session-drift.md](../investigations/perf-session-drift.md)**
   (E-46 조사 전문. 0절이 결론, 0.7절이 "무엇이 남았나")
 - 데이터셋 문제의 상세 → `perf-dataset-generation-problems.md`
 - 어떤 순서로 고칠 것인가 → `NEXT-DAY-PERF-TASKS.md`

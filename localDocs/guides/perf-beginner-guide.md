@@ -57,15 +57,15 @@
 
 | 순서 | 먼저 답할 질문 | 읽을 자료 | 이 단계를 이해했다는 기준 |
 |---:|---|---|---|
-| 1 | HighTeenDay 요청 하나는 어디를 거치는가? | [서비스 개요](../docs/01-overview.md), [요청 흐름](../docs/04-request-flow.md) | 브라우저 요청이 Tomcat → Service → MySQL/Redis로 가는 흐름을 말할 수 있다 |
+| 1 | HighTeenDay 요청 하나는 어디를 거치는가? | [서비스 개요](../../docs/01-overview.md), [요청 흐름](../../docs/04-request-flow.md) | 브라우저 요청이 Tomcat → Service → MySQL/Redis로 가는 흐름을 말할 수 있다 |
 | 2 | 성능 측정은 무엇을 재는 일인가? | 이 문서 §3~5, [측정 원리 상세](perf-measurement-explained.md) | 지연·처리량·오류·포화의 차이를 설명할 수 있다 |
-| 3 | 어떤 고정 환경에서 재는가? | 이 문서 §6, [환경 명세](../performance/environment/README.md) | 앱·DB·Redis·관측 컨테이너의 역할과 포트를 안다 |
-| 4 | 같은 데이터라는 것을 어떻게 보장하는가? | 이 문서 §7, [데이터셋 상세](../performance/datasets/README.md), [상태 지문 설계](../performance/DATASET-STATE.md) | 프로파일·시드·스냅샷·지문·guard를 구분한다 |
-| 5 | 가짜 사용자는 무엇을 하는가? | 이 문서 §8, [시나리오 목록](../performance/scenarios/README.md) | VU·iteration·think time·open/closed model을 구분한다 |
-| 6 | 실행 한 번은 내부적으로 무엇을 하는가? | 이 문서 §9, [운영 매뉴얼](../performance/MANUAL.md) | `perf-run.js`가 실행·수집·판정·보고를 묶는 이유를 안다 |
+| 3 | 어떤 고정 환경에서 재는가? | 이 문서 §6, [환경 명세](../../performance/environment/README.md) | 앱·DB·Redis·관측 컨테이너의 역할과 포트를 안다 |
+| 4 | 같은 데이터라는 것을 어떻게 보장하는가? | 이 문서 §7, [데이터셋 상세](../../performance/datasets/README.md), [상태 지문 설계](../../performance/DATASET-STATE.md) | 프로파일·시드·스냅샷·지문·guard를 구분한다 |
+| 5 | 가짜 사용자는 무엇을 하는가? | 이 문서 §8, [시나리오 목록](../../performance/scenarios/README.md) | VU·iteration·think time·open/closed model을 구분한다 |
+| 6 | 실행 한 번은 내부적으로 무엇을 하는가? | 이 문서 §9, [운영 매뉴얼](../../performance/MANUAL.md) | `perf-run.js`가 실행·수집·판정·보고를 묶는 이유를 안다 |
 | 7 | 결과를 어떤 순서로 읽는가? | 이 문서 §12~16 | 리포트 배지보다 측정 상태와 체제를 먼저 본다 |
-| 8 | 개선을 어떻게 증명하는가? | 이 문서 §10~11, [실험 템플릿](../performance/experiments/TEMPLATE.md) | 가설·주 지표·보호 지표·반복 횟수를 사전에 적을 수 있다 |
-| 9 | 병목 원인을 어디까지 좁힐 수 있는가? | 이 문서 §17, [병목 카탈로그](../performance/bottlenecks/README.md) | 단일 지표가 아니라 함께 움직인 지표로 가설을 세운다 |
+| 8 | 개선을 어떻게 증명하는가? | 이 문서 §10~11, [실험 템플릿](../../performance/experiments/TEMPLATE.md) | 가설·주 지표·보호 지표·반복 횟수를 사전에 적을 수 있다 |
+| 9 | 병목 원인을 어디까지 좁힐 수 있는가? | 이 문서 §17, [병목 카탈로그](../../performance/bottlenecks/README.md) | 단일 지표가 아니라 함께 움직인 지표로 가설을 세운다 |
 
 첫날에는 1~7단계까지만 하면 충분하다. 첫 측정에 성공한 뒤 8~9단계로 넘어간다.
 
@@ -536,7 +536,7 @@ node tools/perf-run.js scenarios/normal-day.js --dataset medium --rate 5 --warmu
   오류율, check 성공률, RPS/TPS, CPU throttling, Hikari timeout, 데이터 정합성
 ```
 
-공식 기록은 [실험 템플릿](../performance/experiments/TEMPLATE.md)을 사용한다.
+공식 기록은 [실험 템플릿](../../performance/experiments/TEMPLATE.md)을 사용한다.
 
 ### 11.2 Before를 반복 측정한다
 
@@ -1089,7 +1089,7 @@ docker exec perf-redis redis-cli DBSIZE
 | loadgen 지표가 전부 `—` | `--loadgen local` 실행 | 증거용 실행은 `--loadgen docker` |
 | k6 실행 파일 UNKNOWN | Windows 패키지 관리자가 만든 중간 실행 파일(shim)을 정책이 차단 | docker loadgen 사용 또는 실제 k6 경로를 `K6_BIN`에 지정 |
 
-더 자세한 실측 사례는 [공식 운영 매뉴얼의 트러블슈팅](../performance/MANUAL.md#11-트러블슈팅--실측으로-확인된-함정)을 본다.
+더 자세한 실측 사례는 [공식 운영 매뉴얼의 트러블슈팅](../../performance/MANUAL.md#11-트러블슈팅--실측으로-확인된-함정)을 본다.
 
 ---
 
@@ -1348,16 +1348,16 @@ docker exec perf-redis redis-cli DBSIZE
 | 목적 | 문서 |
 |---|---|
 | 이 시스템이 무엇을 측정하고 못 측정하는지 더 깊게 이해 | [perf-measurement-explained.md](perf-measurement-explained.md) |
-| 실제 명령 전체와 운영 절차 | [performance/MANUAL.md](../performance/MANUAL.md) |
+| 실제 명령 전체와 운영 절차 | [performance/MANUAL.md](../../performance/MANUAL.md) |
 | 환경 자원과 Docker 설정의 근거 | [perf-environment-essentials.md](perf-environment-essentials.md) |
-| 데이터 생성·분포·검증 | [performance/datasets/README.md](../performance/datasets/README.md) |
-| 기준선·회귀·측정 상태의 설계 | [PERFORMANCE-MANAGEMENT.md](../performance/PERFORMANCE-MANAGEMENT.md) |
-| 지표와 PromQL 원문 | [performance/metrics/README.md](../performance/metrics/README.md) |
-| 현재 결과를 어디까지 믿을 수 있는지 | [perf-trust-levels.md](perf-trust-levels.md) |
-| 포화 상태를 잘못 읽었던 실제 조사 | [perf-session-drift.md](perf-session-drift.md) |
+| 데이터 생성·분포·검증 | [performance/datasets/README.md](../../performance/datasets/README.md) |
+| 기준선·회귀·측정 상태의 설계 | [PERFORMANCE-MANAGEMENT.md](../../performance/PERFORMANCE-MANAGEMENT.md) |
+| 지표와 PromQL 원문 | [performance/metrics/README.md](../../performance/metrics/README.md) |
+| 현재 결과를 어디까지 믿을 수 있는지 | [perf-trust-levels.md](../planning/perf-trust-levels.md) |
+| 포화 상태를 잘못 읽었던 실제 조사 | [perf-session-drift.md](../investigations/perf-session-drift.md) |
 | 단계별 코드 학습과 자가진단 | [perf-mastery-checklist.md](perf-mastery-checklist.md) |
-| 실험 기록 | [performance/experiments/](../performance/experiments/README.md) |
-| 확인된 병목과 재현법 | [performance/bottlenecks/](../performance/bottlenecks/README.md) |
+| 실험 기록 | [performance/experiments/](../../performance/experiments/README.md) |
+| 확인된 병목과 재현법 | [performance/bottlenecks/](../../performance/bottlenecks/README.md) |
 
 이 문서의 최종 완료 기준은 명령을 외우는 것이 아니다. 다음 문장을 실제 runId와 수치로 채워
 말할 수 있으면 된다.

@@ -20,7 +20,7 @@
 >
 > 그래서 이 문서의 모든 "믿을 수 있는가" 판단에 축이 하나 추가된다 —
 > **지표가 있는가(측정 무결성)** 와 **그 값이 무엇을 뜻하는가(측정 체제)** 는 다른 문제다.
-> 상세는 [perf-session-drift.md](perf-session-drift.md),
+> 상세는 [perf-session-drift.md](../investigations/perf-session-drift.md),
 > 레벨 판정은 [perf-trust-levels.md](perf-trust-levels.md).
 
 ## 무엇을 믿을 수 있고, 무엇을 조심해야 하나
@@ -44,7 +44,7 @@
 > 성능 테스트를 돌리다 발견한 **서버 자체의 정합성 결함**은 저장소의
 > `docs/KNOWN-ISSUES.md`에 있다 — 댓글 카운터 유실(KI-53), 토글 API 비멱등성(KI-54),
 > 게시판 글 개수 캐시 부활(KI-56), 캐시 경로의 빈 목록 반환(KI-57).
-> 상세 분석은 [`docs/defects/`](../docs/defects/). 측정을 아무리 정확하게 만들어도
+> 상세 분석은 [`docs/defects/`](../../docs/defects/). 측정을 아무리 정확하게 만들어도
 > 그쪽은 사라지지 않는다.
 
 ## 현재 가장 중요한 문제 6개
@@ -273,7 +273,7 @@ PR 트리거가 없고, 시딩 절차는 bootstrap을 건너뛰어 실패하며,
 - **개선 폭이 MDE 를 넉넉히 넘는지 본다 — 경계에 걸리면 `queriesPerReq` 를 함께 본다.**
   *(2026-08-26 추가)* 부하 대상을 매 회차 무작위로 뽑는데 요청 비용이 542배 벌어져 있어,
   **앱이 동일해도 총 작업량이 CV 4.8% 로 달라진다.** 지연만 달라지고 `queriesPerReq` 가
-  같다면 표본 탓일 수 있다. 상세: [perf-request-cost-skew.md](perf-request-cost-skew.md).
+  같다면 표본 탓일 수 있다. 상세: [perf-request-cost-skew.md](../investigations/perf-request-cost-skew.md).
 - **개선 폭이 MDE 를 넘는지 확인한다 — 지표에 따라 문턱이 다르다.** *(2026-08-25 추가)*
   새 운용점 실측(3세트 10회) 기준 5회 세트 비교 MDE 는 **전체 p95 12~20%, p99 4~6%** 다.
   옛 확정치(CV 3.12% → 5%·10%)는 포화 상태 값이라 무효다.
@@ -293,8 +293,8 @@ PR 트리거가 없고, 시딩 절차는 bootstrap을 건너뛰어 실패하며,
 
 ## 상세 문서 연결
 
-- 판정·기준선·PromQL: [perf-findings-tools.md](perf-findings-tools.md)
-- k6 사용자 모델과 SLO: [perf-findings-scripts.md](perf-findings-scripts.md)
-- 환경·데이터셋·CI: [perf-findings-environment.md](perf-findings-environment.md)
-- 단계별 학습: [perf-mastery-checklist.md](perf-mastery-checklist.md)
+- 판정·기준선·PromQL: [perf-findings-tools.md](../findings/perf-findings-tools.md)
+- k6 사용자 모델과 SLO: [perf-findings-scripts.md](../findings/perf-findings-scripts.md)
+- 환경·데이터셋·CI: [perf-findings-environment.md](../findings/perf-findings-environment.md)
+- 단계별 학습: [perf-mastery-checklist.md](../guides/perf-mastery-checklist.md)
 - EXP-000 원자료 해석: `performance/experiments/EXP-000-measurement-integrity/README.md`

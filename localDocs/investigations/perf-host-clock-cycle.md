@@ -6,8 +6,8 @@
 > 성격: **조사 기록.** 발견 장부의 **E-50** 항목이 "무엇이 문제인가"만 들고 있고,
 > 데이터·분석·기각된 가설은 전부 여기 모은다.
 > 짝 문서: [perf-session-drift.md](perf-session-drift.md)(E-46, 세션 간 편차),
-> [perf-findings-environment.md](perf-findings-environment.md)(E-49, 유효 CPU 처리 능력),
-> [perf-trust-levels.md](perf-trust-levels.md)(레벨 판정)
+> [perf-findings-environment.md](../findings/perf-findings-environment.md)(E-49, 유효 CPU 처리 능력),
+> [perf-trust-levels.md](../planning/perf-trust-levels.md)(레벨 판정)
 
 ---
 

@@ -7,14 +7,14 @@
 > 부족한 것의 전체 목록은 [toss-gap-analysis.md](toss-gap-analysis.md) 에 있다.
 > 이 문서는 **한 달 안에 실제로 할 것만** 담는다.
 >
-> **위임 가능 여부**는 [delegation-scope.md](delegation-scope.md) 에서 A/B/C 로 분류했다.
+> **위임 가능 여부**는 [delegation-scope.md](../worklog/delegation-scope.md) 에서 A/B/C 로 분류했다.
 > `docs/KNOWN-ISSUES.md` 의 KI-01~57 중 어느 것을 내가 직접 알아야 하고 어느 것을
 > 넘겨도 되는지가 거기 있다. **P0-1 은 C(위임 금지)** — 설계 판단은 직접 해야 한다.
 
 > ### 갱신 (2026-08-28) — A·B 등급 위임 수정 완료 반영
 >
-> A 등급 19건과 B 등급 21건을 모두 처리했다(A 결과는 [delegation-scope.md](delegation-scope.md),
-> B 결과는 [fix-log.md](fix-log.md)). **그 결과 이 문서의 일부 항목이 이미 해소되었거나
+> A 등급 19건과 B 등급 21건을 모두 처리했다(A 결과는 [delegation-scope.md](../worklog/delegation-scope.md),
+> B 결과는 [fix-log.md](../worklog/fix-log.md)). **그 결과 이 문서의 일부 항목이 이미 해소되었거나
 > 범위가 줄었다.** 아래 표가 변경분이고, 본문의 해당 절에도 같은 내용을 반영했다.
 >
 > | 항목 | 변경 | 근거 |

@@ -929,7 +929,7 @@ reports/runs/<runId>/
 
 ### 이미 인지된 문제인가
 
-**그렇다.** `localDocs/perf-metrics-catalog-plan.md`가 정확히 이 질문을 표제로 달고 있고
+**그렇다.** `localDocs/design/perf-metrics-catalog-plan.md`가 정확히 이 질문을 표제로 달고 있고
 (*"무엇이 포화됐는가가 아니라, 어느 요청·Repository 메서드·SQL·Redis 명령·배치가 그
 포화를 만들었는가?"*), `infra.attribution`이라는 별도 층을 설계해 뒀다.
 **상태는 "적용 범위 결정 완료, 구현 전"이다.**
@@ -1039,7 +1039,7 @@ reports/runs/<runId>/
 
 ### 이미 인지된 문제인가
 
-**그렇다.** `localDocs/perf-metrics-catalog-plan.md`의 적용 판단 표에 *"Hikari 커넥션 보유
+**그렇다.** `localDocs/design/perf-metrics-catalog-plan.md`의 적용 판단 표에 *"Hikari 커넥션 보유
 시간 — **즉시 적용** — 풀 부족과 긴 트랜잭션을 구분"*으로 올라와 있다. **미구현이다.**
 
 ---
@@ -1194,7 +1194,7 @@ HTTP 지표는 정상인데 WebSocket만 무너진 상황이 PASS로 나온다.
 `--loadgen docker`로 돌리면 최소한 얼마나 먹었는지는 기록되지만, 경쟁 자체가 사라지지는
 않는다. 그리고 두 모드는 네트워크 경로가 달라 서로 비교되지 않는다.
 
-**결론적으로 이 시스템은 "운영 용량 예측"에 쓸 수 없다.** `localDocs/perf-review-summary.md`가
+**결론적으로 이 시스템은 "운영 용량 예측"에 쓸 수 없다.** `localDocs/planning/perf-review-summary.md`가
 이미 그렇게 판정해 두었다("운영 용량 예측 — 현재 불가").
 
 *(추론)* 이건 고칠 수 있는 결함이라기보다 **범위의 한계**다. 문제는 한계 자체가 아니라,
@@ -1230,7 +1230,7 @@ HTTP 지표는 정상인데 WebSocket만 무너진 상황이 PASS로 나온다.
 
 blocking 조건이 여섯 개고, 데이터셋 조건에는 **실행 시작 시점의 DB 상태 지문**까지 들어간다.
 조건이 엄격할수록 정확하지만, *(추론)* 그만큼 **상대 비교가 성립하는 실행 쌍이 드물어진다.**
-`localDocs/perf-review-summary.md`도 "기준선 자체가 없는 경우가 흔하다"고 적고 있다.
+`localDocs/planning/perf-review-summary.md`도 "기준선 자체가 없는 경우가 흔하다"고 적고 있다.
 
 ---
 

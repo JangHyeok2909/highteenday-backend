@@ -5,16 +5,16 @@
 > 성격: **설계 문서.** 1차 리뉴얼(T-38 ~ T-41)은 완료돼 이 문서에서 걷어냈다.
 > 진단 근거와 해결 기록은 발견 장부에 있다.
 > 대상: `tools/lib/report.js` 가 만드는 `reports/runs/<runId>/report.html`
-> 짝 문서: [perf-findings-tools.md](perf-findings-tools.md)(T-38~T-41 해결 기록),
-> [perf-trust-levels.md](perf-trust-levels.md)(판정 지표·MDE),
-> [perf-findings-environment.md](perf-findings-environment.md)(E-51 풀 고갈)
+> 짝 문서: [perf-findings-tools.md](../findings/perf-findings-tools.md)(T-38~T-41 해결 기록),
+> [perf-trust-levels.md](../planning/perf-trust-levels.md)(판정 지표·MDE),
+> [perf-findings-environment.md](../findings/perf-findings-environment.md)(E-51 풀 고갈)
 
 ---
 
 ## 0. 완료된 것 — 이 문서에서 걷어냈다
 
 1차 리뉴얼은 2026-08-25 에 적용됐다. 진단·설계·자기 리뷰 전문은
-[perf-findings-tools.md](perf-findings-tools.md) 의 **"T-38 ~ T-41 해결 기록"** 에 있다.
+[perf-findings-tools.md](../findings/perf-findings-tools.md) 의 **"T-38 ~ T-41 해결 기록"** 에 있다.
 요약만 남긴다.
 
 | 항목 | 결과 |
@@ -231,7 +231,7 @@ T-41 의 경보 피로가 재발한다.
 ## 5-b. 남은 과제 ④ — **게이지 지표를 `max` 단독으로 보여주면 오독된다** (실사용 증거 확보)
 
 > 2026-08-27 추가. 과제 ①의 하위 항목이자 **실제로 오독이 발생한 사례**다.
-> 상세 경위는 [perf-comment-nplus1-diagnosis.md](perf-comment-nplus1-diagnosis.md) 참고.
+> 상세 경위는 [perf-comment-nplus1-diagnosis.md](../investigations/perf-comment-nplus1-diagnosis.md) 참고.
 
 ### 무슨 일이 있었나
 

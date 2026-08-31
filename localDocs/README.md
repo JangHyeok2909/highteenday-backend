@@ -30,28 +30,28 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
 
 ### 현재 상황만 빠르게 알고 싶을 때
 
-1. [perf-review-summary.md](perf-review-summary.md)
+1. [perf-review-summary.md](planning/perf-review-summary.md)
 2. 관심 영역의 `perf-findings-*.md`
 3. 원자료가 필요하면 `performance/reports/`와 `performance/experiments/` 확인
 
 ### 성능 개선(최적화) 작업을 시작하려 할 때
 
-1. [perf-trust-levels.md](perf-trust-levels.md) — 지금 결과로 무엇을 주장할 수 있는지,
+1. [perf-trust-levels.md](planning/perf-trust-levels.md) — 지금 결과로 무엇을 주장할 수 있는지,
    개선 작업 전에 어디까지 고쳐야 하는지
-2. [NEXT-DAY-PERF-TASKS.md](NEXT-DAY-PERF-TASKS.md)에서 해당 항목의 실제 작업 내용
+2. [NEXT-DAY-PERF-TASKS.md](planning/NEXT-DAY-PERF-TASKS.md)에서 해당 항목의 실제 작업 내용
 3. 개선 후에는 `performance/experiments/`에 개선 폭과 MDE를 함께 기록
 
 ### 성능 테스트 환경을 직접 다루고 싶을 때
 
-1. [perf-environment-essentials.md](perf-environment-essentials.md)
-2. [perf-findings-environment.md](perf-findings-environment.md)
+1. [perf-environment-essentials.md](guides/perf-environment-essentials.md)
+2. [perf-findings-environment.md](findings/perf-findings-environment.md)
 3. `performance/environment/README.md`
 
 ### 시스템 전체를 처음부터 공부하고 싶을 때
 
-1. [perf-beginner-guide.md](perf-beginner-guide.md) — 학습 순서부터 첫 실행, 개선 전후 측정,
+1. [perf-beginner-guide.md](guides/perf-beginner-guide.md) — 학습 순서부터 첫 실행, 개선 전후 측정,
    리포트 판독, 용어까지 한 번에 익힌다
-2. [perf-mastery-checklist.md](perf-mastery-checklist.md)
+2. [perf-mastery-checklist.md](guides/perf-mastery-checklist.md)
 3. 각 단계가 안내하는 실제 코드와 실행 결과 확인
 4. 단계 끝의 자가진단과 결정 안건 작성
 
@@ -59,24 +59,24 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
 
 | 문서 | 답하는 질문 | 언제 읽나 |
 |---|---|---|
-| [perf-beginner-guide.md](perf-beginner-guide.md) | 처음 무엇부터 이해하고, 어떻게 실행하고, 리포트를 어떤 순서로 읽어야 하는가? | 성능 시스템을 처음 사용할 때 |
-| [perf-review-summary.md](perf-review-summary.md) | 현재 무엇을 믿을 수 있고 무엇부터 고쳐야 하는가? | 항상 가장 먼저 |
-| [NEXT-DAY-PERF-TASKS.md](NEXT-DAY-PERF-TASKS.md) | 아직 남은 문제를 어떤 우선순위와 순서로 고칠 것인가? | 다음 작업을 시작할 때 |
-| [perf-trust-levels.md](perf-trust-levels.md) | 성능 개선을 이어가려면 **어디까지** 고쳐야 하고, 어디서 멈춰도 되는가? **지금 어느 조합이 레벨 몇인가?** (레벨은 시스템 전체가 아니라 시나리오×운용점 조합마다 붙는다) | 어디까지 할지 정할 때, 개선 작업을 시작하기 전, 수치를 인용하기 전 |
-| [perf-findings-tools.md](perf-findings-tools.md) | 수집·기준선·회귀 판정·리포트 도구에 어떤 문제가 있는가? | PASS/FAIL이나 비교 결과를 점검할 때 |
-| [perf-findings-scripts.md](perf-findings-scripts.md) | k6가 실제 사용자를 제대로 흉내 내고 있는가? | 부하 모델과 SLO를 점검할 때 |
-| [perf-findings-environment.md](perf-findings-environment.md) | 환경·데이터셋·Prometheus·CI가 결과를 왜곡하지 않는가? | 재현성과 운영 절차를 점검할 때 |
-| [perf-session-drift.md](perf-session-drift.md) | **E-46 해결 기록.** 세션 간 45% 편차의 정체(= 포화 상태 측정), 무엇을 잘못 읽었는가, 어떻게 무해화했는가 | 성능 수치를 인용하기 전, 포화 판정을 이해할 때, 저장된 과거 실행을 쓰려 할 때 |
-| [perf-host-clock-cycle.md](perf-host-clock-cycle.md) | **E-50 조사 기록.** 호스트 CPU 의 16% 일중 주기는 실재하지만 앱 측정에는 전달되지 않는다(r=−0.006). 측정 시각 고정도 클럭 고정도 불필요한 이유 | "밤에 재도 되나"를 물을 때, 환경 변동을 원인으로 의심할 때 |
-| [perf-request-cost-skew.md](perf-request-cost-skew.md) | **E-51 조사 기록.** 왜 반복 세트의 한 회차만 2배 느린가(= 커넥션 풀 15초 고갈), 요청 비용 542배 편중과 시드 없는 표본 추출이 CV 에 얼마나 섞이는가, 고정 시드를 쓸 것인가 | 반복 세트에 이상 회차가 나올 때, CV·MDE 를 해석할 때, 표본 추출 방식을 바꾸기 전 |
-| [perf-comment-nplus1-diagnosis.md](perf-comment-nplus1-diagnosis.md) | **BTL-005 조사 기록.** run `normal-day-2026-08-26T00-06-28` 의 병목을 커넥션 풀 고갈로 읽었다가 무엇에 반박당했고 무엇으로 바로잡았는가, 게이지 지표를 어떻게 읽어야 하는가 | 리포트를 읽고 병목을 판단하기 전, 풀 지표가 상한에 닿은 실행을 해석할 때 |
-| [perf-measurement-explained.md](perf-measurement-explained.md) | 이 시스템은 지금 **무엇을 어떻게** 측정하고 있고, 무엇을 못 재는가? (개념 설명 포함 자립 문서) | 시스템 전체를 처음 이해할 때, 계측을 확장하기 전 |
-| [perf-metrics-catalog-plan.md](perf-metrics-catalog-plan.md) | 어떤 Prometheus 지표를 기본·귀속·조건부 아티팩트로 수집할 것인가? | 지표 카탈로그와 수집기를 확장하기 전 |
-| [perf-environment-essentials.md](perf-environment-essentials.md) | 스택을 어떻게 띄우고 왜 그렇게 구성했는가? | 환경을 직접 실행하거나 설명할 때 |
-| [perf-dataset-generation-problems.md](perf-dataset-generation-problems.md) | 현재 데이터셋 생성과 실제 DB 상태가 왜 성능 결과를 왜곡하는가? | 데이터셋 문제를 처음부터 쉽게 이해할 때 |
-| [perf-mastery-checklist.md](perf-mastery-checklist.md) | 내가 시스템 전체를 실제로 이해했는가? | 단계별 학습과 인수인계 때 |
-| [perf-report-redesign.md](perf-report-redesign.md) | **설계 문서.** 실행 리포트에 아직 남은 과제는 무엇인가 (첫 그리드가 포화된 자원을 지목하지 않음 · 신뢰도 색이 2단계뿐) | 리포트를 고치기 전 |
-| [go-migration-rationale.md](go-migration-rationale.md) | **결정 기록.** 측정 도구를 Go로 옮길 정당한 이유는 무엇이고(무엇은 이유가 아닌가), 무엇을 어떤 순서로 옮기며, 이식 중 측정 무결성을 어떻게 지키는가? | Go 이식을 시작·재개하기 전, 이식 결정을 남에게 설명하기 전 |
+| [perf-beginner-guide.md](guides/perf-beginner-guide.md) | 처음 무엇부터 이해하고, 어떻게 실행하고, 리포트를 어떤 순서로 읽어야 하는가? | 성능 시스템을 처음 사용할 때 |
+| [perf-review-summary.md](planning/perf-review-summary.md) | 현재 무엇을 믿을 수 있고 무엇부터 고쳐야 하는가? | 항상 가장 먼저 |
+| [NEXT-DAY-PERF-TASKS.md](planning/NEXT-DAY-PERF-TASKS.md) | 아직 남은 문제를 어떤 우선순위와 순서로 고칠 것인가? | 다음 작업을 시작할 때 |
+| [perf-trust-levels.md](planning/perf-trust-levels.md) | 성능 개선을 이어가려면 **어디까지** 고쳐야 하고, 어디서 멈춰도 되는가? **지금 어느 조합이 레벨 몇인가?** (레벨은 시스템 전체가 아니라 시나리오×운용점 조합마다 붙는다) | 어디까지 할지 정할 때, 개선 작업을 시작하기 전, 수치를 인용하기 전 |
+| [perf-findings-tools.md](findings/perf-findings-tools.md) | 수집·기준선·회귀 판정·리포트 도구에 어떤 문제가 있는가? | PASS/FAIL이나 비교 결과를 점검할 때 |
+| [perf-findings-scripts.md](findings/perf-findings-scripts.md) | k6가 실제 사용자를 제대로 흉내 내고 있는가? | 부하 모델과 SLO를 점검할 때 |
+| [perf-findings-environment.md](findings/perf-findings-environment.md) | 환경·데이터셋·Prometheus·CI가 결과를 왜곡하지 않는가? | 재현성과 운영 절차를 점검할 때 |
+| [perf-session-drift.md](investigations/perf-session-drift.md) | **E-46 해결 기록.** 세션 간 45% 편차의 정체(= 포화 상태 측정), 무엇을 잘못 읽었는가, 어떻게 무해화했는가 | 성능 수치를 인용하기 전, 포화 판정을 이해할 때, 저장된 과거 실행을 쓰려 할 때 |
+| [perf-host-clock-cycle.md](investigations/perf-host-clock-cycle.md) | **E-50 조사 기록.** 호스트 CPU 의 16% 일중 주기는 실재하지만 앱 측정에는 전달되지 않는다(r=−0.006). 측정 시각 고정도 클럭 고정도 불필요한 이유 | "밤에 재도 되나"를 물을 때, 환경 변동을 원인으로 의심할 때 |
+| [perf-request-cost-skew.md](investigations/perf-request-cost-skew.md) | **E-51 조사 기록.** 왜 반복 세트의 한 회차만 2배 느린가(= 커넥션 풀 15초 고갈), 요청 비용 542배 편중과 시드 없는 표본 추출이 CV 에 얼마나 섞이는가, 고정 시드를 쓸 것인가 | 반복 세트에 이상 회차가 나올 때, CV·MDE 를 해석할 때, 표본 추출 방식을 바꾸기 전 |
+| [perf-comment-nplus1-diagnosis.md](investigations/perf-comment-nplus1-diagnosis.md) | **BTL-005 조사 기록.** run `normal-day-2026-08-26T00-06-28` 의 병목을 커넥션 풀 고갈로 읽었다가 무엇에 반박당했고 무엇으로 바로잡았는가, 게이지 지표를 어떻게 읽어야 하는가 | 리포트를 읽고 병목을 판단하기 전, 풀 지표가 상한에 닿은 실행을 해석할 때 |
+| [perf-measurement-explained.md](guides/perf-measurement-explained.md) | 이 시스템은 지금 **무엇을 어떻게** 측정하고 있고, 무엇을 못 재는가? (개념 설명 포함 자립 문서) | 시스템 전체를 처음 이해할 때, 계측을 확장하기 전 |
+| [perf-metrics-catalog-plan.md](design/perf-metrics-catalog-plan.md) | 어떤 Prometheus 지표를 기본·귀속·조건부 아티팩트로 수집할 것인가? | 지표 카탈로그와 수집기를 확장하기 전 |
+| [perf-environment-essentials.md](guides/perf-environment-essentials.md) | 스택을 어떻게 띄우고 왜 그렇게 구성했는가? | 환경을 직접 실행하거나 설명할 때 |
+| [perf-dataset-generation-problems.md](findings/perf-dataset-generation-problems.md) | 현재 데이터셋 생성과 실제 DB 상태가 왜 성능 결과를 왜곡하는가? | 데이터셋 문제를 처음부터 쉽게 이해할 때 |
+| [perf-mastery-checklist.md](guides/perf-mastery-checklist.md) | 내가 시스템 전체를 실제로 이해했는가? | 단계별 학습과 인수인계 때 |
+| [perf-report-redesign.md](design/perf-report-redesign.md) | **설계 문서.** 실행 리포트에 아직 남은 과제는 무엇인가 (첫 그리드가 포화된 자원을 지목하지 않음 · 신뢰도 색이 2단계뿐) | 리포트를 고치기 전 |
+| [go-migration-rationale.md](decisions/go-migration-rationale.md) | **결정 기록.** 측정 도구를 Go로 옮길 정당한 이유는 무엇이고(무엇은 이유가 아닌가), 무엇을 어떤 순서로 옮기며, 이식 중 측정 무결성을 어떻게 지키는가? | Go 이식을 시작·재개하기 전, 이식 결정을 남에게 설명하기 전 |
 
 ### 이직 준비 문서 (성능 시스템 장부와 별개 계열)
 
@@ -85,45 +85,74 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
 
 | 문서 | 답하는 질문 | 언제 읽나 |
 |---|---|---|
-| [resume-assets.md](resume-assets.md) | **토스 Server Developer [산업기능요원/전문연구요원] (Product) 공고의 각 줄에 이 프로젝트의 무엇으로 답하는가?** 답할 것이 없는 줄은 어디이고 무엇을 만들어야 채워지는가? | 이력서를 쓰기 전, **프로젝트 고도화 항목을 고를 때** |
-| [paytalab-application.md](paytalab-application.md) | **페이타랩(패스오더) 백엔드 공고의 각 줄에 무엇으로 답하는가?** 커피 주문 앱 도메인과 내 병목 사례는 어떻게 연결되는가? | 페이타랩에 지원하기 전, 다른 병역지정업체 지원 시 재사용 |
-| [toss-product-playbook.md](toss-product-playbook.md) | **컨설턴트 관점.** 토스 Product 병특 전형의 각 단계가 무엇을 거르고, 무엇이 사람을 떨어뜨리며, 스프린트 항목을 "어떻게" 해야 합격으로 이어지는가? 핵심가치 8개 대조, 편입 행정 | 이력서를 쓰기 전, 모의면접 전, 합격 후 편입 절차 때 |
-| [toss-sprint-1month.md](toss-sprint-1month.md) | 한 달 안에 무엇을 어떤 순서로 할 것인가? | 매주 계획을 세울 때 |
-| [toss-target-role.md](toss-target-role.md) | 어느 직무·경로로 갈 것이고 왜인가? (병역 규정 포함) | 지원 대상을 정할 때 |
-| [toss-gap-analysis.md](toss-gap-analysis.md) | 부족한 것의 전체 목록은 무엇인가? | 중장기 학습 계획을 세울 때 |
-| [toss-interview-questions.md](toss-interview-questions.md) · [toss-interview-concepts.md](toss-interview-concepts.md) | 무엇을 물어보고 어떻게 답하는가? | 면접 직전 |
-| [toss-infra-essentials.md](toss-infra-essentials.md) | 인프라 쪽에서 최소한 알아야 할 것은? | 면접 준비 중 |
-| [delegation-scope.md](delegation-scope.md) · [fix-log.md](fix-log.md) | 어떤 결함을 위임했고 무엇이 어떻게 고쳐졌는가? | 위임 결과를 확인할 때 |
+| [resume-assets.md](career/resume-assets.md) | **토스 Server Developer [산업기능요원/전문연구요원] (Product) 공고의 각 줄에 이 프로젝트의 무엇으로 답하는가?** 답할 것이 없는 줄은 어디이고 무엇을 만들어야 채워지는가? | 이력서를 쓰기 전, **프로젝트 고도화 항목을 고를 때** |
+| [paytalab-application.md](career/paytalab-application.md) | **페이타랩(패스오더) 백엔드 공고의 각 줄에 무엇으로 답하는가?** 커피 주문 앱 도메인과 내 병목 사례는 어떻게 연결되는가? | 페이타랩에 지원하기 전, 다른 병역지정업체 지원 시 재사용 |
+| [toss-product-playbook.md](career/toss-product-playbook.md) | **컨설턴트 관점.** 토스 Product 병특 전형의 각 단계가 무엇을 거르고, 무엇이 사람을 떨어뜨리며, 스프린트 항목을 "어떻게" 해야 합격으로 이어지는가? 핵심가치 8개 대조, 편입 행정 | 이력서를 쓰기 전, 모의면접 전, 합격 후 편입 절차 때 |
+| [toss-sprint-1month.md](career/toss-sprint-1month.md) | 한 달 안에 무엇을 어떤 순서로 할 것인가? | 매주 계획을 세울 때 |
+| [toss-target-role.md](career/toss-target-role.md) | 어느 직무·경로로 갈 것이고 왜인가? (병역 규정 포함) | 지원 대상을 정할 때 |
+| [toss-gap-analysis.md](career/toss-gap-analysis.md) | 부족한 것의 전체 목록은 무엇인가? | 중장기 학습 계획을 세울 때 |
+| [toss-interview-questions.md](career/toss-interview-questions.md) · [toss-interview-concepts.md](career/toss-interview-concepts.md) | 무엇을 물어보고 어떻게 답하는가? | 면접 직전 |
+| [toss-infra-essentials.md](career/toss-infra-essentials.md) | 인프라 쪽에서 최소한 알아야 할 것은? | 면접 준비 중 |
+| [delegation-scope.md](worklog/delegation-scope.md) · [fix-log.md](worklog/fix-log.md) | 어떤 결함을 위임했고 무엇이 어떻게 고쳐졌는가? | 위임 결과를 확인할 때 |
 
 ## 문서들의 관계
 
-문서는 여섯 종류로 나뉜다.
+문서는 여섯 종류로 나뉘고, **그 계열이 그대로 디렉터리 이름이다.** 어느 디렉터리에
+넣을지 모르겠으면 "이 문서가 답하는 질문"으로 고른다 — 아래 트리의 오른쪽 설명이 그
+질문이다.
 
 ```text
-실제 코드와 실행 결과
+localDocs/
+  README.md      이 문서 — 색인과 규칙 요약
+  CLAUDE.md      작업 규칙 (상태 값, 기록 형식, 분리 기준)
         │
-        ├─ 발견 장부: 무엇이 잘못됐는가
-        │    ├─ tools        측정 도구가 잘못 판정한다
-        │    ├─ scripts      부하가 실제 사용자와 다르다
-        │    └─ environment  환경·데이터셋이 결과를 왜곡한다
+        ├─ findings/       발견 장부: 무엇이 잘못됐는가
+        │    ├─ perf-findings-tools          측정 도구가 잘못 판정한다
+        │    ├─ perf-findings-scripts        부하가 실제 사용자와 다르다
+        │    ├─ perf-findings-environment    환경·데이터셋이 결과를 왜곡한다
+        │    └─ perf-dataset-generation-problems
+        │                                    데이터셋 생성이 결과를 왜곡한다
         │
-        ├─ 조사 기록: 한 항목을 파고든 실험 로그
-        │    ├─ session-drift      E-46 의 실험·기각된 가설·다음 계획
-        │    ├─ host-clock-cycle   E-50 호스트 CPU 의 일중 주기와 그 무해성
-        │    ├─ request-cost-skew  E-51 요청 비용 편중·풀 스파이크·표본 추출 분산
-        │    └─ comment-nplus1-diagnosis
-        │                          BTL-005 댓글 N+1 — 1차 판단의 오독과 수정
+        ├─ investigations/ 조사 기록: 한 항목을 파고든 실험 로그
+        │    ├─ perf-session-drift           E-46 실험·기각된 가설·다음 계획
+        │    ├─ perf-host-clock-cycle        E-50 호스트 CPU 일중 주기와 그 무해성
+        │    ├─ perf-request-cost-skew       E-51 요청 비용 편중·풀 스파이크·표본 분산
+        │    └─ perf-comment-nplus1-diagnosis
+        │                                    BTL-005 댓글 N+1 — 1차 판단의 오독과 수정
         │
-        ├─ 총평: 무엇을 먼저 고칠 것인가
+        ├─ planning/       총평: 무엇을 먼저 고칠 것인가
+        │    ├─ perf-review-summary          현재 무엇을 믿을 수 있나
+        │    ├─ perf-trust-levels            어디까지 고쳐야 인용할 수 있나
+        │    └─ NEXT-DAY-PERF-TASKS          남은 작업의 우선순위와 순서
         │
-        ├─ 학습 장부: 내가 이것을 설명하고 판단할 수 있는가
+        ├─ guides/         학습 장부: 내가 이것을 설명하고 판단할 수 있는가
+        │    ├─ perf-beginner-guide          처음 무엇부터, 어떻게 실행하고 읽나
+        │    ├─ perf-mastery-checklist       단계별 자가진단과 결정 안건
+        │    ├─ perf-measurement-explained   지금 무엇을 어떻게 재고 있나
+        │    ├─ perf-environment-essentials  스택을 어떻게 띄우고 왜 그렇게 짰나
+        │    ├─ perf-debug-trace-guide       디버거로 측정 시스템을 추적하는 법
+        │    └─ HighTeenDay_하드웨어_자원_병목_학습서.pdf
         │
-        ├─ 결정 기록: 무엇을 하기로 했고 왜인가
-        │    └─ go-migration     Go 이식의 명분·기각한 명분·단계별 계획
+        ├─ decisions/      결정 기록: 무엇을 하기로 했고 왜인가
+        │    └─ go-migration-rationale       Go 이식의 명분·기각한 명분·단계별 계획
         │
-        └─ 설계 문서: 무엇을 어떻게 다시 지을 것인가
-             └─ report-redesign  실행 리포트 진단·리뉴얼안·자기 리뷰
+        ├─ design/         설계 문서: 무엇을 어떻게 다시 지을 것인가
+        │    ├─ perf-report-redesign         실행 리포트 진단·리뉴얼안·자기 리뷰
+        │    └─ perf-metrics-catalog-plan    어떤 지표를 어떤 등급으로 수집할 것인가
+        │
+        ├─ worklog/        작업 기록: 무엇을 실제로 손댔는가
+        │    ├─ delegation-scope             무엇을 위임하고 무엇을 직접 볼 것인가
+        │    ├─ fix-log                      위임한 결함이 어떻게 고쳐졌는가
+        │    └─ overnight-execution-fixes-2026-08-18
+        │                                    무인 실행 중 발견해 고친 것
+        │
+        └─ career/         이직 준비: 이 결과물을 바깥에서 어떻게 쓸 것인가
+             ├─ resume-assets · paytalab-application
+             └─ toss-*(8종)
 ```
+
+`career/` 는 **측정 시스템의 결함을 다루지 않는다.** 이 성능 문서 묶음의 범위와 수정
+정책에서 제외되는 별개 계열이라 디렉터리를 분리했다.
 
 **이 장부는 측정 시스템의 결함만 다룬다.** 성능 작업 중 발견하는 문제는 세 종류이고
 기록 위치가 다르다.

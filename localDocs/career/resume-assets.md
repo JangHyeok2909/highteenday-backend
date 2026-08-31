@@ -554,7 +554,7 @@ cAdvisor 가 죽은 컨테이너의 시계열을 같은 라벨로 계속 노출�
 
 ## A-6. Go 이식 결정 기록(ADR) — 기각한 명분을 살아남은 명분보다 먼저 적었다
 
-`localDocs/go-migration-rationale.md`
+`localDocs/decisions/go-migration-rationale.md`
 
 > **"'Go가 빠르다'는 이유로 이식을 정당화하면 나중에 무너진다. 이 시스템에서 속도는
 > 근거가 되지 못한다. 틀린 명분 위에 몇 주를 쓰면 그 시간 전체가 방어할 수 없는 작업이

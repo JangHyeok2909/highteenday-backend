@@ -1,6 +1,6 @@
 # 세션 간 성능 편차 — 실험과 분석
 
-> **이 문서의 역할.** 발견 장부([perf-findings-environment.md](perf-findings-environment.md))의
+> **이 문서의 역할.** 발견 장부([perf-findings-environment.md](../findings/perf-findings-environment.md))의
 > **E-46** 은 "무엇이 문제인가"만 짧게 들고 있고, 실험 설계·측정값·기각된 가설·다음 계획은
 > 전부 여기 모은다. 조사가 길어져 장부 한 항목에 담기 어려워졌기 때문이다.
 >
@@ -607,7 +607,7 @@ JAR 을 이루는 소스는 한 줄도 다르지 않다. MySQL 은 `mysql:8.0.36
   잰다. warmup 은 부하가 걸려 있으면서 통계에 잡히지 않는 유일한 구간이라, measure 를
   오염시키지 않고 "부하가 도는 동안 환경이 얼마나 빠른가"를 얻는다.
 
-도입 근거는 [perf-findings-tools.md](perf-findings-tools.md) T-36 이다. 앱이 CPU 상한에
+도입 근거는 [perf-findings-tools.md](../findings/perf-findings-tools.md) T-36 이다. 앱이 CPU 상한에
 붙어 있어 `efficiency.appCpuMsPerReq` 같은 요청당 지표가 전부 처리량의 역수로 붕괴하므로,
 분자가 처리량과 무관한 지표가 필요했다.
 
@@ -712,7 +712,7 @@ JAR 을 이루는 소스는 한 줄도 다르지 않다. MySQL 은 `mysql:8.0.36
 
 같은 이유로 하드웨어 성능 카운터(IPC·캐시 미스)의 우선순위도 내려간다. 그 지표들은 정확히
 "공유 CPU 층이 얼마나 효율적인가"를 재는데, 그 층이 원인이 아니라는 쪽으로 증거가 기울었다.
-상세는 [perf-findings-environment.md](perf-findings-environment.md) E-48 참고.
+상세는 [perf-findings-environment.md](../findings/perf-findings-environment.md) E-48 참고.
 
 > 단, n=2 세트다. 반대 방향이라는 사실 자체는 명확하지만 재현은 확인되지 않았다.
 
@@ -1075,7 +1075,7 @@ Q = 397,726 + 228.6 × 요청수        고정분 1,326 문/초
 ```
 
 - **겉보기 "요청당 266~310 쿼리"** 중 부하 유래분은 **228.6개**다.
-- [perf-findings-tools.md](perf-findings-tools.md) T-36 에 적은 **"배경 쿼리 43.8%"는
+- [perf-findings-tools.md](../findings/perf-findings-tools.md) T-36 에 적은 **"배경 쿼리 43.8%"는
   틀렸다 — 20.3% 가 맞다.** 4건 회귀로 낸 값이라 과대추정이었다.
 
 229개도 여전히 큰 값이므로 결론의 방향은 바뀌지 않는다.
@@ -1229,8 +1229,8 @@ EPP, 다른 호스트 프로세스와의 전력 공유가 모두 들어간다. *
 ### 8-e.7 다음 — 계측을 먼저 고친다
 
 전원 설정 A/B 보다 **관측 구간을 바로잡는 것이 먼저**다. 지금 상태로는 어떤 개입을 해도
-같은 함정에 빠진다. 상세는 [perf-findings-tools.md](perf-findings-tools.md) T-37,
-[perf-findings-environment.md](perf-findings-environment.md) E-49 정정분 참고.
+같은 함정에 빠진다. 상세는 [perf-findings-tools.md](../findings/perf-findings-tools.md) T-37,
+[perf-findings-environment.md](../findings/perf-findings-environment.md) E-49 정정분 참고.
 
 ## 8-f. 계측 개편 — 호스트 프로브 구간 정렬 (2026-08-20)
 
@@ -1302,7 +1302,7 @@ EPP, 다른 호스트 프로세스와의 전력 공유가 모두 들어간다. *
 요약에 섞이지 않음, 헤더/행 길이 불일치 시 위치 폴백, 폴백 상태의 고정 카운터 요약을 고정했다.
 `spawnSync` 로 부모를 막은 상태를 재현해 옛 코드 0표본 → 새 코드 17표본을 확인했다.
 
-상세는 [perf-findings-tools.md](perf-findings-tools.md) T-37.
+상세는 [perf-findings-tools.md](../findings/perf-findings-tools.md) T-37.
 
 ## 8-g. open model 전환 — p95 의 정체가 밝혀졌다 (2026-08-20)
 
@@ -1314,7 +1314,7 @@ EPP, 다른 호스트 프로세스와의 전력 공유가 모두 들어간다. *
 
 `scenarios/normal-day.js` 에 `-e RATE` 옵트인을 넣어 `ramping-arrival-rate`(open model)로
 돌 수 있게 했다. 기본값은 closed model 유지 — executor 를 바꾸면 `seriesHash` 가 갈려
-저장된 계열과의 비교가 끊기기 때문이다. 상세는 [perf-findings-scripts.md](perf-findings-scripts.md) S-27.
+저장된 계열과의 비교가 끊기기 때문이다. 상세는 [perf-findings-scripts.md](../findings/perf-findings-scripts.md) S-27.
 
 ### 8-g.2 보정 곡선 — 절벽이 4와 5 사이에 있다
 
@@ -1759,4 +1759,4 @@ MDE 계산은 회차가 서로 독립인 무작위 표본이라고 가정한다.
 
 **관련**: E-46(발견 장부 항목), T-29(MySQL 락·풀스캔 지표 부재 — 실험 4 에서 해소),
 T-30(추세 검출 부재), E-11, EXP-001,
-[perf-trust-levels.md](perf-trust-levels.md)(레벨 1 달성 조건)
+[perf-trust-levels.md](../planning/perf-trust-levels.md)(레벨 1 달성 조건)

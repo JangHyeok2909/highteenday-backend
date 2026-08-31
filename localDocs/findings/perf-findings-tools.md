@@ -1425,7 +1425,7 @@ Q = 858,621 + 153.5 × 요청수      (고정분 2,862 문/초)
 > 고정되면 응답시간은 리틀의 법칙에 따라 `R = N / X` 로 기계적으로 정해진다. 실측에서
 > `200 ÷ 처리율` 과 p95 의 상관이 **0.962** 로, Hikari acquire(0.944)보다 높다. 즉 요청당
 > 지표뿐 아니라 **p95 자체가 처리량의 함수**다. 상세는
-> [perf-session-drift.md](perf-session-drift.md) 8-d 절.
+> [perf-session-drift.md](../investigations/perf-session-drift.md) 8-d 절.
 
 
 #### 영향
@@ -1791,7 +1791,7 @@ rules.json p95 fail    = 20%
 > 네 항목을 개별 버그가 아니라 **하나의 설계 결함**으로 보고 함께 고쳤다. 근본 원인은
 > 리포트가 **"값 표시"와 "판단 지원"을 구분하지 않는 것**이었다 — 165개 지표를 나열하면서
 > 각 값이 좋은지 나쁜지는 화면에 없었다. 진단·설계·자기 리뷰는
-> [perf-report-redesign.md](perf-report-redesign.md).
+> [perf-report-redesign.md](../design/perf-report-redesign.md).
 
 **T-38 — `op` 축 렌더.** `report.js` 에 `normalizeCell()` 을 넣어 `byPhase[gatePhase]` 를
 최상위 통계로 접어 준다. `count` 는 최상위에 있으므로 얹어서 돌려준다. 저장된 원자료는
