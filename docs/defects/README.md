@@ -16,7 +16,7 @@
 | 종류 | 어디에 |
 |---|---|
 | 성능 병목 | [`performance/bottlenecks/`](../../performance/bottlenecks/) — 느려서 문제인 것 |
-| 측정 시스템의 결함 | `localDocs/perf-findings-*.md` — 성능 테스트 도구·부하 스크립트·환경 |
+| 측정 시스템의 결함 | `localDocs/findings/perf-findings-*.md` — 성능 테스트 도구·부하 스크립트·환경 |
 
 이 디렉터리는 **애플리케이션이 틀린 경우**만 다룬다. 서버를 빠르게 만들어도 사라지지 않고,
 부하를 걸지 않아도 존재하는 결함이다.

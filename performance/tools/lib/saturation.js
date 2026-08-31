@@ -34,7 +34,7 @@
  *   SATURATED  포화 — p95 는 대기 시간이다. 애플리케이션 지연으로 인용 금지
  *   UNKNOWN    판정에 필요한 지표가 없다
  *
- * 근거 문서: localDocs/perf-session-drift.md 8-g·8-h, perf-findings-scripts.md S-27
+ * 근거 문서: localDocs/investigations/perf-session-drift.md 8-g·8-h, findings/perf-findings-scripts.md S-27
  */
 
 /**
