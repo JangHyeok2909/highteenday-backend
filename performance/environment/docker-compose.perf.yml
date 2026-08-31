@@ -128,6 +128,11 @@ services:
         -Xlog:gc*:file=/tmp/gc.log:time,uptime:filecount=5,filesize=20m
         -XX:StartFlightRecording=disk=true,maxsize=200m,dumponexit=true,filename=/tmp/perf.jfr
         -Djava.rmi.server.hostname=localhost
+      # HikariCP 풀 크기 — 실험용 노브(EXP-006). 기본값 10 은 HikariCP 자체 기본값과
+      # 같으므로, 이 변수를 지정하지 않으면 지금까지의 모든 실행과 동일하게 돈다.
+      # minimumIdle 은 지정하지 않는다 — HikariCP 기본값이 maximumPoolSize 와 같아
+      # 고정 크기 풀이 되고, 그래야 "실행 중 풀이 자라는" 변수가 생기지 않는다.
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: ${HIKARI_MAX:-10}
       # Micrometer Prometheus 노출 (environment/README.md 사전 준비 참고)
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,prometheus,metrics
       MANAGEMENT_PROMETHEUS_METRICS_EXPORT_ENABLED: "true"
