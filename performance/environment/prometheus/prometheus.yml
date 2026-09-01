@@ -8,8 +8,8 @@ global:
   # 이유: docker-compose 에 붙인 `--enable-feature=native-histograms` 는 remote-write 로
   # 들어오는 k6 히스토그램을 받기 위한 플래그인데, 부수적으로 이 기본 목록 맨 앞에
   # PrometheusProto 를 끼워 넣어 **앱·MySQL·Redis 스크레이프까지 protobuf 로 바꾼다.**
-  # 계열 이름은 그대로지만 수집 경로가 달라지므로, 세션 간 편차(E-46)를 쫓는 중에
-  # 원인 후보를 하나 늘리는 셈이 된다. 여기 적어 두면 그 자동 삽입이 일어나지 않는다.
+  # 계열 이름은 그대로지만 수집 경로가 달라지므로, 실행 사이에 통제되지 않는 변수가
+  # 하나 생긴다. 여기 적어 두면 그 자동 삽입이 일어나지 않는다.
   scrape_protocols:
     - OpenMetricsText1.0.0
     - OpenMetricsText0.0.1
