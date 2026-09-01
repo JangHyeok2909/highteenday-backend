@@ -55,11 +55,31 @@ const guard = require('./lib/guard');
 const snapshot = require('./snapshot');
 const hostprobe = require('./lib/hostprobe');
 const loadbench = require('./lib/loadbench');
+const querystats = require('./lib/querystats');
 const cpuBench = require('./cpu-bench');
 const { acquireRunLock } = require('./lib/run-lock');
 
 const PERF_ROOT = path.resolve(__dirname, '..');
 const RUNS_DIR = path.join(PERF_ROOT, 'reports', 'runs');
+
+/**
+ * k6 지속시간 표기("5m", "300s", "1h30m")를 초로 바꾼다.
+ *
+ * 필요한 이유: --hold 는 k6 에 문자열 그대로 넘어가므로 래퍼는 그 길이를 모른다.
+ * measure 창의 양 끝에서 무언가를 하려면 초가 필요하다.
+ * 해석할 수 없으면 null 을 돌려 호출부가 그 기능을 건너뛰게 한다 — 틀린 창으로
+ * 재는 것보다 안 재는 편이 낫다.
+ */
+function parseDurationSec(v) {
+  if (v == null) return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  const m = String(v).trim().match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s)?$/);
+  if (!m || (!m[1] && !m[2] && !m[3])) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return (Number(m[1]) || 0) * 3600 + (Number(m[2]) || 0) * 60 + (Number(m[3]) || 0);
+}
 
 /** 스테이징(아직 수집 안 된) 결과 파일들의 runId 집합 */
 function stagedRunIds() {
@@ -512,6 +532,11 @@ function main() {
   console.log(`  브랜치 ${git.branch} · 커밋 ${git.commit.slice(0, 12)} · 실행자 ${git.executor}`);
   console.log(`  환경 ${o.env}${o.note ? ` · "${o.note}"` : ''}`);
 
+  // **부하를 받는 코드가 무엇인지**를 기록한다. 위의 `커밋` 은 작업 트리의 HEAD 일 뿐이고
+  // 컨테이너 안의 이미지와는 아무 관계가 없다 — 그 착각이 실험 두 개의 결론을 뒤집었다(T-42).
+  // 여기서 재빌드를 강제하지는 않는다. 소스를 건드렸지만 이번 실험과 무관한 경우가 흔하고,
+  // 그때마다 막으면 절차가 무거워져 결국 검사를 꺼 버리게 된다. 대신 기록과 경고를 남긴다.
+
   // 데이터셋 상태 확인·복원은 k6 를 띄우기 **전에** 끝낸다. 실행 중에 복원하면 무엇을
   // 잰 것인지 알 수 없다. 여기서 던지면 실행 자체가 시작되지 않는다.
   let stateBlock;
@@ -547,6 +572,7 @@ function main() {
 
   // remote-write 는 부하 발생기 모드가 정해진 뒤에 붙인다 — 주소가 모드에 따라 다르다.
   stateBlock.remoteWrite = o.remoteWrite;
+  // 이미지 신원은 preflight 뒤에 싣는다 — preflight 가 stateBlock 을 새로 만들기 때문이다.
   if (o.remoteWrite) {
     const rw = remoteWriteEnv(loadgenMode);
     Object.assign(env, rw);
@@ -584,6 +610,20 @@ function main() {
     console.log(`  ⚠ 부하 중 벤치 생략 — ${lbench.reason}`);
   }
 
+  // SQL 별 호출 수·읽은 행 수를 measure 창의 양 끝에서 찍는다. MySQL 지표는 서버 전체
+  // 합계이고 k6 지표는 엔드포인트별 시간뿐이라, 둘 사이에 "어느 쿼리가 그 행을 읽었나"를
+  // 잇는 자료가 없었다. 없으면 사후에 호출당 비용을 재서 곱하는 추정에 기대게 되는데,
+  // 요청 비용 편중 때문에 그 추정은 실제로 틀린다(E-51).
+  //
+  // 실행 전후가 아니라 measure 창인 이유: 판정을 measure 에서만 하므로 창이 다르면 다른
+  // 지표와 나란히 놓을 수 없다. 조회 두 번이고 CPU 를 태우지 않아 측정을 오염시키지 않는다.
+  const qstats = querystats.start({ startDelaySec: o.warmup, windowSec: parseDurationSec(o.hold) });
+  if (qstats.enabled) {
+    console.log(`  쿼리 통계 예약: k6 시작 +${qstats.startDelaySec}초부터 ${qstats.windowSec}초 (measure 창)`);
+  } else {
+    console.log(`  ⚠ 쿼리 통계 생략 — ${qstats.reason}`);
+  }
+
   // 호스트 프로브는 벤치 **뒤에** 시작한다. 벤치가 CPU 를 2코어 태우므로, 겹치면
   // 호스트 통계에 벤치 부하가 섞여 "측정 중 호스트 상태"라는 의미가 흐려진다.
   const probe = hostprobe.start();
@@ -596,6 +636,14 @@ function main() {
     : spawnSync(K6_BIN, args, { stdio: 'inherit', env, cwd: PERF_ROOT });
   // k6 가 끝나자마자 멈춘다. 이 뒤로는 수집기가 도는 시간이라 측정 구간이 아니다.
   stateBlock.loadBench = loadbench.stop(lbench);
+  stateBlock.queryStats = querystats.stop(qstats);
+  if (stateBlock.queryStats.enabled) {
+    const t = stateBlock.queryStats.totals;
+    console.log(`  쿼리 통계 ${stateBlock.queryStats.distinctStatements}종 · `
+      + `앱 ${t.app.calls.toLocaleString()}회/${t.app.rowsExamined.toLocaleString()}행 · `
+      + `수집기 ${t.exporter.calls.toLocaleString()}회/${t.exporter.rowsExamined.toLocaleString()}행 · `
+      + `풀스캔 앱 ${t.app.selectScan.toLocaleString()} / 수집기 ${t.exporter.selectScan.toLocaleString()}`);
+  }
   // loadbench 는 2코어를 40초 태운다. 그 구간을 표시해 두지 않으면 "환경이 바빴다"와
   // "우리가 바쁘게 만들었다"가 섞인다 — 실제로 그 혼동이 잘못된 결론을 만들었다(8-e).
   if (stateBlock.loadBench && stateBlock.loadBench.available) {
