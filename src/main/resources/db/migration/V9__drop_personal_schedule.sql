@@ -1,0 +1,26 @@
+-- V9: 사용된 적 없는 personal_schedule 테이블을 지운다.
+--
+-- 이 테이블에 대응하는 엔티티 `PersonalSchedule` 은 컨트롤러도 서비스도 없었고,
+-- 짝이 되는 `PersonalScheduleRepository` 는 `JpaRepository` 를 상속조차 하지 않는
+-- 빈 인터페이스였다. Spring Data 가 프록시를 만들지 않으므로 조회 수단 자체가 없었다.
+--
+--   public interface PersonalScheduleRepository {
+--   }
+--
+-- 즉 이 테이블은 스키마에만 존재했고 어떤 경로로도 읽거나 쓰이지 않았다. 실제로 성능
+-- 환경의 medium 데이터셋에서도 0행이었다. 문서 두 곳이 이미 "주입처 없음"과
+-- "[미확인: 사용 여부]" 로 표시해 두고 있었다.
+--
+-- 왜 지금 지우는가. 데이터셋 커버리지를 점검하면서 "행이 0인 테이블"을 전수 조사했는데,
+-- 그 목록에 시더가 채워야 할 것과 애초에 쓰이지 않는 것이 섞여 있었다. 후자를 남겨 두면
+-- 앞으로도 매번 같은 판정을 다시 해야 한다.
+--
+-- 남기는 것과의 구분. 같은 패키지의 `SchoolSchedule` 은 지우지 않는다. 그쪽은
+-- `api/SchoolScheduleImportService` 가 NEIS 학사일정을 적재하는 데 실제로 쓰며,
+-- 지금 비어 있는 이유는 `SchoolScheduleInitializer` 의 CommandLineRunner 가 주석
+-- 처리돼 있기 때문이다. **미사용이 아니라 비활성**이라 성격이 다르다.
+--
+-- 되돌리려면: V1__baseline.sql 의 personal_schedule CREATE TABLE 과
+-- fk_personal_schedule_usr 정의를 새 마이그레이션으로 다시 만들면 된다. 데이터는 없었다.
+
+DROP TABLE IF EXISTS personal_schedule;
