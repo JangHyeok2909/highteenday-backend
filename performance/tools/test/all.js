@@ -28,3 +28,4 @@ require('./hostprobe-phase.test.js');
 require('./saturation.test.js');
 require('./trends.test.js');
 require('./sparkline.test.js');
+require('./render-only.test.js');
