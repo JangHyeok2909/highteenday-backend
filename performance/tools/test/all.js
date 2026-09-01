@@ -23,6 +23,7 @@ require('./run-lock.test.js');
 require('./loadbench.test.js');
 require('./querystats.test.js');
 require('./querycost.test.js');
+require('./appimage.test.js');
 require('./hostprobe-phase.test.js');
 require('./saturation.test.js');
 require('./trends.test.js');
