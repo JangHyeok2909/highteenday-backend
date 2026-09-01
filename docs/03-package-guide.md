@@ -84,7 +84,6 @@ JPA 엔티티가 아니라 Spring Event 클래스(record)와 리스너다. DB와
 
 - `services/domain/redisService/CursorCacheService` — 본문 전체가 주석인데 `@Service`로 빈 등록됨
 - ~~`domain/hot/RecentHotPost` + `RecentHotPostRepository` — 주입처 없음~~ → 2026-08에 삭제됨
-- `domain/schedule/PersonalSchedule` + `PersonalScheduleRepository` — 주입처 없음
 - `services/security/CustomUserDetailsService` — formLogin/httpBasic이 비활성이라 호출 경로 없음 (`security/SecurityConfig.java · filterChain()`)
 
 ## 코드 좌표
