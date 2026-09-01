@@ -155,6 +155,35 @@ throw new CustomException(ErrorCode.USER_NOT_FOUND, "optional detail");
 
 ---
 
+## Large Files — Never Read Wholesale
+
+Reading any of these into context costs more than a whole session of
+conversation, and the content is re-sent on every subsequent turn. Always
+extract with `grep`, `jq`, `node -e`, `head`, or `tail` instead of reading the
+file.
+
+| Path | Size |
+|------|------|
+| `performance/reports/index.json` | ~250 KB (~65k tokens) |
+| `performance/reports/overnight/*.log` | 300 KB – 950 KB each |
+| `performance/reports/runs/*/hostprobe.jsonl` | ~300 KB each, 89 runs |
+| `schoolData/**/*.json` | 400 KB – 32 MB |
+| `src/main/resources/static/testImg.png`, `testGif.gif` | ~1 MB each |
+
+```bash
+node -e "const r=require('./performance/reports/index.json'); console.log(r.runs.slice(-5))"
+grep -c ERROR performance/reports/overnight/exp7.stdout.log
+tail -40 performance/reports/overnight/exp7.stdout.log
+```
+
+The same rule applies to command output, which also lands in context in full:
+
+- `git diff --stat` first, then `git diff <path>` for the files that matter
+- `./gradlew test 2>&1 | tail -40` instead of the full build log
+- always bound searches over the report logs (`grep -m 20`, `head`, `tail`)
+
+---
+
 ## Environment Properties
 
 | Property | Purpose |
