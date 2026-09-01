@@ -32,3 +32,4 @@ require('./render-only.test.js');
 require('./report-table.test.js');
 require('./trust-row.test.js');
 require('./trend-links.test.js');
+require('./stomp.test.js');
