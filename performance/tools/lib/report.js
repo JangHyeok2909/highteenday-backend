@@ -244,21 +244,28 @@ function deltaCell(c) {
  * 2px 선, 축/격자 없음(추세 판독에 불필요), 마지막 점만 강조해 현재 위치를 표시한다.
  */
 function sparkline(values, opts = {}) {
-  const pts = values.filter((v) => fmt.nz(v));
+  const n = values.length;
+  const pts = values.map((v, i) => ({ v, i })).filter((p) => fmt.nz(p.v));
   if (pts.length < 2) return '<svg viewBox="0 0 100 40" preserveAspectRatio="none"></svg>';
 
   const W = 100, H = 40, PAD = 3;
-  const min = Math.min(...pts);
-  const max = Math.max(...pts);
+  const vals = pts.map((p) => p.v);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
   const span = max - min || Math.abs(max) || 1;
-  const x = (i) => (i / (pts.length - 1)) * W;
+  // 분모는 그려진 점의 수가 아니라 **전체 회차 수**다. 이것이 이 함수의 핵심 수정이다.
+  const x = (i) => (n < 2 ? 0 : (i / (n - 1)) * W);
   const y = (v) => H - PAD - ((v - min) / span) * (H - PAD * 2);
 
-  const d = pts.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(2)},${y(v).toFixed(2)}`).join(' ');
-  const area = `${d} L${W},${H} L0,${H} Z`;
+  const d = pts.map((p, k) => `${k === 0 ? 'M' : 'L'}${x(p.i).toFixed(2)},${y(p.v).toFixed(2)}`).join(' ');
+  // 면적은 그려진 첫 점과 마지막 점 사이에서만 닫는다. 예전처럼 0..W 로 닫으면 앞뒤가
+  // 결측인 계열에서 존재하지 않는 구간까지 칠해진다.
+  const firstX = x(pts[0].i);
+  const last = pts[pts.length - 1];
+  const lastX = x(last.i);
+  const lastY = y(last.v);
+  const area = `${d} L${lastX.toFixed(2)},${H} L${firstX.toFixed(2)},${H} Z`;
   const color = opts.color || 'var(--series-1)';
-  const lastX = x(pts.length - 1);
-  const lastY = y(pts[pts.length - 1]);
 
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(opts.label || '추세')}">
   <path d="${area}" fill="${color}" opacity="0.10"/>
@@ -268,6 +275,7 @@ function sparkline(values, opts = {}) {
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>`;
 }
+
 
 function sparkCard(title, values, current, unit) {
   const vals = values.filter((v) => fmt.nz(v));
@@ -399,6 +407,7 @@ function sectionTrust(record) {
     <div class="trust-row">${items.join('')}</div>
   </div></section>`;
 }
+
 
 function sectionMeasurement(record) {
   const reg = record.regression;
@@ -668,7 +677,11 @@ function sectionBreakdown(record) {
  * 끝난다는 점을 모르면 많은 값인지 알 수 없다 — **판정 없는 숫자는 읽히지 않는다.**
  */
 const EFFICIENCY_THRESHOLDS = {
-  'efficiency.queriesPerReq': { warn: 10, fail: 50, hint: '요청 1건이 이만큼 쿼리를 쓴다면 루프 안 조회를 의심한다' },
+  // ⚠ 이 값은 **서버 전역 평균**이다. 분자가 mysql_global_status_queries(모든 엔드포인트 +
+  // COMMIT·SET·커넥션 검증·스케줄러·exporter)이고 분모가 전체 요청 수라, 특정 경로의 비용을
+  // 말해 주지 않는다. 그런데 실제 조사에서 이 숫자가 가장 느린 엔드포인트의 값으로 읽혔다.
+  // 그래서 이름과 설명에 전역임을 박아 두고, 경로별 값은 아래 '엔드포인트별' 표가 답한다.
+  'efficiency.queriesPerReq': { warn: 10, fail: 50, hint: '서버 전역 평균이다 — 경로별 값은 아래 엔드포인트 표를 볼 것' },
   'efficiency.stackCpuMsPerReq': { warn: 50, fail: 200, hint: '요청 1건에 스택 전체가 태운 CPU' },
   'efficiency.dbCpuUsPerQuery': { warn: 500, fail: 2000, hint: '쿼리 하나가 비싸면 인덱스·쿼리 계획 문제' },
 };
@@ -705,7 +718,239 @@ function sectionEfficiency(record) {
       <tbody>${rows}</tbody></table></div>
     <div class="note">자원이 남는데도 느리면 여기를 본다. 자원 부족은 위 '자원' 섹션이 답한다.
     쿼리 <b>개수</b>가 많은 것(N+1)과 쿼리 <b>하나</b>가 비싼 것(인덱스)은 처방이 다르므로
-    <code>queriesPerReq</code>와 <code>dbCpuUsPerQuery</code>를 같이 읽는다.</div>
+    <code>queriesPerReq</code>와 <code>dbCpuUsPerQuery</code>를 같이 읽는다.
+    <b>이 표의 값은 전부 서버 전역 평균이다</b> — 어느 경로가 비싼지는 바로 아래 표가 답한다.</div>
+  </section>`;
+}
+
+/**
+ * ④-c 어느 경로가 비싼가 — **요청당 비용을 엔드포인트에 귀속시킨다.**
+ *
+ * 왜 이 표가 필요한가. 위 '작업량' 표의 `queriesPerReq` 는 서버 전역 합계를 전체 요청
+ * 수로 나눈 값 하나뿐이다. 그건 워크로드 전체의 평균이라 **어느 API 가 쿼리를 많이 쓰는지
+ * 에 대해 아무것도 말하지 않는다.** 그럼에도 그 숫자가 병목 가설 1순위로 올라가면
+ * ("요청 1건당 평균 205.6개 쿼리 — N+1 가능성이 높다") 사람은 그것을 가장 느린
+ * 엔드포인트의 값으로 읽는다. 실제 조사가 그렇게 어긋났다.
+ *
+ * 여기 실리는 값은 앱이 요청 경계에서 직접 센 것이다(`QueryCountFilter`). 인증 필터의
+ * 토큰 조회와, open-in-view 로 응답 직렬화 중에 풀리는 지연 로딩까지 포함한다.
+ *
+ * **평균과 함께 꼬리를 낸다.** 댓글이 수천 개인 게시물처럼 파라미터에 따라 비용이 극단적
+ * 으로 갈리는 경로는 평균이 꼬리를 완전히 가린다. 다만 분위수는 SLO 버킷 경계로만 나오므로
+ * "200~500" 처럼 구간으로 적는다 — 보간해서 337 같은, 관측될 수 없는 값을 쓰지 않는다.
+ *
+ * 정렬은 요청 수 상위다. 비용 순위가 아닌 이유는, 1건짜리 경로의 극단값이 맨 위에 오면
+ * 사람이 그것을 병목으로 읽기 때문이다. 비용 순위는 'DB 시간 합' 열로 직접 읽는다.
+ */
+/**
+ * DB 몫 칸. **판정 없는 숫자는 읽히지 않는다** — 30% 가 큰 값인지 작은 값인지는
+ * 이 표를 처음 보는 사람이 알 수 없다.
+ *
+ * 기준을 이렇게 나눈다.
+ *   50% 이상 — 응답 시간의 절반 이상이 SQL 실행이다. 쿼리를 고치면 실제로 빨라진다.
+ *   20~50%  — 섞여 있다. 쿼리를 고쳐도 나머지가 남는다.
+ *   20% 미만 — 원인이 DB 바깥이다. 쿼리 최적화는 헛수고에 가깝다.
+ */
+function shareCell(pct) {
+  if (pct == null) return '—';
+  const label = `${fmt.num(pct, 0)}%`;
+  if (pct >= 50) return `<b style="color:var(--critical)">${label}</b>`;
+  if (pct >= 20) return `<b style="color:var(--warn)">${label}</b>`;
+  return `<span style="color:var(--ink-muted)">${label}</span>`;
+}
+
+function bucketRange(q) {
+  if (!q) return '—';
+  if (q.atMost == null) return `${fmt.num(q.moreThan, 0)} 초과`;
+  if (q.moreThan == null) return `${fmt.num(q.atMost, 0)} 이하`;
+  return `${fmt.num(q.moreThan, 0)}~${fmt.num(q.atMost, 0)}`;
+}
+
+function sectionQueryCost(record) {
+  const eq = (record.infra || {}).endpointQueries;
+  // 섹션 자체를 숨기지 않는다. 값이 없으면 **없다는 사실과 그 이유**를 표시한다 —
+  // 빈 자리를 "문제 없음"으로 읽히게 두는 것이 이 리포트에서 가장 위험한 실패다.
+  if (!eq || !eq.available) {
+    const reason = eq && eq.reason ? eq.reason : '수집되지 않음';
+    return `<section><h2>엔드포인트별 요청 비용 — 어느 경로가 쿼리를 많이 쓰는가</h2>
+      <div class="card"><p class="empty">재지 못했습니다.</p>
+      <div class="note">${esc(reason)}<br>
+      이 값이 없으면 위 '작업량'의 요청당 쿼리 수는 <b>서버 전역 평균</b>일 뿐이라
+      어느 API 가 원인인지 알 수 없습니다. 앱 이미지를 다시 만들어야 합니다:
+      <code>docker compose -f environment/docker-compose.perf.yml --env-file environment/.env.perf up -d --build app</code></div>
+      </div></section>`;
+  }
+
+  const th = eq.threshold || { warn: 10, fail: 50 };
+  const rows = eq.endpoints.map((e) => {
+    const qpr = e.queriesPerRequest;
+    let cls = '';
+    let badge = '';
+    if (qpr != null) {
+      if (qpr > th.fail) { cls = 'style="color:var(--critical);font-weight:650"'; badge = '<span class="badge b-FAIL">과다</span>'; }
+      else if (qpr > th.warn) { badge = '<span class="badge b-WARN">주의</span>'; }
+      else { badge = '<span class="badge b-PASS">정상</span>'; }
+    }
+    return `<tr>
+      <td><code>${esc(e.endpoint)}</code></td>
+      <td class="num">${fmt.num(e.requests, 0)}</td>
+      <td class="num" ${cls}>${qpr == null ? '—' : fmt.num(qpr, 1)}</td>
+      <td class="num">${esc(bucketRange(e.queriesP95))}</td>
+      <td class="num">${esc(bucketRange(e.queriesP99))}</td>
+      <td class="num">${e.responseMsPerRequest == null ? '—' : fmt.num(e.responseMsPerRequest, 1)}</td>
+      <td class="num">${e.dbMsPerRequest == null ? '—' : fmt.num(e.dbMsPerRequest, 1)}</td>
+      <td class="num">${shareCell(e.dbSharePct)}</td>
+      <td class="num">${e.dbMsTotal == null ? '—' : fmt.num(e.dbMsTotal, 0)}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+
+  // 검산 — 엔드포인트 합계 + 요청 밖 문장 ≈ MySQL 전역 문장 수여야 계측을 신뢰할 수 있다.
+  const f = (record.infra || {}).flat || {};
+  const globalStatements = f['mysql.qps'] != null && (record.infra.window || {}).durationSec
+    ? f['mysql.qps'] * record.infra.window.durationSec
+    : null;
+  const accounted = eq.attributedStatements + (eq.outsideRequestStatements || 0);
+  const checkLine = globalStatements
+    ? `엔드포인트 합계 ${fmt.num(eq.attributedStatements, 0)}건 + 요청 밖 `
+      + `${eq.outsideRequestStatements == null ? '미측정' : `${fmt.num(eq.outsideRequestStatements, 0)}건`}`
+      + ` = ${fmt.num(accounted, 0)}건 · MySQL 전역 ${fmt.num(globalStatements, 0)}건`
+      + ` (설명된 비율 ${fmt.num((100 * accounted) / globalStatements, 0)}%)`
+    : '전역 문장 수를 못 읽어 검산을 건너뜀';
+
+  return `<section><h2>엔드포인트별 요청 비용 — 어느 경로가 쿼리를 많이 쓰는가</h2>
+    <div class="card scroll"><table>
+      <thead><tr>
+        <th>엔드포인트</th>
+        <th class="num" style="width:80px">요청 수</th>
+        <th class="num" style="width:100px">요청당 쿼리</th>
+        <th class="num" style="width:100px">쿼리 p95</th>
+        <th class="num" style="width:100px">쿼리 p99</th>
+        <th class="num" style="width:100px">응답(ms)</th>
+        <th class="num" style="width:100px">그중 DB(ms)</th>
+        <th class="num" style="width:80px">DB 몫</th>
+        <th class="num" style="width:110px">DB 시간 합(ms)</th>
+        <th style="width:70px">판정</th>
+      </tr></thead>
+      <tbody>${rows}</tbody></table>
+      ${eq.truncated ? `<div class="note">요청 수 하위 ${eq.truncated}개 경로는 생략했다.</div>` : ''}
+    </div>
+    <div class="note">
+      <b>읽는 법.</b> '요청당 쿼리'가 크면 그 경로에 N+1 이 있다(임계 warn ${th.warn} / fail ${th.fail}).
+      평균이 작아도 <b>p95·p99 가 크면 파라미터에 따라 비용이 갈리는 것</b>이므로 꼬리를 같이 본다 —
+      같은 경로라도 요청 인자에 따라 다루는 행 수가 수십 배 차이 나는 경우가 그렇다.
+      분위수는 히스토그램 버킷 경계로만 나오므로 구간으로 표시한다.<br>
+      <b>어디를 고칠지</b>는 '요청당 DB(ms)'가 아니라 <b>'DB 시간 합'</b>으로 고른다 — 평균이 커도
+      호출이 드물면 전체에 미치는 영향은 작다.<br>
+      <b>'DB 몫'이 이 표에서 가장 중요한 칸이다.</b> 응답 시간 중 SQL 실행이 차지하는 비율이고,
+      <b>원인이 DB 안에 있는지 밖에 있는지</b>를 이 한 값이 가른다. 50% 이상이면 쿼리를 고치면
+      실제로 빨라진다. 20% 미만이면 남은 시간은 네트워크 왕복·결과 매핑·직렬화·CPU 대기에
+      있으므로 <b>쿼리를 아무리 줄여도 응답 시간은 거의 안 변한다</b> — 그때는 위 '자원' 섹션의
+      CPU throttling 과 요청당 앱 CPU 를 본다.<br>
+      응답 시간은 서버 안에서 잰 값이라 k6 쪽 수치보다 작다(부하 발생기~서버 왕복이 빠져 있다).
+      두 표의 이름이 다른 것도 그래서다 — 여기는 URI 템플릿, Breakdown 은 시나리오 이름이다.<br>
+      <b>검산:</b> ${esc(checkLine)}
+    </div>
+  </section>`;
+}
+
+/**
+ * ④-d 어느 SQL 인가 — **문장 단위 명세.**
+ *
+ * 위 표가 "어느 경로가 비싼가"까지 좁히면, 이 표가 "그 경로가 어떤 SQL 을 쓰는가"를 답한다.
+ * 자료는 MySQL 의 `events_statements_summary_by_digest` 를 measure 창 양 끝에서 찍은
+ * 차이다(`tools/lib/querystats.js`).
+ *
+ * **세 축으로 정렬해 싣는 이유.** 원래는 읽은 행 수 하나로만 정렬했다. 그 목록은 "행을
+ * 많이 훑은 쿼리"는 잘 보여주지만 행을 거의 안 읽으면서 수없이 불리는 쿼리는 절대 보여주지
+ * 않는다 — 그런데 N+1 이 정확히 그 모양이다. 실측에서 앱 문장 60,763회 중 5,520회만
+ * 목록에 들어왔고, 시간의 86% 가 목록 밖에 있었다. N+1 을 찾으려는 도구가 N+1 의 흔적을
+ * 구조적으로 가리고 있었다.
+ *
+ * `coverage` 를 함께 표시한다. 목록이 전체의 몇 %를 설명하는지 적지 않으면 사람은 목록에
+ * 없는 것을 없는 것으로 읽는다.
+ */
+const QS_AXIS_NOTE = {
+  byRows: '행을 많이 훑은 쿼리 — 인덱스·쿼리 계획을 의심한다',
+  byCalls: '많이 불린 쿼리 — N+1·루프 안 조회를 의심한다',
+  byTime: '서버 시간을 많이 쓴 쿼리 — 실제 비용의 소재',
+};
+
+function sectionQueryStats(record) {
+  const qs = (record.run || {}).queryStats;
+  if (!qs || !qs.enabled) {
+    return `<section><div class="card">
+      <p class="empty">재지 못했습니다.</p>
+      <div class="note">${esc(qs && qs.reason ? qs.reason : '수집되지 않음')}</div>
+    </div></section>`;
+  }
+
+  const t = qs.totals || {};
+  const app = t.app || {};
+  const exporter = t.exporter || {};
+
+  const table = (axisId, label) => {
+    const list = (qs.top || {})[axisId] || [];
+    if (!list.length) return '';
+    const cov = (qs.coverage || {})[axisId];
+    const rows = list.map((s) => `<tr>
+      <td class="num">${fmt.num(s.calls, 0)}</td>
+      <td class="num">${fmt.num(s.rowsExamined, 0)}</td>
+      <td class="num">${fmt.num(s.rowsPerCall, 1)}</td>
+      <td class="num">${fmt.num(s.totalMs, 0)}</td>
+      <td class="num">${fmt.num(s.msPerCall, 2)}</td>
+      <td>${s.kind === 'app' ? '' : `<span class="badge b-SKIP">${esc(s.kind)}</span>`}</td>
+      <td style="font-size:11px;font-family:ui-monospace,monospace">${esc(s.stmt)}</td>
+    </tr>`).join('');
+    return `<h3>${esc(label)}</h3>
+      <div class="note" style="margin-bottom:6px">${esc(QS_AXIS_NOTE[axisId] || '')}${
+        cov && cov.pct != null ? ` · 이 목록이 전체의 <b>${fmt.num(cov.pct, 1)}%</b>를 설명한다` : ''}</div>
+      <div class="card scroll"><table>
+        <thead><tr>
+          <th class="num" style="width:70px">호출</th>
+          <th class="num" style="width:80px">읽은 행</th>
+          <th class="num" style="width:80px">행/호출</th>
+          <th class="num" style="width:70px">시간(ms)</th>
+          <th class="num" style="width:80px">ms/호출</th>
+          <th style="width:70px">출처</th>
+          <th>SQL</th>
+        </tr></thead><tbody>${rows}</tbody></table></div>`;
+  };
+
+  const h = qs.hidden || {};
+  const hiddenWarn = h.calls > 0
+    ? `<div class="hint"><div class="n">!</div><div>
+        <div class="t">세 목록 어디에도 안 나온 문장이 ${fmt.num(h.statements, 0)}종 있다</div>
+        <div class="d">호출 ${fmt.num(h.calls, 0)}회 · 읽은 행 ${fmt.num(h.rowsExamined, 0)}행 ·
+        시간 ${fmt.num(h.totalMs, 0)}ms. 행을 거의 안 읽으면서 시간을 쓰는 문장(COMMIT 등)이 여기 모인다.
+        이 몫이 크면 비용이 SQL 실행이 아니라 <b>트랜잭션 확정과 왕복</b>에 있다는 뜻이므로,
+        JOIN FETCH 같은 쿼리 최적화로는 줄지 않는다.</div>
+      </div></div>`
+    : '';
+
+  return `<section>
+    <div class="kpis">
+      ${kpi('앱 문장 수', fmt.num(app.calls, 0), `읽은 행 ${fmt.num(app.rowsExamined, 0)}`)}
+      ${kpi('앱 DB 시간', `${fmt.num(app.totalMs, 0)} ms`, `문장당 ${app.calls ? fmt.num(app.totalMs / app.calls, 3) : '—'} ms`)}
+      ${kpi('행/문장', app.calls ? fmt.num(app.rowsExamined / app.calls, 1) : '—', '1 근처면 단건 조회 반복')}
+      ${kpi('풀스캔(앱)', fmt.num(app.selectScan, 0), `수집기 몫 ${fmt.num(exporter.selectScan, 0)} 제외`)}
+      ${kpi('문장 종류', fmt.num(qs.distinctStatements, 0), `상위 ${qs.topN || 25}개씩 표시`)}
+    </div>
+    ${hiddenWarn}
+    ${qs.rewound ? `<div class="hint"><div class="n">!</div><div><div class="t">측정 중 MySQL 카운터가 되감겼다</div>
+      <div class="d">구간 중 MySQL 이 재시작한 것이다. 이 표의 수치는 신뢰할 수 없다.</div></div></div>` : ''}
+    ${table('byCalls', '호출 수 상위')}
+    ${table('byTime', '소요 시간 상위')}
+    ${table('byRows', '읽은 행 상위')}
+    <div class="note">
+      측정 구간 ${fmt.localTime(qs.window && qs.window.startedAt)} ~ ${fmt.localTime(qs.window && qs.window.endedAt)}
+      (${fmt.num(qs.window && qs.window.actualSec, 0)}초).
+      '출처' 가 비어 있으면 앱이 낸 문장이고, 배지가 붙은 것은 지표 수집기 등 다른 클라이언트다 —
+      섞어 세면 수집기의 <code>SHOW GLOBAL STATUS</code> 를 앱의 풀스캔으로 오독한다.<br>
+      <b>시간 열의 의미.</b> MySQL 서버가 그 문장을 파싱·실행하고 결과를 넘길 때까지 서버 <b>안에서</b>
+      흐른 시간이다. 네트워크 왕복, 커넥션 획득 대기, 결과 매핑, 직렬화는 <b>포함되지 않는다</b>.
+      그래서 이 합계가 응답 시간보다 훨씬 작으면 원인은 DB 바깥에 있다.
+    </div>
   </section>`;
 }
 
@@ -1072,6 +1317,32 @@ function foldable(html, { open, title, note }) {
   </details>`;
 }
 
+/**
+ * SQL 명세를 접었을 때의 요약 줄.
+ *
+ * **접는 것이 정보를 줄이는 것이면 안 된다.** 이 줄은 펼치지 않고도 두 가지를 답해야 한다.
+ *   1. 문장당 읽은 행이 1 근처인가 — 그러면 단건 조회 반복(N+1 의 모양)이고,
+ *      풀스캔(행을 많이 훑는 문제)이 아니다. 처방이 정반대다.
+ *   2. 비용이 SQL 실행에 있는가 — 목록 밖 문장(COMMIT 등)이 시간을 대부분 쓰고 있으면
+ *      쿼리 최적화로는 줄지 않는다.
+ */
+function queryStatsSummaryLine(record) {
+  const qs = (record.run || {}).queryStats;
+  if (!qs || !qs.enabled) return { open: true, note: '재지 못함 — 원인 규명의 마지막 단계가 비어 있다' };
+  const app = (qs.totals || {}).app || {};
+  if (!app.calls) return { open: false, note: '측정 구간에 앱 문장이 없다' };
+
+  const rowsPer = app.rowsExamined / app.calls;
+  const h = qs.hidden || {};
+  const hiddenMsPct = app.totalMs ? (100 * (h.totalMs || 0)) / app.totalMs : 0;
+
+  const bits = [`앱 ${fmt.num(app.calls, 0)}문장 · ${fmt.num(app.totalMs, 0)}ms · 행/문장 ${fmt.num(rowsPer, 1)}`];
+  // 행/문장이 1 근처면 "훑는 문제"가 아니라 "횟수 문제"다. 이 구분이 처방을 가른다.
+  bits.push(rowsPer < 2 ? '단건 조회 반복형' : rowsPer > 100 ? '대량 스캔형' : '혼합');
+  if (hiddenMsPct > 50) bits.push(`⚠ 시간의 ${fmt.num(hiddenMsPct, 0)}%가 목록 밖 문장(트랜잭션 확정 등)`);
+  return { open: hiddenMsPct > 50, note: bits.join(' · ') };
+}
+
 function infraSummaryLine(record) {
   const sat = record.saturation || {};
   const signals = sat.signals || [];
@@ -1087,6 +1358,7 @@ function infraSummaryLine(record) {
 function renderReport(record, opts = {}) {
   const r = record.run;
   const infraFold = infraSummaryLine(record);
+  const qsFold = queryStatsSummaryLine(record);
   return `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1100,6 +1372,8 @@ ${sectionHeader(record)}
   ${sectionSummary(record, opts.previous)}
   ${sectionBreakdown(record)}
   ${sectionEfficiency(record)}
+  ${sectionQueryCost(record)}
+  ${foldable(sectionQueryStats(record), { open: qsFold.open, title: 'SQL 명세 — 어느 문장이 돌았는가', note: qsFold.note })}
   ${foldable(sectionInfra(record), {
     open: infraFold.open, title: '자원 — 부족한 것이 있는가', note: infraFold.note,
   })}
