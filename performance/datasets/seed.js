@@ -226,6 +226,12 @@ function pick(arr) { return arr[randInt(arr.length)]; }
  * 난수원으로 이 파일의 고정 시드 `rand()`를 넘긴다 — 시드 데이터의 재현성을 지키려면
  * 샘플러가 Math.random을 쓰면 안 된다.
  */
+// STOMP 프레임 유틸도 ESM 이라 main() 에서 동적 import 로 받는다 — sampling.js 와 같다.
+let stompConnect = null;
+let stompSubscribe = null;
+let stompSend = null;
+let clientMsgId = null;
+let frameCommand = null;
 let hotIndex = null;    // main()이 동적 import로 채운다 (ESM ↔ CJS 경계)
 let HOT_SKEW = null;
 let AUTHOR_SKEW = null;
@@ -344,6 +350,8 @@ function buildText(parts, median, p90, max) {
 const commentText = () => buildText(COMMENT_PARTS, 15, 60, 300);
 /** 게시글 본문. 중앙값 200자 / p90 800자 / 상한 3000자 (PST_content 는 TEXT). */
 const postText = () => buildText(POST_PARTS, 200, 800, 3000);
+/** 채팅 메시지. 게시글·댓글보다 짧다 — 중앙값 12자 / p90 40자 (CHT_MSG_content 는 TEXT). */
+const chatText = () => buildText(COMMENT_PARTS, 12, 40, 200);
 
 // ---------- HTTP 세션 (쿠키 지원) ----------
 
@@ -459,6 +467,29 @@ const SKIP = Symbol('skip');
 function isRetryable(err) {
   const m = String(err && err.message);
   return /[Dd]eadlock/.test(m)
+    /*
+     * 서버가 5xx 로 응답한 경우.
+     *
+     * **`[Dd]eadlock` 패턴만으로는 데드락을 못 잡는다.** 그 단어는 시더에 도달하지 않는다 —
+     * `GlobalExceptionHandler` 가 예외를 일반 500 으로 바꿔 내보내므로 시더가 받는 본문은
+     * 이것뿐이다.
+     *
+     *   comment 500: {"message":"서버 내부 오류가 발생했습니다.","code":"INTERNAL_SERVER_ERROR"}
+     *
+     * 그래서 BTL-003(인기글 카운터 핫 로우 데드락)이 **재시도 없이 곧바로 최종 실패**로
+     * 집계됐다. 실측(2026-09-01, smoke): 댓글 112건 중 11건(9.8%)이 이렇게 죽었고, 앱
+     * 로그에는 전부 `LockAcquisitionException ... update posts set pst_comment_count=...`
+     * 였다. 게시글 50개짜리 프로파일에 Zipf 를 걸면 같은 행에 몰리는 밀도가 높아
+     * large 보다 오히려 심하다.
+     *
+     * 5xx 를 재시도해도 중복이 생기지 않는 근거: 이 엔드포인트들은 `@Transactional` 이고
+     * 예외가 나면 삽입과 카운터 증가가 **함께 롤백**된다. 즉 500 을 받았다는 것은 서버가
+     * 아무것도 남기지 않았다는 뜻이다. 4xx 는 재시도해도 같은 결과라 여기 넣지 않는다.
+     *
+     * 진짜 서버 버그를 재시도로 덮지 않는가 — 덮지 않는다. MAX_ATTEMPTS 를 소진하면 그대로
+     * 실패로 집계되고, 단계 미달은 산출물을 쓰지 않는 사유가 된다. 느려질 뿐이다.
+     */
+    || /(^|\s)5\d\d:/.test(m)
     || /Could not open JPA EntityManager|Connection is not available|HikariPool|connection timeout/i.test(m)
     || /ECONNRESET|ECONNREFUSED|EPIPE|socket hang up|fetch failed|other side closed/i.test(m)
     // 401 — 인증 거절이므로 서버가 **일을 하지 않은 것이 확실하다**. 재시도해도 중복이
@@ -1267,10 +1298,216 @@ async function createChat(users, sessions, pairs) {
     rooms.push({ roomId, a, b });
   }, Math.min(CONCURRENCY, 5), 'chat-rooms');
 
-  // 방마다 히스토리 메시지 (REST가 아닌 WS 전용이므로 여기서는 read 상태만 갱신)
-  // 메시지 히스토리는 chat-ws.js 첫 실행이 자연스럽게 쌓는다.
   console.log(`  1:1 채팅방 ${rooms.length}개 생성`);
-  return { rooms, result };
+
+  /*
+   * 단체방 — 시더는 지금까지 1:1 만 만들었다.
+   *
+   * 확인해 보면 `chat_participants` 2,400 ÷ `chat_rooms` 1,200 = 정확히 2명씩이었다.
+   * 그래서 단체방에서만 의미가 있는 두 가지가 한 번도 측정되지 않았다.
+   *   - 브로드캐스트 팬아웃(BTL-006 SimpleBroker 확장성) — 1:1 은 수신자가 하나뿐이다.
+   *   - `getReadStatus`("누가 어디까지 읽었나") — 1:1 에서는 답이 자명하다.
+   */
+  const groupRooms = [];
+  const groupTarget = P.groupRooms || 0;
+  if (groupTarget > 0) {
+    /*
+     * 초대 대상은 **방장의 친구**여야 한다.
+     *
+     * 무작위로 뽑으면 서버가 전부 거절한다 — 실측: 2건 시도에 2건 모두
+     * `400 CHAT_NOT_FRIENDS`. 친구 관계를 확인하지 않고 만든 초대 목록은 이 API 를
+     * 통과할 수 없다.
+     *
+     * 그래서 친구 쌍에서 인접 목록을 만들어 그 안에서만 고른다. 인원은 **친구 수에
+     * 맞춰 줄인다** — 프로파일이 작으면 평균 차수가 2 정도라 15인 방을 요구할 수 없다.
+     * 단체방의 최소 조건은 참여자 3명(방장 + 2)이고, 그 아래는 1:1 과 구분되지 않는다.
+     */
+    const friendsOf = new Map();
+    for (const [a, b] of pairs) {
+      if (!friendsOf.has(a)) friendsOf.set(a, []);
+      if (!friendsOf.has(b)) friendsOf.set(b, []);
+      friendsOf.get(a).push(b);
+      friendsOf.get(b).push(a);
+    }
+    // 친구가 2명 이상인 사용자만 방장이 될 수 있다.
+    const owners = [...friendsOf.entries()]
+      .filter(([u, fs]) => sessions[u] && fs.filter((x) => sessions[x]).length >= 2)
+      .map(([u]) => u);
+
+    if (!owners.length) {
+      console.log('  ⚠ 단체방: 친구가 2명 이상인 사용자가 없다 — 이 프로파일에서는 단체방을 만들 수 없다.');
+    } else {
+    const groupJobs = Array.from({ length: groupTarget }, (_, i) => i);
+    const groupResult = await pooled(groupJobs, async () => {
+      const owner = owners[randInt(owners.length)];
+      const so = sessions[owner];
+      const cands = friendsOf.get(owner).filter((u) => sessions[u] && u !== owner);
+      // 최대 14명(방장 포함 15인)까지, 친구 수가 모자라면 있는 만큼.
+      const size = Math.min(cands.length, 2 + randInt(13));
+      const picked = new Set([owner]);
+      const memberIds = [];
+      for (let guard = size * 10; memberIds.length < size && guard-- > 0;) {
+        const u = cands[randInt(cands.length)];
+        if (picked.has(u)) continue;
+        picked.add(u);
+        memberIds.push(sessions[u].userId);
+      }
+      if (memberIds.length < 2) return SKIP;
+      const r = await so.json('POST', '/api/chat/rooms/group', {
+        name: `${pick(TITLES).replace(/[?]/g, '')} 단톡`,
+        memberIds,
+      });
+      if (r.status < 200 || r.status >= 300) {
+        throw new Error(`group room ${r.status}: ${JSON.stringify(r.data).slice(0, 150)}`);
+      }
+      const roomId = r.data && (r.data.roomId ?? r.data.id);
+      if (roomId == null) throw new Error('group room 2xx 이지만 roomId 를 못 받음');
+      groupRooms.push({ roomId, members: [...picked] });
+    }, Math.min(CONCURRENCY, 5), 'group-rooms', groupTarget);
+    console.log(`  단체방 ${groupRooms.length}개 생성`);
+    // 호출부가 검문할 수 있게 결과를 돌려준다. 예전 초안은 result 에 얹어 두기만 해서
+    // 단체방이 0개여도 "전 단계 목표 수량 달성"으로 끝났다 — 미달을 알리는 장치를
+    // 통과하지 못하는 결과는 없는 것과 같다.
+    groupRooms.result = groupResult;
+    }
+  }
+
+  return { rooms, groupRooms, result, groupResult: groupRooms.result || null };
+}
+
+/**
+ * STOMP 소켓 하나를 열어 한 방에 메시지 n 건을 보낸다.
+ *
+ * 프레임 조립은 `scripts/lib/stomp.js` 를 쓴다 — 부하 스크립트와 **같은 코드**다. 복제하면
+ * content-length 를 바이트가 아닌 UTF-16 길이로 세는 버그 같은 것이 양쪽에 따로 산다.
+ *
+ * 보낸 뒤 브로드캐스트가 돌아올 때까지 기다린다. `@MessageMapping` 은 비동기라 SEND 직후
+ * 소켓을 닫으면 서버가 저장하기 전에 연결이 끊길 수 있고, 그러면 목표 개수에 조용히
+ * 미달한다. 자기 메시지가 `/topic` 으로 돌아온 것이 저장 완료의 신호다.
+ */
+function sendStompMessages(session, roomId, count) {
+  if (count <= 0) return Promise.resolve(0);
+  return new Promise((resolve, reject) => {
+    const url = `${BASE.replace(/^http/, 'ws')}/ws/websocket`;
+    const ws = new WebSocket(url, { headers: { Cookie: session.cookieHeader() } });
+    const pending = new Set();
+    let sentCount = 0;
+    let done = false;
+
+    // 서버가 조용히 끊기거나 프레임이 깨지면 여기서 끝난다 — 시더 전체가 멈추지 않게
+    // 시간 상한을 둔다. 실패는 pooled 가 집계한다.
+    const timer = setTimeout(() => finish(new Error(`chat message 시간 초과 (room ${roomId}, ${sentCount}/${count})`)), 30000 + count * 200);
+
+    function finish(err) {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { ws.close(); } catch (e) { /* 이미 닫힘 */ }
+      if (err) reject(err); else resolve(sentCount);
+    }
+
+    const sendOne = () => {
+      const id = clientMsgId();
+      pending.add(id);
+      ws.send(stompSend('/app/chat/send', {
+        roomId, content: chatText(), imageUrl: null, clientMsgId: id,
+      }));
+    };
+
+    ws.addEventListener('open', () => ws.send(stompConnect()));
+    ws.addEventListener('error', (e) => finish(new Error(`chat ws 오류 (room ${roomId}): ${e.message || 'unknown'}`)));
+    ws.addEventListener('close', () => {
+      // 다 보내고 닫힌 것은 정상, 도중에 닫힌 것은 실패다.
+      finish(sentCount >= count ? null : new Error(`chat ws 조기 종료 (room ${roomId}, ${sentCount}/${count})`));
+    });
+    ws.addEventListener('message', (ev) => {
+      const raw = String(ev.data);
+      const cmd = frameCommand(raw);
+      if (cmd === 'CONNECTED') {
+        ws.send(stompSubscribe('sub-0', `/topic/chat/room/${roomId}`));
+        sendOne();
+        return;
+      }
+      if (cmd === 'ERROR') {
+        finish(new Error(`chat stomp ERROR (room ${roomId}): ${raw.slice(0, 150).replace(/\n/g, ' ')}`));
+        return;
+      }
+      if (cmd !== 'MESSAGE') return;
+      for (const id of pending) {
+        if (!raw.includes(id)) continue;
+        pending.delete(id);
+        sentCount += 1;
+        if (sentCount >= count) finish(null);
+        else sendOne();
+        return;
+      }
+    });
+  });
+}
+
+/**
+ * 채팅 메시지 히스토리 — `chat_messages` 는 지금까지 **0행**이었다.
+ *
+ * 시더는 방만 만들고 메시지는 안 만들었다. 코드 주석이 그 이유를 밝히고 있었다:
+ * *"메시지 히스토리는 chat-ws.js 첫 실행이 자연스럽게 쌓는다."*
+ *
+ * **그 가정이 스냅샷 때문에 깨졌다.** 실행마다 `snapshot.restore()` 가 볼륨을 되돌리므로
+ * 매 실행이 0건에서 시작하고, 그 실행이 만든 메시지는 다음 복원 때 사라진다. 누적이
+ * 원리적으로 불가능하다. 그래서 `GET /api/chat/rooms` 의 미읽음 집계
+ * (`countUnreadByUserId` 의 LEFT JOIN + GROUP BY)가 항상 빈 테이블 위에서 돌았고,
+ * `GET .../messages` 는 늘 빈 배열을 돌려줬다.
+ *
+ * 왜 SQL 직접 삽입이 아닌가 — 정합을 맞춰야 할 곳이 **세 군데**다.
+ *   `chat_messages`                      메시지 자체
+ *   `chat_rooms.CHT_RM_last_msg` + `UPT_Date`   목록의 미리보기와 정렬 키(lastMessageAt)
+ *   `chat_participants.CHT_PT_last_read_msg_id` 미읽음 계산의 기준점
+ * 손으로 맞추면 E-45(댓글 카운터 13,284건 어긋남)와 같은 종류의 사고가 난다. 실제 API 를
+ * 태우면 서버가 셋을 함께 갱신한다.
+ *
+ * 방 선택은 Zipf 다. 실제로도 대화가 활발한 방은 소수이고, 균등하게 뿌리면 "메시지가
+ * 수백 개인 방"이 안 생겨 커서 페이징 비용을 재현하지 못한다.
+ */
+async function createChatMessages(sessions, rooms, groupRooms) {
+  const target = P.chatMessages || 0;
+  if (target <= 0) return null;
+
+  const all = [
+    ...rooms.map((r) => ({ roomId: r.roomId, members: [r.a, r.b] })),
+    ...groupRooms.map((g) => ({ roomId: g.roomId, members: g.members })),
+  ].filter((r) => r.members.some((m) => sessions[m]));
+  if (!all.length) {
+    console.log('  ⚠ 채팅 메시지: 방 목록이 없다 — 이 단계를 생략한다.');
+    return null;
+  }
+
+  console.log(`[6/6] 채팅 메시지 ${target}건 (방 ${all.length}개, Zipf 편중)`);
+
+  // 어느 방에 몇 건을 보낼지 먼저 정한다. 방 하나에 소켓 하나를 열고 그 안에서
+  // 연속 전송하는 편이, 메시지마다 접속을 여는 것보다 훨씬 싸다.
+  const perRoom = new Map();
+  for (let i = 0; i < target; i++) {
+    const room = all[hotPost(all.length)];
+    perRoom.set(room.roomId, (perRoom.get(room.roomId) || 0) + 1);
+  }
+  const jobs = [...perRoom.entries()].map(([roomId, count]) => ({
+    room: all.find((r) => r.roomId === roomId), count,
+  }));
+
+  const result = await pooled(jobs, async (j) => {
+    const speakers = j.room.members.filter((m) => sessions[m]);
+    if (!speakers.length) return SKIP;
+    let sent = 0;
+    // 한 방의 메시지를 여러 사람이 나눠 보낸다. 한 명만 보내면 미읽음이 생기지 않는다.
+    for (const speaker of speakers) {
+      const share = Math.round(j.count / speakers.length) || (sent < j.count ? 1 : 0);
+      if (!share) continue;
+      sent += await sendStompMessages(sessions[speaker], j.room.roomId, Math.min(share, j.count - sent));
+      if (sent >= j.count) break;
+    }
+    if (!sent) throw new Error(`chat message 전송 0건 (room ${j.room.roomId})`);
+  }, Math.min(CONCURRENCY, 8), 'chat-messages', jobs.length);
+
+  return result;
 }
 
 // ---------- 데이터셋 지문 ----------
@@ -1305,6 +1542,9 @@ function computeGeneratorVersion() {
   return crypto.createHash('sha256')
     .update(hashOf('seed.js'))
     .update(hashOf('../scripts/lib/sampling.js'))
+    // 채팅 메시지가 이 모듈을 거쳐 만들어진다. 빠뜨리면 프레임 규칙이 바뀌어도
+    // 지문이 그대로라, 다른 데이터로 잰 실행이 같은 조건으로 비교된다.
+    .update(hashOf('../scripts/lib/stomp.js'))
     .digest('hex').slice(0, 12);
 }
 
@@ -1421,6 +1661,9 @@ async function main() {
   ({ hotIndex, HOT_SKEW, AUTHOR_SKEW } = await import(
     require('url').pathToFileURL(path.join(__dirname, '..', 'scripts', 'lib', 'sampling.js')).href
   ));
+  ({ stompConnect, stompSubscribe, stompSend, clientMsgId, frameCommand } = await import(
+    require('url').pathToFileURL(path.join(__dirname, '..', 'scripts', 'lib', 'stomp.js')).href
+  ));
   console.log(`분포: 게시글 인기 s=${HOT_SKEW} · 작성 활동 s=${AUTHOR_SKEW}`);
 
   // 생성기 지문을 먼저 구해 체크포인트와 대조한다 — 규칙이 바뀌었으면 재개하면 안 된다.
@@ -1499,6 +1742,9 @@ async function main() {
       const c = await createChat(plan, sessions, f.pairs);
       check(c.result);
       saveCheckpoint('chat-rooms', c.result.ok);
+      if (c.groupResult) { check(c.groupResult); saveCheckpoint('group-rooms', c.groupResult.ok); }
+      const msgs = await createChatMessages(sessions, c.rooms, c.groupRooms || []);
+      if (msgs) { check(msgs); saveCheckpoint('chat-messages', msgs.ok); }
     }
   } else {
     const f = await createFriendships(plan, sessions);
@@ -1507,6 +1753,9 @@ async function main() {
     const c = await createChat(plan, sessions, f.pairs);
     check(c.result);
     saveCheckpoint('chat-rooms', c.result.ok);
+    if (c.groupResult) { check(c.groupResult); saveCheckpoint('group-rooms', c.groupResult.ok); }
+    const msgs = await createChatMessages(sessions, c.rooms, c.groupRooms || []);
+    if (msgs) { check(msgs); saveCheckpoint('chat-messages', msgs.ok); }
   }
 
   // --on-failure continue 로 여기까지 왔더라도 미달이면 산출물을 쓰지 않는다.
