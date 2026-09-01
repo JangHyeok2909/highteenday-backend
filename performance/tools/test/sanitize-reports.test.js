@@ -146,3 +146,59 @@ test('run.json 이 깨져 있으면 정화를 건너뛰지 않고 중단한다',
   const r = run([dir], { allowFail: true });
   assert.notEqual(r.code, 0, '파싱 실패를 무시하면 그 실행의 값이 정화되지 않은 채 게시된다');
 });
+
+/**
+ * HTML 이스케이프본 유출 — 실제로 새고 있던 경로다(2026-09-01 발견).
+ *
+ * 리포트는 값을 `escapeHtml()` 로 실으므로, 실행 메모가 `pool 10->20` 이면 HTML 에는
+ * `pool 10-&gt;20` 으로 들어간다. 정화는 원문만 찾았고, `--verify` 도 같은 원문만 봐서
+ * 둘이 같은 맹점을 공유했다 — 저장된 리포트 전체를 정화한 뒤에도 이런 메모 40건이
+ * 그대로 남아 있었고 verify 는 "잔존 없음"으로 통과시켰다.
+ */
+function makeEscapedSite() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sanitize-esc-'));
+  const runDir = path.join(dir, 'runs', 'normal-day-2026-08-29T10-30-28');
+  fs.mkdirSync(runDir, { recursive: true });
+  const note = 'EXP-006 A: pool 10->20 & "재시작" 조건';
+  fs.writeFileSync(path.join(runDir, 'run.json'), JSON.stringify({
+    run: {
+      id: 'normal-day-2026-08-29T10-30-28',
+      executor: 'janghyeok@LOCALDESKTOP-DJ12345',
+      note,
+    },
+  }, null, 1));
+  // report.js 가 esc() 로 싣는 모양 그대로.
+  const escaped = note.replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+  fs.writeFileSync(path.join(runDir, 'report.html'),
+    `<span class="pt" data-note="${escaped}" title="${escaped}"></span>`);
+  return { dir, runDir, note, escaped };
+}
+
+test('HTML 이스케이프된 값도 지운다 — 원문만 찾으면 통째로 샌다', () => {
+  const { dir, runDir, escaped } = makeEscapedSite();
+  run([dir]);
+  const html = fs.readFileSync(path.join(runDir, 'report.html'), 'utf8');
+  assert.ok(!html.includes(escaped), 'data-note 에 이스케이프된 메모가 남아 있다');
+  assert.ok(!html.includes('pool 10-&gt;20'), '부분 문자열이 남아 있다');
+});
+
+test('치환 후 자기 검산이 있다 — 남은 값이 있으면 성공으로 끝내지 않는다', () => {
+  // `--verify` 는 이 검산을 대신하지 못한다. 정화가 끝나면 run.json 이 전부 redacted 라
+  // "원래 무엇을 지워야 했는지"를 복원할 수 없기 때문이다. 지울 값을 아는 시점은
+  // 치환하는 그 순간뿐이므로, 검산도 거기 있어야 한다.
+  const { dir } = makeEscapedSite();
+  const r = run([dir], { allowFail: true });
+  assert.equal(r.code, 0, `정상 정화가 실패했다: ${r.stderr}`);
+  assert.ok(!/게시를 중단합니다/.test(r.stderr));
+});
+
+test('--verify 는 원문이 남아 있는 산출물을 잡는다', () => {
+  // 정화를 건너뛰고 바로 검사하는 경우 — 값이 run.json 에 원문으로 남아 있으므로
+  // 파일 전체 스캔이 그 값을 찾아낸다.
+  const { dir } = makeEscapedSite();
+  const r = run([dir, '--verify'], { allowFail: true });
+  assert.equal(r.code, 1, '정화 전인데 verify 가 통과했다');
+  assert.match(r.stderr, /게시를 중단합니다/);
+});
