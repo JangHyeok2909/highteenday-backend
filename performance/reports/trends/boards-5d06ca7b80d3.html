@@ -135,6 +135,30 @@ tbody tr:last-child td { border-bottom: none; }
 .spark .st { font-size: 12px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .spark .sv { font-size: 19px; font-weight: 650; margin: 2px 0 6px; letter-spacing: -0.01em; }
 .spark svg { display: block; width: 100%; height: 40px; overflow: visible; }
+/* 추세 점의 히트 영역. SVG 안이 아니라 위에 얹는다 — preserveAspectRatio="none" 때문에
+   SVG 안의 원은 카드 폭에 따라 타원으로 찌그러져 클릭 대상이 일정하지 않다.
+   세로 전체를 잡는 이유: 값의 높이를 정확히 맞춰 누르게 하면 아무도 못 누른다. */
+.spark-plot { position: relative; }
+.spark-plot .pt {
+  position: absolute; top: 0; bottom: 0; width: 18px; margin-left: -9px;
+  border-radius: 4px; cursor: pointer;
+}
+.spark-plot span.pt { cursor: default; }
+.spark-plot .pt:hover { background: color-mix(in srgb, var(--series-1) 14%, transparent); }
+.spark-plot .pt.now::after {
+  content: ''; position: absolute; left: 50%; top: -3px; width: 2px; height: 4px;
+  margin-left: -1px; background: var(--ink-muted);
+}
+.spark-plot .pt:focus-visible { outline: 2px solid var(--series-1); outline-offset: 0; }
+#tt {
+  position: fixed; z-index: 20; max-width: 300px; pointer-events: none;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  font-size: 11.5px; line-height: 1.5; box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+}
+#tt b { display: block; font-size: 12px; }
+#tt .m { color: var(--ink-2); }
+#tt .go { color: var(--series-1); }
 .spark .range { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-muted);
                 font-variant-numeric: tabular-nums; margin-top: 3px; }
 
@@ -163,6 +187,13 @@ tbody tr:last-child td { border-bottom: none; }
 .trust-item.ok .trust-v { color: var(--good-text, var(--good)); }
 .trust-item.bad .trust-v { color: var(--critical); }
 .trust-n { color: var(--ink-2); font-size: 11.5px; }
+/* 포화 자원 줄. 정상일 때도 나오므로 경고색을 기본으로 쓰지 않는다 — 그러면 "항상 빨간
+   리포트"가 되어 진짜 경고가 안 보인다. */
+.trust-sat { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--border);
+  font-size: 12px; line-height: 1.55; }
+.trust-sat.ok { color: var(--ink-2); }
+.trust-sat.bad { color: var(--ink); }
+.trust-sat.unknown { color: var(--ink-muted); }
 
 /* ② 요약의 경고 줄 — 전체 p95 가 감추는 것을 상단에서 알린다 */
 .lead { margin-top: 11px; padding: 9px 12px; border-radius: 6px;
@@ -301,11 +332,11 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     </div>
   </section>
   <section><h2>실행 조건 — 이 계열의 정의</h2>
-    <div class="card scroll"><table class="hist-table"><tbody><tr><td style="width:180px"><b>시나리오</b></td><td>boards</td></tr><tr><td style="width:180px"><b>환경</b></td><td>perf</td></tr><tr><td style="width:180px"><b>데이터셋</b></td><td>large (생성 지문 없음 · 상태 미판정(guard off))</td></tr><tr><td style="width:180px"><b>부하 프로파일</b></td><td>—</td></tr><tr><td style="width:180px"><b>부하 발생기</b></td><td>local</td></tr><tr><td style="width:180px"><b>측정 중 대조 벤치</b></td><td>off</td></tr><tr><td style="width:180px"><b>k6 지표 전송</b></td><td>꺼짐</td></tr><tr><td style="width:180px"><b>부하 스크립트</b></td><td>sha256:a054b693181c</td></tr><tr><td style="width:180px"><b>측정 구간 설계</b></td><td>—</td></tr></tbody></table>
+    <div class="card scroll"><table class="hist-table"><tbody><tr><td style="width:180px"><b>시나리오</b></td><td>boards</td></tr><tr><td style="width:180px"><b>환경</b></td><td>perf</td></tr><tr><td style="width:180px"><b>데이터셋</b></td><td>large (생성 지문 없음 · 상태 미판정(guard off))</td></tr><tr><td style="width:180px"><b>부하 프로파일</b></td><td>—</td></tr><tr><td style="width:180px"><b>부하 발생기</b></td><td>local</td></tr><tr><td style="width:180px"><b>측정 중 대조 벤치</b></td><td>off</td></tr><tr><td style="width:180px"><b>k6 지표 전송</b></td><td>꺼짐</td></tr><tr><td style="width:180px"><b>앱 이미지</b></td><td>—</td></tr><tr><td style="width:180px"><b>부하 스크립트</b></td><td>sha256:a054b693181c</td></tr><tr><td style="width:180px"><b>측정 구간 설계</b></td><td>—</td></tr></tbody></table>
     <div class="note">이 조건이 하나라도 다르면 <b>다른 계열</b>이고, 두 계열의 수치를 나란히 놓는 것은
     비교가 아니다. 조건 전체를 해시한 값이 <code>seriesHash</code> 다.</div></div></section>
 
-  <footer>생성 2026-08-31 14:10:52 KST · <code>reports/index.json</code> 기준 ·
+  <footer>생성 2026-09-01 20:42:03 KST · <code>reports/index.json</code> 기준 ·
   계산은 <code>tools/lib/trends.js</code> 가 소유한다</footer>
 </div>
 </body></html>

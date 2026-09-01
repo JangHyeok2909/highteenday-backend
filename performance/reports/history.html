@@ -135,6 +135,30 @@ tbody tr:last-child td { border-bottom: none; }
 .spark .st { font-size: 12px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .spark .sv { font-size: 19px; font-weight: 650; margin: 2px 0 6px; letter-spacing: -0.01em; }
 .spark svg { display: block; width: 100%; height: 40px; overflow: visible; }
+/* 추세 점의 히트 영역. SVG 안이 아니라 위에 얹는다 — preserveAspectRatio="none" 때문에
+   SVG 안의 원은 카드 폭에 따라 타원으로 찌그러져 클릭 대상이 일정하지 않다.
+   세로 전체를 잡는 이유: 값의 높이를 정확히 맞춰 누르게 하면 아무도 못 누른다. */
+.spark-plot { position: relative; }
+.spark-plot .pt {
+  position: absolute; top: 0; bottom: 0; width: 18px; margin-left: -9px;
+  border-radius: 4px; cursor: pointer;
+}
+.spark-plot span.pt { cursor: default; }
+.spark-plot .pt:hover { background: color-mix(in srgb, var(--series-1) 14%, transparent); }
+.spark-plot .pt.now::after {
+  content: ''; position: absolute; left: 50%; top: -3px; width: 2px; height: 4px;
+  margin-left: -1px; background: var(--ink-muted);
+}
+.spark-plot .pt:focus-visible { outline: 2px solid var(--series-1); outline-offset: 0; }
+#tt {
+  position: fixed; z-index: 20; max-width: 300px; pointer-events: none;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  font-size: 11.5px; line-height: 1.5; box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+}
+#tt b { display: block; font-size: 12px; }
+#tt .m { color: var(--ink-2); }
+#tt .go { color: var(--series-1); }
 .spark .range { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-muted);
                 font-variant-numeric: tabular-nums; margin-top: 3px; }
 
@@ -163,6 +187,13 @@ tbody tr:last-child td { border-bottom: none; }
 .trust-item.ok .trust-v { color: var(--good-text, var(--good)); }
 .trust-item.bad .trust-v { color: var(--critical); }
 .trust-n { color: var(--ink-2); font-size: 11.5px; }
+/* 포화 자원 줄. 정상일 때도 나오므로 경고색을 기본으로 쓰지 않는다 — 그러면 "항상 빨간
+   리포트"가 되어 진짜 경고가 안 보인다. */
+.trust-sat { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--border);
+  font-size: 12px; line-height: 1.55; }
+.trust-sat.ok { color: var(--ink-2); }
+.trust-sat.bad { color: var(--ink); }
+.trust-sat.unknown { color: var(--ink-muted); }
 
 /* ② 요약의 경고 줄 — 전체 p95 가 감추는 것을 상단에서 알린다 */
 .lead { margin-top: 11px; padding: 9px 12px; border-radius: 6px;
@@ -241,15 +272,15 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
   <div class="head-top">
     <div class="head-title">
       <h1>Performance History</h1>
-      <div class="sub">85회 실행 · 25개 시나리오 · 최종 2026-08-29 19:45:50 KST</div>
+      <div class="sub">93회 실행 · 25개 시나리오 · 최종 2026-09-01 17:30:16 KST</div>
     </div>
   </div>
   <dl class="meta">
-    <div><dt>총 실행</dt><dd>85</dd></div>
+    <div><dt>총 실행</dt><dd>93</dd></div>
     <div><dt>시나리오</dt><dd>25</dd></div>
-    <div><dt>실패</dt><dd>28</dd></div>
-    <div><dt>경고</dt><dd>35</dd></div>
-    <div><dt>기간</dt><dd style="font-size:12px">2026-08-04 ~ 2026-08-29</dd></div>
+    <div><dt>실패</dt><dd>35</dd></div>
+    <div><dt>경고</dt><dd>36</dd></div>
+    <div><dt>기간</dt><dd style="font-size:12px">2026-08-04 ~ 2026-09-01</dd></div>
   </dl>
 </div></div>
 
@@ -345,9 +376,9 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <td><span class="badge b-WARN">WARN</span></td>
     </tr><tr>
       <td><b>normal-day</b></td>
-      <td class="num">30</td>
-      <td style="font-size:12px">2026-08-29 19:45</td>
-      <td class="num">359ms</td>
+      <td class="num">38</td>
+      <td style="font-size:12px">2026-09-01 17:30</td>
+      <td class="num">223ms</td>
       <td class="num">4.01</td>
       <td><span class="badge b-FAIL">FAIL</span></td>
     </tr><tr>
@@ -471,7 +502,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">여유 · JVM Heap 포화도</div>
       <div class="sv">54.7%</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="JVM Heap 포화도">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L100.00,3.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
@@ -506,7 +537,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">지연 · P95 응답시간</div>
       <div class="sv">14ms</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
-  <path d="M0.00,3.00 L50.00,26.29 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L50.00,26.29 L100.00,37.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,3.00 L50.00,26.29 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
@@ -520,7 +551,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">처리 · TPS</div>
       <div class="sv">0.9/s</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
-  <path d="M0.00,3.00 L50.00,17.42 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L50.00,17.42 L100.00,37.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,3.00 L50.00,17.42 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
@@ -534,7 +565,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">비용 · 요청당 스택 CPU</div>
       <div class="sv">37ms</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="요청당 스택 CPU">
-  <path d="M0.00,3.00 L50.00,37.00 L100.00,23.32 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L50.00,37.00 L100.00,23.32 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,3.00 L50.00,37.00 L100.00,23.32" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="23.32" r="2.6" fill="var(--series-1)"
@@ -548,7 +579,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">여유 · JVM Heap 포화도</div>
       <div class="sv">73.3%</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="JVM Heap 포화도">
-  <path d="M0.00,37.00 L50.00,16.04 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L50.00,16.04 L100.00,3.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L50.00,16.04 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
@@ -563,11 +594,11 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     <a href="trends/boards-a63d426ee0b5.html">근거 보기 →</a></div>
       
     </section><section>
-      <h2>normal-day <span class="sub" style="font-weight:400">(17회)</span>
+      <h2>normal-day <span class="sub" style="font-weight:400">(18회)</span>
         <a class="drill" href="trends/normal-day-bfa06492dbb5.html">상세 조사 →</a></h2>
       <div class="sub" style="margin:-6px 0 12px">데이터셋 medium (생성 sha256:aae4bccfae5e · 상태 sha256:ffe696d17416) · ramping-arrival-rate 0→4@3m0s→4@5m0s→0@2m0s maxVU 600 · 계열 <code>bfa06492dbb5</code></div>
       <div class="regime">
-    <div class="rg-row"><i class="rg-headroom" title="#109 2026-08-20 13:39 · 체제 여유 · p95 305ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#110 2026-08-20 13:52 · 체제 여유 · p95 252ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#111 2026-08-20 14:04 · 체제 여유 · p95 276ms · 도착률 달성 100%"></i><i class="rg-near_limit rg-queued" title="#113 2026-08-20 16:06 · 체제 한계 근처 · p95 784ms · ⚠ 커넥션 대기 최대 21 · 도착률 달성 101%"></i><i class="rg-headroom" title="#114 2026-08-20 16:19 · 체제 여유 · p95 358ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#116 2026-08-20 20:32 · 체제 여유 · p95 425ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#117 2026-08-20 20:44 · 체제 여유 · p95 286ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#118 2026-08-20 20:58 · 체제 여유 · p95 376ms · 도착률 달성 99%"></i><i class="rg-headroom" title="#119 2026-08-20 21:10 · 체제 여유 · p95 368ms · 도착률 달성 100%"></i><i class="rg-near_limit rg-queued" title="#124 2026-08-25 19:59 · 체제 한계 근처 · p95 1.06s · ⚠ 커넥션 대기 최대 29 · 도착률 달성 99%"></i><i class="rg-headroom" title="#125 2026-08-25 20:12 · 체제 여유 · p95 430ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#126 2026-08-25 20:24 · 체제 여유 · p95 583ms · 도착률 달성 101%"></i><i class="rg-headroom" title="#127 2026-08-26 08:43 · 체제 여유 · p95 388ms · 도착률 달성 100%"></i><i class="rg-near_limit rg-queued" title="#128 2026-08-26 08:56 · 체제 한계 근처 · p95 921ms · ⚠ 커넥션 대기 최대 20 · 도착률 달성 100%"></i><i class="rg-headroom" title="#129 2026-08-26 09:09 · 체제 여유 · p95 345ms · 도착률 달성 99%"></i><i class="rg-headroom" title="#130 2026-08-26 09:21 · 체제 여유 · p95 335ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#131 2026-08-26 09:34 · 체제 여유 · p95 306ms · 도착률 달성 101%"></i></div>
+    <div class="rg-row"><i class="rg-headroom" title="#109 2026-08-20 13:39 · 체제 여유 · p95 305ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#110 2026-08-20 13:52 · 체제 여유 · p95 252ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#111 2026-08-20 14:04 · 체제 여유 · p95 276ms · 도착률 달성 100%"></i><i class="rg-near_limit rg-queued" title="#113 2026-08-20 16:06 · 체제 한계 근처 · p95 784ms · ⚠ 커넥션 대기 최대 21 · 도착률 달성 101%"></i><i class="rg-headroom" title="#114 2026-08-20 16:19 · 체제 여유 · p95 358ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#116 2026-08-20 20:32 · 체제 여유 · p95 425ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#117 2026-08-20 20:44 · 체제 여유 · p95 286ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#118 2026-08-20 20:58 · 체제 여유 · p95 376ms · 도착률 달성 99%"></i><i class="rg-headroom" title="#119 2026-08-20 21:10 · 체제 여유 · p95 368ms · 도착률 달성 100%"></i><i class="rg-near_limit rg-queued" title="#124 2026-08-25 19:59 · 체제 한계 근처 · p95 1.06s · ⚠ 커넥션 대기 최대 29 · 도착률 달성 99%"></i><i class="rg-headroom" title="#125 2026-08-25 20:12 · 체제 여유 · p95 430ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#126 2026-08-25 20:24 · 체제 여유 · p95 583ms · 도착률 달성 101%"></i><i class="rg-headroom" title="#127 2026-08-26 08:43 · 체제 여유 · p95 388ms · 도착률 달성 100%"></i><i class="rg-near_limit rg-queued" title="#128 2026-08-26 08:56 · 체제 한계 근처 · p95 921ms · ⚠ 커넥션 대기 최대 20 · 도착률 달성 100%"></i><i class="rg-headroom" title="#129 2026-08-26 09:09 · 체제 여유 · p95 345ms · 도착률 달성 99%"></i><i class="rg-headroom" title="#130 2026-08-26 09:21 · 체제 여유 · p95 335ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#131 2026-08-26 09:34 · 체제 여유 · p95 306ms · 도착률 달성 101%"></i><i class="rg-headroom" title="#136 2026-08-31 20:55 · 체제 여유 · p95 351ms · 도착률 달성 100%"></i></div>
     <div class="rg-legend">
       <span><i class="rg-headroom"></i> 여유</span>
       <span><i class="rg-near_limit"></i> 한계 근처</span>
@@ -581,70 +612,155 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
   </div>
       <div class="sparks sparks-4"><div class="spark">
       <div class="st">지연 · P99 응답시간</div>
-      <div class="sv">1.77s</div>
+      <div class="sv">2.19s</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P99 응답시간">
-  <path d="M0.00,34.02 L6.25,35.81 L12.50,34.41 L18.75,24.77 L25.00,33.86 L31.25,27.68 L37.50,30.63 L43.75,31.59 L50.00,29.42 L56.25,3.00 L62.50,28.00 L68.75,26.67 L75.00,29.38 L81.25,27.49 L87.50,37.00 L93.75,34.31 L100.00,35.41 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,34.02 L6.25,35.81 L12.50,34.41 L18.75,24.77 L25.00,33.86 L31.25,27.68 L37.50,30.63 L43.75,31.59 L50.00,29.42 L56.25,3.00 L62.50,28.00 L68.75,26.67 L75.00,29.38 L81.25,27.49 L87.50,37.00 L93.75,34.31 L100.00,35.41" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+  <path d="M0.00,34.02 L5.88,35.81 L11.76,34.41 L17.65,24.77 L23.53,33.86 L29.41,27.68 L35.29,30.63 L41.18,31.59 L47.06,29.42 L52.94,3.00 L58.82,28.00 L64.71,26.67 L70.59,29.38 L76.47,27.49 L82.35,37.00 L88.24,34.31 L94.12,35.41 L100.00,28.74 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,34.02 L5.88,35.81 L11.76,34.41 L17.65,24.77 L23.53,33.86 L29.41,27.68 L35.29,30.63 L41.18,31.59 L47.06,29.42 L52.94,3.00 L58.82,28.00 L64.71,26.67 L70.59,29.38 L76.47,27.49 L82.35,37.00 L88.24,34.31 L94.12,35.41 L100.00,28.74" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="35.41" r="2.6" fill="var(--series-1)"
+  <circle cx="100.00" cy="28.74" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
       <div class="range">
-        <span>n=17 · CV 22.7%</span>
-        <span><span class="d-bad">▲ +10.7%</span></span>
+        <span>n=18 · CV 22.0%</span>
+        <span><span class="d-bad">▲ +8.8%</span></span>
       </div>
     </div><div class="spark">
       <div class="st">처리 · TPS</div>
       <div class="sv">4.0/s</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
-  <path d="M0.00,22.43 L6.25,30.52 L12.50,15.95 L18.75,6.24 L25.00,14.33 L31.25,22.43 L37.50,20.81 L43.75,33.76 L50.00,32.14 L56.25,33.76 L62.50,32.14 L68.75,11.10 L75.00,19.19 L81.25,24.05 L87.50,37.00 L93.75,24.05 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,22.43 L6.25,30.52 L12.50,15.95 L18.75,6.24 L25.00,14.33 L31.25,22.43 L37.50,20.81 L43.75,33.76 L50.00,32.14 L56.25,33.76 L62.50,32.14 L68.75,11.10 L75.00,19.19 L81.25,24.05 L87.50,37.00 L93.75,24.05 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+  <path d="M0.00,22.43 L5.88,30.52 L11.76,15.95 L17.65,6.24 L23.53,14.33 L29.41,22.43 L35.29,20.81 L41.18,33.76 L47.06,32.14 L52.94,33.76 L58.82,32.14 L64.71,11.10 L70.59,19.19 L76.47,24.05 L82.35,37.00 L88.24,24.05 L94.12,3.00 L100.00,15.95 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,22.43 L5.88,30.52 L11.76,15.95 L17.65,6.24 L23.53,14.33 L29.41,22.43 L35.29,20.81 L41.18,33.76 L47.06,32.14 L52.94,33.76 L58.82,32.14 L64.71,11.10 L70.59,19.19 L76.47,24.05 L82.35,37.00 L88.24,24.05 L94.12,3.00 L100.00,15.95" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="15.95" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+      <div class="range">
+        <span>n=18 · CV 0.5%</span>
+        <span><span class="d-flat">▼ -0.1%</span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">비용 · 요청당 스택 CPU</div>
+      <div class="sv">81ms</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="요청당 스택 CPU">
+  <path d="M0.00,33.04 L5.88,33.60 L11.76,33.25 L17.65,11.85 L23.53,25.85 L29.41,12.14 L35.29,27.90 L41.18,27.01 L47.06,19.89 L52.94,3.00 L58.82,14.84 L64.71,8.06 L70.59,20.50 L76.47,19.78 L82.35,37.00 L88.24,33.96 L94.12,29.87 L100.00,21.84 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,33.04 L5.88,33.60 L11.76,33.25 L17.65,11.85 L23.53,25.85 L29.41,12.14 L35.29,27.90 L41.18,27.01 L47.06,19.89 L52.94,3.00 L58.82,14.84 L64.71,8.06 L70.59,20.50 L76.47,19.78 L82.35,37.00 L88.24,33.96 L94.12,29.87 L100.00,21.84" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="21.84" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+      <div class="range">
+        <span>n=18 · CV 11.2%</span>
+        <span><span class="d-bad">▲ +7.6%</span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">여유 · JVM Heap 포화도</div>
+      <div class="sv">76.0%</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="JVM Heap 포화도">
+  <path d="M0.00,16.47 L5.88,24.70 L11.76,9.30 L17.65,21.94 L23.53,13.96 L29.41,33.88 L35.29,7.82 L41.18,3.00 L47.06,37.00 L52.94,14.22 L58.82,19.01 L64.71,4.40 L70.59,28.84 L76.47,14.77 L82.35,10.96 L88.24,7.14 L94.12,7.95 L100.00,12.25 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,16.47 L5.88,24.70 L11.76,9.30 L17.65,21.94 L23.53,13.96 L29.41,33.88 L35.29,7.82 L41.18,3.00 L47.06,37.00 L52.94,14.22 L58.82,19.01 L64.71,4.40 L70.59,28.84 L76.47,14.77 L82.35,10.96 L88.24,7.14 L94.12,7.95 L100.00,12.25" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="12.25" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+      <div class="range">
+        <span>n=18 · CV 2.5%</span>
+        <span><span class="d-flat">▲ +1.1%</span></span>
+      </div>
+    </div></div>
+      <div class="verdict-line"><b>실패 축</b> 18/18회 <b>P99 응답시간</b> <span class="d-bad">절대 게이트</span> <span style="color:var(--ink-muted)">외 4개</span><span class="sep">|</span><b>검출 한계</b> MDE <b>10.7%</b> (P99 응답시간 · 대기 발생 회차 제외 n=15) · 10% 개선 검출에 18회 필요
+    <a href="trends/normal-day-bfa06492dbb5.html">근거 보기 →</a></div>
+      <div class="card" style="margin-top:14px">
+        <b>누적 저하 감지</b>
+        <div class="note" style="border-color:var(--serious)">
+          최근 18회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>CPU 포화도</b> 46.0% → 52.6% (+14.2%)<br>· <b>평균 응답시간</b> 75ms → 86ms (+13.4%)
+          <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
+          <a href="trends/normal-day-bfa06492dbb5.html">상세 조사에서 회차별로 확인 →</a>
+        </div>
+      </div>
+    </section><section>
+      <h2>normal-day <span class="sub" style="font-weight:400">(5회)</span>
+        <a class="drill" href="trends/normal-day-728f4d964681.html">상세 조사 →</a></h2>
+      <div class="sub" style="margin:-6px 0 12px">데이터셋 medium (생성 sha256:24ddff07519b · 상태 sha256:aeac5bdd4b04) · ramping-arrival-rate 0→4@3m0s→4@5m0s→0@2m0s maxVU 600 · 계열 <code>728f4d964681</code></div>
+      <div class="regime">
+    <div class="rg-row"><i class="rg-headroom" title="#138 2026-09-01 16:11 · 체제 여유 · p95 257ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#139 2026-09-01 16:23 · 체제 여유 · p95 237ms · 도착률 달성 99%"></i><i class="rg-headroom" title="#140 2026-09-01 16:35 · 체제 여유 · p95 180ms · 도착률 달성 99%"></i><i class="rg-headroom" title="#141 2026-09-01 16:47 · 체제 여유 · p95 238ms · 도착률 달성 100%"></i><i class="rg-headroom" title="#142 2026-09-01 17:30 · 체제 여유 · p95 223ms · 도착률 달성 100%"></i></div>
+    <div class="rg-legend">
+      <span><i class="rg-headroom"></i> 여유</span>
+      <span><i class="rg-near_limit"></i> 한계 근처</span>
+      <span><i class="rg-saturated"></i> 포화</span>
+      <span><i class="rg-unassessed"></i> 미판정</span>
+      <span><i class="rg-headroom rg-queued"></i> 커넥션 대기 발생</span>
+      <span><i class="rg-headroom rg-unmeasured"></i> 측정 불가</span>
+      <span style="margin-left:auto;color:var(--ink-muted)">← 오래된 순 · 마우스를 올리면 상세</span>
+    </div>
+    
+  </div>
+      <div class="sparks sparks-4"><div class="spark">
+      <div class="st">지연 · P99 응답시간</div>
+      <div class="sv">1.78s</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P99 응답시간">
+  <path d="M0.00,16.65 L25.00,10.69 L50.00,37.00 L75.00,3.00 L100.00,28.51 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,16.65 L25.00,10.69 L50.00,37.00 L75.00,3.00 L100.00,28.51" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+        vector-effect="non-scaling-stroke"/>
+  <circle cx="100.00" cy="28.51" r="2.6" fill="var(--series-1)"
+          stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+      <div class="range">
+        <span>n=5 · CV 3.9%</span>
+        <span><span class="d-good">▼ -4.1%</span></span>
+      </div>
+    </div><div class="spark">
+      <div class="st">처리 · TPS</div>
+      <div class="sv">4.0/s</div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+  <path d="M0.00,15.00 L25.00,35.00 L50.00,37.00 L75.00,7.00 L100.00,3.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,15.00 L25.00,35.00 L50.00,37.00 L75.00,7.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
       <div class="range">
-        <span>n=17 · CV 0.5%</span>
-        <span><span class="d-flat">▼ -0.1%</span></span>
+        <span>n=5 · CV 0.7%</span>
+        <span><span class="d-flat">▲ +0.8%</span></span>
       </div>
     </div><div class="spark">
       <div class="st">비용 · 요청당 스택 CPU</div>
-      <div class="sv">74ms</div>
+      <div class="sv">66ms</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="요청당 스택 CPU">
-  <path d="M0.00,33.04 L6.25,33.60 L12.50,33.25 L18.75,11.85 L25.00,25.85 L31.25,12.14 L37.50,27.90 L43.75,27.01 L50.00,19.89 L56.25,3.00 L62.50,14.84 L68.75,8.06 L75.00,20.50 L81.25,19.78 L87.50,37.00 L93.75,33.96 L100.00,29.87 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,33.04 L6.25,33.60 L12.50,33.25 L18.75,11.85 L25.00,25.85 L31.25,12.14 L37.50,27.90 L43.75,27.01 L50.00,19.89 L56.25,3.00 L62.50,14.84 L68.75,8.06 L75.00,20.50 L81.25,19.78 L87.50,37.00 L93.75,33.96 L100.00,29.87" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+  <path d="M0.00,14.26 L25.00,3.00 L50.00,37.00 L75.00,3.65 L100.00,23.37 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,14.26 L25.00,3.00 L50.00,37.00 L75.00,3.65 L100.00,23.37" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="29.87" r="2.6" fill="var(--series-1)"
+  <circle cx="100.00" cy="23.37" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
       <div class="range">
-        <span>n=17 · CV 11.5%</span>
-        <span><span class="d-bad">▲ +8.9%</span></span>
+        <span>n=5 · CV 8.3%</span>
+        <span><span class="d-good">▼ -8.2%</span></span>
       </div>
     </div><div class="spark">
       <div class="st">여유 · JVM Heap 포화도</div>
-      <div class="sv">76.8%</div>
+      <div class="sv">71.7%</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="JVM Heap 포화도">
-  <path d="M0.00,16.47 L6.25,24.70 L12.50,9.30 L18.75,21.94 L25.00,13.96 L31.25,33.88 L37.50,7.82 L43.75,3.00 L50.00,37.00 L56.25,14.22 L62.50,19.01 L68.75,4.40 L75.00,28.84 L81.25,14.77 L87.50,10.96 L93.75,7.14 L100.00,7.95 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
-  <path d="M0.00,16.47 L6.25,24.70 L12.50,9.30 L18.75,21.94 L25.00,13.96 L31.25,33.88 L37.50,7.82 L43.75,3.00 L50.00,37.00 L56.25,14.22 L62.50,19.01 L68.75,4.40 L75.00,28.84 L81.25,14.77 L87.50,10.96 L93.75,7.14 L100.00,7.95" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+  <path d="M0.00,37.00 L25.00,4.92 L50.00,9.10 L75.00,3.00 L100.00,11.35 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L25.00,4.92 L50.00,9.10 L75.00,3.00 L100.00,11.35" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
-  <circle cx="100.00" cy="7.95" r="2.6" fill="var(--series-1)"
+  <circle cx="100.00" cy="11.35" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
 </svg>
       <div class="range">
-        <span>n=17 · CV 2.6%</span>
-        <span><span class="d-flat">▲ +0.3%</span></span>
+        <span>n=5 · CV 12.0%</span>
+        <span><span class="d-bad">▲ +11.1%</span></span>
       </div>
     </div></div>
-      <div class="verdict-line"><b>실패 축</b> 17/17회 <b>P99 응답시간</b> <span class="d-bad">절대 게이트</span> <span style="color:var(--ink-muted)">외 4개</span><span class="sep">|</span><b>검출 한계</b> MDE <b>11.2%</b> (P99 응답시간 · 대기 발생 회차 제외 n=14) · 10% 개선 검출에 18회 필요
-    <a href="trends/normal-day-bfa06492dbb5.html">근거 보기 →</a></div>
+      <div class="verdict-line"><b>실패 축</b> 5/5회 <b>P99 응답시간</b> <span class="d-bad">절대 게이트</span><span class="sep">|</span><b>검출 한계</b> MDE <b>6.9%</b> (P99 응답시간 · 전체 n=5) · 10% 개선 검출에 3회 필요
+    <a href="trends/normal-day-728f4d964681.html">근거 보기 →</a></div>
       <div class="card" style="margin-top:14px">
         <b>누적 저하 감지</b>
         <div class="note" style="border-color:var(--serious)">
-          최근 17회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
-          · <b>평균 응답시간</b> 75ms → 91ms (+22.1%)<br>· <b>P95 응답시간</b> 332ms → 388ms (+17.1%)<br>· <b>CPU 포화도</b> 46.0% → 52.6% (+14.3%)<br>· <b>P99 응답시간</b> 1.94s → 2.15s (+10.7%)
+          최근 5회를 전반/후반으로 나눠 중앙값을 비교했을 때 다음 지표가 나빠지는 방향입니다:<br>
+          · <b>Heap 최대</b> 674 MB → 749 MB (+11.1%)
           <br><br>개별 실행 판정은 통과했더라도 방향이 일관되면 구조적 저하입니다.
-          <a href="trends/normal-day-bfa06492dbb5.html">상세 조사에서 회차별로 확인 →</a>
+          <a href="trends/normal-day-728f4d964681.html">상세 조사에서 회차별로 확인 →</a>
         </div>
       </div>
     </section><section>
@@ -668,7 +784,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">지연 · 평균 응답시간</div>
       <div class="sv">59ms</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
-  <path d="M0.00,3.00 L50.00,29.47 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L50.00,29.47 L100.00,37.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,3.00 L50.00,29.47 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
@@ -682,7 +798,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">처리 · TPS</div>
       <div class="sv">0.5/s</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L50.00,3.00 L100.00,37.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L50.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
@@ -696,7 +812,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">비용 · 요청당 스택 CPU</div>
       <div class="sv">135ms</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="요청당 스택 CPU">
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,19.20 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L50.00,3.00 L100.00,19.20 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L50.00,3.00 L100.00,19.20" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="19.20" r="2.6" fill="var(--series-1)"
@@ -710,7 +826,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">여유 · JVM Heap 포화도</div>
       <div class="sv">73.8%</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="JVM Heap 포화도">
-  <path d="M0.00,20.43 L50.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,20.43 L50.00,37.00 L100.00,3.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,20.43 L50.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
@@ -745,7 +861,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">지연 · P99 응답시간</div>
       <div class="sv">2.13s</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P99 응답시간">
-  <path d="M0.00,19.56 L50.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,19.56 L50.00,3.00 L100.00,37.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,19.56 L50.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
@@ -759,7 +875,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">처리 · TPS</div>
       <div class="sv">4.0/s</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,8.67 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L50.00,3.00 L100.00,8.67 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L50.00,3.00 L100.00,8.67" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="8.67" r="2.6" fill="var(--series-1)"
@@ -773,7 +889,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">비용 · 요청당 스택 CPU</div>
       <div class="sv">78ms</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="요청당 스택 CPU">
-  <path d="M0.00,16.70 L50.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,16.70 L50.00,3.00 L100.00,37.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,16.70 L50.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
@@ -787,7 +903,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">여유 · JVM Heap 포화도</div>
       <div class="sv">77.4%</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="JVM Heap 포화도">
-  <path d="M0.00,11.88 L50.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,11.88 L50.00,37.00 L100.00,3.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,11.88 L50.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
@@ -822,7 +938,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">지연 · P95 응답시간</div>
       <div class="sv">10.00s</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
-  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L100.00,37.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
@@ -836,7 +952,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">처리 · TPS</div>
       <div class="sv">6.5/s</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L100.00,3.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
@@ -850,7 +966,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">비용 · 요청당 스택 CPU</div>
       <div class="sv">125ms</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="요청당 스택 CPU">
-  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L100.00,37.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
@@ -864,7 +980,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">여유 · CPU 포화도</div>
       <div class="sv">100.1%</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L100.00,3.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
@@ -911,7 +1027,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">여유 · HikariCP 포화도</div>
       <div class="sv">100.0%</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="HikariCP 포화도">
-  <path d="M0.00,37.00 L11.11,37.00 L22.22,37.00 L33.33,37.00 L44.44,29.44 L55.56,3.00 L66.67,3.00 L77.78,3.00 L88.89,3.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L11.11,37.00 L22.22,37.00 L33.33,37.00 L44.44,29.44 L55.56,3.00 L66.67,3.00 L77.78,3.00 L88.89,3.00 L100.00,3.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L11.11,37.00 L22.22,37.00 L33.33,37.00 L44.44,29.44 L55.56,3.00 L66.67,3.00 L77.78,3.00 L88.89,3.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
@@ -954,7 +1070,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">지연 · P95 응답시간</div>
       <div class="sv">1.91s</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,24.42 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L50.00,3.00 L100.00,24.42 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L50.00,3.00 L100.00,24.42" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="24.42" r="2.6" fill="var(--series-1)"
@@ -968,7 +1084,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">처리 · TPS</div>
       <div class="sv">1.0/s</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,26.15 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L50.00,3.00 L100.00,26.15 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L50.00,3.00 L100.00,26.15" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="26.15" r="2.6" fill="var(--series-1)"
@@ -986,7 +1102,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">여유 · CPU 포화도</div>
       <div class="sv">72.9%</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
-  <path d="M0.00,37.00 L50.00,3.00 L100.00,13.69 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L50.00,3.00 L100.00,13.69 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L50.00,3.00 L100.00,13.69" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="13.69" r="2.6" fill="var(--series-1)"
@@ -1033,7 +1149,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">여유 · CPU 포화도</div>
       <div class="sv">69.1%</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
-  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L100.00,37.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
@@ -1080,7 +1196,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">여유 · JVM Heap 포화도</div>
       <div class="sv">57.2%</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="JVM Heap 포화도">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L100.00,3.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
@@ -1115,7 +1231,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">지연 · P95 응답시간</div>
       <div class="sv">51ms</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L100.00,3.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
@@ -1129,7 +1245,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">처리 · TPS</div>
       <div class="sv">0.4/s</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
-  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L100.00,37.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
@@ -1143,7 +1259,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">비용 · 요청당 스택 CPU</div>
       <div class="sv">76ms</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="요청당 스택 CPU">
-  <path d="M0.00,3.00 L100.00,37.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,3.00 L100.00,37.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,3.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
@@ -1157,7 +1273,7 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
       <div class="st">여유 · JVM Heap 포화도</div>
       <div class="sv">52.6%</div>
       <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="JVM Heap 포화도">
-  <path d="M0.00,37.00 L100.00,3.00 L100,40 L0,40 Z" fill="var(--series-1)" opacity="0.10"/>
+  <path d="M0.00,37.00 L100.00,3.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L100.00,3.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="3.00" r="2.6" fill="var(--series-1)"
@@ -1183,6 +1299,158 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
         <th class="num">Heap</th><th class="num">Slow</th><th>체제</th><th>판정</th><th>실패 축</th>
       </tr></thead>
       <tbody><tr>
+      <td class="num">142</td>
+      <td><a href="runs/normal-day-2026-09-01T08-40-27/report.html">normal-day</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">b2dbfbe2</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">personal/localdocs</td>
+      <td style="font-size:12px;white-space:nowrap">2026-09-01 17:30</td>
+      <td class="num">100</td>
+      <td class="num">61ms</td>
+      <td class="num">223ms</td>
+      <td class="num">1.78s</td>
+      <td class="num">4.01</td>
+      <td class="num">0.00%</td>
+      <td class="num">36%</td>
+      <td class="num">735 MB</td>
+      <td class="num">675</td>
+      <td><span class="d-good">여유</span></td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+      <td style="font-size:11.5px;color:var(--ink-2)">P99 응답시간*</td>
+    </tr><tr>
+      <td class="num">141</td>
+      <td><a href="runs/normal-day-2026-09-01T07-58-04/report.html">normal-day</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">b2dbfbe2</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">personal/localdocs</td>
+      <td style="font-size:12px;white-space:nowrap">2026-09-01 16:47</td>
+      <td class="num">100</td>
+      <td class="num">68ms</td>
+      <td class="num">238ms</td>
+      <td class="num">1.91s</td>
+      <td class="num">4.01</td>
+      <td class="num">0.00%</td>
+      <td class="num">35%</td>
+      <td class="num">787 MB</td>
+      <td class="num">645</td>
+      <td><span class="d-good">여유</span></td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+      <td style="font-size:11.5px;color:var(--ink-2)">P99 응답시간*</td>
+    </tr><tr>
+      <td class="num">140</td>
+      <td><a href="runs/normal-day-2026-09-01T07-45-52/report.html">normal-day</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">b2dbfbe2</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">personal/localdocs</td>
+      <td style="font-size:12px;white-space:nowrap">2026-09-01 16:35</td>
+      <td class="num">100</td>
+      <td class="num">55ms</td>
+      <td class="num">180ms</td>
+      <td class="num">1.74s</td>
+      <td class="num">3.96</td>
+      <td class="num">0.00%</td>
+      <td class="num">32%</td>
+      <td class="num">749 MB</td>
+      <td class="num">653</td>
+      <td><span class="d-good">여유</span></td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+      <td style="font-size:11.5px;color:var(--ink-2)">P99 응답시간*</td>
+    </tr><tr>
+      <td class="num">139</td>
+      <td><a href="runs/normal-day-2026-09-01T07-33-47/report.html">normal-day</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">b2dbfbe2</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">personal/localdocs</td>
+      <td style="font-size:12px;white-space:nowrap">2026-09-01 16:23</td>
+      <td class="num">100</td>
+      <td class="num">69ms</td>
+      <td class="num">237ms</td>
+      <td class="num">1.87s</td>
+      <td class="num">3.96</td>
+      <td class="num">0.00%</td>
+      <td class="num">40%</td>
+      <td class="num">775 MB</td>
+      <td class="num">653</td>
+      <td><span class="d-good">여유</span></td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+      <td style="font-size:11.5px;color:var(--ink-2)">P99 응답시간*</td>
+    </tr><tr>
+      <td class="num">138</td>
+      <td><a href="runs/normal-day-2026-09-01T07-21-36/report.html">normal-day</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">7d75649e</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">personal/localdocs</td>
+      <td style="font-size:12px;white-space:nowrap">2026-09-01 16:11</td>
+      <td class="num">100</td>
+      <td class="num">66ms</td>
+      <td class="num">257ms</td>
+      <td class="num">1.84s</td>
+      <td class="num">3.99</td>
+      <td class="num">0.00%</td>
+      <td class="num">36%</td>
+      <td class="num">572 MB</td>
+      <td class="num">668</td>
+      <td><span class="d-good">여유</span></td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+      <td style="font-size:11.5px;color:var(--ink-2)">P99 응답시간*</td>
+    </tr><tr>
+      <td class="num">137</td>
+      <td><a href="runs/normal-day-2026-09-01T06-37-24/report.html">normal-day</a></td>
+      <td>perf-smoke</td>
+      <td><code style="font-size:11px">7d75649e</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">personal/localdocs</td>
+      <td style="font-size:12px;white-space:nowrap">2026-09-01 15:33</td>
+      <td class="num">100</td>
+      <td class="num">15ms</td>
+      <td class="num">45ms</td>
+      <td class="num">84ms</td>
+      <td class="num">3.77</td>
+      <td class="num">0.42%</td>
+      <td class="num">26%</td>
+      <td class="num">625 MB</td>
+      <td class="num">144</td>
+      <td><span class="d-flat">한계 근처</span></td>
+      <td><span class="badge b-WARN">! WARN</span></td>
+      <td style="font-size:11.5px;color:var(--ink-2)">—</td>
+    </tr><tr>
+      <td class="num">136</td>
+      <td><a href="runs/normal-day-2026-08-31T12-05-25/report.html">normal-day</a></td>
+      <td>perf</td>
+      <td><code style="font-size:11px">37683622</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">personal/localdocs</td>
+      <td style="font-size:12px;white-space:nowrap">2026-08-31 20:55</td>
+      <td class="num">100</td>
+      <td class="num">82ms</td>
+      <td class="num">351ms</td>
+      <td class="num">2.19s</td>
+      <td class="num">4.01</td>
+      <td class="num">0.00%</td>
+      <td class="num">51%</td>
+      <td class="num">778 MB</td>
+      <td class="num">758</td>
+      <td><span class="d-good">여유</span></td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+      <td style="font-size:11.5px;color:var(--ink-2)">P99 응답시간*</td>
+    </tr><tr>
+      <td class="num">135</td>
+      <td><a href="runs/normal-day-2026-08-31T08-35-17/report.html">normal-day</a></td>
+      <td>perf-smoke</td>
+      <td><code style="font-size:11px">37683622</code></td>
+      <td style="font-size:12px;color:var(--ink-2)">personal/localdocs</td>
+      <td style="font-size:12px;white-space:nowrap">2026-08-31 17:31</td>
+      <td class="num">100</td>
+      <td class="num">432ms</td>
+      <td class="num">954ms</td>
+      <td class="num">12.16s</td>
+      <td class="num">1.00</td>
+      <td class="num">0.00%</td>
+      <td class="num">60%</td>
+      <td class="num">687 MB</td>
+      <td class="num">59</td>
+      <td><span class="d-flat">한계 근처</span></td>
+      <td><span class="badge b-FAIL">✕ FAIL</span></td>
+      <td style="font-size:11.5px;color:var(--ink-2)">P95 응답시간*, P99 응답시간*</td>
+    </tr><tr>
       <td class="num">134</td>
       <td><a href="runs/normal-day-2026-08-29T10-56-00/report.html">normal-day</a></td>
       <td>perf-pool20</td>
@@ -2809,6 +3077,6 @@ footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--b
     </div>
   </section>
 
-  <footer>생성 2026-08-31 14:10:52 KST · <code>reports/index.json</code> 기준</footer>
+  <footer>생성 2026-09-01 20:42:03 KST · <code>reports/index.json</code> 기준</footer>
 </div>
 </body></html>
