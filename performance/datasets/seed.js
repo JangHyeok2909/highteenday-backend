@@ -64,6 +64,7 @@ const path = require('path');
 // `crypto.createHash is not a function`으로 죽어, 생성한 데이터는 DB에 남았는데
 // 산출물 JSON은 하나도 안 써진 상태가 된다(실측).
 const crypto = require('crypto');
+const { execFileSync } = require('child_process');
 
 // Node 18 미만에는 전역 fetch가 없다. 가드가 없으면 수백 건의
 // "fetch is not defined"가 개별 요청 실패로 찍히다가 마지막에 엉뚱한
@@ -84,6 +85,31 @@ const args = process.argv.slice(2);
 function arg(name, def) {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? args[i + 1] : def;
+}
+/*
+ * 알 수 없는 위치 인자는 **조용히 무시하지 않는다.**
+ *
+ * 프로파일은 `--profile smoke` 로 준다. 예전에는 `seed.js smoke` 라고 쓰면 그 인자가
+ * 아무 데도 안 걸려 기본값 `small` 로 돌았고, 로그의 첫 줄이 "프로파일: small" 이라고
+ * 말하는데도 사람은 자기가 시킨 대로 돌고 있다고 믿었다. 실제로 그 실행이 large 볼륨에
+ * small 데이터를 부었다(2026-09-01).
+ *
+ * 플래그 값으로 소비되는 자리는 제외해야 하므로, 값을 받는 플래그 목록을 안다.
+ */
+const VALUE_FLAGS = ['profile', 'base', 'concurrency', 'on-failure', 'tolerance'];
+{
+  const consumed = new Set();
+  args.forEach((a, i) => {
+    if (a.startsWith('--') && VALUE_FLAGS.includes(a.slice(2))) consumed.add(i + 1);
+  });
+  const stray = args.filter((a, i) => !a.startsWith('--') && !consumed.has(i));
+  if (stray.length) {
+    console.error(`
+✗ 알 수 없는 인자: ${stray.join(' ')}`);
+    console.error('  프로파일은 --profile 로 준다. 예: node datasets/seed.js --profile smoke');
+    console.error('  위치 인자를 무시하고 기본 프로파일로 도는 것이 과거에 데이터셋 오염으로 이어졌다.');
+    process.exit(2);
+  }
 }
 const PROFILE_NAME = arg('profile', 'small');
 const BASE = arg('base', 'http://localhost:18080');
@@ -1327,8 +1353,62 @@ function buildMeta(users, posts, boards, stageResults) {
 
 // ---------- 메인 ----------
 
+/**
+ * 지금 떠 있는 MySQL 이 **이 프로파일의 볼륨**인지 확인한다.
+ *
+ * 왜 여기에도 있는가 — `bootstrap.js` 에 이미 같은 검문이 있다. 그런데 그건
+ * `bootstrap.js` 를 거쳤을 때만 돈다. `seed.js` 를 직접 부르면 세 겹의 보호
+ * (볼륨 일치·게시판 선삽입·중복 시드 차단)를 전부 우회한다.
+ *
+ * 실제로 그렇게 오염시켰다(2026-09-01). `.env.perf` 의 `DATASET_PROFILE` 이 large 인
+ * 상태에서 `node datasets/seed.js smoke` 를 실행했다. 프로파일 인자는 `--profile` 이라
+ * 위치 인자 `smoke` 는 조용히 무시됐고 기본값 `small` 로 돌았으며, 그 결과가 **large
+ * 볼륨**에 들어갔다(게시글 +507, 댓글 +1,465). 스냅샷으로 되돌렸지만 되돌릴 수단이
+ * 없었다면 수 시간짜리 데이터셋을 다시 만들어야 했다.
+ *
+ * 환경변수를 믿지 않는 이유: `DATASET_PROFILE` 은 `.env.perf` 안에 있어 셸 환경에는
+ * 없다. 지금 떠 있는 컨테이너의 마운트를 직접 조회하는 것이 유일하게 속지 않는 방법이다.
+ *
+ * `--no-volume-check` 로 끌 수 있다. 컨테이너 이름이 다른 환경(원격 DB 등)을 막지
+ * 않기 위한 탈출구이며, 껐다는 사실은 로그에 남긴다.
+ */
+function assertVolumeMatchesProfile() {
+  if (args.includes('--no-volume-check')) {
+    console.log('  ⚠ 볼륨 검사를 건너뛴다(--no-volume-check) — 어느 볼륨에 쓰는지 직접 확인할 것');
+    return;
+  }
+  const container = process.env.PERF_MYSQL_CONTAINER || 'perf-mysql';
+  let mounted;
+  try {
+    mounted = execFileSync('docker', ['inspect', container, '--format',
+      '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{.Name}}{{end}}{{end}}'],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch (e) {
+    // docker 가 없거나 컨테이너가 없는 환경도 있다. 확인 못 한 사실만 알리고 계속한다 —
+    // 여기서 막으면 도커를 안 쓰는 사용처를 통째로 못 쓰게 된다.
+    console.log(`  ⚠ 볼륨을 확인하지 못했다(${container} 조회 실패) — 대상 DB 를 직접 확인할 것`);
+    return;
+  }
+  const expected = `perf-mysql-data-${PROFILE_NAME}`;
+  if (mounted && mounted !== expected) {
+    console.error(
+      `\n✗ 볼륨 불일치 — ${PROFILE_NAME} 데이터가 엉뚱한 볼륨에 섞인다.\n`
+      + `    실제 마운트: ${mounted}\n`
+      + `    기대값     : ${expected}\n\n`
+      + `  .env.perf 의 DATASET_PROFILE 을 ${PROFILE_NAME} 로 바꾸고 스택을 다시 띄운 뒤 실행할 것:\n`
+      + '    docker compose -f environment/docker-compose.perf.yml --env-file environment/.env.perf up -d\n\n'
+      + '  보통은 seed.js 를 직접 부르지 않는다. bootstrap.js 가 볼륨 확인 외에도\n'
+      + '  게시판 선삽입·daily_hot_post 생성·Redis FLUSHALL·중복 시드 차단을 함께 한다:\n'
+      + `    node environment/bootstrap.js --profile ${PROFILE_NAME}`,
+    );
+    process.exit(1);
+  }
+  console.log(`볼륨 확인: ${mounted || '(마운트 정보 없음)'}`);
+}
+
 async function main() {
   console.log(`프로파일: ${PROFILE_NAME}`, P, `→ ${BASE}`);
+  assertVolumeMatchesProfile();
   console.log(`실패 정책: 단계별 허용 ${TOLERANCE_PCT}% · 중단 시점 ${ON_FAILURE}`);
   if (TOLERANCE_PCT > 0) {
     console.log('  ⚠ 허용치가 0이 아니다 — 만들어진 데이터셋은 명세보다 적을 수 있고,');
