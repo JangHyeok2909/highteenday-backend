@@ -114,7 +114,7 @@ localDocs/
         │                                    데이터셋 생성이 결과를 왜곡한다
         │
         ├─ investigations/ 조사 기록: 한 항목을 파고든 실험 로그
-        │    ├─ perf-session-drift           E-46 실험·기각된 가설·다음 계획
+        │    ├─ perf-session-drift           E-46 해결 기록 — 45% 편차의 정체는 포화였다
         │    ├─ perf-host-clock-cycle        E-50 호스트 CPU 일중 주기와 그 무해성
         │    ├─ perf-request-cost-skew       E-51 요청 비용 편중·풀 스파이크·표본 분산
         │    └─ perf-comment-nplus1-diagnosis
