@@ -26,6 +26,44 @@ q "SELECT
      (SELECT COUNT(*) FROM chat_rooms WHERE is_valid=1) AS chat_rooms;"
 
 echo
+echo "── ①-b 워크로드가 읽는데 비어 있던 것들 (전부 0보다 커야 한다) ──"
+# 왜 따로 두는가: ①은 "시더가 만들기로 한 것"만 셌다. 그 목록에 없는 테이블은 0행이어도
+# "6개 항목 전부 통과"가 나왔고, 실제로 그 상태로 두 주를 측정했다.
+#   comments_reactions 0 → 댓글 목록의 반응 조회가 늘 "없음"을 즉시 반환
+#   대댓글            0 → 트리 조립 비용과 부모 프록시 초기화가 미측정
+#   chat_messages     0 → 방 목록의 미읽음 집계가 빈 테이블 위에서 동작
+#   단체방            0 → 브로드캐스트 팬아웃과 읽음 현황이 미측정
+#   friends_requests  0 → 받은 신청함이 늘 빈 배열
+q "SELECT
+     (SELECT COUNT(*) FROM comments_reactions WHERE is_valid=1) AS cmt_reactions,
+     (SELECT COUNT(*) FROM comments WHERE is_valid=1 AND CMT_parent_id IS NOT NULL) AS replies,
+     (SELECT COUNT(*) FROM chat_messages WHERE is_valid=1) AS chat_msgs,
+     (SELECT COUNT(*) FROM (SELECT CHT_RM_id FROM chat_participants WHERE is_valid=1
+        GROUP BY CHT_RM_id HAVING COUNT(*) > 2) g) AS group_rooms,
+     (SELECT COUNT(*) FROM friends_requests WHERE is_valid=1) AS friend_reqs;"
+
+echo
+echo "── ①-c 본문 다양성 (같은 문자열 반복은 검색·응답 크기를 왜곡한다) ──"
+# 실측(2026-09-01): 댓글 40,000건의 서로 다른 본문이 10종, 평균 7.1자였다. 그 상태에서
+# 댓글 3,903건 응답이 1.41MB 였고 본문은 건당 7바이트뿐이었다.
+q "SELECT
+     (SELECT COUNT(DISTINCT CMT_content) FROM comments WHERE is_valid=1) AS distinct_comments,
+     (SELECT ROUND(AVG(CHAR_LENGTH(CMT_content)),1) FROM comments WHERE is_valid=1) AS avg_comment_len,
+     (SELECT COUNT(DISTINCT PST_content) FROM posts WHERE is_valid=1) AS distinct_posts,
+     (SELECT ROUND(AVG(CHAR_LENGTH(PST_content)),1) FROM posts WHERE is_valid=1) AS avg_post_len;"
+
+echo
+echo "── ①-d 이번 범위 밖이라 0이 정상인 것 (침묵이 아니라 선언) ──"
+# 0이면 실패로 처리하지 않는다. 다만 "확인했고 의도적으로 0"임을 화면에 남긴다 —
+# 아무 말도 안 하면 다음 사람이 같은 조사를 다시 한다.
+q "SELECT
+     (SELECT COUNT(*) FROM medias) AS medias,
+     (SELECT COUNT(*) FROM users_timetables) AS user_timetables,
+     (SELECT COUNT(*) FROM schools_meals) AS school_meals,
+     (SELECT COUNT(*) FROM subjects) AS subjects;"
+echo "   (위 넷은 시더 범위 밖이다 — 해당 엔드포인트는 빈 결과를 재고 있다)"
+
+echo
 echo "── ② 비정규화 카운터 (댓글은 반드시 0건 불일치) ──"
 q "SELECT
      (SELECT SUM(PST_comment_count) FROM posts WHERE is_valid=1) AS stored_comments,
@@ -119,4 +157,33 @@ let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{
 });" 2>/dev/null || echo "   meta.json 읽기 실패"
 
 echo
-echo "════════ 검증 끝 ════════"
+echo "── ⑦ 판정 ──"
+#
+# 여기까지는 값을 **찍기만** 했다. 사람이 표를 읽고 판단하는 방식은 실제로 실패했다 —
+# comments_reactions 가 0인 채로 두 주 동안 "verify.sh 전 항목 통과"로 기록됐다.
+# 워크로드가 실제로 읽는 테이블이 비어 있으면 종료 코드로 막는다.
+FAILED=0
+need_positive() { # <표시 이름> <SQL>
+  local n
+  n=$(docker exec "$CT" mysql -uroot -p"$PW" "$DB" -N -B -e "$2" 2>/dev/null | grep -v Warning | tr -d '[:space:]')
+  if [ -z "$n" ] || [ "$n" -le 0 ] 2>/dev/null; then
+    echo "   ❌ $1 = ${n:-?} — 워크로드가 읽는데 비어 있다"
+    FAILED=1
+  else
+    echo "   ✅ $1 = $n"
+  fi
+}
+need_positive "댓글 반응"   "SELECT COUNT(*) FROM comments_reactions WHERE is_valid=1;"
+need_positive "대댓글"     "SELECT COUNT(*) FROM comments WHERE is_valid=1 AND CMT_parent_id IS NOT NULL;"
+need_positive "채팅 메시지" "SELECT COUNT(*) FROM chat_messages WHERE is_valid=1;"
+need_positive "단체방"     "SELECT COUNT(*) FROM (SELECT CHT_RM_id FROM chat_participants WHERE is_valid=1 GROUP BY CHT_RM_id HAVING COUNT(*) > 2) g;"
+# 본문 다양성 — 조각을 이어 붙이므로 서로 다른 본문이 수천 종 나와야 한다.
+need_positive "댓글 본문 100종 초과" \
+  "SELECT CASE WHEN COUNT(DISTINCT CMT_content) > 100 THEN 1 ELSE 0 END FROM comments WHERE is_valid=1;"
+
+echo
+if [ "$FAILED" -ne 0 ]; then
+  echo "════════ 검증 실패 — 이 데이터셋으로 측정하면 빈 경로를 재게 된다 ════════"
+  exit 1
+fi
+echo "════════ 검증 끝 (필수 항목 전부 통과) ════════"
