@@ -55,6 +55,14 @@ const runDir = (runId) => path.join(RUNS_DIR, runId);
 const runFile = (runId) => path.join(runDir(runId), 'run.json');
 const k6File = (runId) => path.join(runDir(runId), 'k6.json');
 const reportFile = (runId) => path.join(runDir(runId), 'report.html');
+/**
+ * 그 실행의 리포트 파일이 실제로 있는가.
+ *
+ * 화면이 링크를 걸기 전에 물어야 하는 질문이라 경로 규칙을 아는 여기에 둔다. 예전에는
+ * `history.js` 가 경로를 직접 조립해 같은 판정을 했다 — 경로 규칙이 두 곳에 갈라지면
+ * 한쪽만 고쳤을 때 조용히 죽은 링크가 남는다.
+ */
+const reportExists = (runId) => fs.existsSync(reportFile(runId));
 // 스테이징 — k6가 직접 쓰는 평면 경로
 const stagedK6File = (runId) => path.join(RUNS_DIR, `${runId}.k6.json`);
 const stagedTxtFile = (runId) => path.join(RUNS_DIR, `${runId}.summary.txt`);
@@ -490,7 +498,7 @@ function rebuildIndex() {
 
 module.exports = {
   PERF_ROOT, RUNS_DIR, INDEX_FILE,
-  runDir, runFile, k6File, reportFile, stagedK6File, stagedTxtFile, stagedDbStateFile,
+  runDir, runFile, k6File, reportFile, reportExists, stagedK6File, stagedTxtFile, stagedDbStateFile,
   stagedHostProbeFile, hostProbeFile, loadHostProbeRaw,
   ensureDir, readJson, writeJson, promoteStaged,
   listRunIds, listPendingRunIds, loadRun, loadK6, loadDbState, saveRun,
