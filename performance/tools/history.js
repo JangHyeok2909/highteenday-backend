@@ -508,7 +508,8 @@ function main() {
   const outDir = path.join(path.dirname(out), 'trends');
   repo.ensureDir(outDir);
   const series = trends.seriesOf(runs);
-  const reportExists = (r) => fs.existsSync(path.join(repo.PERF_ROOT, 'reports', 'runs', r.id, 'report.html'));
+  // 경로 규칙은 repository 가 소유한다 — 여기서 다시 조립하면 규칙이 갈라진다.
+  const reportExists = (r) => repo.reportExists(r.id);
   let n = 0;
   for (const s of series) {
     const html = detail.renderSeriesDetail(s, {
