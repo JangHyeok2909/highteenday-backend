@@ -571,14 +571,24 @@ function bottleneckHints(record) {
     pushScaled(88, per1k, 1, 100, 'Slow Query 다발',
       `요청 1000건당 ${per1k.toFixed(1)}건의 slow query(>100ms, 총 ${f['mysql.slowQueries'].toFixed(0)}건). 인덱스 또는 쿼리 계획 점검 대상.`);
   }
-  // RPS 대비 QPS 비율 — N+1의 직접 신호
+  // RPS 대비 QPS 비율 — 문장이 많다는 신호. **어느 경로인지는 말하지 않는다.**
+  //
+  // 문구에 그 한계를 박아 둔다. 예전 문구는 "요청 1건당 평균 N개 쿼리가 실행됐다.
+  // N+1 패턴 가능성이 높다" 였는데, 이 값의 분자는 mysql_global_status_queries —
+  // 모든 엔드포인트에 COMMIT·SET·커넥션 검증·스케줄러·exporter 까지 더한 서버 전역
+  // 합계이고 분모는 전체 요청 수다. 즉 **워크로드 전체의 평균**이다.
+  //
+  // 그런데 이 힌트가 가설 목록 1순위로 올라가면서, 실제 조사에서 그 숫자가 가장 느린
+  // 엔드포인트(comment_list)의 값으로 읽혔고 존재 여부가 확인되지 않은 N+1 을 그 경로에
+  // 귀속시킨 가설이 세워졌다. 전역 평균을 개별 경로에 귀속시킬 근거는 없다.
   const rps = k6.rps;
   if (rps > 0 && f['mysql.qps'] > 0) {
     const qpr = f['mysql.qps'] / rps;
     // 목록 조회 하나는 보통 한 자릿수 쿼리로 끝난다. 10을 넘으면 의심, 50을 넘으면
     // 루프 안 조회가 거의 확실하다. 실측 275 는 fail 을 한참 넘는다.
-    pushScaled(92, qpr, 10, 50, 'HTTP 요청당 쿼리 수 과다',
-      `요청 1건당 평균 ${qpr.toFixed(1)}개 쿼리가 실행됐다. N+1 패턴 가능성이 높다.`);
+    pushScaled(92, qpr, 10, 50, '요청당 쿼리 수 과다 (서버 전역 평균)',
+      `서버 전체 문장 수 ÷ 전체 요청 수 = ${qpr.toFixed(1)}. COMMIT·커넥션 검증·스케줄러·지표 수집이 모두 포함된 값이라 `
+      + `특정 경로의 비용이 아니다. 어느 API 가 원인인지는 리포트의 '엔드포인트별 요청 비용' 표로 확인할 것.`);
   }
   if (f['saturation.memoryPct'] != null) {
     pushScaled(62, f['saturation.memoryPct'], 85, 95, '컨테이너 메모리 포화',

@@ -141,6 +141,30 @@ class PromClient {
   }
 
   /**
+   * instant query — **라벨을 유지한 채** 모든 시계열을 돌려준다.
+   *
+   * `instant()` 는 결과를 스칼라 하나로 접는다. 그건 "CPU 사용률" 같은 단일 값에는 맞지만
+   * **엔드포인트별 값**에는 쓸 수 없다. 접는 순간 어느 URI 의 값인지가 사라지기 때문이다.
+   *
+   * 이게 실제로 조사를 잘못된 방향으로 보냈다. 요청당 쿼리 수는 서버 전역 합계를 전체 요청
+   * 수로 나눈 값 하나뿐이었고(`efficiency.queriesPerReq`), 그 값이 병목 가설 1순위로
+   * 올라갔다. 그런데 그 숫자는 **모든 엔드포인트의 평균**이라 어느 경로가 쿼리를 많이
+   * 쓰는지에 대해 아무것도 말하지 않는다. 그럼에도 사람은 그것을 가장 느린 엔드포인트의
+   * 값으로 읽었다.
+   *
+   * @returns {Array<{labels:object, value:number}>} 결측·NaN 시계열은 제외한다.
+   */
+  async series(query, at) {
+    const data = await this._call('/api/v1/query', {
+      query,
+      time: Math.floor(at.getTime() / 1000),
+    });
+    return (data.result || [])
+      .map((r) => ({ labels: r.metric || {}, value: Number(r.value && r.value[1]) }))
+      .filter((r) => Number.isFinite(r.value));
+  }
+
+  /**
    * range query — 시계열 "모양"이 필요할 때만 사용 (리포트 스파크라인).
    * @returns {Array<{t:number, v:number}>} 초 단위 타임스탬프 + 값
    */
