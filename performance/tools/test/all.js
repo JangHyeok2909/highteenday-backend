@@ -21,6 +21,8 @@ require('./sanitize-reports.test.js');
 require('./repeatability.test.js');
 require('./run-lock.test.js');
 require('./loadbench.test.js');
+require('./querystats.test.js');
+require('./querycost.test.js');
 require('./hostprobe-phase.test.js');
 require('./saturation.test.js');
 require('./trends.test.js');

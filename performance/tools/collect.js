@@ -37,6 +37,7 @@ const cmp = require('./lib/comparability');
 const hostprobe = require('./lib/hostprobe');
 const saturation = require('./lib/saturation');
 const grafana = require('./lib/grafana');
+const querycost = require('./lib/querycost');
 const { renderReport } = require('./lib/report');
 const fmt = require('./lib/format');
 
@@ -151,6 +152,14 @@ async function collectInfra(prom, window) {
   Object.assign(flat, derivedResult.derived);
   errors.push(...derivedResult.issues);
 
+  // 엔드포인트별 쿼리 비용은 카탈로그로 못 낸다. 카탈로그 항목은 결과를 스칼라 하나로
+  // 접도록 되어 있는데(promql.js 의 evalSpec), 접는 순간 어느 URI 의 값인지가 사라진다.
+  // 그래서 라벨을 유지하는 별도 경로로 모은다.
+  const endpointQueries = await querycost.collect(prom, window);
+  for (const e of endpointQueries.errors || []) {
+    errors.push({ key: 'endpointQueries', error: e });
+  }
+
   return {
     window: {
       from: window.from.toISOString(),
@@ -166,6 +175,9 @@ async function collectInfra(prom, window) {
     queryStats: prom.stats,
     groups,
     flat,
+    // 엔드포인트별 요청당 쿼리 수·DB 시간. `flat` 에 넣지 않는 이유는 이게 스칼라가 아니라
+    // 표이기 때문이다 — 회귀 판정은 스칼라만 다루고, 이건 원인 규명용 자료다.
+    endpointQueries,
     errors,
     available: Object.values(flat).some((v) => v != null),
   };
@@ -400,7 +412,9 @@ async function processRun(runId, opts) {
     ? await collectInfra(prom, window)
     : {
         window: { from: window.from.toISOString(), to: window.to.toISOString(), durationSec: window.durationSec, mode: window.mode, incomplete: window.incomplete },
-        groups: [], flat: {}, errors: [{ key: '*', error: 'Prometheus 미응답' }], available: false,
+        groups: [], flat: {},
+        endpointQueries: { available: false, reason: 'Prometheus 미응답', endpoints: [], errors: [] },
+        errors: [{ key: '*', error: 'Prometheus 미응답' }], available: false,
       };
 
   // ---- 회귀 분석 --------------------------------------------------------
@@ -476,6 +490,8 @@ function newestByMtime(ids) {
   }
   return best;
 }
+
+
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
