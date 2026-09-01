@@ -165,6 +165,30 @@ tbody tr:last-child td { border-bottom: none; }
 .spark .st { font-size: 12px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .spark .sv { font-size: 19px; font-weight: 650; margin: 2px 0 6px; letter-spacing: -0.01em; }
 .spark svg { display: block; width: 100%; height: 40px; overflow: visible; }
+/* 추세 점의 히트 영역. SVG 안이 아니라 위에 얹는다 — preserveAspectRatio="none" 때문에
+   SVG 안의 원은 카드 폭에 따라 타원으로 찌그러져 클릭 대상이 일정하지 않다.
+   세로 전체를 잡는 이유: 값의 높이를 정확히 맞춰 누르게 하면 아무도 못 누른다. */
+.spark-plot { position: relative; }
+.spark-plot .pt {
+  position: absolute; top: 0; bottom: 0; width: 18px; margin-left: -9px;
+  border-radius: 4px; cursor: pointer;
+}
+.spark-plot span.pt { cursor: default; }
+.spark-plot .pt:hover { background: color-mix(in srgb, var(--series-1) 14%, transparent); }
+.spark-plot .pt.now::after {
+  content: ''; position: absolute; left: 50%; top: -3px; width: 2px; height: 4px;
+  margin-left: -1px; background: var(--ink-muted);
+}
+.spark-plot .pt:focus-visible { outline: 2px solid var(--series-1); outline-offset: 0; }
+#tt {
+  position: fixed; z-index: 20; max-width: 300px; pointer-events: none;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  font-size: 11.5px; line-height: 1.5; box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+}
+#tt b { display: block; font-size: 12px; }
+#tt .m { color: var(--ink-2); }
+#tt .go { color: var(--series-1); }
 .spark .range { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-muted);
                 font-variant-numeric: tabular-nums; margin-top: 3px; }
 
@@ -304,15 +328,73 @@ function sparkline(values, opts = {}) {
 </svg>`;
 }
 
+/**
+ * 스파크라인 위에 겹칠 점별 히트 영역의 **좌표만** 계산한다.
+ *
+ * SVG 안에 `<circle>` 로 만들지 않는 이유: 스파크라인은 `preserveAspectRatio="none"` 으로
+ * 100×40 viewBox 를 카드 폭에 맞춰 늘여 그린다. 그 안의 원은 가로로 찌그러진 타원이 되고,
+ * 카드 폭에 따라 히트 영역 모양이 달라진다. 그래서 좌표(퍼센트)만 여기서 내고 마크업은
+ * HTML 로 얹는다.
+ */
+function sparkPointsPct(values) {
+  const n = values.length;
+  return values.map((v, i) => ({
+    value: v,
+    index: i,
+    present: fmt.nz(v),
+    leftPct: n < 2 ? 0 : (i / (n - 1)) * 100,
+  }));
+}
 
-function sparkCard(title, values, current, unit) {
+/**
+ * 추세 카드 하나. `runs` 를 주면 점마다 **그 회차의 리포트로 가는 링크**가 붙는다.
+ *
+ * 히트 영역을 SVG 안이 아니라 HTML 로 얹는 이유는 `sparkPointsPct` 의 주석에 적었다 —
+ * `preserveAspectRatio="none"` 때문에 SVG 안의 원은 카드 폭에 따라 찌그러진다.
+ *
+ * 툴팁은 `title` 속성(브라우저 기본)과 JS 툴팁을 **둘 다** 둔다. JS 가 막혀도 느리고
+ * 못생긴 기본 툴팁으로 같은 정보가 나온다 — 표 접기와 같은 원칙이다.
+ *
+ * 툴팁 내용을 JSON 한 덩어리가 아니라 개별 `data-*` 속성으로 싣는 것은 보안 요구다.
+ * `sanitize-reports.js` 는 게시 전에 실행 메모·커밋·URL 같은 값을 **원시 문자열 치환**으로
+ * 지운다. JSON.stringify 로 감싸면 이스케이프 방식이 달라져 그 치환이 조용히 빗나간다.
+ * 기존 렌더와 같은 `esc()` 만 써야 정화가 지금과 똑같이 동작한다.
+ */
+function sparkCard(title, values, current, unit, runs, exists) {
   const vals = values.filter((v) => fmt.nz(v));
   const min = vals.length ? Math.min(...vals) : null;
   const max = vals.length ? Math.max(...vals) : null;
+
+  const pts = (runs && runs.length === values.length) ? sparkPointsPct(values).map((p) => {
+    const r = runs[p.index] || {};
+    const isLast = p.index === values.length - 1;
+    const label = `#${r.number == null ? '?' : r.number} · ${fmt.localTime(r.startedAt)}`
+      + `${r.commitShort ? ` · ${r.commitShort}` : ''}`;
+    const valueText = p.present ? fmt.byUnit(p.value, unit) : '미수집';
+    const state = [
+      r.saturationStatus ? `포화 ${r.saturationStatus}` : null,
+      r.verdict ? `판정 ${r.verdict}` : null,
+    ].filter(Boolean).join(' · ');
+    // 브라우저 기본 툴팁은 줄바꿈만 지원한다. JS 툴팁은 같은 값을 data-* 에서 읽는다.
+    const plain = [label, `${title} ${valueText}`, state, r.note || '',
+      isLast ? '이번 실행' : '클릭 → 이 실행의 리포트'].filter(Boolean).join('\n');
+    const attrs = `style="left:${p.leftPct.toFixed(2)}%"`
+      + ` data-l="${esc(label)}" data-v="${esc(`${title} ${valueText}`)}"`
+      + `${state ? ` data-st="${esc(state)}"` : ''}`
+      + `${r.note ? ` data-note="${esc(r.note)}"` : ''}`
+      + ` title="${esc(plain)}"`;
+    // 마지막 점은 이번 실행이라 자기 자신으로 가는 링크가 되면 안 된다. 리포트가 아직
+    // 없는 회차도 링크를 걸지 않는다 — 죽은 링크는 정보가 아니라 오작동이다.
+    if (isLast || !r.id || !exists(r.id)) {
+      return `<span class="pt${isLast ? ' now' : ''}${p.present ? '' : ' gap'}" ${attrs}></span>`;
+    }
+    return `<a class="pt${p.present ? '' : ' gap'}" href="../${encodeURIComponent(r.id)}/report.html" ${attrs}></a>`;
+  }).join('') : '';
+
   return `<div class="spark">
     <div class="st">${esc(title)}</div>
     <div class="sv">${fmt.byUnit(current, unit)}</div>
-    ${sparkline(values, { label: title })}
+    <div class="spark-plot">${sparkline(values, { label: title })}${pts}</div>
     <div class="range"><span>min ${fmt.byUnit(min, unit)}</span><span>max ${fmt.byUnit(max, unit)}</span></div>
   </div>`;
 }
@@ -1435,7 +1517,7 @@ function sectionHints(record) {
   </div></section>`;
 }
 
-function sectionTrend(record, trend) {
+function sectionTrend(record, trend, exists = repo.reportExists) {
   if (!trend || trend.length < 2) return '';
   const series = (key) => trend.map((t) => t[key]);
   const cur = trend[trend.length - 1] || {};
@@ -1455,7 +1537,7 @@ function sectionTrend(record, trend) {
       const vals = series(key);
       const val = unit === 'ratio' ? (cur[key] != null ? cur[key] * 100 : null) : cur[key];
       return sparkCard(label, unit === 'ratio' ? vals.map((v) => (v == null ? null : v * 100)) : vals,
-        val, unit === 'ratio' ? 'percent' : unit);
+        val, unit === 'ratio' ? 'percent' : unit, trend, exists);
     }).join('');
 
   if (!cards) return '';
@@ -1463,7 +1545,9 @@ function sectionTrend(record, trend) {
     <div class="sparks">${cards}</div>
     <div class="note">같은 시나리오·같은 환경의 최근 실행만 모았다. 오른쪽 끝이 이번 실행이다.
     한 번의 변화보다 <b>추세의 방향</b>이 중요하다 — 매 실행 5%씩 나빠지면 개별 판정은 계속 통과하지만
-    10회 뒤에는 1.6배가 된다.</div></section>`;
+    10회 뒤에는 1.6배가 된다.<br>
+    점 위에 마우스를 올리면 그 회차의 값·포화 판정·메모가 나오고, <b>누르면 그 실행의 리포트로 이동</b>한다.
+    값이 없는 회차는 자리를 비워 둔다 — 그 자리가 좁아 보이면 그때 그 지표를 안 재고 있었다는 뜻이다.</div></section>`;
 }
 
 function sectionThresholds(record) {
@@ -1610,7 +1694,7 @@ ${sectionHeader(record)}
   ${foldable(sectionHints(record), {
     open: false, title: '병목 가설 (도구가 계산한 후보)', note: '먼저 위에서 직접 좁혀 본 뒤 검산용으로 열 것',
   })}
-  ${sectionTrend(record, opts.trend)}
+  ${sectionTrend(record, opts.trend, opts.reportExists || repo.reportExists)}
   ${foldable(sectionThresholds(record), { open: false, title: 'SLO Thresholds' })}
   ${sectionLinks(record)}
   <footer>
@@ -1624,5 +1708,5 @@ ${sectionHeader(record)}
 
 // sectionRegression 은 기준선 탈락 사유·기준선 상태 표시의 단위 테스트를 위해 노출한다.
 module.exports = {
-  renderReport, sectionRegression, sectionTrust, sparkline, meter, CSS,
+  renderReport, sectionRegression, sectionTrust, sectionTrend, sparkline, sparkPointsPct, meter, CSS,
 };
