@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>normal-day — 계열 d93828f8e07f</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --surface: #fcfcfb;
+  --plane: #f9f9f7;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --seq-100: #cde2fb;
+  --seq-450: #2a78d6;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --good-text: #006300;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #1a1a19;
+    --plane: #0d0d0d;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --seq-100: #184f95;
+    --seq-450: #3987e5;
+    --good-text: #0ca30c;
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #1a1a19; --plane: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  --seq-100: #184f95; --seq-450: #3987e5; --good-text: #0ca30c;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0 0 4rem;
+  background: var(--plane); color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 15px; margin: 0 0 14px; letter-spacing: 0.02em; text-transform: uppercase;
+     color: var(--ink-2); font-weight: 600; }
+h3 { font-size: 13px; margin: 20px 0 8px; color: var(--ink-2); font-weight: 600; }
+a { color: var(--series-1); }
+
+/* ── 헤더 ── */
+.head { background: var(--surface); border-bottom: 1px solid var(--border); padding: 26px 0 22px; margin-bottom: 26px; }
+.head-top { display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap; }
+.head-title { flex: 1 1 320px; min-width: 0; }
+.sub { color: var(--ink-muted); font-size: 13px; }
+
+.verdict {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border-radius: 8px; font-weight: 700; font-size: 14px;
+  border: 2px solid; white-space: nowrap;
+}
+.verdict .ico { font-size: 15px; line-height: 1; }
+.v-PASS { color: var(--good-text); border-color: var(--good); background: color-mix(in srgb, var(--good) 10%, transparent); }
+.v-WARN { color: var(--ink); border-color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, transparent); }
+.v-FAIL { color: var(--critical); border-color: var(--critical); background: color-mix(in srgb, var(--critical) 10%, transparent); }
+
+/* ── 메타 그리드 ── */
+.meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 1px;
+        background: var(--border); border: 1px solid var(--border); border-radius: 8px;
+        overflow: hidden; margin-top: 20px; }
+.meta div { background: var(--surface); padding: 9px 12px; }
+.meta dt { color: var(--ink-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin: 0; }
+.meta dd { margin: 2px 0 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+
+/* ── 섹션/카드 ── */
+section { margin-bottom: 34px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+
+/* ── KPI 타일 ── */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.kpi .label { color: var(--ink-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.kpi .value { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; margin-top: 3px; }
+.kpi .foot { font-size: 12px; color: var(--ink-2); margin-top: 3px; display: flex; align-items: center; gap: 5px; }
+
+/* ── 델타 표기: 아이콘 + 텍스트 + 색 (색 단독 금지) ── */
+.d-good { color: var(--good-text); font-weight: 600; }
+.d-bad  { color: var(--critical); font-weight: 600; }
+.d-flat { color: var(--ink-muted); }
+
+/* ── 표 ── */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--grid); }
+th { color: var(--ink-muted); font-weight: 600; font-size: 11px; text-transform: uppercase;
+     letter-spacing: 0.04em; border-bottom: 1px solid var(--axis); white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: none; }
+.scroll { overflow-x: auto; }
+
+/* ── 포화도 막대 ── */
+.meter { display: flex; align-items: center; gap: 9px; min-width: 148px; }
+.meter .track { flex: 1; height: 7px; background: var(--grid); border-radius: 4px; overflow: hidden; min-width: 60px; }
+.meter .fill { height: 100%; border-radius: 4px; background: var(--seq-450); }
+.meter .pct { font-variant-numeric: tabular-nums; font-size: 12px; min-width: 42px; text-align: right; color: var(--ink-2); }
+.fill.s-warning { background: var(--warning); }
+.fill.s-serious { background: var(--serious); }
+.fill.s-critical { background: var(--critical); }
+
+/* ── 병목 가설 ── */
+.hint { display: flex; gap: 11px; padding: 12px 0; border-bottom: 1px solid var(--grid); }
+.hint:last-child { border-bottom: none; }
+.hint .n { width: 21px; height: 21px; flex: none; border-radius: 50%; background: var(--critical);
+           color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.hint .t { font-weight: 650; margin-bottom: 2px; }
+.hint .d { color: var(--ink-2); font-size: 13px; }
+
+/* ── 스파크라인 ── */
+.sparks { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 14px; }
+.spark { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; }
+.spark .st { font-size: 12px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.spark .sv { font-size: 19px; font-weight: 650; margin: 2px 0 6px; letter-spacing: -0.01em; }
+.spark svg { display: block; width: 100%; height: 40px; overflow: visible; }
+/* 추세 점의 히트 영역. SVG 안이 아니라 위에 얹는다 — preserveAspectRatio="none" 때문에
+   SVG 안의 원은 카드 폭에 따라 타원으로 찌그러져 클릭 대상이 일정하지 않다.
+   세로 전체를 잡는 이유: 값의 높이를 정확히 맞춰 누르게 하면 아무도 못 누른다. */
+.spark-plot { position: relative; }
+.spark-plot .pt {
+  position: absolute; top: 0; bottom: 0; width: 18px; margin-left: -9px;
+  border-radius: 4px; cursor: pointer;
+}
+.spark-plot span.pt { cursor: default; }
+.spark-plot .pt:hover { background: color-mix(in srgb, var(--series-1) 14%, transparent); }
+.spark-plot .pt.now::after {
+  content: ''; position: absolute; left: 50%; top: -3px; width: 2px; height: 4px;
+  margin-left: -1px; background: var(--ink-muted);
+}
+.spark-plot .pt:focus-visible { outline: 2px solid var(--series-1); outline-offset: 0; }
+#tt {
+  position: fixed; z-index: 20; max-width: 300px; pointer-events: none;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  font-size: 11.5px; line-height: 1.5; box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+}
+#tt b { display: block; font-size: 12px; }
+#tt .m { color: var(--ink-2); }
+#tt .go { color: var(--series-1); }
+.spark .range { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-muted);
+                font-variant-numeric: tabular-nums; margin-top: 3px; }
+
+/* ── 링크 버튼 ── */
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.links a { display: inline-block; padding: 7px 13px; border: 1px solid var(--border); border-radius: 7px;
+           background: var(--surface); text-decoration: none; font-size: 13px; font-weight: 550; }
+.links a:hover { border-color: var(--series-1); }
+.links a.primary { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 5px;
+         font-size: 11px; font-weight: 650; border: 1px solid; white-space: nowrap; }
+.b-PASS { color: var(--good-text); border-color: var(--good); }
+.b-WARN { color: var(--ink); border-color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, transparent); }
+.b-FAIL { color: var(--critical); border-color: var(--critical); }
+.b-SKIP { color: var(--ink-muted); border-color: var(--axis); }
+
+/* ① 신뢰 확인 줄 — 항상 표시된다 */
+.trust { border-left: 3px solid var(--good); }
+.trust.trust-bad { border-left-color: var(--critical); }
+.trust-head { font-weight: 650; font-size: 13px; margin-bottom: 9px; }
+.trust-row { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.trust-item { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; }
+.trust-k { color: var(--ink-muted); }
+.trust-v { font-weight: 650; font-variant-numeric: tabular-nums; }
+.trust-item.ok .trust-v { color: var(--good-text, var(--good)); }
+.trust-item.bad .trust-v { color: var(--critical); }
+.trust-n { color: var(--ink-2); font-size: 11.5px; }
+/* 포화 자원 줄. 정상일 때도 나오므로 경고색을 기본으로 쓰지 않는다 — 그러면 "항상 빨간
+   리포트"가 되어 진짜 경고가 안 보인다. */
+.trust-sat { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--border);
+  font-size: 12px; line-height: 1.55; }
+.trust-sat.ok { color: var(--ink-2); }
+.trust-sat.bad { color: var(--ink); }
+.trust-sat.unknown { color: var(--ink-muted); }
+
+/* ② 요약의 경고 줄 — 전체 p95 가 감추는 것을 상단에서 알린다 */
+.lead { margin-top: 11px; padding: 9px 12px; border-radius: 6px;
+        background: color-mix(in srgb, var(--warning) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+        font-size: 12.5px; }
+.lead b { font-variant-numeric: tabular-nums; }
+.lead + .lead { margin-top: 6px; }
+
+/* 접히는 섹션 */
+details.fold > summary { cursor: pointer; font-size: 13px; font-weight: 650; padding: 9px 0;
+                         list-style: none; display: flex; align-items: center; gap: 8px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: '▸'; color: var(--ink-muted); }
+details.fold[open] > summary::before { content: '▾'; }
+details.fold > summary .sum-note { font-weight: 400; color: var(--ink-2); font-size: 12px; }
+
+.empty { color: var(--ink-muted); font-style: italic; padding: 10px 0; }
+.note { color: var(--ink-2); font-size: 12.5px; margin-top: 10px; padding-left: 11px; border-left: 2px solid var(--grid); }
+footer { color: var(--ink-muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 34px; }
+
+.hist-table { font-size: 12.5px; }
+.hist-table td, .hist-table th { padding: 6px 8px; white-space: nowrap; }
+
+/* 체제 띠 — 회차 하나가 블록 하나. 스파크라인보다 위에 두어 "이 선을 어떻게 읽을지"를 먼저 말한다. */
+.regime { margin: 0 0 14px; }
+.rg-row { display: flex; gap: 2px; flex-wrap: wrap; }
+.rg-row i {
+  display: block; width: 22px; height: 16px; border-radius: 3px;
+  background: var(--border); position: relative; cursor: help;
+}
+.rg-headroom   { background: var(--good) !important; }
+.rg-near_limit { background: var(--warning) !important; }
+.rg-saturated  { background: var(--critical) !important; }
+.rg-unknown,
+.rg-unassessed {
+  background: repeating-linear-gradient(45deg,
+    var(--border), var(--border) 3px, var(--plane) 3px, var(--plane) 6px) !important;
+}
+/* 대기 발생 — 체제 판정과 독립된 관측 사실이라 색이 아니라 테두리로 겹쳐 표시한다. */
+.rg-queued::after {
+  content: ''; position: absolute; inset: 0; border-radius: 3px;
+  border: 2px solid var(--critical);
+}
+/* 측정 불가 — 값 자체를 믿을 수 없는 회차. 위에 사선을 긋는다. */
+.rg-unmeasured::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to top right, transparent 45%, var(--ink) 45%,
+    var(--ink) 55%, transparent 55%);
+}
+.rg-legend {
+  display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+  margin-top: 8px; font-size: 11.5px; color: var(--ink-2);
+}
+.rg-legend span { display: flex; gap: 5px; align-items: center; }
+.rg-legend i { display: block; width: 14px; height: 11px; border-radius: 2px;
+  background: var(--border); position: relative; }
+
+/* 헤드라인 — 네 칸 고정. 질문이 네 개라서 네 칸이지, 지표를 네 개 골라서가 아니다. */
+.sparks-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 900px) { .sparks-4 { grid-template-columns: repeat(2, 1fr); } }
+
+/* 한 줄 판정 — 조사 화면의 표를 대신한다. 감시는 "파야 하는가"만 답하면 된다. */
+.verdict-line {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  margin-top: 12px; padding: 10px 14px; font-size: 13px;
+  background: var(--plane); border: 1px solid var(--border); border-radius: 6px;
+}
+.verdict-line .sep { color: var(--border); }
+.verdict-line a { margin-left: auto; white-space: nowrap; }
+.drill { font-size: 13px; font-weight: 400; margin-left: 10px; white-space: nowrap; }
+</style>
+</head><body>
+<div class="head"><div class="wrap">
+  <div class="head-top"><div class="head-title">
+    <h1>normal-day — 계열 상세</h1>
+    <div class="sub"><a href="../history.html">← 이력(감시)으로</a> · 계열 <code>d93828f8e07f</code> · 1회</div>
+  </div></div>
+  <dl class="meta">
+    <div><dt>실행 수</dt><dd>1</dd></div>
+    <div><dt>기간</dt><dd style="font-size:12px">2026-09-01 ~ 2026-09-01</dd></div>
+    <div><dt>실패</dt><dd>0</dd></div>
+    <div><dt>대기 발생</dt><dd>0</dd></div>
+    <div><dt>판정 축 MDE</dt><dd>—</dd></div>
+  </dl>
+</div></div>
+
+<div class="wrap">
+  <section>
+    <h2>체제 — 이 배경 위에서 아래 수치를 읽는다</h2>
+    <div class="regime"><div class="rg-row"><i class="rg-near_limit" title="#137 2026-09-01 15:33 · 체제 한계 근처 · p95 45ms"></i></div>
+    <div class="rg-legend">
+      <span><i class="rg-headroom"></i> 여유</span>
+      <span><i class="rg-near_limit"></i> 한계 근처</span>
+      <span><i class="rg-saturated"></i> 포화</span>
+      <span><i class="rg-unassessed"></i> 미판정</span>
+      <span><i class="rg-headroom rg-queued"></i> 커넥션 대기 발생</span>
+    </div></div>
+    <div class="note" style="border-color:var(--serious)">실행이 1회뿐이라 <b>추세와 변동성을 계산하지 않습니다</b>(최소 4회). 아래 회차별 원본 표만 유효합니다.</div>
+  </section>
+
+  
+  <section><h2>실패 축</h2><div class="card"><div class="note">이 계열에는 실패한 게이트가 없습니다.</div></div></section>
+  
+  <section>
+    <h2>회차별 원본 (1회, 최신순)</h2>
+    <div class="card scroll"><table class="hist-table">
+      <thead><tr>
+        <th class="num">#</th><th>시작</th><th>커밋</th>
+        <th class="num">평균</th><th class="num">P95</th><th class="num">P99</th><th class="num">TPS</th>
+        <th class="num">오류율</th><th class="num">CPU</th><th class="num">Throttle</th>
+        <th class="num">대기</th><th class="num">획득p95</th><th class="num">req당CPU</th>
+        <th>체제</th><th>판정</th><th>실패 축</th>
+      </tr></thead>
+      <tbody><tr>
+      <td class="num">137</td>
+      <td style="font-size:12px;white-space:nowrap"><a href="../runs/normal-day-2026-09-01T06-37-24/report.html">2026-09-01 15:33</a></td>
+      <td><code style="font-size:11px">7d75649e</code></td>
+      <td class="num">15ms</td>
+      <td class="num">45ms</td>
+      <td class="num">84ms</td>
+      <td class="num">3.77</td>
+      <td class="num">0.42%</td>
+      <td class="num">26%</td>
+      <td class="num">0.0%</td>
+      <td class="num">0</td>
+      <td class="num">0.9ms</td>
+      <td class="num">31ms</td>
+      <td>한계 근처</td>
+      <td><span class="badge b-WARN">WARN</span></td>
+      <td style="font-size:11.5px;color:var(--ink-2)">—</td>
+    </tr></tbody>
+    </table>
+    <div class="note">시작 시각을 클릭하면 그 실행의 단일 보고서로 이동한다.
+    <b>대기</b>는 HikariCP 대기 스레드 최대치이고 0 이 아니면 그 회차의 응답시간에 큐 대기가 섞여 있다.</div>
+    </div>
+  </section>
+  <section><h2>실행 조건 — 이 계열의 정의</h2>
+    <div class="card scroll"><table class="hist-table"><tbody><tr><td style="width:180px"><b>시나리오</b></td><td>normal-day</td></tr><tr><td style="width:180px"><b>환경</b></td><td>perf-smoke</td></tr><tr><td style="width:180px"><b>데이터셋</b></td><td>smoke (생성 sha256:663b5477ae25 · 상태 sha256:6b6b98cdc265)</td></tr><tr><td style="width:180px"><b>부하 프로파일</b></td><td>ramping-arrival-rate 0→4@30s→4@1m0s→0@2m0s maxVU 600</td></tr><tr><td style="width:180px"><b>부하 발생기</b></td><td>docker</td></tr><tr><td style="width:180px"><b>측정 중 대조 벤치</b></td><td>off</td></tr><tr><td style="width:180px"><b>k6 지표 전송</b></td><td>켜짐(Prometheus)</td></tr><tr><td style="width:180px"><b>앱 이미지</b></td><td>a33a9be933c4</td></tr><tr><td style="width:180px"><b>부하 스크립트</b></td><td>sha256:d61f90ba6a9c</td></tr><tr><td style="width:180px"><b>측정 구간 설계</b></td><td>steady-state · warmup 30s · measure 60s · rampdown 120s · gate:measure</td></tr></tbody></table>
+    <div class="note">이 조건이 하나라도 다르면 <b>다른 계열</b>이고, 두 계열의 수치를 나란히 놓는 것은
+    비교가 아니다. 조건 전체를 해시한 값이 <code>seriesHash</code> 다.</div></div></section>
+
+  <footer>생성 2026-09-01 20:42:03 KST · <code>reports/index.json</code> 기준 ·
+  계산은 <code>tools/lib/trends.js</code> 가 소유한다</footer>
+</div>
+</body></html>
