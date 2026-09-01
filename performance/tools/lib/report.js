@@ -295,6 +295,17 @@ function kpi(label, value, foot) {
 
 /* ─────────────────────────── 섹션 ─────────────────────────── */
 
+/**
+ * 앱 이미지 신원 한 줄. 해시만 찍으면 사람이 못 읽으므로 빌드 시각을 같이 낸다 —
+ * "언제 만든 바이너리를 쟀는가"가 실제로 필요한 정보다.
+ */
+function formatAppImage(img) {
+  if (!img || !img.available) return '미기록';
+  const short = String(img.imageId).replace(/^sha256:/, '').slice(0, 12);
+  const built = img.imageCreated ? fmt.localTime(img.imageCreated) : '빌드 시각 불명';
+  return `${short} · ${built}${img.stale ? ' · ⚠ 소스보다 낡음' : ''}`;
+}
+
 function sectionHeader(record) {
   const r = record.run;
   const reg = record.regression;
@@ -307,7 +318,11 @@ function sectionHeader(record) {
     ['시나리오', r.scenario],
     ['환경', r.environment],
     ['브랜치', r.branch],
-    ['커밋', r.commitShort],
+    // ⚠ 이 값은 **실험을 설계한 소스**이지 측정된 바이너리가 아니다. 무엇을 쟀는지는
+    // 바로 아래 '앱 이미지' 가 답한다(T-42). 지우지 않는 이유는 "어떤 소스로 실험을
+    // 설계했는가"도 그 자체로 쓸모가 있기 때문이다.
+    ['커밋(설계 기준)', r.commitShort],
+    ['앱 이미지(측정 대상)', formatAppImage(r.appImage)],
     ['빌드', r.buildNumber],
     ['실행자', r.executor],
     ['시작', fmt.localTime(r.startedAt)],
@@ -360,11 +375,17 @@ function sectionHeader(record) {
  * 수도 있다. E-46 이 닷새를 소모한 이유가 *"아무도 이 조합을 측정 무효화 조건으로 선언하지
  * 않았다"* 였으므로, 선언 자체를 화면에 남긴다.
  *
- * 네 항목은 판정 전에 반드시 통과해야 하는 것들이다.
- *   측정 무결성  지표가 다 있는가            MEASURED
+ * 다섯 항목은 판정 전에 반드시 통과해야 하는 것들이다.
+ *   측정 무결성  지표가 다 있는가                 MEASURED
  *   측정 체제    p95 를 앱 지연으로 읽어도 되는가  HEADROOM
- *   도달률      의도한 부하가 실제로 걸렸는가   100% 근처
- *   오류율      요청이 실제로 성공했는가        0%
+ *   도달률      의도한 부하가 실제로 걸렸는가      100% 근처
+ *   오류율      요청이 실제로 성공했는가           0%
+ *   코드        지금 소스를 잰 것이 맞는가         이미지가 소스보다 새것
+ *
+ * 마지막 항목이 여기 있는 이유. 상단 메타의 `커밋` 은 실행 시점 작업 트리의 HEAD 일 뿐
+ * 컨테이너 안에서 도는 바이너리가 아니다. 실제로 8/14 이미지를 두 주 동안 계속 재면서
+ * 기록에는 그때그때의 HEAD 를 남기고 있었고, 그 사실을 컨테이너를 직접 열어 보고서야
+ * 알았다(T-42). **무엇을 쟀는지 모르는 실행은 판정에 쓸 수 없다** — 그러니 판정 앞에 선다.
  */
 function sectionTrust(record) {
   const reg = record.regression || {};
@@ -399,6 +420,24 @@ function sectionTrust(record) {
   const err = fmt.nz(k.errorRate) ? k.errorRate * 100 : null;
   if (err != null) {
     items.push(cell('오류율', `${err.toFixed(2)}%`, err < 1, err < 1 ? '' : '실패 응답이 지연에 섞였다'));
+  }
+
+  // 무엇을 쟀는가. 이미지가 소스보다 오래됐으면 이 실행은 **옛 코드**를 잰 것이고,
+  // 그 사실을 모른 채 개선 실험의 After 로 쓰면 "효과 없음"과 "코드가 안 들어감"이
+  // 구분되지 않는다.
+  const img = record.run && record.run.appImage;
+  if (img && img.available) {
+    const short = String(img.imageId).replace(/^sha256:/, '').slice(0, 12);
+    if (img.stale) {
+      const days = (img.staleBySec / 86400).toFixed(1);
+      items.push(cell('코드', short, false, `이미지가 소스보다 ${days}일 낡음 — 옛 코드를 잰 실행이다`));
+    } else if (img.stale === null) {
+      items.push(cell('코드', short, false, '이미지와 소스의 선후를 판정하지 못했다'));
+    } else {
+      items.push(cell('코드', short, true, '이미지가 소스보다 새것이다'));
+    }
+  } else {
+    items.push(cell('코드', '미기록', false, '무엇을 쟀는지 알 수 없다 — 커밋 값은 답이 아니다'));
   }
 
   const allOk = items.every((h) => h.includes('trust-item ok'));

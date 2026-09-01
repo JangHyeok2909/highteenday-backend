@@ -154,6 +154,33 @@ const CONDITIONS = [
     format: (v) => (v ? '켜짐(Prometheus)' : '꺼짐'),
   },
   {
+    key: 'appImage',
+    label: '앱 이미지',
+    // **degrading 이다.** blocking 으로 두면 이미지를 다시 만들 때마다 seriesHash 가 갈려
+    // 추세선이 상시 리셋된다 — 코드를 고치는 것은 정상적인 일이고, 고칠 때마다 이력이
+    // 끊기면 이력의 쓸모가 사라진다. `scriptVersion` 을 degrading 에 둔 것과 같은 이유다.
+    //
+    // 왜 조건에 넣는가 — 없어서 실제로 틀린 결론을 냈다(T-42). 조건 목록에 앱 바이너리가
+    // 없어서, 8/14 이미지를 8/26 과 8/29 에 각각 잰 두 실행이 "커밋이 44개 다른 별개의
+    // 바이너리"로 읽혔다. 실제로는 같은 것이었다. 반대 방향이 더 위험하다 — 코드를 고치고
+    // 재빌드를 잊으면 새 커밋 기록에 옛 코드 측정치가 붙고, 개선 실험이 "효과 없음"으로
+    // 나와도 코드가 안 들어간 것인지 구분할 근거가 없다.
+    //
+    // `run.commit` 은 이 역할을 못 한다. 그건 실행 시점 작업 트리의 HEAD 이지
+    // 컨테이너 안에서 도는 바이너리가 아니다.
+    materiality: 'degrading',
+    // 값이 없는 과거 실행은 null(unknown)로 둔다. `loadgen`·`remoteWrite` 처럼 기본값을
+    // 소급 적용하지 않는 이유는, 저 둘은 "기능이 없었으니 꺼져 있었다"가 **사실**인 반면
+    // 이건 무엇을 쟀는지 정말로 모르기 때문이다. 모르는 것에 값을 채우면 서로 다른
+    // 바이너리를 잰 과거 실행들이 조용히 같은 것으로 묶인다.
+    read: (r) => {
+      const img = r.run && r.run.appImage;
+      return img && img.available ? img.imageId : null;
+    },
+    isUnknown: (v) => !v,
+    format: (v) => (v ? String(v).replace(/^sha256:/, '').slice(0, 12) : '미기록'),
+  },
+  {
     key: 'scriptVersion',
     label: '부하 스크립트',
     materiality: 'degrading',
