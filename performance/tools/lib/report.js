@@ -26,6 +26,8 @@ const fmt = require('./format');
 const cmp = require('./comparability');
 // 기준선 탈락 사유 문장은 repository 가 만든다 — 콘솔 리포트와 같은 문장을 써야 한다(S-10).
 const repo = require('./repository');
+// 긴 목록의 접기·정렬은 표마다 다르게 동작하면 안 된다 — 규칙을 한 곳에 둔다.
+const { dataTable, TABLE_CSS, TABLE_JS, TABLE_NOSCRIPT } = require('./report-table');
 const { escapeHtml: esc } = fmt;
 
 /* ─────────────────────────── 스타일 ─────────────────────────── */
@@ -691,25 +693,41 @@ function sectionBreakdown(record) {
   const blocks = axes.map((axis) => {
     // 이 시나리오에서 호출되지 않은 기능은 서브메트릭이 0으로 생성된다 — 표에서 제외한다.
     // (모든 기능 축을 미리 선언해 두기 때문에 생기는 빈 행이다.)
-    const rows = Object.entries(bd[axis])
+    const entries = Object.entries(bd[axis])
       .map(([tag, s]) => [tag, normalizeCell(s, gatePhase)])
       .filter(([, s]) => s && fmt.nz(s.p95) && s.p95 > 0)
-      .sort((a, b) => (b[1].p95 || 0) - (a[1].p95 || 0))
-      .map(([tag, s]) => `<tr>
-        <td>${esc(tag)}</td>
-        <td class="num">${fmt.num(s.count, 0)}</td>
-        <td class="num">${fmt.ms(s.avg)}</td>
-        <td class="num">${fmt.ms(s.p90)}</td>
-        <td class="num">${fmt.ms(s.p95)}</td>
-        <td class="num">${fmt.ms(s.p99)}</td>
-        <td class="num">${fmt.ms(s.max)}</td>
-      </tr>`).join('');
-    if (!rows) return '';
-    return `<h3>${esc(labels[axis] || axis)} 응답시간 (P95 내림차순)</h3>
-      <div class="card scroll"><table>
-        <thead><tr><th>${esc(axis)}</th><th class="num">요청 수</th><th class="num">평균</th>
-          <th class="num">P90</th><th class="num">P95</th><th class="num">P99</th><th class="num">최대</th></tr></thead>
-        <tbody>${rows}</tbody></table></div>`;
+      .sort((a, b) => (b[1].p95 || 0) - (a[1].p95 || 0));
+    if (!entries.length) return '';
+
+    const rows = entries.map(([tag, s]) => ({
+      cells: {
+        tag: esc(tag),
+        count: fmt.num(s.count, 0),
+        avg: fmt.ms(s.avg),
+        p90: fmt.ms(s.p90),
+        p95: fmt.ms(s.p95),
+        p99: fmt.ms(s.p99),
+        max: fmt.ms(s.max),
+      },
+      // 표시값은 `4.02s` 와 `429.55ms` 가 섞인 문자열이라 그대로 정렬하면 틀린다.
+      sort: {
+        tag, count: s.count, avg: s.avg, p90: s.p90, p95: s.p95, p99: s.p99, max: s.max,
+      },
+    }));
+
+    return `<h3>${esc(labels[axis] || axis)} 응답시간 (P95 내림차순)</h3>` + dataTable({
+      columns: [
+        { key: 'tag', label: axis, sort: 'text' },
+        { key: 'count', label: '요청 수', align: 'right', sort: 'num' },
+        { key: 'avg', label: '평균', align: 'right', sort: 'num' },
+        { key: 'p90', label: 'P90', align: 'right', sort: 'num' },
+        { key: 'p95', label: 'P95', align: 'right', sort: 'num' },
+        { key: 'p99', label: 'P99', align: 'right', sort: 'num' },
+        { key: 'max', label: '최대', align: 'right', sort: 'num' },
+      ],
+      rows,
+      defaultSort: { key: 'p95', dir: 'desc' },
+    });
   }).filter(Boolean).join('');
 
   if (!blocks) return '';
@@ -849,19 +867,37 @@ function sectionQueryCost(record) {
       else if (qpr > th.warn) { badge = '<span class="badge b-WARN">주의</span>'; }
       else { badge = '<span class="badge b-PASS">정상</span>'; }
     }
-    return `<tr>
-      <td><code>${esc(e.endpoint)}</code></td>
-      <td class="num">${fmt.num(e.requests, 0)}</td>
-      <td class="num" ${cls}>${qpr == null ? '—' : fmt.num(qpr, 1)}</td>
-      <td class="num">${esc(bucketRange(e.queriesP95))}</td>
-      <td class="num">${esc(bucketRange(e.queriesP99))}</td>
-      <td class="num">${e.responseMsPerRequest == null ? '—' : fmt.num(e.responseMsPerRequest, 1)}</td>
-      <td class="num">${e.dbMsPerRequest == null ? '—' : fmt.num(e.dbMsPerRequest, 1)}</td>
-      <td class="num">${shareCell(e.dbSharePct)}</td>
-      <td class="num">${e.dbMsTotal == null ? '—' : fmt.num(e.dbMsTotal, 0)}</td>
-      <td>${badge}</td>
-    </tr>`;
-  }).join('');
+    return {
+      cells: {
+        endpoint: `<code>${esc(e.endpoint)}</code>`,
+        requests: fmt.num(e.requests, 0),
+        qpr: `<span ${cls}>${qpr == null ? '—' : fmt.num(qpr, 1)}</span>`,
+        p95: esc(bucketRange(e.queriesP95)),
+        p99: esc(bucketRange(e.queriesP99)),
+        respMs: e.responseMsPerRequest == null ? '—' : fmt.num(e.responseMsPerRequest, 1),
+        dbMs: e.dbMsPerRequest == null ? '—' : fmt.num(e.dbMsPerRequest, 1),
+        dbShare: shareCell(e.dbSharePct),
+        dbTotal: e.dbMsTotal == null ? '—' : fmt.num(e.dbMsTotal, 0),
+        verdict: badge,
+      },
+      // 분위수는 버킷 경계라 표시가 `20~50` 같은 구간 문자열이다. 정렬은 구간의 하한으로
+      // 한다 — 상한은 `null`(초과)일 수 있어 비교 기준이 못 된다.
+      sort: {
+        endpoint: e.endpoint,
+        requests: e.requests,
+        qpr,
+        p95: e.queriesP95 ? e.queriesP95.moreThan : null,
+        p99: e.queriesP99 ? e.queriesP99.moreThan : null,
+        respMs: e.responseMsPerRequest,
+        dbMs: e.dbMsPerRequest,
+        dbShare: e.dbSharePct,
+        dbTotal: e.dbMsTotal,
+        verdict: qpr,
+      },
+      // 임계를 넘은 경로는 접어도 숨지 않는다. 이 표를 여는 이유가 그 행이다.
+      keep: qpr != null && qpr > th.warn,
+    };
+  });
 
   // 검산 — 엔드포인트 합계 + 요청 밖 문장 ≈ MySQL 전역 문장 수여야 계측을 신뢰할 수 있다.
   const f = (record.infra || {}).flat || {};
@@ -877,22 +913,23 @@ function sectionQueryCost(record) {
     : '전역 문장 수를 못 읽어 검산을 건너뜀';
 
   return `<section><h2>엔드포인트별 요청 비용 — 어느 경로가 쿼리를 많이 쓰는가</h2>
-    <div class="card scroll"><table>
-      <thead><tr>
-        <th>엔드포인트</th>
-        <th class="num" style="width:80px">요청 수</th>
-        <th class="num" style="width:100px">요청당 쿼리</th>
-        <th class="num" style="width:100px">쿼리 p95</th>
-        <th class="num" style="width:100px">쿼리 p99</th>
-        <th class="num" style="width:100px">응답(ms)</th>
-        <th class="num" style="width:100px">그중 DB(ms)</th>
-        <th class="num" style="width:80px">DB 몫</th>
-        <th class="num" style="width:110px">DB 시간 합(ms)</th>
-        <th style="width:70px">판정</th>
-      </tr></thead>
-      <tbody>${rows}</tbody></table>
-      ${eq.truncated ? `<div class="note">요청 수 하위 ${eq.truncated}개 경로는 생략했다.</div>` : ''}
-    </div>
+    ${dataTable({
+    columns: [
+      { key: 'endpoint', label: '엔드포인트', sort: 'text' },
+      { key: 'requests', label: '요청 수', align: 'right', width: '80px', sort: 'num' },
+      { key: 'qpr', label: '요청당 쿼리', align: 'right', width: '100px', sort: 'num' },
+      { key: 'p95', label: '쿼리 p95', align: 'right', width: '100px', sort: 'num' },
+      { key: 'p99', label: '쿼리 p99', align: 'right', width: '100px', sort: 'num' },
+      { key: 'respMs', label: '응답(ms)', align: 'right', width: '100px', sort: 'num' },
+      { key: 'dbMs', label: '그중 DB(ms)', align: 'right', width: '100px', sort: 'num' },
+      { key: 'dbShare', label: 'DB 몫', align: 'right', width: '80px', sort: 'num' },
+      { key: 'dbTotal', label: 'DB 시간 합(ms)', align: 'right', width: '110px', sort: 'num' },
+      { key: 'verdict', label: '판정', width: '70px', sort: 'num' },
+    ],
+    rows,
+    defaultSort: { key: 'requests', dir: 'desc' },
+  })}
+    ${eq.truncated ? `<div class="note">요청 수 하위 ${eq.truncated}개 경로는 생략했다.</div>` : ''}
     <div class="note">
       <b>읽는 법.</b> '요청당 쿼리'가 크면 그 경로에 N+1 이 있다(임계 warn ${th.warn} / fail ${th.fail}).
       평균이 작아도 <b>p95·p99 가 크면 파라미터에 따라 비용이 갈리는 것</b>이므로 꼬리를 같이 본다 —
@@ -951,28 +988,45 @@ function sectionQueryStats(record) {
     const list = (qs.top || {})[axisId] || [];
     if (!list.length) return '';
     const cov = (qs.coverage || {})[axisId];
-    const rows = list.map((s) => `<tr>
-      <td class="num">${fmt.num(s.calls, 0)}</td>
-      <td class="num">${fmt.num(s.rowsExamined, 0)}</td>
-      <td class="num">${fmt.num(s.rowsPerCall, 1)}</td>
-      <td class="num">${fmt.num(s.totalMs, 0)}</td>
-      <td class="num">${fmt.num(s.msPerCall, 2)}</td>
-      <td>${s.kind === 'app' ? '' : `<span class="badge b-SKIP">${esc(s.kind)}</span>`}</td>
-      <td style="font-size:11px;font-family:ui-monospace,monospace">${esc(s.stmt)}</td>
-    </tr>`).join('');
+    // 축마다 이미 그 축으로 정렬돼 넘어온다(querystats.js 의 top). 기본 정렬 표시는 그것을
+    // 그대로 반영한다 — 화면과 헤더 표시가 어긋나면 사용자가 정렬을 못 믿는다.
+    const axisKey = { byCalls: 'calls', byTime: 'totalMs', byRows: 'rowsExamined' }[axisId];
+    const rows = list.map((s) => ({
+      cells: {
+        calls: fmt.num(s.calls, 0),
+        rowsExamined: fmt.num(s.rowsExamined, 0),
+        rowsPerCall: fmt.num(s.rowsPerCall, 1),
+        totalMs: fmt.num(s.totalMs, 0),
+        msPerCall: fmt.num(s.msPerCall, 2),
+        kind: s.kind === 'app' ? '' : `<span class="badge b-SKIP">${esc(s.kind)}</span>`,
+        stmt: `<span style="font-size:11px;font-family:ui-monospace,monospace">${esc(s.stmt)}</span>`,
+      },
+      sort: {
+        calls: s.calls,
+        rowsExamined: s.rowsExamined,
+        rowsPerCall: s.rowsPerCall,
+        totalMs: s.totalMs,
+        msPerCall: s.msPerCall,
+        kind: s.kind,
+        stmt: s.stmt,
+      },
+    }));
     return `<h3>${esc(label)}</h3>
       <div class="note" style="margin-bottom:6px">${esc(QS_AXIS_NOTE[axisId] || '')}${
-        cov && cov.pct != null ? ` · 이 목록이 전체의 <b>${fmt.num(cov.pct, 1)}%</b>를 설명한다` : ''}</div>
-      <div class="card scroll"><table>
-        <thead><tr>
-          <th class="num" style="width:70px">호출</th>
-          <th class="num" style="width:80px">읽은 행</th>
-          <th class="num" style="width:80px">행/호출</th>
-          <th class="num" style="width:70px">시간(ms)</th>
-          <th class="num" style="width:80px">ms/호출</th>
-          <th style="width:70px">출처</th>
-          <th>SQL</th>
-        </tr></thead><tbody>${rows}</tbody></table></div>`;
+  cov && cov.pct != null ? ` · 이 목록이 전체의 <b>${fmt.num(cov.pct, 1)}%</b>를 설명한다` : ''}</div>
+      ${dataTable({
+    columns: [
+      { key: 'calls', label: '호출', align: 'right', width: '70px', sort: 'num' },
+      { key: 'rowsExamined', label: '읽은 행', align: 'right', width: '80px', sort: 'num' },
+      { key: 'rowsPerCall', label: '행/호출', align: 'right', width: '80px', sort: 'num' },
+      { key: 'totalMs', label: '시간(ms)', align: 'right', width: '70px', sort: 'num' },
+      { key: 'msPerCall', label: 'ms/호출', align: 'right', width: '80px', sort: 'num' },
+      { key: 'kind', label: '출처', width: '70px', sort: 'text' },
+      { key: 'stmt', label: 'SQL', sort: 'text' },
+    ],
+    rows,
+    defaultSort: { key: axisKey, dir: 'desc' },
+  })}`;
   };
 
   const h = qs.hidden || {};
@@ -1042,17 +1096,27 @@ function sectionInfra(record) {
   // 자원이 남아도 느린 경우(요청당 일을 너무 많이 하는 경우)를 답하는 유일한 그룹이라
   // 인프라 접기 안에 들어가면 정작 필요할 때 보이지 않는다.
   const groups = (infra.groups || []).filter((g) => g.id !== 'efficiency').map((g) => {
-    const rows = g.metrics
-      .filter((m) => m.value != null)
-      .map((m) => `<tr>
-        <td title="${esc(m.desc || '')}">${esc(m.label)}</td>
-        <td class="num">${fmt.byUnit(m.value, m.unit)}</td>
-        <td style="color:var(--ink-muted);font-size:12px">${esc(m.desc || '')}</td>
-      </tr>`).join('');
-    if (!rows) return '';
-    return `<h3>${esc(g.label)}</h3><div class="card scroll"><table>
-      <thead><tr><th>지표</th><th class="num" style="width:120px">값</th><th>설명</th></tr></thead>
-      <tbody>${rows}</tbody></table></div>`;
+    const metrics = g.metrics.filter((m) => m.value != null);
+    if (!metrics.length) return '';
+    const rows = metrics.map((m) => ({
+      cells: {
+        label: `<span title="${esc(m.desc || '')}">${esc(m.label)}</span>`,
+        value: fmt.byUnit(m.value, m.unit),
+        desc: `<span style="color:var(--ink-muted);font-size:12px">${esc(m.desc || '')}</span>`,
+      },
+      // 단위가 그룹 안에서 섞인다(bytes·percent·per_sec). 표시값으로는 비교가 성립하지
+      // 않으므로 원시값으로 정렬한다 — 같은 단위끼리 볼 때만 의미가 있다는 한계는 남는다.
+      sort: { label: m.label, value: m.value, desc: m.desc || '' },
+    }));
+    return `<h3>${esc(g.label)}</h3>${dataTable({
+      columns: [
+        { key: 'label', label: '지표', sort: 'text' },
+        { key: 'value', label: '값', align: 'right', width: '120px', sort: 'num' },
+        { key: 'desc', label: '설명', sort: false },
+      ],
+      rows,
+      defaultSort: null,
+    })}`;
   }).join('');
 
   // 수집/검증에서 버려진 지표는 사유까지 보여준다. 개수만 적어 두면 표의 "—"가
@@ -1174,14 +1238,29 @@ function sectionRegression(record) {
       if (rank[a.verdict] !== rank[b.verdict]) return rank[a.verdict] - rank[b.verdict];
       return Math.abs(b.badChangePct || 0) - Math.abs(a.badChangePct || 0);
     })
-    .map((c) => `<tr>
-      <td>${esc(c.label)}</td>
-      <td class="num">${fmt.byUnit(c.baseline, c.unit)}</td>
-      <td class="num">${fmt.byUnit(c.current, c.unit)}</td>
-      <td class="num">${deltaCell(c)}</td>
-      <td><span class="badge b-${c.verdict}">${ICON[c.verdict]} ${c.verdict}</span>${c.gate && c.verdict === 'FAIL' ? ' <span class="badge b-FAIL">GATE</span>' : ''}</td>
-      <td style="color:var(--ink-2);font-size:12px">${c.reasons.map((r) => esc(r.desc)).join('<br>') || (c.skipped ? esc(c.skipped) : '')}</td>
-    </tr>`).join('');
+    .map((c) => ({
+      cells: {
+        label: esc(c.label),
+        baseline: fmt.byUnit(c.baseline, c.unit),
+        current: fmt.byUnit(c.current, c.unit),
+        delta: deltaCell(c),
+        verdict: `<span class="badge b-${c.verdict}">${ICON[c.verdict]} ${c.verdict}</span>${c.gate && c.verdict === 'FAIL' ? ' <span class="badge b-FAIL">GATE</span>' : ''}`,
+        reason: `<span style="color:var(--ink-2);font-size:12px">${c.reasons.map((r) => esc(r.desc)).join('<br>') || (c.skipped ? esc(c.skipped) : '')}</span>`,
+      },
+      sort: {
+        label: c.label,
+        baseline: c.baseline,
+        current: c.current,
+        // 증감은 표시가 `▲ +23.4%` 라 문자열 정렬이 무의미하다. 부호를 살린 원시값으로 한다 —
+        // "가장 나빠진 것"과 "가장 좋아진 것"을 양 끝에서 찾을 수 있어야 한다.
+        delta: c.deltaPct,
+        verdict: { FAIL: 0, WARN: 1, PASS: 2 }[c.verdict],
+        reason: c.reasons.map((r) => r.desc).join(' '),
+      },
+      // 실패·경고 행은 접어도 숨지 않는다. 34행짜리 표에서 FAIL 이 6번째에 있으면
+      // 기본 화면이 "문제 없음"으로 보인다 — 이 표에서 가장 위험한 실패다.
+      keep: c.verdict === 'FAIL' || c.verdict === 'WARN',
+    }));
 
   const unmeasured = reg.counts.skipped || 0;
   // 평가 불가를 세 갈래로 쪼개 보여준다(T-08) — 필수 결측은 판정 자체를 무효로 만들고,
@@ -1246,15 +1325,26 @@ function sectionRegression(record) {
       </div>`
     : '';
 
+  const table = rows.length
+    ? dataTable({
+      columns: [
+        { key: 'label', label: '지표', sort: 'text' },
+        { key: 'baseline', label: `직전 (${reg.baselineCommit || '—'})`, align: 'right', sort: 'num' },
+        { key: 'current', label: '현재', align: 'right', sort: 'num' },
+        { key: 'delta', label: '변화', align: 'right', sort: 'num' },
+        { key: 'verdict', label: '판정', sort: 'num' },
+        { key: 'reason', label: '사유', sort: false },
+      ],
+      rows,
+      defaultSort: null,
+    })
+    : '<div class="card"><p class="empty">비교 가능한 지표가 없습니다.</p></div>';
+
   return `<section><h2>Regression</h2>
-    <div class="card scroll">
-      ${baselineStateWarn}
-      ${scriptWarn}
-      <table>
-        <thead><tr><th>지표</th><th class="num">직전 (${esc(reg.baselineCommit || '—')})</th>
-          <th class="num">현재</th><th class="num">변화</th><th>판정</th><th>사유</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="6" class="empty">비교 가능한 지표가 없습니다.</td></tr>'}</tbody>
-      </table>
+    ${baselineStateWarn}
+    ${scriptWarn}
+    ${table}
+    <div class="card">
       <div class="note">
         기준 실행: <b>${esc(reg.baselineRunId)}</b> (${fmt.localTime(reg.baselineStartedAt)})
         · 당시 k6 thresholds <b>${esc(badgeOf(reg.baselineThresholdsPassed))}</b>
@@ -1318,14 +1408,29 @@ function sectionThresholds(record) {
   const LOOSE = /p\(99\)<600000|^rate<=?1$|^rate>=0$|^count>=0$/;
   const real = th.filter((t) => !LOOSE.test(t.expression));
   if (!real.length) return '';
-  const rows = real.map((t) => `<tr>
-    <td><code>${esc(t.metric)}</code></td><td><code>${esc(t.expression)}</code></td>
-    <td><span class="badge b-${t.ok ? 'PASS' : 'FAIL'}">${t.ok ? '✓ 통과' : '✕ 실패'}</span></td>
-  </tr>`).join('');
+  const rows = real.map((t) => ({
+    cells: {
+      metric: `<code>${esc(t.metric)}</code>`,
+      expression: `<code>${esc(t.expression)}</code>`,
+      result: `<span class="badge b-${t.ok ? 'PASS' : 'FAIL'}">${t.ok ? '✓ 통과' : '✕ 실패'}</span>`,
+    },
+    sort: { metric: t.metric, expression: t.expression, result: t.ok ? 1 : 0 },
+  }));
   const failed = real.filter((t) => !t.ok).length;
-  return `<section><h2>SLO Thresholds</h2><div class="card scroll">
-    <table><thead><tr><th>메트릭</th><th>조건</th><th>결과</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="note">${failed ? `${failed}건 미달` : '전 항목 충족'} — k6 실행 중 판정된 SLO다.
+  // 이 표는 접지 않는다. SLO 는 **전수 확인**이 목적이라 5개만 보여주면 나머지를 안 본
+  // 채로 "전 항목 충족"을 읽게 된다. 정렬만 붙인다(collapseAfter: 0).
+  return `<section><h2>SLO Thresholds</h2>
+    ${dataTable({
+    columns: [
+      { key: 'metric', label: '메트릭', sort: 'text' },
+      { key: 'expression', label: '조건', sort: 'text' },
+      { key: 'result', label: '결과', sort: 'num' },
+    ],
+    rows,
+    collapseAfter: 0,
+    defaultSort: null,
+  })}
+    <div class="card"><div class="note">${failed ? `${failed}건 미달` : '전 항목 충족'} — k6 실행 중 판정된 SLO다.
     회귀(직전 대비)와 달리 <b>절대 기준</b>이므로, 성능이 개선됐어도 SLO를 못 넘으면 실패다.</div>
   </div></section>`;
 }
@@ -1421,7 +1526,8 @@ function renderReport(record, opts = {}) {
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(r.scenario)} #${r.number} — Performance Report</title>
-<style>${CSS}</style>
+<style>${CSS}${TABLE_CSS}</style>
+${TABLE_NOSCRIPT}
 </head><body>
 ${sectionHeader(record)}
 <div class="wrap">
@@ -1447,6 +1553,7 @@ ${sectionHeader(record)}
     원본 <code>run.json</code> / <code>k6.json</code> 은 같은 디렉터리에 있습니다.
   </footer>
 </div>
+<script>${TABLE_JS}</script>
 </body></html>`;
 }
 
