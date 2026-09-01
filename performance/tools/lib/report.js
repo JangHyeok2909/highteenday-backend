@@ -193,6 +193,13 @@ tbody tr:last-child td { border-bottom: none; }
 .trust-item.ok .trust-v { color: var(--good-text, var(--good)); }
 .trust-item.bad .trust-v { color: var(--critical); }
 .trust-n { color: var(--ink-2); font-size: 11.5px; }
+/* 포화 자원 줄. 정상일 때도 나오므로 경고색을 기본으로 쓰지 않는다 — 그러면 "항상 빨간
+   리포트"가 되어 진짜 경고가 안 보인다. */
+.trust-sat { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--border);
+  font-size: 12px; line-height: 1.55; }
+.trust-sat.ok { color: var(--ink-2); }
+.trust-sat.bad { color: var(--ink); }
+.trust-sat.unknown { color: var(--ink-muted); }
 
 /* ② 요약의 경고 줄 — 전체 p95 가 감추는 것을 상단에서 알린다 */
 .lead { margin-top: 11px; padding: 9px 12px; border-radius: 6px;
@@ -426,7 +433,7 @@ function sectionTrust(record) {
     ms === 'MEASURED' ? '' : ms === 'PARTIAL' ? '참고 지표 일부 결측' : '판정 불가'));
 
   const st = sat.status || null;
-  items.push(cell('체제', st || '판정 없음', st === 'HEADROOM',
+  items.push(cell('포화 판정', st || '판정 없음', st === 'HEADROOM',
     st === 'HEADROOM' ? 'p95 를 앱 지연으로 읽어도 된다'
       : st === 'NEAR_LIMIT' ? '큐가 생기기 시작했다 — 해석 주의'
         : st === 'SATURATED' ? 'p95 는 큐 대기다. 앱 지연으로 인용 금지'
@@ -465,9 +472,67 @@ function sectionTrust(record) {
   return `<section><div class="card trust ${allOk ? 'trust-ok' : 'trust-bad'}">
     <div class="trust-head">${allOk ? '이 실행은 판정에 쓸 수 있다' : '판정 전에 확인이 필요하다'}</div>
     <div class="trust-row">${items.join('')}</div>
+    ${saturationLine(sat)}
   </div></section>`;
 }
 
+/**
+ * 신뢰표 두 번째 줄 — **무엇이 포화됐는가.**
+ *
+ * `SATURATED` 라고만 말하면 처방을 못 고른다. 자원마다 다음에 볼 곳이 다르기 때문이다 —
+ * 커넥션 풀이면 풀 크기와 보유 시간, CPU throttled 면 CPU 상한, 힙이면 할당률이다.
+ *
+ * 왜 첫 화면이어야 하는가(E-51). 반복 세트에서 회차 하나가 2.4배 느렸고 원인은 커넥션 풀
+ * 고갈이었다(대기 20, 풀 100%). 그런데 그 회차 리포트의 첫 줄은 `NEAR_LIMIT` 이라고만
+ * 말했고, "풀이 찼다"를 보려면 문서 중간의 자원 섹션을 펼쳐야 했다. 원인 후보 7개를
+ * 기각한 뒤에야 도달했다 — 첫 줄에 `커넥션 풀 대기 20` 이 있었으면 5분에 끝났을 조사다.
+ *
+ * **정상일 때도 반드시 한 줄을 낸다.** 경고가 없는 것과 "확인했고 정상"은 다르다. 전자는
+ * 판정이 아직 안 붙은 옛 실행일 수도 있다. 무엇을 확인했고 얼마였는지를 남긴다.
+ *
+ * 자료는 이미 `record.saturation.signals` 에 있다 — 데이터가 아니라 화면이 없었다.
+ */
+function saturationLine(sat) {
+  const signals = (sat && sat.signals) || [];
+  if (!signals.length) {
+    return '<div class="trust-sat unknown">포화 판정 없음 — 어느 자원도 확인되지 않았다. 값을 직접 볼 것</div>';
+  }
+
+  const known = signals.filter((s) => s.level && s.level !== 'unknown' && s.value != null);
+  // 옛 run.json 에는 signal 에 unit 이 없다. 그 기록도 다시 그려야 하므로 키로 보정한다.
+  const unitOf = (s) => (s.unit != null ? s.unit : (s.key === 'hikariPending' ? '개' : '%'));
+  // `fmt.num(v, 2)` 는 자릿수를 고정해 "대기 스레드 20.00개"처럼 읽힌다. 개수와 비율이
+  // 한 줄에 섞이는 자리라 의미 없는 0 은 떨군다 — 20 은 20, 40.67 은 40.67 로.
+  const show = (s) => `${esc(s.label)} ${+Number(s.value).toFixed(2)}${unitOf(s)}`;
+
+  const bad = known.filter((s) => s.level !== 'ok')
+    .sort((a, b) => {
+      if ((a.level === 'fail') !== (b.level === 'fail')) return a.level === 'fail' ? -1 : 1;
+      return (b.value / (b.warn || 1)) - (a.value / (a.warn || 1));
+    });
+
+  if (bad.length) {
+    const parts = bad.map((s) => {
+      const th = s.warn != null && s.fail != null ? ` (임계 warn ${s.warn}${unitOf(s)} / fail ${s.fail}${unitOf(s)})` : '';
+      return `<b>${show(s)}</b>${th}`;
+    }).join(' · ');
+    const tail = sat.status === 'SATURATED'
+      ? ' → p95 는 애플리케이션 지연이 아니라 큐 대기다. 앱 지연으로 인용하면 안 된다.'
+      : ' → 아직 판정에 쓸 수 있지만, 이 값이 더 오르면 p95 에 대기가 섞이기 시작한다.';
+    return `<div class="trust-sat bad">⚠ ${parts}${tail}</div>`;
+  }
+
+  // 가장 임계에 가까운 신호 하나를 같이 낸다. "전부 이하"만으로는 여유가 얼마인지 모른다.
+  // 도착률은 낮을수록 나쁜 반대 부호라 이 비교에서 제외한다 — 섞으면 순위가 뒤집힌다.
+  const ratioed = known.filter((s) => s.key !== 'achievedRate' && s.warn);
+  const nearest = ratioed.length
+    ? ratioed.reduce((a, b) => ((b.value / b.warn) > (a.value / a.warn) ? b : a))
+    : null;
+  const near = nearest
+    ? ` (가장 근접: <b>${show(nearest)}</b> / 임계 ${nearest.warn}${unitOf(nearest)})`
+    : '';
+  return `<div class="trust-sat ok">✓ 자원 여유 있음 — 신호 ${known.length}개 전부 임계 이하${near}</div>`;
+}
 
 function sectionMeasurement(record) {
   const reg = record.regression;
@@ -1558,4 +1623,6 @@ ${sectionHeader(record)}
 }
 
 // sectionRegression 은 기준선 탈락 사유·기준선 상태 표시의 단위 테스트를 위해 노출한다.
-module.exports = { renderReport, sectionRegression, sparkline, meter, CSS };
+module.exports = {
+  renderReport, sectionRegression, sectionTrust, sparkline, meter, CSS,
+};
