@@ -47,6 +47,9 @@ const SIGNALS = [
   {
     key: 'hikariPending',
     label: 'DB 커넥션 대기 스레드',
+    // 유일하게 비율이 아닌 신호다. 단위를 값과 함께 들고 다니지 않으면 화면마다
+    // "40.67" 이 퍼센트인지 개수인지 다르게 읽힌다.
+    unit: '개',
     read: (f) => f['pool.hikariPending.avg'],
     warn: 1,
     fail: 5,
@@ -56,6 +59,7 @@ const SIGNALS = [
   {
     key: 'cpuThrottled',
     label: '앱 CPU throttled 비율',
+    unit: '%',
     read: (f) => f['cpu.throttledPct'],
     warn: 30,
     fail: 80,
@@ -66,6 +70,7 @@ const SIGNALS = [
   {
     key: 'cpuUtil',
     label: '앱 CPU 사용률(상한 대비)',
+    unit: '%',
     read: (f) => (f['cpu.cores.avg'] != null && f['cpu.limitCores']
       ? (f['cpu.cores.avg'] / f['cpu.limitCores']) * 100 : null),
     warn: 75,
@@ -75,6 +80,7 @@ const SIGNALS = [
   {
     key: 'acquireShare',
     label: '커넥션 획득이 p95 에서 차지하는 비율',
+    unit: '%',
     read: (f, k) => (f['pool.hikariAcquireP95Ms'] != null && k && k.p95
       ? (f['pool.hikariAcquireP95Ms'] / k.p95) * 100 : null),
     warn: 20,
@@ -115,11 +121,14 @@ function assess(record) {
   for (const s of SIGNALS) {
     const value = s.read(f, k);
     if (value == null || !Number.isFinite(value)) {
-      signals.push({ key: s.key, label: s.label, value: null, level: 'unknown' });
+      signals.push({ key: s.key, label: s.label, unit: s.unit, value: null, level: 'unknown' });
       continue;
     }
     const level = value >= s.fail ? 'fail' : value >= s.warn ? 'warn' : 'ok';
-    signals.push({ key: s.key, label: s.label, value: +value.toFixed(2), level, warn: s.warn, fail: s.fail, why: s.why });
+    signals.push({
+      key: s.key, label: s.label, unit: s.unit, value: +value.toFixed(2),
+      level, warn: s.warn, fail: s.fail, why: s.why,
+    });
   }
 
   const rate = achievedRate(record);
@@ -129,6 +138,7 @@ function assess(record) {
     signals.push({
       key: 'achievedRate',
       label: '도착률 달성도',
+      unit: '%',
       value: +rate.pct.toFixed(1),
       level,
       why: '부하 발생기가 계획한 도착률을 넣지 못했다. 시스템이 용량을 넘었다는 직접 증거다.',
@@ -144,7 +154,9 @@ function assess(record) {
   const warns = known.filter((s) => s.level === 'warn');
   const status = fails.length ? 'SATURATED' : warns.length ? 'NEAR_LIMIT' : 'HEADROOM';
 
-  const reasons = [...fails, ...warns].map((s) => `${s.label} ${s.value}${s.key === 'achievedRate' ? '%' : ''} — ${s.why}`);
+  // 단위를 신호가 직접 들고 있으므로 예전처럼 key 로 특수 분기하지 않는다. 그 분기는
+  // achievedRate 에만 % 를 붙여, CPU 사용률 40.67 을 단위 없이 내보내고 있었다.
+  const reasons = [...fails, ...warns].map((s) => `${s.label} ${s.value}${s.unit || ''} — ${s.why}`);
   return { status, signals, reasons, achievedRate: rate };
 }
 
