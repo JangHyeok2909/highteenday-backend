@@ -231,10 +231,93 @@ function hotAuthor(n) {
 const TITLES = ['오늘 급식 어땠음?', '수행평가 팁 공유', '내신 공부법', '동아리 추천좀', '모의고사 등급컷',
   '시험기간 공부 인증', '학교 축제 후기', '야자 탈출 방법', '급식 맛집 학교', '수학 문제 질문',
   '영어 단어 암기법', '체육대회 후기', '담임쌤 썰', '매점 신메뉴', '기숙사 생활 팁'];
-const BODIES = ['공감하면 좋아요 눌러줘', '댓글로 알려주세요', '다들 어떻게 생각함?',
-  '진짜 궁금해서 물어봄', '내일까지 해야 하는데 도와줘', '경험담 공유합니다'];
-const COMMENTS_POOL = ['ㅋㅋㅋㅋ 인정', '오 꿀팁 감사', '우리 학교도 그럼', '좋아요 누르고 갑니다',
-  '자세히 좀 알려줘', '와 대박', 'ㄹㅇ 공감', '저장해둠', '단톡에 공유함', '선생님께 여쭤봐'];
+
+/*
+ * 본문 조각 — 길이가 **고르게 흩어져 있어야** 한다.
+ *
+ * 왜 조각을 모아 쓰는가. 예전에는 고정 문구를 그대로 넣었고, 그 결과 댓글 40,000건이
+ * 서로 다른 본문 10종으로 채워졌다(평균 7.1자). 게시글도 10,078건에 본문 58종이었다.
+ * 세 가지가 왜곡된다.
+ *
+ *   1. 응답 크기가 실제보다 작다. 실측에서 댓글 3,903건 응답이 1.41MB 였는데 본문은
+ *      건당 7바이트뿐이고 나머지 354바이트가 JSON 필드 이름·타임스탬프였다. 실제 댓글
+ *      길이라면 같은 응답이 2배 이상이 된다 — 페이지네이션 판단의 근거가 어긋난다.
+ *   2. 검색 측정이 무의미하다. 서로 다른 본문이 58종뿐인 코퍼스에서 LIKE 검색은 거의
+ *      전부 매치하거나 거의 전부 미스다. FULLTEXT 로 바꿔도 개선폭을 잴 수 없다.
+ *   3. 같은 문자열이 수만 번 반복되면 InnoDB 페이지가 실제보다 조밀해져 버퍼풀 적중률이
+ *      비현실적으로 좋아진다.
+ *
+ * 길이가 다양한 조각을 섞는 이유는 목표 길이를 **자르지 않고** 맞추기 위해서다. 조각이
+ * 전부 길면 짧은 댓글을 만들 수 없고, 목표에서 잘라 내면 단어 중간이 끊긴 본문이 된다.
+ */
+const COMMENT_PARTS = [
+  'ㅋㅋ', 'ㄹㅇ', '인정', '헐', '와 대박', '오 꿀팁 감사', 'ㄹㅇ 공감', '저장해둠',
+  '우리 학교도 그럼', '자세히 좀 알려줘', '단톡에 공유함', '선생님께 여쭤봐',
+  '나도 작년에 똑같이 했는데 생각보다 효과 있었음',
+  '이거 그대로 따라하면 되는지 아니면 학교마다 다른지 궁금하다',
+  '작년 선배들 말로는 그 방법이 제일 무난하다고 하던데 요즘도 그런가',
+  '진짜 도움 많이 됐어요 혹시 더 자세한 자료 있으면 공유해주실 수 있나요',
+  '나는 반대로 했다가 오히려 시간만 날렸어서 이 방법 추천한다 진심으로',
+];
+const POST_PARTS = [
+  '다들 어떻게 생각함?', '공감하면 좋아요 눌러줘', '댓글로 알려주세요',
+  '진짜 궁금해서 물어봄', '내일까지 해야 하는데 도와줘', '경험담 공유합니다',
+  '이번 학기 들어서 계속 고민하던 건데 혼자 결론이 안 나서 올려봅니다.',
+  '작년에 같은 상황이었던 사람 있으면 어떻게 넘겼는지 알려주면 좋겠어요.',
+  '학교마다 사정이 다를 것 같아서 여러 경우를 들어보고 정하려고 합니다.',
+  '선생님한테 물어보기엔 좀 애매한 내용이라 여기에 먼저 써봅니다 양해 부탁드려요.',
+  '정리해보면 크게 세 가지 정도가 걸리는데 하나씩 적어볼게요 길어도 읽어주면 고맙겠습니다.',
+  '비슷한 글이 이미 있었으면 알려주세요 검색해봤는데 딱 맞는 건 못 찾았습니다.',
+];
+
+/**
+ * 로그정규 근사로 목표 글자 수를 뽑는다 — **짧은 것이 대부분이고 꼬리가 길다.**
+ *
+ * 실제 글 길이는 정규분포가 아니다. 한 줄짜리가 압도적으로 많고 가끔 아주 긴 글이 있다.
+ * 균등분포로 만들면 "적당히 긴 글"만 잔뜩 생겨서, 꼬리에서만 드러나는 비용(응답 크기,
+ * 직렬화 시간)을 재현하지 못한다.
+ *
+ * 난수원은 `rand()`(고정 시드 LCG)라 같은 생성기·같은 프로파일이면 분포가 재현된다.
+ */
+function targetLength(median, p90, max) {
+  // ln(X) ~ N(ln median, sigma), sigma = (ln p90 - ln median) / z(0.90)
+  const sigma = (Math.log(p90) - Math.log(median)) / 1.2816;
+  // Box–Muller. u1 이 0 이면 log 가 발산하므로 하한을 둔다.
+  const u1 = Math.max(rand(), 1e-9);
+  const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * rand());
+  return Math.min(max, Math.max(2, Math.round(median * Math.exp(sigma * z))));
+}
+
+/**
+ * 목표 길이에 맞을 때까지 조각을 이어 붙인다.
+ *
+ * **자르지 않는다.** 목표를 넘기지 않는 조각만 고르므로 결과는 항상 목표 이하이고 단어가
+ * 중간에서 끊기지 않는다. 맞는 조각이 하나도 없으면(목표가 최단 조각보다 짧으면) 최단
+ * 조각 하나를 넣는다 — 빈 본문은 서버가 거절한다(@NotBlank).
+ */
+function buildText(parts, median, p90, max) {
+  const target = targetLength(median, p90, max);
+  const out = [];
+  let len = 0;
+  for (let guard = 0; guard < 100; guard++) {
+    // 바로 앞과 같은 조각은 뺀다. 짧은 조각일수록 남은 자리에 자주 들어맞아
+    // "헐 헐 헐 헐" 같은 본문이 나오는데, 그건 다양성을 늘리려는 목적과 어긋난다.
+    const last = out[out.length - 1];
+    let fits = parts.filter((p) => p !== last && len + p.length + (out.length ? 1 : 0) <= target);
+    if (!fits.length) fits = parts.filter((p) => len + p.length + (out.length ? 1 : 0) <= target);
+    if (!fits.length) break;
+    const p = fits[randInt(fits.length)];
+    len += p.length + (out.length ? 1 : 0);
+    out.push(p);
+  }
+  if (!out.length) out.push(parts.reduce((a, b) => (b.length < a.length ? b : a)));
+  return out.join(' ');
+}
+
+/** 댓글 본문. 중앙값 15자 / p90 60자 / 상한 300자 (CMT_content 는 varchar(10000)). */
+const commentText = () => buildText(COMMENT_PARTS, 15, 60, 300);
+/** 게시글 본문. 중앙값 200자 / p90 800자 / 상한 3000자 (PST_content 는 TEXT). */
+const postText = () => buildText(POST_PARTS, 200, 800, 3000);
 
 // ---------- HTTP 세션 (쿠키 지원) ----------
 
@@ -810,7 +893,7 @@ async function createPosts(users, sessions, boards) {
     const r = await s.json('POST', '/api/posts', {
       boardId: board.id,
       title: `${pick(TITLES)} #${i}`,
-      content: `${pick(BODIES)} `.repeat(1 + randInt(8)),
+      content: postText(),
       // RequestPostDto의 boolean 필드는 Lombok이 setAnonymous(...)를 생성하므로
       // Jackson이 기대하는 JSON 키는 "isAnonymous"가 아니라 "anonymous"다 (실측 확인됨).
       anonymous: rand() < 0.5,
@@ -850,7 +933,7 @@ async function createEngagement(users, sessions, posts, cp) {
   results.push(requireComplete(await pooled(commentJobs, async (j) => {
     const s = sessions[j.author];
     const r = await s.json('POST', `/api/posts/${j.post.id}/comments`, {
-      parentId: null, content: pick(COMMENTS_POOL), anonymous: rand() < 0.6, url: null,
+      parentId: null, content: commentText(), anonymous: rand() < 0.6, url: null,
     });
     // 4xx도 실패로 본다 — 아래 반응/스크랩도 같다. 5xx만 보면 조용히 미달한다.
     if (r.status < 200 || r.status >= 300) {
@@ -1106,7 +1189,7 @@ function buildMeta(users, posts, boards, stageResults) {
 
 // ---------- 메인 ----------
 
-(async function main() {
+async function main() {
   console.log(`프로파일: ${PROFILE_NAME}`, P, `→ ${BASE}`);
   console.log(`실패 정책: 단계별 허용 ${TOLERANCE_PCT}% · 중단 시점 ${ON_FAILURE}`);
   if (TOLERANCE_PCT > 0) {
@@ -1254,7 +1337,16 @@ function buildMeta(users, posts, boards, stageResults) {
   console.log(`데이터셋 지문: ${meta.fingerprint} (생성기 ${meta.generatorVersion})`);
   console.log(`k6 실행 시 -e DATASET=${PROFILE_NAME} 로 사용`);
   console.log('지문이 다른 데이터셋으로 잰 과거 실행과는 비교되지 않습니다 — 새 기준선이 필요합니다.');
-})().catch((e) => {
+}
+
+/**
+ * 직접 실행할 때만 돈다.
+ *
+ * require 로 불러도 서버에 접속하지 않아야 테스트가 본문 생성기 같은 순수 함수를 그대로
+ * 검증할 수 있다. 예전에는 파일을 읽는 것만으로 시딩이 시작돼, 규칙을 테스트에 복사하는
+ * 수밖에 없었다 — 그러면 구현과 테스트가 사이좋게 같이 틀린다.
+ */
+if (require.main === module) main().catch((e) => {
   // 이미 미달한 단계가 쌓여 있다면, 뒤에서 터진 오류는 **결과이지 원인이 아니다.**
   // `--on-failure continue`는 미달을 안고 끝까지 진행하므로, 뒤 단계가 앞 단계의 산출물을
   // 못 찾아 실패하는 것이 정상 경로다. 그때 스택 트레이스를 뱉고 종료 코드 2로 끝나면
@@ -1267,3 +1359,5 @@ function buildMeta(users, posts, boards, stageResults) {
   console.error(e);
   process.exit(2);
 });
+
+module.exports = { commentText, postText, targetLength, buildText, COMMENT_PARTS, POST_PARTS };
