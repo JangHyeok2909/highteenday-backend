@@ -1,0 +1,754 @@
+{
+ "datasetGuard": "strict",
+ "datasetGuardSource": "perf.config.json",
+ "stateBefore": "sha256:ffe696d17416",
+ "stateCoreBefore": {
+  "users.count": 1000,
+  "users.maxId": 1000,
+  "posts.count": 10000,
+  "posts.maxId": 10000,
+  "comments.count": 40000,
+  "comments.maxId": 40549,
+  "posts_reactions.count": 100000,
+  "posts_reactions.maxId": 100603,
+  "comments_reactions.count": 0,
+  "comments_reactions.maxId": 0,
+  "scraps.count": 8000,
+  "scraps.maxId": 8203,
+  "friends.count": 6000,
+  "friends.maxId": 6000,
+  "friends_requests.count": 0,
+  "friends_requests.maxId": 3000,
+  "chat_rooms.count": 1200,
+  "chat_rooms.maxId": 1200,
+  "chat_participants.count": 2400,
+  "chat_participants.maxId": 2400,
+  "chat_messages.count": 0,
+  "chat_messages.maxId": 0,
+  "notifications.count": 45573,
+  "notifications.maxId": 45573,
+  "medias.count": 0,
+  "medias.maxId": 0,
+  "posts.sumCommentCount": 40000,
+  "posts.sumLikeCount": 85143,
+  "posts.sumDislikeCount": 14854,
+  "posts.sumScrapCount": 7997
+ },
+ "stateVolatileBefore": {
+  "tokens.count": 1000,
+  "posts.sumViewCount": 0,
+  "daily_hot_post.count": 81,
+  "recenthotpost.count": 0
+ },
+ "stateFingerprintMs": 351,
+ "cacheState": "cold",
+ "cacheKeysBefore": 0,
+ "snapshotId": "medium-20260816-062210",
+ "stateMatchedSnapshot": true,
+ "restored": true,
+ "restoreMs": 6322,
+ "loadgen": "docker",
+ "loadgenCpus": "4",
+ "loadgenImage": "grafana/k6:2.1.0",
+ "remoteWrite": true,
+ "cpuBench": {
+  "cpus": "2",
+  "image": "alpine",
+  "axes": {
+   "single": {
+    "ms": 5208,
+    "samples": [
+     5224,
+     5208,
+     5153
+    ],
+    "label": "단일 스레드 (코어 클럭)"
+   },
+   "parallel": {
+    "ms": 6061,
+    "samples": [
+     6061,
+     6404,
+     5917
+    ],
+    "label": "다중 스레드 (스케줄링)"
+   },
+   "ctxswitch": {
+    "ms": 2217,
+    "samples": [
+     2211,
+     2250,
+     2217
+    ],
+    "label": "컨텍스트 스위치 (시스템 콜)"
+   }
+  },
+  "ratios": {
+   "parallelPerSingle": 1.164,
+   "ctxswitchPerSingle": 0.426
+  },
+  "errors": []
+ },
+ "k6StartedAt": "2026-08-31T08:31:46.441Z",
+ "loadBench": {
+  "available": false,
+  "reason": "벤치 시점을 정할 수 없음 — warmup 120초 이상을 --warmup 으로 주거나 --loadbench-at <초> 로 직접 지정"
+ },
+ "queryStats": {
+  "enabled": true,
+  "window": {
+   "startedAt": "2026-08-31T08:32:16.774Z",
+   "endedAt": "2026-08-31T08:33:17.056Z",
+   "plannedSec": 60,
+   "actualSec": 60.3,
+   "overflowCalls": 0
+  },
+  "totals": {
+   "app": {
+    "calls": 60763,
+    "rowsExamined": 82702,
+    "rowsSent": 32798,
+    "selectScan": 34,
+    "selectFullJoin": 0,
+    "noIndexUsed": 34,
+    "tmpDiskTables": 0,
+    "totalMs": 10090
+   },
+   "exporter": {
+    "calls": 60,
+    "rowsExamined": 14040,
+    "rowsSent": 14040,
+    "selectScan": 72,
+    "selectFullJoin": 0,
+    "noIndexUsed": 48,
+    "tmpDiskTables": 0,
+    "totalMs": 28
+   },
+   "self": {
+    "calls": 1,
+    "rowsExamined": 73,
+    "rowsSent": 1,
+    "selectScan": 1,
+    "selectFullJoin": 0,
+    "noIndexUsed": 1,
+    "tmpDiskTables": 0,
+    "totalMs": 0
+   },
+   "other": {
+    "calls": 27,
+    "rowsExamined": 86,
+    "rowsSent": 86,
+    "selectScan": 1,
+    "selectFullJoin": 0,
+    "noIndexUsed": 1,
+    "tmpDiskTables": 0,
+    "totalMs": 9
+   },
+   "all": {
+    "calls": 60850,
+    "rowsExamined": 96828,
+    "rowsSent": 46924,
+    "selectScan": 107,
+    "selectFullJoin": 0,
+    "noIndexUsed": 83,
+    "tmpDiskTables": 0,
+    "totalMs": 10127
+   }
+  },
+  "distinctStatements": 60,
+  "rewound": false,
+  "top": [
+   {
+    "stmt": "SELECT COUNT ( `p1_0` . `pst_id` ) FROM `posts` `p1_0` WHERE `p1_0` . `is_valid` = ? AND ( `lower` ( `p1_0` . `pst_title` ) LIKE ? ESCAPE ? OR `lower` ( `p1_0` . `pst_content` ) LI",
+    "kind": "app",
+    "calls": 4,
+    "rowsExamined": 40014,
+    "rowsPerCall": 10003.5,
+    "rowsSent": 4,
+    "selectScan": 4,
+    "selectFullJoin": 0,
+    "noIndexUsed": 4,
+    "totalMs": 49
+   },
+   {
+    "stmt": "SELECT `c1_0` . `cmt_id` , `c1_0` . `cmt_content` , `c1_0` . `created_at` , `c1_0` . `cmt_dislike_count` , `c1_0` . `cmt_is_anonymous` , `c1_0` . `is_valid` , `c1_0` . `cmt_like_co",
+    "kind": "app",
+    "calls": 47,
+    "rowsExamined": 26634,
+    "rowsPerCall": 566.7,
+    "rowsSent": 26634,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 70
+   },
+   {
+    "stmt": "SHOW GLOBAL VARIABLES",
+    "kind": "exporter",
+    "calls": 12,
+    "rowsExamined": 7572,
+    "rowsPerCall": 631,
+    "rowsSent": 7572,
+    "selectScan": 24,
+    "selectFullJoin": 0,
+    "noIndexUsed": 12,
+    "totalMs": 14
+   },
+   {
+    "stmt": "SELECT COUNT ( `p1_0` . `pst_id` ) FROM `posts` `p1_0` WHERE `p1_0` . `brd_id` = ? AND `p1_0` . `is_valid` = ?",
+    "kind": "app",
+    "calls": 3,
+    "rowsExamined": 6017,
+    "rowsPerCall": 2005.7,
+    "rowsSent": 3,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 2
+   },
+   {
+    "stmt": "SHOW GLOBAL STATUS",
+    "kind": "exporter",
+    "calls": 12,
+    "rowsExamined": 5928,
+    "rowsPerCall": 494,
+    "rowsSent": 5928,
+    "selectScan": 24,
+    "selectFullJoin": 0,
+    "noIndexUsed": 12,
+    "totalMs": 8
+   },
+   {
+    "stmt": "SELECT `u1_0` . `usr_id` , `u1_0` . `usr_allow_admsg` , `u1_0` . `usr_birth_date` , `u1_0` . `created_at` , `u1_0` . `usr_email` , `u1_0` . `usr_gender` , `u1_0` . `usr_grade` , `u",
+    "kind": "app",
+    "calls": 4413,
+    "rowsExamined": 4413,
+    "rowsPerCall": 1,
+    "rowsSent": 4413,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 891
+   },
+   {
+    "stmt": "SELECT COUNT ( `pr1_0` . `pst_rct_id` ) FROM `posts_reactions` `pr1_0` WHERE `pr1_0` . `pst_id` = ? AND `pr1_0` . `pst_rct_kind` = ? AND `pr1_0` . `is_valid`",
+    "kind": "app",
+    "calls": 4,
+    "rowsExamined": 2014,
+    "rowsPerCall": 503.5,
+    "rowsSent": 4,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 7
+   },
+   {
+    "stmt": "SELECT COUNT ( `s1_0` . `sc_id` ) FROM `scraps` `s1_0` WHERE `s1_0` . `pst_id` = ? AND `s1_0` . `is_valid` = ?",
+    "kind": "app",
+    "calls": 3,
+    "rowsExamined": 577,
+    "rowsPerCall": 192.3,
+    "rowsSent": 3,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 4
+   },
+   {
+    "stmt": "SELECT `page_size` , `buffer_pool_instance` , `pages_used` , `pages_free` , `relocation_ops` , `relocation_time` FROM `information_schema` . `innodb_cmpmem`",
+    "kind": "exporter",
+    "calls": 12,
+    "rowsExamined": 480,
+    "rowsPerCall": 40,
+    "rowsSent": 480,
+    "selectScan": 12,
+    "selectFullJoin": 0,
+    "noIndexUsed": 12,
+    "totalMs": 3
+   },
+   {
+    "stmt": "SELECT `p1_0` . `pst_id` , `p1_0` . `brd_id` , `p1_0` . `pst_comment_count` , `p1_0` . `pst_content` , `p1_0` . `created_at` , `p1_0` . `pst_dislike_count` , `p1_0` . `pst_is_anony",
+    "kind": "app",
+    "calls": 4,
+    "rowsExamined": 460,
+    "rowsPerCall": 115,
+    "rowsSent": 40,
+    "selectScan": 4,
+    "selectFullJoin": 0,
+    "noIndexUsed": 4,
+    "totalMs": 4
+   },
+   {
+    "stmt": "SELECT `p1_0` . `pst_id` , `p1_0` . `brd_id` , `p1_0` . `usr_nickname` , `p1_0` . `pst_title` , `p1_0` . `pst_view_count` , `p1_0` . `pst_like_count` , `p1_0` . `pst_comment_count`",
+    "kind": "app",
+    "calls": 8,
+    "rowsExamined": 400,
+    "rowsPerCall": 50,
+    "rowsSent": 400,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 4
+   },
+   {
+    "stmt": "SELECT `u1_0` . `usr_id` , `u1_0` . `usr_allow_admsg` , `u1_0` . `usr_birth_date` , `u1_0` . `created_at` , `u1_0` . `usr_email` , `u1_0` . `usr_gender` , `u1_0` . `usr_grade` , `u",
+    "kind": "app",
+    "calls": 387,
+    "rowsExamined": 387,
+    "rowsPerCall": 1,
+    "rowsSent": 387,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 149
+   },
+   {
+    "stmt": "SELECT `p1_0` . `pst_id` , `p1_0` . `brd_id` , `p1_0` . `pst_comment_count` , `p1_0` . `pst_content` , `p1_0` . `created_at` , `p1_0` . `pst_dislike_count` , `p1_0` . `pst_is_anony",
+    "kind": "app",
+    "calls": 303,
+    "rowsExamined": 303,
+    "rowsPerCall": 1,
+    "rowsSent": 303,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 76
+   },
+   {
+    "stmt": "SELECT COUNT ( `n1_0` . `nt_id` ) FROM `notifications` `n1_0` WHERE `n1_0` . `usr_rec_id` = ? AND `n1_0` . `is_valid` AND NOT ( `n1_0` . `nt_is_read` )",
+    "kind": "app",
+    "calls": 4,
+    "rowsExamined": 269,
+    "rowsPerCall": 67.3,
+    "rowsSent": 4,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 2
+   },
+   {
+    "stmt": "SELECT `cp1_0` . `cht_pt_id` , `cp1_0` . `cht_rm_id` , `cr1_0` . `cht_rm_id` , `cr1_0` . `cht_rm_cat` , `cr1_0` . `created_at` , `cr1_0` . `is_valid` , `cr1_0` . `cht_rm_last_msg` ",
+    "kind": "app",
+    "calls": 13,
+    "rowsExamined": 255,
+    "rowsPerCall": 19.6,
+    "rowsSent": 74,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 11
+   },
+   {
+    "stmt": "SELECT `b1_0` . `brd_id` , `b1_0` . `created_at` , `b1_0` . `brd_description` , `b1_0` . `is_valid` , `b1_0` . `brd_name` , `b1_0` . `upt_id` , `b1_0` . `upt_date` FROM `boards` `b",
+    "kind": "app",
+    "calls": 23,
+    "rowsExamined": 115,
+    "rowsPerCall": 5,
+    "rowsSent": 115,
+    "selectScan": 23,
+    "selectFullJoin": 0,
+    "noIndexUsed": 23,
+    "totalMs": 6
+   },
+   {
+    "stmt": "SELECT `cp1_0` . `cht_pt_id` , `cp1_0` . `cht_rm_id` , `cp1_0` . `created_at` , `cp1_0` . `is_valid` , `cp1_0` . `cht_pt_joined_at` , `cp1_0` . `cht_pt_joined_msg_id` , `cp1_0` . `",
+    "kind": "app",
+    "calls": 17,
+    "rowsExamined": 102,
+    "rowsPerCall": 6,
+    "rowsSent": 34,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 8
+   },
+   {
+    "stmt": "SELECT `u` . * FROM `friends` `f` JOIN `users` `u` ON `f` . `USR_frd_id` = `u` . `USR_id` WHERE `f` . `USR_id` = ? AND `f` . `FRD_status` = ? UNION SELECT `u` . * FROM `friends` `f",
+    "kind": "app",
+    "calls": 3,
+    "rowsExamined": 95,
+    "rowsPerCall": 31.7,
+    "rowsSent": 19,
+    "selectScan": 3,
+    "selectFullJoin": 0,
+    "noIndexUsed": 3,
+    "totalMs": 2
+   },
+   {
+    "stmt": "SELECT `b1_0` . `brd_id` , `b1_0` . `created_at` , `b1_0` . `brd_description` , `b1_0` . `is_valid` , `b1_0` . `brd_name` , `b1_0` . `upt_id` , `b1_0` . `upt_date` FROM `boards` `b",
+    "kind": "app",
+    "calls": 83,
+    "rowsExamined": 83,
+    "rowsPerCall": 1,
+    "rowsSent": 83,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 18
+   },
+   {
+    "stmt": "SELECT `cp1_0` . `cht_pt_id` , `cp1_0` . `cht_rm_id` , `cr1_0` . `cht_rm_id` , `cr1_0` . `cht_rm_cat` , `cr1_0` . `created_at` , `cr1_0` . `is_valid` , `cr1_0` . `cht_rm_last_msg` ",
+    "kind": "app",
+    "calls": 15,
+    "rowsExamined": 74,
+    "rowsPerCall": 4.9,
+    "rowsSent": 37,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 8
+   },
+   {
+    "stmt": "SELECT `DIGEST` , `IFNULL` ( SCHEMA_NAME , ? ) , `COUNT_STAR` , `SUM_ROWS_EXAMINED` , `SUM_ROWS_SENT` , `SUM_SELECT_SCAN` , `SUM_SELECT_FULL_JOIN` , `SUM_NO_INDEX_USED` , `SUM_CREA",
+    "kind": "other",
+    "calls": 1,
+    "rowsExamined": 72,
+    "rowsPerCall": 72,
+    "rowsSent": 72,
+    "selectScan": 1,
+    "selectFullJoin": 0,
+    "noIndexUsed": 1,
+    "totalMs": 7
+   },
+   {
+    "stmt": "SELECT `t1_0` . `tnk_id` , `t1_0` . `tnk_access` , `t1_0` . `tnk_expires_at` , `t1_0` . `tnk_refresh` , `t1_0` . `usr_id` FROM `tokens` `t1_0` WHERE `t1_0` . `usr_id` = ?",
+    "kind": "app",
+    "calls": 65,
+    "rowsExamined": 63,
+    "rowsPerCall": 1,
+    "rowsSent": 63,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 18
+   },
+   {
+    "stmt": "UPDATE `tokens` SET `tnk_access` = ? , `tnk_expires_at` = ? , `tnk_refresh` = ? , `usr_id` = ? WHERE `tnk_id` = ?",
+    "kind": "app",
+    "calls": 61,
+    "rowsExamined": 61,
+    "rowsPerCall": 1,
+    "rowsSent": 0,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 40
+   },
+   {
+    "stmt": "SELECT `page_size` , `compress_ops` , `compress_ops_ok` , `compress_time` , `uncompress_ops` , `uncompress_time` FROM `information_schema` . `innodb_cmp`",
+    "kind": "exporter",
+    "calls": 12,
+    "rowsExamined": 60,
+    "rowsPerCall": 5,
+    "rowsSent": 60,
+    "selectScan": 12,
+    "selectFullJoin": 0,
+    "noIndexUsed": 12,
+    "totalMs": 2
+   },
+   {
+    "stmt": "UPDATE `posts` SET `brd_id` = ? , `pst_comment_count` = ? , `pst_content` = ? , `pst_dislike_count` = ? , `pst_is_anonymous` = ? , `is_valid` = ? , `pst_like_count` = ? , `usr_nick",
+    "kind": "app",
+    "calls": 60,
+    "rowsExamined": 60,
+    "rowsPerCall": 1,
+    "rowsSent": 0,
+    "selectScan": 0,
+    "selectFullJoin": 0,
+    "noIndexUsed": 0,
+    "totalMs": 25
+   }
+  ]
+ },
+ "hostProbe": {
+  "available": true,
+  "intervalSec": 1,
+  "startedAt": "2026-08-31T08:31:46.441Z",
+  "endedAt": "2026-08-31T08:35:18.099Z",
+  "samples": 204,
+  "marks": [],
+  "counters": {
+   "cpuPct": {
+    "label": "Windows 전체 CPU",
+    "desc": "Windows 가 본 전체 CPU 사용률. VM 이 쓰는 몫과 그 밖의 프로세스가 합쳐진 값.",
+    "avg": 17.82,
+    "min": 0,
+    "max": 62.81,
+    "p95": 33.65,
+    "samples": 204
+   },
+   "freqPct": {
+    "label": "CPU 정규화 성능(전체 집계)",
+    "desc": "공칭 대비 프로세서 성능. **물리 클럭이 아니다** — 유휴 코어까지 포함한 시스템 전체 집계이고, 실측에서 활동 수준을 따라 움직였다(E-49). 클럭 근거로 쓰지 말 것.",
+    "avg": 90.67,
+    "min": 53.85,
+    "max": 155.31,
+    "p95": 125.72,
+    "samples": 204
+   },
+   "queueLen": {
+    "label": "실행 대기 스레드",
+    "desc": "CPU 를 기다리는 스레드 수. 지속적으로 코어 수를 넘으면 호스트가 밀린 것이다.",
+    "avg": 0.4,
+    "min": 0,
+    "max": 11,
+    "p95": 2,
+    "samples": 204
+   },
+   "availMB": {
+    "label": "Windows 가용 메모리(MB)",
+    "desc": "남은 물리 메모리. 줄어들면 VM 메모리가 압축·페이징될 수 있다.",
+    "avg": 4226.69,
+    "min": 3766,
+    "max": 4755,
+    "p95": 4457,
+    "samples": 204
+   },
+   "vmmemPct": {
+    "label": "VmmemWSL 프로세스 CPU",
+    "desc": "WSL2 VM 을 대표하는 호스트 프로세스의 CPU. 컨테이너 내부 합과 벌어지면 호스트 측 가상화 비용이다.",
+    "avg": 0.12,
+    "min": 0,
+    "max": 1.54,
+    "p95": 1.52,
+    "samples": 204
+   },
+   "coresBusy": {
+    "label": "50% 이상 사용 중인 논리 코어 수",
+    "avg": 1.26,
+    "min": 0,
+    "max": 14,
+    "p95": 4,
+    "samples": 204
+   },
+   "topCores": [
+    {
+     "inst": "0,6",
+     "avg": 36.63
+    },
+    {
+     "inst": "0,4",
+     "avg": 36.59
+    },
+    {
+     "inst": "0,16",
+     "avg": 27.81
+    },
+    {
+     "inst": "0,12",
+     "avg": 24.1
+    },
+    {
+     "inst": "0,2",
+     "avg": 20.49
+    },
+    {
+     "inst": "0,0",
+     "avg": 20.43
+    }
+   ]
+  },
+  "header": [
+   "\\\\DESKTOP-DJJPASG\\Processor Information(_Total)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(_Total)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\System\\Processor Queue Length",
+   "\\\\DESKTOP-DJJPASG\\Memory\\Available MBytes",
+   "\\\\DESKTOP-DJJPASG\\Process(vmmemWSL)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Process(vmmem)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,0)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,1)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,10)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,11)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,12)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,13)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,14)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,15)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,16)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,17)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,18)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,19)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,2)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,3)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,4)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,5)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,6)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,7)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,8)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,9)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,_Total)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(_Total)\\% Processor Time",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,0)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,1)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,10)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,11)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,12)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,13)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,14)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,15)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,16)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,17)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,18)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,19)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,2)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,3)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,4)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,5)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,6)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,7)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,8)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,9)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(0,_Total)\\% Processor Performance",
+   "\\\\DESKTOP-DJJPASG\\Processor Information(_Total)\\% Processor Performance"
+  ]
+ },
+ "stateAfter": "sha256:c10dc769c033",
+ "stateCoreAfter": {
+  "users.count": 1000,
+  "users.maxId": 1000,
+  "posts.count": 10007,
+  "posts.maxId": 10010,
+  "comments.count": 40003,
+  "comments.maxId": 40552,
+  "posts_reactions.count": 100004,
+  "posts_reactions.maxId": 100609,
+  "comments_reactions.count": 1,
+  "comments_reactions.maxId": 1,
+  "scraps.count": 8004,
+  "scraps.maxId": 8207,
+  "friends.count": 6000,
+  "friends.maxId": 6000,
+  "friends_requests.count": 0,
+  "friends_requests.maxId": 3000,
+  "chat_rooms.count": 1200,
+  "chat_rooms.maxId": 1200,
+  "chat_participants.count": 2400,
+  "chat_participants.maxId": 2400,
+  "chat_messages.count": 39,
+  "chat_messages.maxId": 39,
+  "notifications.count": 45576,
+  "notifications.maxId": 45576,
+  "medias.count": 0,
+  "medias.maxId": 0,
+  "posts.sumCommentCount": 40003,
+  "posts.sumLikeCount": 85146,
+  "posts.sumDislikeCount": 14855,
+  "posts.sumScrapCount": 8001
+ },
+ "stateVolatileAfter": {
+  "tokens.count": 1000,
+  "posts.sumViewCount": 169,
+  "daily_hot_post.count": 81,
+  "recenthotpost.count": 0
+ },
+ "stateChanged": true,
+ "stateDelta": [
+  {
+   "key": "chat_messages.count",
+   "before": 0,
+   "after": 39,
+   "delta": 39
+  },
+  {
+   "key": "chat_messages.maxId",
+   "before": 0,
+   "after": 39,
+   "delta": 39
+  },
+  {
+   "key": "posts.maxId",
+   "before": 10000,
+   "after": 10010,
+   "delta": 10
+  },
+  {
+   "key": "posts.count",
+   "before": 10000,
+   "after": 10007,
+   "delta": 7
+  },
+  {
+   "key": "posts_reactions.maxId",
+   "before": 100603,
+   "after": 100609,
+   "delta": 6
+  },
+  {
+   "key": "posts_reactions.count",
+   "before": 100000,
+   "after": 100004,
+   "delta": 4
+  },
+  {
+   "key": "scraps.count",
+   "before": 8000,
+   "after": 8004,
+   "delta": 4
+  },
+  {
+   "key": "scraps.maxId",
+   "before": 8203,
+   "after": 8207,
+   "delta": 4
+  },
+  {
+   "key": "posts.sumScrapCount",
+   "before": 7997,
+   "after": 8001,
+   "delta": 4
+  },
+  {
+   "key": "comments.count",
+   "before": 40000,
+   "after": 40003,
+   "delta": 3
+  },
+  {
+   "key": "comments.maxId",
+   "before": 40549,
+   "after": 40552,
+   "delta": 3
+  },
+  {
+   "key": "notifications.count",
+   "before": 45573,
+   "after": 45576,
+   "delta": 3
+  },
+  {
+   "key": "notifications.maxId",
+   "before": 45573,
+   "after": 45576,
+   "delta": 3
+  },
+  {
+   "key": "posts.sumCommentCount",
+   "before": 40000,
+   "after": 40003,
+   "delta": 3
+  },
+  {
+   "key": "posts.sumLikeCount",
+   "before": 85143,
+   "after": 85146,
+   "delta": 3
+  },
+  {
+   "key": "comments_reactions.count",
+   "before": 0,
+   "after": 1,
+   "delta": 1
+  },
+  {
+   "key": "comments_reactions.maxId",
+   "before": 0,
+   "after": 1,
+   "delta": 1
+  },
+  {
+   "key": "posts.sumDislikeCount",
+   "before": 14854,
+   "after": 14855,
+   "delta": 1
+  }
+ ]
+}
