@@ -200,11 +200,31 @@ const JOURNEYS = {
 // ---------- 가중치 프로파일 ----------
 // 값은 상대 가중치. 합이 100일 필요는 없지만 가독성을 위해 100으로 맞춘다.
 
-/** 평일 일과 시간 평균 트래픽 — 읽기 중심 (읽기:쓰기 ≈ 8:2) */
+/**
+ * 평일 일과 시간 평균 트래픽 — 읽기 중심 (읽기:쓰기 ≈ 8:2)
+ *
+ * 채팅 비중을 13 → 25 로 올렸다(2026-09-01). 이유는 두 가지다.
+ *
+ * **① 이 프로파일이 모든 Before/After 의 기준이다.** 채팅이 과소 대표되면 채팅 경로의
+ * 회귀는 기준선에서 영영 드러나지 않는다.
+ *
+ * **② 그동안 채팅을 재고 있지도 않았다.** 시더가 메시지를 만들지 않아 `chat_messages` 가
+ * 0행이었고, 방 목록의 미읽음 집계는 빈 테이블 위에서 돌았으며 메시지 조회는 늘 빈 배열을
+ * 돌려줬다. 비중만 올리면 빈 결과를 더 자주 재게 되므로, 데이터(시더의 chat-messages·
+ * group-rooms 단계)를 먼저 채운 뒤 함께 올린다.
+ *
+ * **합계 100 을 유지하고 다른 여정에서 몫을 떼어 온다.** 그냥 더하면 여정당 요청 수가 늘어
+ * RPS 기준선이 통째로 어긋난다 — `journeyEngage` 가 같은 이유로 이미 그렇게 하고 있다.
+ *
+ * VU 여유 검산: `journeyChatWs` 는 세션을 15~30초 유지하므로 평균 반복 시간이 늘어난다.
+ * 0.13×23초 + 0.87×9초 ≈ 10.8초, RATE=4 에서 약 44 VU 다. `preAllocatedVUs` 100 안이라
+ * 여유가 있지만, 실행 후 `dropped_iterations` 가 0인지 확인해야 한다 — 도착률을 못 맞추면
+ * open model 로 전환한 의미가 사라진다.
+ */
 export const PROFILE_NORMAL = {
-  browse: 40, engage: 15, write: 5, search: 4,
-  chatRest: 8, chatWs: 5, notification: 10,
-  morning: 3, social: 5, mypage: 3, tokenRefresh: 1, relogin: 1,
+  browse: 32, engage: 13, write: 5, search: 4,
+  chatRest: 12, chatWs: 13, notification: 9,
+  morning: 3, social: 4, mypage: 3, tokenRefresh: 1, relogin: 1,
 };
 
 /** 등교 직전/점심 피크 — 급식·시간표·알림 폭증 */
