@@ -246,7 +246,7 @@ function printConsole(record) {
   }
   // 포화 경고는 측정 상태 바로 아래다. 지표가 다 있어도 **그 값의 의미가 다를 수 있다**는
   // 것을 판정보다 먼저 알아야 한다 — 이 줄이 없어서 큐 대기를 애플리케이션 지연으로
-  // 닷새간 읽었다(perf-session-drift.md 8-h).
+  // 닷새간 읽었다.
   const satLine = saturation.banner(record.saturation);
   if (satLine) {
     line(`  ${satLine}`);
@@ -372,7 +372,7 @@ async function processRun(runId, opts) {
    *
    * 왜 필요한가: 예전에는 요약이 warmup+measure+rampdown 전체 평균이었는데 비교 대상인
    * p95 는 measure 구간만이었다. 서로 다른 창을 상관분석해 **잘못된 인과 결론을 냈다가
-   * 철회했다**(perf-session-drift.md 8-e). 게다가 loadbench(2코어 40초)가 그 창 안에서
+   * 철회했다**(T-37). 게다가 loadbench(2코어 40초)가 그 창 안에서
    * 돌아 설명 변수 자체를 오염시켰다. 구간을 나누면 loadbench 는 warmup 에 격리된다.
    *
    * **분석과 게이트는 `hostProbe.phases.measure` 만 써야 한다.**

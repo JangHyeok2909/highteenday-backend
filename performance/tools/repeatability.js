@@ -224,9 +224,8 @@ function runOnce(o, index) {
   // 부하 발생기 모드는 비교 조건이다(conditions v4). 반복 전체가 같은 모드여야 하므로
   // 환경변수에 기대지 않고 명시적으로 넘긴다.
   if (o.loadgen) args.push('--loadgen', o.loadgen);
-  // 구간 길이도 넘긴다. 이것을 못 바꾸면 '드리프트가 회차 수에 비례하는지 경과 시간에
-  // 비례하는지'(E-46)를 가르는 실험 자체를 설계할 수 없다 — 실행 길이를 바꿔야 두 가설이
-  // 서로 다른 예측을 내기 때문이다.
+  // 구간 길이도 넘긴다. 반복 전체가 같은 phasePlan 위에서 돌아야 회차 간 편차가
+  // 측정 대상의 변동만 반영한다 — 회차마다 길이가 다르면 그 차이가 편차에 섞인다.
   if (o.warmup != null) args.push('--warmup', o.warmup);
   if (o.hold) args.push('--hold', o.hold);
   if (o.env) args.push('--env', o.env);

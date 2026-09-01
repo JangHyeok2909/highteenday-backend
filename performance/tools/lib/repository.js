@@ -225,7 +225,7 @@ function toIndexEntry(record) {
     // 감시 화면 헤드라인의 '비용' 칸. **CPU 가 상한에 붙어 있으면 사용률은 신호가 아니다** —
     // 앱은 빠르든 느리든 항상 2코어를 쓰므로 cpu.cores.avg 가 1.998 로 고정된다. 그 상태에서
     // 실제로 달라지는 것은 "같은 CPU 로 몇 건을 처리했나"뿐이고, 그건 요청당 비용으로만 보인다.
-    // E-46 조사가 이 값 하나로 뒤집혔다(앱 +27%, MySQL +21% 동반 상승).
+    // 실제로 자원 지표가 전부 평평한데 이 값만 앱 +27%, MySQL +21% 로 함께 오른 실행이 있었다.
     // remote-write 이전 실행에는 분모(요청 수)가 없어 null 이다.
     stackCpuMsPerReq: flat['efficiency.stackCpuMsPerReq'],
     queriesPerReq: flat['efficiency.queriesPerReq'],
