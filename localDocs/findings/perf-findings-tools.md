@@ -1852,3 +1852,88 @@ rules.json p95 fail    = 20%
 - `rules.json` 의 `gate`/`display` 임계 분리는 하지 않았다 — 설계 문서 §6 반론 4 참조.
   지금은 게이트 임계 하나로 표시까지 겸한다.
 - `noiseFloor` 는 n=3·4 표본에서 나왔다. 정식 5회 세트 후 재검토 대상이다.
+
+---
+
+### T-42. [HIGH] `run.commit` 이 실제로 측정된 코드를 가리키지 않는다 — 상태: **미해결**
+
+**쉽게 말하면**
+
+모든 실행 기록에 `commit: f915176e` 같은 값이 붙어 있어서, 그 커밋의 코드를 잰 것처럼
+보인다. **아니다.** 그 값은 실행할 때의 **작업 트리 git HEAD** 일 뿐이고, 부하를 받는
+것은 컨테이너 안의 이미지다. 둘은 아무 관계가 없다.
+
+**현재 동작**
+
+`tools/perf-run.js` 가 `git rev-parse HEAD` 로 읽어 `PERF_COMMIT` 으로 넘긴다. 그런데
+앱은 `environment-app` 이미지로 뜨고, 그 이미지는 `docker compose up -d --build` 를
+쳤을 때만 다시 만들어진다. 실험 절차에서 실제로 쓰는 두 명령은 이미지를 건드리지 않는다.
+
+| 명령 | 컨테이너 | 이미지 | 코드 |
+|---|---|---|---|
+| `docker restart perf-app` (`--reset restart` 가 매 회차 쓰는 것) | 껐다 켬 | 그대로 | **그대로** |
+| `docker compose up -d app` | 설정 바뀌면 재생성 | **기존 것 재사용** | **그대로** |
+| `docker compose up -d --build app` | 재생성 | 다시 빌드 | 반영됨 |
+
+**왜 문제인가**
+
+실측으로 확인했다(2026-08-31).
+
+```
+perf-app 이미지 : environment-app:latest, 생성 2026-08-14 13:41 KST (이미지는 이것 하나뿐)
+컨테이너 안 jar : app.jar, Aug 14 04:41
+
+jar 안 클래스 검색
+  QueryCountFilter   : 0건   ← 커밋 d29d9eb 이 추가한 것. 없다
+  QueryMetricsConfig : 0건
+  CommentController  : 2건
+```
+
+즉 **8/14 이후에 저장된 모든 실행이 8/14 코드를 잰 것**인데, 기록에는 그때그때의
+작업 트리 HEAD 가 박혀 있다. EXP-006 의 Before(8/26, `f915176e` 로 기록)와
+After(8/29, `d1f97cd` 로 기록)도 실제로는 같은 바이너리였다.
+
+이게 두 방향으로 틀리게 만든다.
+
+1. **없는 차이를 있다고 읽는다.** EXP-006 을 쓰면서 커밋 두 개가 다르니 "바이너리가
+   44커밋 다르므로 지연 비교가 무효"로 결론냈다. 컨테이너를 열어 보고서야 틀린 줄 알았다.
+2. **있는 차이를 없다고 읽는다.** 이쪽이 더 위험하다. 코드를 고치고 이미지를 다시 만들지
+   않은 채 실행하면, 기록은 새 커밋을 가리키는데 잰 것은 옛 코드다. 개선 실험이
+   "효과 없음"으로 나와도 **정말 효과가 없는 것인지 코드가 안 들어간 것인지 구분할
+   근거가 기록에 없다.**
+
+**비교 판정도 이걸 못 막는다.** `tools/lib/comparability.js` 의 조건 목록에 앱 바이너리가
+없다.
+
+| 등급 | 조건 |
+|---|---|
+| blocking | `scenario` · `environment` · `dataset` · `loadProfile` · `loadgen` · `measurementProfile` |
+| degrading | `loadBench` · `remoteWrite` · `scriptVersion` |
+
+`scriptVersion` 은 **k6 부하 스크립트**의 지문이지 앱이 아니다. EXP-006 에서 `incomparable`
+판정이 뜬 것은 내가 `--env perf-pool20` 이라는 이름표를 붙였기 때문이고, 이름표를
+기본값으로 뒀다면 두 세트는 같은 계열로 묶여 한 추세선에 그려졌을 것이다.
+
+**근거**
+
+- `performance/experiments/EXP-006-pool-sizing/README.md` §9.3
+- `docker inspect perf-app --format '{{.Image}}'` → 생성 2026-08-14
+- `docker exec perf-app sh -c "grep -c QueryCountFilter app.jar"` → 0
+- `tools/lib/comparability.js` 의 `CONDITIONS` 목록
+
+**필요한 조치**
+
+1. **실행마다 이미지 다이제스트를 기록한다.** `docker inspect <app컨테이너> --format
+   '{{.Image}}'` 한 줄이면 되고, 이 값은 코드가 바뀌면 반드시 바뀐다.
+2. **비교 조건에 degrading 등급으로 추가한다.** blocking 으로 넣으면 이미지를 다시 만들
+   때마다 계열이 갈려 추세선이 상시 리셋된다 — `comparability.js:54` 가 `scriptVersion`
+   을 degrading 에 둔 것과 같은 이유다.
+3. **`commit` 필드의 의미를 문서에 명시한다.** 지우지는 않는다. "어떤 소스로 실험을
+   설계했는가"는 그 자체로 쓸모가 있다. 다만 **"무엇을 쟀는가"가 아니라는 것**이
+   기록에 드러나야 한다.
+4. 여력이 되면 빌드 시 커밋을 이미지 라벨로 굽는다(`--label commit=$(git rev-parse HEAD)`).
+   그러면 다이제스트를 사람이 읽을 수 있는 값으로 되돌릴 수 있다.
+
+**소급 적용은 안 된다.** 저장된 실행에는 이미지 다이제스트가 없으므로, 과거 실행의
+`commit` 은 앞으로도 "무엇을 쟀는지 모르는 값"으로 남는다. 8/14 이후 실행은 전부 8/14
+이미지라는 것만 이 항목의 기록으로 남긴다.
