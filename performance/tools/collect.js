@@ -10,12 +10,28 @@
  *   node tools/collect.js <runId>               특정 실행을 수집
  *   node tools/collect.js --all                 아직 run.json이 없는 실행 전부 처리
  *   node tools/collect.js <runId> --force       이미 처리된 것도 다시 처리(리포트 재생성)
+ *   node tools/collect.js --all --render-only   저장된 판정 그대로 HTML만 다시 그림
  *
  * 주요 옵션
  *   --wait <sec>     스크레이프 지연 대기 (기본 15초 = 5초 간격 × 3회)
  *   --no-wait        대기 없이 즉시 조회 (과거 실행을 재처리할 때)
  *   --prom <url>     Prometheus 주소 (기본 http://localhost:9090)
  *   --no-gate        회귀가 있어도 exit 0 (관찰만)
+ *   --render-only    **재판정 없이 리포트만 다시 그린다.** 아래 설명 참고.
+ *
+ * `--force` 와 `--render-only` 는 전혀 다르다
+ * -------------------------------------------
+ * `--force` 는 **재수집이자 재판정**이다. Prometheus 를 다시 조회하고, 기준선을 다시 찾고,
+ * 회귀를 다시 계산해 `run.json` 과 `index.json` 을 덮어쓴다. 그래서 지표 카탈로그나 임계를
+ * 바꾼 뒤 `--all --force` 를 돌리면 **저장된 과거 판정이 함께 바뀐다.**
+ *
+ * 그런데 리포트 화면만 고쳤을 때도 과거 실행에 새 화면을 입히려면 다시 그려야 한다. 지금까지
+ * 그 수단이 `--force` 뿐이었고, Before/After 실험 도중에 그걸 돌리면 Before 세트의 판정이
+ * 실험 중에 흔들려 실험 자체가 무효가 된다.
+ *
+ * `--render-only` 는 저장된 `run.json` 을 **읽기만** 해서 HTML 을 다시 쓴다. Prometheus 를
+ * 조회하지 않고, 기준선을 다시 찾지 않고, `run.json`·`index.json` 을 건드리지 않는다.
+ * 판정은 그 실행이 당시에 받은 것 그대로다.
  *
  * 종료 코드
  *   0  통과
@@ -44,12 +60,16 @@ const fmt = require('./lib/format');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function parseArgs(argv) {
-  const out = { positional: [], wait: 15, force: false, all: false, gate: true, prom: undefined, quiet: false };
+  const out = {
+    positional: [], wait: 15, force: false, all: false, gate: true,
+    prom: undefined, quiet: false, renderOnly: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--wait') out.wait = Number(argv[++i]);
     else if (a === '--no-wait') out.wait = 0;
     else if (a === '--force') out.force = true;
+    else if (a === '--render-only') out.renderOnly = true;
     else if (a === '--all') out.all = true;
     else if (a === '--no-gate') out.gate = false;
     else if (a === '--quiet') out.quiet = true;
@@ -60,6 +80,15 @@ function parseArgs(argv) {
   // NaN 은 "값이 이상하다"가 아니라 조용히 대기 0초가 되어 버린다. 즉시 멈춘다.
   if (!Number.isFinite(out.wait)) {
     console.error('--wait 값이 숫자가 아닙니다.');
+    process.exit(2);
+  }
+  // 두 플래그를 같이 주면 사용자의 의도가 정반대 둘 중 어느 쪽인지 알 수 없다 —
+  // "판정도 다시 해라"와 "판정은 절대 건드리지 마라"다. 하나를 골라 조용히 실행하면
+  // 실험 중인 기준선을 날릴 수 있으므로 거부한다.
+  if (out.renderOnly && out.force) {
+    console.error('--render-only 와 --force 는 함께 쓸 수 없습니다.\n'
+      + '  --force        재수집 + 재판정 (저장된 과거 판정이 바뀝니다)\n'
+      + '  --render-only  저장된 판정 그대로 HTML 만 다시 그림');
     process.exit(2);
   }
   return out;
@@ -491,19 +520,65 @@ function newestByMtime(ids) {
   return best;
 }
 
+/**
+ * 저장된 레코드로 HTML 만 다시 쓴다 — 재판정 없음.
+ *
+ * 기준선을 `findBaseline()` 으로 **다시 찾지 않는다.** 다시 찾는 순간 그것이 재판정이다.
+ * 그 실행이 당시에 고른 기준선(`regression.baselineRunId`)을 그대로 읽는다. 그 기준선의
+ * `run.json` 이 지워졌으면 비교 칸만 비고 판정 자체는 저장된 값이 그대로 나온다.
+ *
+ * 추세는 **그 실행 시점까지**로 자른다. `recentRuns()` 는 계열의 최근 20회를 주는데,
+ * 과거 실행을 다시 그릴 때 그대로 쓰면 그 실행 **이후**에 나온 회차까지 그려지고,
+ * 리포트의 "오른쪽 끝이 이번 실행이다"라는 설명이 거짓말이 된다.
+ */
+function renderOnly(runId) {
+  const record = repo.loadRun(runId);
+  if (!record) {
+    throw new Error(`run.json 없음 — --render-only 는 이미 수집된 실행만 다시 그린다 (수집: collect.js ${runId})`);
+  }
+  const reg = record.regression || {};
+  const prevRun = reg.baselineRunId ? repo.loadRun(reg.baselineRunId) : null;
 
+  const rows = repo.recentRuns({
+    scenario: record.run.scenario,
+    environment: record.run.environment,
+    seriesHash: reg.seriesHash,
+    limit: 500,
+  });
+  const trend = trendUpTo(rows, record.run.startedAt);
+
+  fs.writeFileSync(repo.reportFile(runId), renderReport(record, { previous: prevRun, trend }));
+  return record;
+}
+
+/**
+ * 계열 이력에서 **그 실행 시점까지**만 남긴다.
+ *
+ * 수집 시점에는 그 실행이 언제나 계열의 마지막이라 자를 필요가 없었다. 과거 실행을 다시
+ * 그릴 때는 다르다 — 자르지 않으면 그 실행 **이후**에 나온 회차까지 그려지고, 리포트가
+ * 스스로 붙이는 설명("오른쪽 끝이 이번 실행이다")이 거짓이 된다. 추세 점에 실행 링크를
+ * 달면 오독이 아니라 오작동이 된다.
+ *
+ * `startedAt` 은 ISO-8601 UTC 문자열이라 사전순 비교가 곧 시간순 비교다.
+ */
+function trendUpTo(rows, startedAt, limit = 20) {
+  const cutoff = String(startedAt || '');
+  const kept = cutoff ? rows.filter((r) => String(r.startedAt) <= cutoff) : rows;
+  return kept.slice(-limit);
+}
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
 
   let targets = opts.positional;
   if (opts.all) {
-    targets = opts.force ? repo.listRunIds() : repo.listPendingRunIds();
+    // --render-only 의 대상은 "아직 수집 안 된 실행"이 아니라 **이미 수집된 실행 전부**다.
+    targets = (opts.force || opts.renderOnly) ? repo.listRunIds() : repo.listPendingRunIds();
   } else if (targets.length === 0) {
     // 인자가 없으면 "가장 최근에 k6가 남긴, 아직 수집 안 된 실행"을 고른다.
     const ids = repo.listRunIds();
     const pending = repo.listPendingRunIds();
-    const pick = opts.force ? newestByMtime(ids) : newestByMtime(pending);
+    const pick = (opts.force || opts.renderOnly) ? newestByMtime(ids) : newestByMtime(pending);
     if (!pick) {
       console.error('수집할 실행이 없습니다. (reports/runs/ 가 비었거나 이미 전부 처리됨 — --force 로 재처리)');
       process.exit(2);
@@ -514,6 +589,29 @@ async function main() {
   if (targets.length === 0) {
     console.log('처리할 새 실행이 없습니다.');
     process.exit(0);
+  }
+
+  /*
+   * 재렌더는 여기서 끝난다 — Prometheus 대기도, 게이트 판정도 없다.
+   *
+   * 종료 코드를 회귀에 걸지 않는 이유: 다시 그린 실행 중에 옛 FAIL 이 섞여 있는 것은
+   * 정상이다. 그걸로 exit 1 을 내면 "리포트를 다시 그렸더니 CI 가 실패"하는, 원인과
+   * 결과가 무관한 신호가 된다. 렌더 실패(exit 2)만 실패다.
+   */
+  if (opts.renderOnly) {
+    let failed = 0;
+    for (const runId of targets) {
+      try {
+        const rec = renderOnly(runId);
+        if (!opts.quiet) console.log(`✓ ${runId} — ${repo.reportFile(runId)}`);
+        else if (!rec) console.log(runId);
+      } catch (e) {
+        console.error(`✗ ${runId} 재렌더 실패: ${e.message}`);
+        failed++;
+      }
+    }
+    console.log(`재렌더 ${targets.length - failed}/${targets.length}건 (판정·run.json 은 건드리지 않았습니다)`);
+    process.exit(failed > 0 ? 2 : 0);
   }
 
   // 스크레이프 지연 대기 — 테스트 종료 직후 구간이 Prometheus에 들어올 시간을 준다.
@@ -567,4 +665,4 @@ if (require.main === module) {
 }
 
 // printConsole 은 콘솔 리포트와 HTML 리포트가 같은 사실을 말하는지 검증하기 위해 노출한다.
-module.exports = { processRun, collectInfra, measureWindow, printConsole };
+module.exports = { processRun, renderOnly, trendUpTo, collectInfra, measureWindow, printConsole };
