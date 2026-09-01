@@ -402,6 +402,37 @@ $env:PERF_DATASET_GUARD = 'warn'   # 이 셸에서만
 
 ## 5. 부하 실행 (`tools/perf-run.js`)
 
+### 5.0 측정 개시 점검 (`tools/preflight.js`)
+
+판정에 쓸 측정 — Before/After 세트, 반복 정밀도 측정 — 을 시작하기 전에 **먼저 돌린다.**
+통과하지 못하면 시작하지 않는다.
+
+```bash
+node tools/preflight.js --dataset medium --rate 4
+node tools/preflight.js --dataset medium --rate 4 --json   # CI·스크립트용
+```
+
+종료 코드는 `0` 통과 / `1` 하나 이상 실패 / `2` 사용법 오류다.
+
+여섯 관문을 본다. 각 항목은 과거에 실제로 겪은 사고에 대응한다.
+
+| 관문 | 확인 | 어긋나면 |
+|---|---|---|
+| G1 프로파일·볼륨 | `--dataset` · `.env.perf` · 마운트된 볼륨이 모두 같은가 | 다른 데이터셋에 부하를 걸고 기록에는 안 남는다 (E-52) |
+| G2 데이터셋 상태 | DB 상태 지문이 스냅샷과 같은가 | 이전 실행의 쓰기가 섞인다 |
+| G3 측정 스펙 | 시드 완화 설정이 꺼졌는가, 자원 상한·풀 크기가 측정값인가 | 쓰기 지연이 낙관적으로 나온다 |
+| G4 관측 경로 | Prometheus 와 5개 스크레이프 대상이 응답하는가 | 인프라 지표 결측 → `UNMEASURED` |
+| G5 운용점·유휴 | 도착률이 4/s 이하인가, 지금 잔류 부하가 없는가 | 큐 대기를 애플리케이션 지연으로 읽는다 (E-46) |
+| G6 코드 신원 | 이미지가 소스보다 낡지 않았는가 | 새 커밋을 기록하며 옛 코드를 잰다 (T-42) |
+
+**이 도구가 하지 않는 것.** 이번 실행이 포화에 빠지지 않을 것임을 보장하지는 않는다.
+포화는 부하를 걸어야 알 수 있고, 그 판정은 실행 후 `lib/saturation.js`가 회차마다 내린다.
+G5가 보는 것은 그 전 단계 — **알려진 안전 운용점 이하인가, 지금 유휴인가** — 뿐이다.
+
+우회 플래그는 일부러 만들지 않았다. 통과하지 못한 상태로 재야 할 이유가 있으면
+`perf-run.js`를 직접 부르면 된다. 우회 수단을 두면 그것이 기본 사용법이 되고, 그러면 이
+점검은 다시 사람의 기억으로 돌아간다.
+
 ### 5.1 표준 진입점
 
 ```bash
@@ -1029,6 +1060,7 @@ node tools/snapshot.js restore <p>
 node tools/snapshot.js restore --id <snapshotId>
 
 # ── 실행 ──────────────────────────────────────────────────────────────
+node tools/preflight.js --dataset <p> [--rate n] [--json]   # 판정용 측정 전 필수
 node tools/perf-run.js <script> [--vus n] [--duration d] [--hold d] [--warmup sec]
                                 [--env name] [--dataset p] [--note "..."] [--wait sec]
                                 [--guard off|warn|strict] [--loadgen local|docker]
