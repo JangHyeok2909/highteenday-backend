@@ -56,6 +56,7 @@ const snapshot = require('./snapshot');
 const hostprobe = require('./lib/hostprobe');
 const loadbench = require('./lib/loadbench');
 const querystats = require('./lib/querystats');
+const appimage = require('./lib/appimage');
 const cpuBench = require('./cpu-bench');
 const { acquireRunLock } = require('./lib/run-lock');
 
@@ -536,6 +537,8 @@ function main() {
   // 컨테이너 안의 이미지와는 아무 관계가 없다 — 그 착각이 실험 두 개의 결론을 뒤집었다(T-42).
   // 여기서 재빌드를 강제하지는 않는다. 소스를 건드렸지만 이번 실험과 무관한 경우가 흔하고,
   // 그때마다 막으면 절차가 무거워져 결국 검사를 꺼 버리게 된다. 대신 기록과 경고를 남긴다.
+  const appImage = appimage.probe();
+  console.log(`  ${appimage.describe(appImage)}`);
 
   // 데이터셋 상태 확인·복원은 k6 를 띄우기 **전에** 끝낸다. 실행 중에 복원하면 무엇을
   // 잰 것인지 알 수 없다. 여기서 던지면 실행 자체가 시작되지 않는다.
@@ -573,6 +576,7 @@ function main() {
   // remote-write 는 부하 발생기 모드가 정해진 뒤에 붙인다 — 주소가 모드에 따라 다르다.
   stateBlock.remoteWrite = o.remoteWrite;
   // 이미지 신원은 preflight 뒤에 싣는다 — preflight 가 stateBlock 을 새로 만들기 때문이다.
+  stateBlock.appImage = appImage;
   if (o.remoteWrite) {
     const rw = remoteWriteEnv(loadgenMode);
     Object.assign(env, rw);
