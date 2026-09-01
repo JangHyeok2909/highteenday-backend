@@ -258,7 +258,6 @@ src/main/java/com/example/highteenday_backend/
 │   │       ├── PostRepositoryCustom.java
 │   │       └── PostRepositoryCustomImpl.java
 │   ├── schedule/
-│   │   ├── PersonalSchedule.java
 │   │   ├── SchoolSchedule.java
 │   │   └── SchoolScheduleRepository.java
 │   ├── schools/
