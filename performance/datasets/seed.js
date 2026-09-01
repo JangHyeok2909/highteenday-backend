@@ -485,27 +485,36 @@ function isAmbiguous(err) {
  * @param {Function} read    상세 응답에서 현재 상태(boolean)를 꺼내는 함수
  * @param {string}  label    오류 메시지용
  */
-async function ensureToggled(s, postId, send, read, label) {
+async function ensureToggled(s, verifyPath, send, read, label) {
   let r;
   try {
     r = await send();
   } catch (e) {
     if (!isAmbiguous(e)) throw e;          // 확실히 적용 안 됨 → pooled 가 재시도한다
-    return verifyToggle(s, postId, read, label, e.message);
+    return verifyToggle(s, verifyPath, read, label, e.message);
   }
   if (r.status < 200 || r.status >= 300) {
     throw new Error(`${label} ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
   }
 }
 
-async function verifyToggle(s, postId, read, label, why) {
+/**
+ * 적용 여부를 조회로 확인한다.
+ *
+ * 확인 경로를 인자로 받는 이유: 토글이 게시글에만 있는 것이 아니다. 댓글 반응은
+ * `/api/posts/{postId}` 로는 확인할 수 없고, 하필 **단건 조회로도 확인할 수 없다** —
+ * `CommentController.getCommentById` 는 익명 번호만 맞춰 주고 `isLiked` 를 채우지 않는다.
+ * 요청자의 반응 여부를 내려주는 곳은 댓글 목록뿐이라 그쪽을 쓴다. 무거운 조회지만 이
+ * 경로는 응답이 유실된 드문 경우에만 탄다.
+ */
+async function verifyToggle(s, verifyPath, read, label, why) {
   let cur;
   try {
-    cur = await s.json('GET', `/api/posts/${postId}`);
+    cur = await s.json('GET', verifyPath);
   } catch (e) {
     // 조회마저 실패하면 적용 여부를 모른 채로 남는다. 재시도하면 되돌릴 위험이 있으므로
     // 재시도 대상이 아닌 메시지로 던진다(isRetryable 패턴에 걸리지 않는 문구여야 한다).
-    throw new Error(`${label} 상태 확인 불가 (post ${postId}) — 재요청하지 않는다. 원인: ${why}`);
+    throw new Error(`${label} 상태 확인 불가 (${verifyPath}) — 재요청하지 않는다. 원인: ${why}`);
   }
   if (cur.status === 200 && read(cur.data) === true) return;   // 첫 요청이 적용됐다
   if (cur.status === 200) {
@@ -513,7 +522,7 @@ async function verifyToggle(s, postId, read, label, why) {
     // isRetryable 이 잡는 문구를 써서 pooled 의 재시도 경로를 태운다.
     throw new Error(`${label} 미적용 확인 — 재시도 가능 (fetch failed 계열: ${why})`);
   }
-  throw new Error(`${label} 상태 확인 실패 ${cur.status} (post ${postId}) — 재요청하지 않는다`);
+  throw new Error(`${label} 상태 확인 실패 ${cur.status} (${verifyPath}) — 재요청하지 않는다`);
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -915,7 +924,8 @@ async function createPosts(users, sessions, boards) {
 }
 
 async function createEngagement(users, sessions, posts, cp) {
-  console.log(`[4/6] 댓글 ${P.comments} + 반응 ${P.reactions} + 스크랩 ${P.scraps} (게시글 Zipf 편중)`);
+  console.log(`[4/6] 댓글 ${P.comments}(대댓글 ${Math.round(P.comments * (P.replyRatio || 0))}) `
+    + `+ 게시글반응 ${P.reactions} + 댓글반응 ${P.commentReactions || 0} + 스크랩 ${P.scraps} (Zipf 편중)`);
   const live = liveAuthors(sessions);
   if (posts.length === 0) throw new Error('게시글이 없다 — 3단계(게시글 생성)를 먼저 확인할 것');
 
@@ -923,24 +933,86 @@ async function createEngagement(users, sessions, posts, cp) {
   // 전부 실패"가 "대체로 성공"에 묻힌다.
   const results = [];
 
-  if (alreadyDone(cp, 'comments', P.comments)) {
-    results.push(skipped('comments', P.comments, cp));
-  } else {
-  const commentJobs = Array.from({ length: P.comments }, () => ({
-    post: posts[hotPost(posts.length)],
-    author: live[hotAuthor(live.length)],
-  }));
-  results.push(requireComplete(await pooled(commentJobs, async (j) => {
-    const s = sessions[j.author];
-    const r = await s.json('POST', `/api/posts/${j.post.id}/comments`, {
-      parentId: null, content: commentText(), anonymous: rand() < 0.6, url: null,
+  /*
+   * 댓글은 두 패스로 만든다 — 최상위 먼저, 그다음 대댓글.
+   *
+   * 예전에는 `parentId: null` 고정이라 **대댓글이 한 건도 없었다**. 그래서
+   *   - `CommentDto.fromEntity` 의 `getParent() != null` 분기가 항상 null 쪽만 탔고,
+   *     부모가 있을 때 프록시 초기화로 나가는 조회가 측정된 적이 없다.
+   *   - 부하 스크립트가 스스로 검증 항목으로 적어 둔 "대댓글 트리 조립 비용"
+   *     (`scripts/comments.js` 머리말)이 실측된 적이 없다.
+   *   - `fk_comments_parent` 인덱스가 전부 NULL 이라 사실상 비어 있었다.
+   *
+   * 총 개수는 `P.comments` 그대로 둔다. 늘리면 "댓글 수 변화"와 "대댓글 도입"이 한꺼번에
+   * 바뀌어 어느 쪽 효과인지 가릴 수 없다.
+   *
+   * 대댓글은 **같은 게시글의 최상위 댓글**을 부모로 잡는다. 다른 글의 댓글을 부모로 걸면
+   * 서버는 받아 주지만 그런 트리는 화면에 나오지 않는다.
+   */
+  const replyTarget = Math.round(P.comments * (P.replyRatio || 0));
+  const topTarget = P.comments - replyTarget;
+
+  // 최상위 댓글 id 를 게시글별로 모은다. 대댓글의 부모이자 댓글 반응의 대상이 된다.
+  // 응답은 201 + 빈 바디 + Location 헤더로 id 를 준다(CommentController.createComment).
+  const topByPost = new Map();
+  const allCommentIds = [];
+  const rememberComment = (postId, location) => {
+    const m = /\/comments\/(\d+)$/.exec(location || '');
+    if (!m) return;
+    const id = Number(m[1]);
+    allCommentIds.push(id);
+    if (!topByPost.has(postId)) topByPost.set(postId, []);
+    topByPost.get(postId).push(id);
+  };
+
+  const postComment = async (session, postId, parentId) => {
+    const r = await session.json('POST', `/api/posts/${postId}/comments`, {
+      parentId, content: commentText(), anonymous: rand() < 0.6, url: null,
     });
     // 4xx도 실패로 본다 — 아래 반응/스크랩도 같다. 5xx만 보면 조용히 미달한다.
     if (r.status < 200 || r.status >= 300) {
       throw new Error(`comment ${r.status}: ${JSON.stringify(r.data).slice(0, 200)}`);
     }
-  }, CONCURRENCY, 'comments')));
-  saveCheckpoint('comments', results[results.length - 1].ok);
+    return r;
+  };
+
+  if (alreadyDone(cp, 'comments', topTarget)) {
+    results.push(skipped('comments', topTarget, cp));
+  } else {
+    const commentJobs = Array.from({ length: topTarget }, () => ({
+      post: posts[hotPost(posts.length)],
+      author: live[hotAuthor(live.length)],
+    }));
+    results.push(requireComplete(await pooled(commentJobs, async (j) => {
+      const r = await postComment(sessions[j.author], j.post.id, null);
+      rememberComment(j.post.id, r.location);
+    }, CONCURRENCY, 'comments')));
+    saveCheckpoint('comments', results[results.length - 1].ok);
+  }
+
+  if (replyTarget > 0) {
+    if (alreadyDone(cp, 'replies', replyTarget)) {
+      results.push(skipped('replies', replyTarget, cp));
+    } else if (!topByPost.size) {
+      // 재개로 최상위 댓글 단계를 건너뛰면 부모 목록이 없다. 조용히 0건으로 끝내면
+      // "대댓글도 만들었다"고 착각하게 되므로 그 사실을 드러낸다.
+      console.log('  ⚠ 대댓글: 부모로 쓸 최상위 댓글 목록이 없다(재개로 건너뜀) — 이 단계를 생략한다.');
+      console.log('    전체를 다시 만들려면 체크포인트를 지우고 재실행할 것.');
+    } else {
+      const parents = [...topByPost.entries()].filter(([, ids]) => ids.length);
+      const replyJobs = Array.from({ length: replyTarget }, () => {
+        // 부모도 인기 편중을 따른다 — 댓글이 많은 글일수록 대댓글도 많이 달린다.
+        const [postId, ids] = parents[hotPost(parents.length)];
+        return { postId, parentId: ids[randInt(ids.length)], author: live[hotAuthor(live.length)] };
+      });
+      results.push(requireComplete(await pooled(replyJobs, async (j) => {
+        const r = await postComment(sessions[j.author], j.postId, j.parentId);
+        // 대댓글 자신도 반응 대상이 된다. 부모 목록에는 넣지 않는다 — 깊이 2 로 유지한다.
+        const m = /\/comments\/(\d+)$/.exec(r.location || '');
+        if (m) allCommentIds.push(Number(m[1]));
+      }, CONCURRENCY, 'replies')));
+      saveCheckpoint('replies', results[results.length - 1].ok);
+    }
   }
 
   // 반응과 스크랩은 (사용자, 게시글) 조합이 유일해야 한다 — DB에도 유니크 제약이 있다
@@ -981,7 +1053,7 @@ async function createEngagement(users, sessions, posts, cp) {
       const s = sessions[j.user];
       const type = rand() < 0.85 ? 'LIKE' : 'DISLIKE';
       await ensureToggled(
-        s, j.post.id,
+        s, `/api/posts/${j.post.id}`,
         () => s.json('POST', `/api/posts/${j.post.id}/reaction?type=${type}`),
         // 상세 응답은 요청자 기준의 `liked`/`disliked`/`scrapped` 를 평면으로 내려준다
         // (PostDetailService.applyUserContext, 실제 응답으로 키 확인함 — `likeState` 로
@@ -1000,13 +1072,79 @@ async function createEngagement(users, sessions, posts, cp) {
     results.push(requireComplete(await pooled(scrapJobs, async (j) => {
       const s = sessions[j.user];
       await ensureToggled(
-        s, j.post.id,
+        s, `/api/posts/${j.post.id}`,
         () => s.json('POST', `/api/posts/${j.post.id}/scraps`),
         (d) => !!(d && d.scrapped),
         'scrap',
       );
     }, CONCURRENCY, 'scraps', P.scraps)));
     saveCheckpoint('scraps', results[results.length - 1].ok);
+  }
+
+  /*
+   * 댓글 반응 — `comments_reactions` 는 지금까지 **0행**이었다.
+   *
+   * `P.reactions` 는 전부 게시글 반응이었고 댓글 쪽을 만드는 단계가 아예 없었다. 그래서
+   * 댓글 목록 조회가 댓글마다 두 번씩 던지는 존재 확인 쿼리가 **항상 "없음"을 즉시
+   * 반환**했다. 그 상태로 잰 값은 왕복 횟수만 재고 인덱스 효율은 재지 않는다.
+   *
+   * 대상 댓글은 Zipf 로 뽑는다. 균등하게 뿌리면 "인기 댓글"이 안 생겨서 비정규화 카운터
+   * (CMT_like_count)의 핫 로우 경합을 여전히 못 잰다 — 게시글 반응을 인기 편중으로
+   * 만드는 이유와 같다.
+   *
+   * `uk_comments_reactions_cmt_usr (CMT_id, USR_id)` 유니크 제약이 있으므로 조합이
+   * 유일해야 한다. 게시글 반응·스크랩과 같은 문제라 같은 방식으로 거른다. 그리고 반응은
+   * 토글 API 라 응답 유실 시 그냥 재시도하면 서버가 만든 상태를 되돌린다(KI-54).
+   */
+  const commentReactionTarget = P.commentReactions || 0;
+  if (commentReactionTarget > 0) {
+    if (alreadyDone(cp, 'comment-reactions', commentReactionTarget)) {
+      results.push(skipped('comment-reactions', commentReactionTarget, cp));
+    } else if (!allCommentIds.length) {
+      console.log('  ⚠ 댓글 반응: 대상 댓글 id 목록이 없다(재개로 건너뜀) — 이 단계를 생략한다.');
+      console.log('    전체를 다시 만들려면 체크포인트를 지우고 재실행할 것.');
+    } else {
+      // 인기 편중을 주려면 정렬된 배열이 필요하다. 댓글 id 는 생성 순서라 게시글 인기와
+      // 무관하므로, 여기서 "댓글이 많은 게시글의 댓글이 앞"이 되도록 다시 늘어놓는다.
+      // postId 를 함께 들고 다니는 이유는 검증 경로(`.../comments`)를 만들어야 해서다.
+      const pool = [...topByPost.entries()]
+        .sort((a, b) => b[1].length - a[1].length)
+        .flatMap(([postId, ids]) => ids.map((commentId) => ({ commentId, postId })));
+
+      const jobs = [];
+      const seen = new Set();
+      let guard = commentReactionTarget * 20;
+      while (jobs.length < commentReactionTarget && guard-- > 0) {
+        const target = pool[hotPost(pool.length)];
+        const user = live[randInt(live.length)];
+        const key = `${user}:${target.commentId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        jobs.push({ ...target, user });
+      }
+      if (jobs.length < commentReactionTarget) {
+        console.log(`  ⚠ 댓글 반응: 유일한 (사용자, 댓글) 조합을 ${jobs.length}/${commentReactionTarget}개만 확보했다 `
+          + `— 사용자 ${live.length}명 / 댓글 ${pool.length}건으로는 이 목표를 채울 수 없다.`);
+      }
+
+      results.push(requireComplete(await pooled(jobs, async (j) => {
+        const s = sessions[j.user];
+        const type = rand() < 0.85 ? 'LIKE' : 'DISLIKE';
+        await ensureToggled(
+          s, `/api/posts/${j.postId}/comments`,
+          () => s.json('POST', `/api/comments/${j.commentId}/reaction?type=${type}`),
+          // 응답 유실 시에만 타는 확인 경로다. 댓글 목록만이 요청자의 반응 여부를
+          // 내려주므로 그 안에서 이 댓글을 찾는다. Lombok 이 isLiked/isDisliked 를
+          // 만들기 때문에 JSON 키는 liked/disliked 다.
+          (list) => {
+            const c = Array.isArray(list) && list.find((x) => x.id === j.commentId);
+            return !!(c && (c.liked || c.disliked));
+          },
+          'comment-reaction',
+        );
+      }, CONCURRENCY, 'comment-reactions', commentReactionTarget)));
+      saveCheckpoint('comment-reactions', results[results.length - 1].ok);
+    }
   }
 
   return results;
