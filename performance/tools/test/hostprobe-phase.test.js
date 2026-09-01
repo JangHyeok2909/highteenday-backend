@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const hostprobe = require('../lib/hostprobe');
 
 // T-37: 호스트 프로브 요약이 measure 구간과 다른 창을 재던 결함의 회귀 테스트.
-// 이 결함으로 실제로 틀린 인과 결론을 냈다가 철회했다(perf-session-drift.md 8-e).
+// 이 결함으로 실제로 틀린 인과 결론을 냈다가 철회했다.
 
 const PLAN = { measureStartOffsetSec: 180, measureEndOffsetSec: 480 };
 const T0 = '2026-08-20T00:00:00.000Z';

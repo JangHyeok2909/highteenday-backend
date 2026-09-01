@@ -35,7 +35,7 @@ const VUS = Number(__ENV.VUS || 200);
  * 느려지면 도착률까지 함께 줄어 "같은 부하"라는 전제가 깨진다. 도착률을 고정하면 p95 가
  * 처리량의 그림자에서 벗어나 독립적인 정보를 갖는다.
  *
- * 근거: localDocs/investigations/perf-session-drift.md 8-d.2·8-d.5, findings/perf-findings-tools.md T-36
+ * 근거: localDocs/findings/perf-findings-tools.md T-36
  */
 const RATE = __ENV.RATE ? Number(__ENV.RATE) : null;
 const OPEN_MODEL = Number.isFinite(RATE) && RATE > 0;
