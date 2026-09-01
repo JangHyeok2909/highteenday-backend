@@ -20,6 +20,8 @@ import { buildPhasePlan, toSeconds } from './lib/phases.js';
 import { ensureSession, cookieHeader } from './lib/session.js';
 import { myUser } from './lib/data.js';
 import { pickMyRoom } from './chat-rest.js';
+// STOMP 프레임 조립은 시더(datasets/seed.js)와 공유한다 — 복제하면 같은 버그가 양쪽에 생긴다.
+import { stompConnect, stompSubscribe, stompSend, clientMsgId } from './lib/stomp.js';
 import { makeHandleSummary } from './lib/summary.js';
 
 export const wsRtt = new Trend('chat_ws_rtt', true);        // 전송→브로드캐스트 수신 왕복
@@ -34,63 +36,6 @@ export const wsErrors = new Counter('chat_ws_errors');
 function phaseTag() {
   const phase = currentPhase();
   return phase ? { phase } : undefined;
-}
-
-const NUL = '\u0000'; // STOMP 프레임 종결(NULL) 문자
-
-// ---------- STOMP 프레임 유틸 ----------
-
-function frame(command, headers, body = '') {
-  const h = Object.entries(headers).map(([k, v]) => `${k}:${v}`).join('\n');
-  return `${command}\n${h}\n\n${body}${NUL}`;
-}
-
-export function stompConnect() {
-  return frame('CONNECT', { 'accept-version': '1.2', 'heart-beat': '10000,10000' });
-}
-
-export function stompSubscribe(id, destination) {
-  return frame('SUBSCRIBE', { id, destination });
-}
-
-/**
- * STOMP 의 content-length 는 본문의 **바이트 수**다.
- *
- * String.length 를 그대로 쓰면 UTF-16 코드 유닛 수라 한글 한 글자가 1로 세어지는데,
- * 실제 UTF-8 인코딩은 3바이트다. 짧게 신고하면 브로커가 그만큼만 읽고 종결자(NUL)를
- * 기대하는 자리에서 글자 중간 바이트를 만나 프레임이 깨진다. 서버는 ERROR 프레임을
- * 보내고 소켓을 1002(protocol error)로 닫는다.
- *
- * 이 스크립트의 본문에는 한글이 들어 있어서 전송 첫 건마다 세션이 죽었다. 핸드셰이크와
- * CONNECT 는 성공하고 HTTP 오류율도 0%라 정상으로 보였지만, chat_ws_rtt 는 한 건도
- * 기록되지 않았고 DB 에 메시지가 하나도 쌓이지 않았다.
- */
-function utf8Length(s) {
-  let n = 0;
-  for (let i = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i);
-    if (c < 0x80) n += 1;
-    else if (c < 0x800) n += 2;
-    else if (c >= 0xd800 && c <= 0xdbff) { n += 4; i += 1; } // 서로게이트 쌍 = 코드포인트 하나
-    else n += 3;
-  }
-  return n;
-}
-
-export function stompSend(destination, payload) {
-  const body = JSON.stringify(payload);
-  return frame('SEND', {
-    destination,
-    'content-type': 'application/json',
-    'content-length': String(utf8Length(body)),
-  }, body);
-}
-
-function uuid() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
 }
 
 // ---------- 세션 시나리오 ----------
@@ -110,13 +55,15 @@ export function chatSession(roomId, sessionSeconds = 30) {
         socket.send(stompSubscribe('sub-0', `/topic/chat/room/${roomId}`));
         // 구독 직후부터 주기적으로 메시지 전송
         socket.setInterval(() => {
-          const clientMsgId = uuid();
-          pending.set(clientMsgId, Date.now());
+          // 지역 변수 이름을 페이로드 키(clientMsgId)와 겹치지 않게 둔다 — 겹치면
+          // 임포트한 함수가 가려져 초기화 전 참조가 된다.
+          const msgId = clientMsgId();
+          pending.set(msgId, Date.now());
           socket.send(stompSend('/app/chat/send', {
             roomId,
-            content: `부하테스트 메시지 ${clientMsgId.slice(0, 8)}`,
+            content: `부하테스트 메시지 ${msgId.slice(0, 8)}`,
             imageUrl: null,
-            clientMsgId,
+            clientMsgId: msgId,
           }));
           wsMessages.add(1, phaseTag());
         }, (2 + Math.random() * 4) * 1000); // 2~6초 간격 타이핑
