@@ -135,6 +135,30 @@ tbody tr:last-child td { border-bottom: none; }
 .spark .st { font-size: 12px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .spark .sv { font-size: 19px; font-weight: 650; margin: 2px 0 6px; letter-spacing: -0.01em; }
 .spark svg { display: block; width: 100%; height: 40px; overflow: visible; }
+/* 추세 점의 히트 영역. SVG 안이 아니라 위에 얹는다 — preserveAspectRatio="none" 때문에
+   SVG 안의 원은 카드 폭에 따라 타원으로 찌그러져 클릭 대상이 일정하지 않다.
+   세로 전체를 잡는 이유: 값의 높이를 정확히 맞춰 누르게 하면 아무도 못 누른다. */
+.spark-plot { position: relative; }
+.spark-plot .pt {
+  position: absolute; top: 0; bottom: 0; width: 18px; margin-left: -9px;
+  border-radius: 4px; cursor: pointer;
+}
+.spark-plot span.pt { cursor: default; }
+.spark-plot .pt:hover { background: color-mix(in srgb, var(--series-1) 14%, transparent); }
+.spark-plot .pt.now::after {
+  content: ''; position: absolute; left: 50%; top: -3px; width: 2px; height: 4px;
+  margin-left: -1px; background: var(--ink-muted);
+}
+.spark-plot .pt:focus-visible { outline: 2px solid var(--series-1); outline-offset: 0; }
+#tt {
+  position: fixed; z-index: 20; max-width: 300px; pointer-events: none;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  font-size: 11.5px; line-height: 1.5; box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+}
+#tt b { display: block; font-size: 12px; }
+#tt .m { color: var(--ink-2); }
+#tt .go { color: var(--series-1); }
 .spark .range { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-muted);
                 font-variant-numeric: tabular-nums; margin-top: 3px; }
 
@@ -494,95 +518,673 @@ button.dt-sort:focus-visible, button.dt-more:focus-visible {
     <div class="sparks"><div class="spark">
     <div class="st">P95 응답시간</div>
     <div class="sv">351ms</div>
-    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
+    <div class="spark-plot"><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="P95 응답시간">
   <path d="M0.00,34.75 L5.88,37.00 L11.76,36.00 L17.65,14.52 L23.53,32.54 L29.41,29.68 L35.29,35.55 L41.18,31.78 L47.06,32.09 L52.94,3.00 L58.82,29.47 L64.71,23.04 L70.59,31.25 L76.47,8.74 L82.35,33.07 L88.24,33.52 L94.12,34.74 L100.00,32.82 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,34.75 L5.88,37.00 L11.76,36.00 L17.65,14.52 L23.53,32.54 L29.41,29.68 L35.29,35.55 L41.18,31.78 L47.06,32.09 L52.94,3.00 L58.82,29.47 L64.71,23.04 L70.59,31.25 L76.47,8.74 L82.35,33.07 L88.24,33.52 L94.12,34.74 L100.00,32.82" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="32.82" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
+</svg><a class="pt" href="../normal-day-2026-08-20T04-49-23/report.html" style="left:0.00%" data-l="#109 · 2026-08-20 13:39:14 KST · 3e96d946" data-v="P95 응답시간 305ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 1/3" title="#109 · 2026-08-20 13:39:14 KST · 3e96d946
+P95 응답시간 305ms
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-02-20/report.html" style="left:5.88%" data-l="#110 · 2026-08-20 13:52:09 KST · 3e96d946" data-v="P95 응답시간 252ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 2/3" title="#110 · 2026-08-20 13:52:09 KST · 3e96d946
+P95 응답시간 252ms
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-14-54/report.html" style="left:11.76%" data-l="#111 · 2026-08-20 14:04:53 KST · 3e96d946" data-v="P95 응답시간 276ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 3/3" title="#111 · 2026-08-20 14:04:53 KST · 3e96d946
+P95 응답시간 276ms
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 3/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-16-29/report.html" style="left:17.65%" data-l="#113 · 2026-08-20 16:06:25 KST · 3e96d946" data-v="P95 응답시간 784ms" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 1/3" title="#113 · 2026-08-20 16:06:25 KST · 3e96d946
+P95 응답시간 784ms
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-29-26/report.html" style="left:23.53%" data-l="#114 · 2026-08-20 16:19:20 KST · 3e96d946" data-v="P95 응답시간 358ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 2/3" title="#114 · 2026-08-20 16:19:20 KST · 3e96d946
+P95 응답시간 358ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-42-13/report.html" style="left:29.41%" data-l="#116 · 2026-08-20 20:32:13 KST · 3e96d946" data-v="P95 응답시간 425ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4" title="#116 · 2026-08-20 20:32:13 KST · 3e96d946
+P95 응답시간 425ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-55-07/report.html" style="left:35.29%" data-l="#117 · 2026-08-20 20:44:59 KST · 3e96d946" data-v="P95 응답시간 286ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4" title="#117 · 2026-08-20 20:44:59 KST · 3e96d946
+P95 응답시간 286ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-08-10/report.html" style="left:41.18%" data-l="#118 · 2026-08-20 20:58:03 KST · 3e96d946" data-v="P95 응답시간 376ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4" title="#118 · 2026-08-20 20:58:03 KST · 3e96d946
+P95 응답시간 376ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-20-57/report.html" style="left:47.06%" data-l="#119 · 2026-08-20 21:10:53 KST · 3e96d946" data-v="P95 응답시간 368ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4" title="#119 · 2026-08-20 21:10:53 KST · 3e96d946
+P95 응답시간 368ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-09-17/report.html" style="left:52.94%" data-l="#124 · 2026-08-25 19:59:15 KST · 1e23e03c" data-v="P95 응답시간 1.06s" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5" title="#124 · 2026-08-25 19:59:15 KST · 1e23e03c
+P95 응답시간 1.06s
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-22-08/report.html" style="left:58.82%" data-l="#125 · 2026-08-25 20:12:05 KST · 1e23e03c" data-v="P95 응답시간 430ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5" title="#125 · 2026-08-25 20:12:05 KST · 1e23e03c
+P95 응답시간 430ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-34-52/report.html" style="left:64.71%" data-l="#126 · 2026-08-25 20:24:51 KST · 1e23e03c" data-v="P95 응답시간 583ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5" title="#126 · 2026-08-25 20:24:51 KST · 1e23e03c
+P95 응답시간 583ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T23-53-47/report.html" style="left:70.59%" data-l="#127 · 2026-08-26 08:43:33 KST · f915176e" data-v="P95 응답시간 388ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5" title="#127 · 2026-08-26 08:43:33 KST · f915176e
+P95 응답시간 388ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-06-28/report.html" style="left:76.47%" data-l="#128 · 2026-08-26 08:56:22 KST · f915176e" data-v="P95 응답시간 921ms" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5" title="#128 · 2026-08-26 08:56:22 KST · f915176e
+P95 응답시간 921ms
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-19-13/report.html" style="left:82.35%" data-l="#129 · 2026-08-26 09:09:10 KST · f915176e" data-v="P95 응답시간 345ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5" title="#129 · 2026-08-26 09:09:10 KST · f915176e
+P95 응답시간 345ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-31-58/report.html" style="left:88.24%" data-l="#130 · 2026-08-26 09:21:47 KST · f915176e" data-v="P95 응답시간 335ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5" title="#130 · 2026-08-26 09:21:47 KST · f915176e
+P95 응답시간 335ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-44-37/report.html" style="left:94.12%" data-l="#131 · 2026-08-26 09:34:36 KST · f915176e" data-v="P95 응답시간 306ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5" title="#131 · 2026-08-26 09:34:36 KST · f915176e
+P95 응답시간 306ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5
+클릭 → 이 실행의 리포트"></a><span class="pt now" style="left:100.00%" data-l="#136 · 2026-08-31 20:55:23 KST · 37683622" data-v="P95 응답시간 351ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동" title="#136 · 2026-08-31 20:55:23 KST · 37683622
+P95 응답시간 351ms
+포화 HEADROOM · 판정 FAIL
+T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동
+이번 실행"></span></div>
     <div class="range"><span>min 252ms</span><span>max 1.06s</span></div>
   </div><div class="spark">
     <div class="st">평균 응답시간</div>
     <div class="sv">82ms</div>
-    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
+    <div class="spark-plot"><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="평균 응답시간">
   <path d="M0.00,36.06 L5.88,35.90 L11.76,34.84 L17.65,19.40 L23.53,32.95 L29.41,29.41 L35.29,34.35 L41.18,34.79 L47.06,29.91 L52.94,3.00 L58.82,30.44 L64.71,24.35 L70.59,31.81 L76.47,17.62 L82.35,37.00 L88.24,35.99 L94.12,34.89 L100.00,32.71 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,36.06 L5.88,35.90 L11.76,34.84 L17.65,19.40 L23.53,32.95 L29.41,29.41 L35.29,34.35 L41.18,34.79 L47.06,29.91 L52.94,3.00 L58.82,30.44 L64.71,24.35 L70.59,31.81 L76.47,17.62 L82.35,37.00 L88.24,35.99 L94.12,34.89 L100.00,32.71" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="32.71" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
+</svg><a class="pt" href="../normal-day-2026-08-20T04-49-23/report.html" style="left:0.00%" data-l="#109 · 2026-08-20 13:39:14 KST · 3e96d946" data-v="평균 응답시간 69ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 1/3" title="#109 · 2026-08-20 13:39:14 KST · 3e96d946
+평균 응답시간 69ms
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-02-20/report.html" style="left:5.88%" data-l="#110 · 2026-08-20 13:52:09 KST · 3e96d946" data-v="평균 응답시간 69ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 2/3" title="#110 · 2026-08-20 13:52:09 KST · 3e96d946
+평균 응답시간 69ms
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-14-54/report.html" style="left:11.76%" data-l="#111 · 2026-08-20 14:04:53 KST · 3e96d946" data-v="평균 응답시간 73ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 3/3" title="#111 · 2026-08-20 14:04:53 KST · 3e96d946
+평균 응답시간 73ms
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 3/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-16-29/report.html" style="left:17.65%" data-l="#113 · 2026-08-20 16:06:25 KST · 3e96d946" data-v="평균 응답시간 135ms" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 1/3" title="#113 · 2026-08-20 16:06:25 KST · 3e96d946
+평균 응답시간 135ms
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-29-26/report.html" style="left:23.53%" data-l="#114 · 2026-08-20 16:19:20 KST · 3e96d946" data-v="평균 응답시간 81ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 2/3" title="#114 · 2026-08-20 16:19:20 KST · 3e96d946
+평균 응답시간 81ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-42-13/report.html" style="left:29.41%" data-l="#116 · 2026-08-20 20:32:13 KST · 3e96d946" data-v="평균 응답시간 95ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4" title="#116 · 2026-08-20 20:32:13 KST · 3e96d946
+평균 응답시간 95ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-55-07/report.html" style="left:35.29%" data-l="#117 · 2026-08-20 20:44:59 KST · 3e96d946" data-v="평균 응답시간 75ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4" title="#117 · 2026-08-20 20:44:59 KST · 3e96d946
+평균 응답시간 75ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-08-10/report.html" style="left:41.18%" data-l="#118 · 2026-08-20 20:58:03 KST · 3e96d946" data-v="평균 응답시간 74ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4" title="#118 · 2026-08-20 20:58:03 KST · 3e96d946
+평균 응답시간 74ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-20-57/report.html" style="left:47.06%" data-l="#119 · 2026-08-20 21:10:53 KST · 3e96d946" data-v="평균 응답시간 93ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4" title="#119 · 2026-08-20 21:10:53 KST · 3e96d946
+평균 응답시간 93ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-09-17/report.html" style="left:52.94%" data-l="#124 · 2026-08-25 19:59:15 KST · 1e23e03c" data-v="평균 응답시간 200ms" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5" title="#124 · 2026-08-25 19:59:15 KST · 1e23e03c
+평균 응답시간 200ms
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-22-08/report.html" style="left:58.82%" data-l="#125 · 2026-08-25 20:12:05 KST · 1e23e03c" data-v="평균 응답시간 91ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5" title="#125 · 2026-08-25 20:12:05 KST · 1e23e03c
+평균 응답시간 91ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-34-52/report.html" style="left:64.71%" data-l="#126 · 2026-08-25 20:24:51 KST · 1e23e03c" data-v="평균 응답시간 115ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5" title="#126 · 2026-08-25 20:24:51 KST · 1e23e03c
+평균 응답시간 115ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T23-53-47/report.html" style="left:70.59%" data-l="#127 · 2026-08-26 08:43:33 KST · f915176e" data-v="평균 응답시간 86ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5" title="#127 · 2026-08-26 08:43:33 KST · f915176e
+평균 응답시간 86ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-06-28/report.html" style="left:76.47%" data-l="#128 · 2026-08-26 08:56:22 KST · f915176e" data-v="평균 응답시간 142ms" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5" title="#128 · 2026-08-26 08:56:22 KST · f915176e
+평균 응답시간 142ms
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-19-13/report.html" style="left:82.35%" data-l="#129 · 2026-08-26 09:09:10 KST · f915176e" data-v="평균 응답시간 65ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5" title="#129 · 2026-08-26 09:09:10 KST · f915176e
+평균 응답시간 65ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-31-58/report.html" style="left:88.24%" data-l="#130 · 2026-08-26 09:21:47 KST · f915176e" data-v="평균 응답시간 69ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5" title="#130 · 2026-08-26 09:21:47 KST · f915176e
+평균 응답시간 69ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-44-37/report.html" style="left:94.12%" data-l="#131 · 2026-08-26 09:34:36 KST · f915176e" data-v="평균 응답시간 73ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5" title="#131 · 2026-08-26 09:34:36 KST · f915176e
+평균 응답시간 73ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5
+클릭 → 이 실행의 리포트"></a><span class="pt now" style="left:100.00%" data-l="#136 · 2026-08-31 20:55:23 KST · 37683622" data-v="평균 응답시간 82ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동" title="#136 · 2026-08-31 20:55:23 KST · 37683622
+평균 응답시간 82ms
+포화 HEADROOM · 판정 FAIL
+T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동
+이번 실행"></span></div>
     <div class="range"><span>min 65ms</span><span>max 200ms</span></div>
   </div><div class="spark">
     <div class="st">TPS</div>
     <div class="sv">4.0/s</div>
-    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
+    <div class="spark-plot"><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="TPS">
   <path d="M0.00,22.43 L5.88,30.52 L11.76,15.95 L17.65,6.24 L23.53,14.33 L29.41,22.43 L35.29,20.81 L41.18,33.76 L47.06,32.14 L52.94,33.76 L58.82,32.14 L64.71,11.10 L70.59,19.19 L76.47,24.05 L82.35,37.00 L88.24,24.05 L94.12,3.00 L100.00,15.95 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,22.43 L5.88,30.52 L11.76,15.95 L17.65,6.24 L23.53,14.33 L29.41,22.43 L35.29,20.81 L41.18,33.76 L47.06,32.14 L52.94,33.76 L58.82,32.14 L64.71,11.10 L70.59,19.19 L76.47,24.05 L82.35,37.00 L88.24,24.05 L94.12,3.00 L100.00,15.95" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="15.95" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
+</svg><a class="pt" href="../normal-day-2026-08-20T04-49-23/report.html" style="left:0.00%" data-l="#109 · 2026-08-20 13:39:14 KST · 3e96d946" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 1/3" title="#109 · 2026-08-20 13:39:14 KST · 3e96d946
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-02-20/report.html" style="left:5.88%" data-l="#110 · 2026-08-20 13:52:09 KST · 3e96d946" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 2/3" title="#110 · 2026-08-20 13:52:09 KST · 3e96d946
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-14-54/report.html" style="left:11.76%" data-l="#111 · 2026-08-20 14:04:53 KST · 3e96d946" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 3/3" title="#111 · 2026-08-20 14:04:53 KST · 3e96d946
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 3/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-16-29/report.html" style="left:17.65%" data-l="#113 · 2026-08-20 16:06:25 KST · 3e96d946" data-v="TPS 4.0/s" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 1/3" title="#113 · 2026-08-20 16:06:25 KST · 3e96d946
+TPS 4.0/s
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-29-26/report.html" style="left:23.53%" data-l="#114 · 2026-08-20 16:19:20 KST · 3e96d946" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 2/3" title="#114 · 2026-08-20 16:19:20 KST · 3e96d946
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-42-13/report.html" style="left:29.41%" data-l="#116 · 2026-08-20 20:32:13 KST · 3e96d946" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4" title="#116 · 2026-08-20 20:32:13 KST · 3e96d946
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-55-07/report.html" style="left:35.29%" data-l="#117 · 2026-08-20 20:44:59 KST · 3e96d946" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4" title="#117 · 2026-08-20 20:44:59 KST · 3e96d946
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-08-10/report.html" style="left:41.18%" data-l="#118 · 2026-08-20 20:58:03 KST · 3e96d946" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4" title="#118 · 2026-08-20 20:58:03 KST · 3e96d946
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-20-57/report.html" style="left:47.06%" data-l="#119 · 2026-08-20 21:10:53 KST · 3e96d946" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4" title="#119 · 2026-08-20 21:10:53 KST · 3e96d946
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-09-17/report.html" style="left:52.94%" data-l="#124 · 2026-08-25 19:59:15 KST · 1e23e03c" data-v="TPS 4.0/s" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5" title="#124 · 2026-08-25 19:59:15 KST · 1e23e03c
+TPS 4.0/s
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-22-08/report.html" style="left:58.82%" data-l="#125 · 2026-08-25 20:12:05 KST · 1e23e03c" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5" title="#125 · 2026-08-25 20:12:05 KST · 1e23e03c
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-34-52/report.html" style="left:64.71%" data-l="#126 · 2026-08-25 20:24:51 KST · 1e23e03c" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5" title="#126 · 2026-08-25 20:24:51 KST · 1e23e03c
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T23-53-47/report.html" style="left:70.59%" data-l="#127 · 2026-08-26 08:43:33 KST · f915176e" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5" title="#127 · 2026-08-26 08:43:33 KST · f915176e
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-06-28/report.html" style="left:76.47%" data-l="#128 · 2026-08-26 08:56:22 KST · f915176e" data-v="TPS 4.0/s" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5" title="#128 · 2026-08-26 08:56:22 KST · f915176e
+TPS 4.0/s
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-19-13/report.html" style="left:82.35%" data-l="#129 · 2026-08-26 09:09:10 KST · f915176e" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5" title="#129 · 2026-08-26 09:09:10 KST · f915176e
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-31-58/report.html" style="left:88.24%" data-l="#130 · 2026-08-26 09:21:47 KST · f915176e" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5" title="#130 · 2026-08-26 09:21:47 KST · f915176e
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-44-37/report.html" style="left:94.12%" data-l="#131 · 2026-08-26 09:34:36 KST · f915176e" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5" title="#131 · 2026-08-26 09:34:36 KST · f915176e
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5
+클릭 → 이 실행의 리포트"></a><span class="pt now" style="left:100.00%" data-l="#136 · 2026-08-31 20:55:23 KST · 37683622" data-v="TPS 4.0/s" data-st="포화 HEADROOM · 판정 FAIL" data-note="T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동" title="#136 · 2026-08-31 20:55:23 KST · 37683622
+TPS 4.0/s
+포화 HEADROOM · 판정 FAIL
+T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동
+이번 실행"></span></div>
     <div class="range"><span>min 4.0/s</span><span>max 4.0/s</span></div>
   </div><div class="spark">
     <div class="st">오류율</div>
     <div class="sv">0.0%</div>
-    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
+    <div class="spark-plot"><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="오류율">
   <path d="M0.00,37.00 L5.88,37.00 L11.76,37.00 L17.65,37.00 L23.53,37.00 L29.41,37.00 L35.29,37.00 L41.18,37.00 L47.06,37.00 L52.94,37.00 L58.82,37.00 L64.71,37.00 L70.59,37.00 L76.47,37.00 L82.35,37.00 L88.24,37.00 L94.12,37.00 L100.00,37.00 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L5.88,37.00 L11.76,37.00 L17.65,37.00 L23.53,37.00 L29.41,37.00 L35.29,37.00 L41.18,37.00 L47.06,37.00 L52.94,37.00 L58.82,37.00 L64.71,37.00 L70.59,37.00 L76.47,37.00 L82.35,37.00 L88.24,37.00 L94.12,37.00 L100.00,37.00" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="37.00" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
+</svg><a class="pt" href="../normal-day-2026-08-20T04-49-23/report.html" style="left:0.00%" data-l="#109 · 2026-08-20 13:39:14 KST · 3e96d946" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 1/3" title="#109 · 2026-08-20 13:39:14 KST · 3e96d946
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-02-20/report.html" style="left:5.88%" data-l="#110 · 2026-08-20 13:52:09 KST · 3e96d946" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 2/3" title="#110 · 2026-08-20 13:52:09 KST · 3e96d946
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-14-54/report.html" style="left:11.76%" data-l="#111 · 2026-08-20 14:04:53 KST · 3e96d946" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 3/3" title="#111 · 2026-08-20 14:04:53 KST · 3e96d946
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 3/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-16-29/report.html" style="left:17.65%" data-l="#113 · 2026-08-20 16:06:25 KST · 3e96d946" data-v="오류율 0.0%" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 1/3" title="#113 · 2026-08-20 16:06:25 KST · 3e96d946
+오류율 0.0%
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-29-26/report.html" style="left:23.53%" data-l="#114 · 2026-08-20 16:19:20 KST · 3e96d946" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 2/3" title="#114 · 2026-08-20 16:19:20 KST · 3e96d946
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-42-13/report.html" style="left:29.41%" data-l="#116 · 2026-08-20 20:32:13 KST · 3e96d946" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4" title="#116 · 2026-08-20 20:32:13 KST · 3e96d946
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-55-07/report.html" style="left:35.29%" data-l="#117 · 2026-08-20 20:44:59 KST · 3e96d946" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4" title="#117 · 2026-08-20 20:44:59 KST · 3e96d946
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-08-10/report.html" style="left:41.18%" data-l="#118 · 2026-08-20 20:58:03 KST · 3e96d946" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4" title="#118 · 2026-08-20 20:58:03 KST · 3e96d946
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-20-57/report.html" style="left:47.06%" data-l="#119 · 2026-08-20 21:10:53 KST · 3e96d946" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4" title="#119 · 2026-08-20 21:10:53 KST · 3e96d946
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-09-17/report.html" style="left:52.94%" data-l="#124 · 2026-08-25 19:59:15 KST · 1e23e03c" data-v="오류율 0.0%" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5" title="#124 · 2026-08-25 19:59:15 KST · 1e23e03c
+오류율 0.0%
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-22-08/report.html" style="left:58.82%" data-l="#125 · 2026-08-25 20:12:05 KST · 1e23e03c" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5" title="#125 · 2026-08-25 20:12:05 KST · 1e23e03c
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-34-52/report.html" style="left:64.71%" data-l="#126 · 2026-08-25 20:24:51 KST · 1e23e03c" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5" title="#126 · 2026-08-25 20:24:51 KST · 1e23e03c
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T23-53-47/report.html" style="left:70.59%" data-l="#127 · 2026-08-26 08:43:33 KST · f915176e" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5" title="#127 · 2026-08-26 08:43:33 KST · f915176e
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-06-28/report.html" style="left:76.47%" data-l="#128 · 2026-08-26 08:56:22 KST · f915176e" data-v="오류율 0.0%" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5" title="#128 · 2026-08-26 08:56:22 KST · f915176e
+오류율 0.0%
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-19-13/report.html" style="left:82.35%" data-l="#129 · 2026-08-26 09:09:10 KST · f915176e" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5" title="#129 · 2026-08-26 09:09:10 KST · f915176e
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-31-58/report.html" style="left:88.24%" data-l="#130 · 2026-08-26 09:21:47 KST · f915176e" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5" title="#130 · 2026-08-26 09:21:47 KST · f915176e
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-44-37/report.html" style="left:94.12%" data-l="#131 · 2026-08-26 09:34:36 KST · f915176e" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5" title="#131 · 2026-08-26 09:34:36 KST · f915176e
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5
+클릭 → 이 실행의 리포트"></a><span class="pt now" style="left:100.00%" data-l="#136 · 2026-08-31 20:55:23 KST · 37683622" data-v="오류율 0.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동" title="#136 · 2026-08-31 20:55:23 KST · 37683622
+오류율 0.0%
+포화 HEADROOM · 판정 FAIL
+T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동
+이번 실행"></span></div>
     <div class="range"><span>min 0.0%</span><span>max 0.0%</span></div>
   </div><div class="spark">
     <div class="st">CPU 포화도</div>
     <div class="sv">51.5%</div>
-    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
+    <div class="spark-plot"><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="CPU 포화도">
   <path d="M0.00,37.00 L5.88,25.56 L11.76,31.13 L17.65,8.93 L23.53,31.20 L29.41,15.07 L35.29,31.64 L41.18,31.84 L47.06,27.03 L52.94,3.00 L58.82,9.15 L64.71,17.50 L70.59,23.64 L76.47,13.16 L82.35,35.85 L88.24,35.23 L94.12,23.53 L100.00,24.80 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,37.00 L5.88,25.56 L11.76,31.13 L17.65,8.93 L23.53,31.20 L29.41,15.07 L35.29,31.64 L41.18,31.84 L47.06,27.03 L52.94,3.00 L58.82,9.15 L64.71,17.50 L70.59,23.64 L76.47,13.16 L82.35,35.85 L88.24,35.23 L94.12,23.53 L100.00,24.80" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="24.80" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
+</svg><a class="pt" href="../normal-day-2026-08-20T04-49-23/report.html" style="left:0.00%" data-l="#109 · 2026-08-20 13:39:14 KST · 3e96d946" data-v="CPU 포화도 40.9%" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 1/3" title="#109 · 2026-08-20 13:39:14 KST · 3e96d946
+CPU 포화도 40.9%
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-02-20/report.html" style="left:5.88%" data-l="#110 · 2026-08-20 13:52:09 KST · 3e96d946" data-v="CPU 포화도 50.8%" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 2/3" title="#110 · 2026-08-20 13:52:09 KST · 3e96d946
+CPU 포화도 50.8%
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-14-54/report.html" style="left:11.76%" data-l="#111 · 2026-08-20 14:04:53 KST · 3e96d946" data-v="CPU 포화도 46.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 3/3" title="#111 · 2026-08-20 14:04:53 KST · 3e96d946
+CPU 포화도 46.0%
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 3/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-16-29/report.html" style="left:17.65%" data-l="#113 · 2026-08-20 16:06:25 KST · 3e96d946" data-v="CPU 포화도 65.1%" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 1/3" title="#113 · 2026-08-20 16:06:25 KST · 3e96d946
+CPU 포화도 65.1%
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-29-26/report.html" style="left:23.53%" data-l="#114 · 2026-08-20 16:19:20 KST · 3e96d946" data-v="CPU 포화도 46.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 2/3" title="#114 · 2026-08-20 16:19:20 KST · 3e96d946
+CPU 포화도 46.0%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-42-13/report.html" style="left:29.41%" data-l="#116 · 2026-08-20 20:32:13 KST · 3e96d946" data-v="CPU 포화도 59.9%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4" title="#116 · 2026-08-20 20:32:13 KST · 3e96d946
+CPU 포화도 59.9%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-55-07/report.html" style="left:35.29%" data-l="#117 · 2026-08-20 20:44:59 KST · 3e96d946" data-v="CPU 포화도 45.6%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4" title="#117 · 2026-08-20 20:44:59 KST · 3e96d946
+CPU 포화도 45.6%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-08-10/report.html" style="left:41.18%" data-l="#118 · 2026-08-20 20:58:03 KST · 3e96d946" data-v="CPU 포화도 45.4%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4" title="#118 · 2026-08-20 20:58:03 KST · 3e96d946
+CPU 포화도 45.4%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-20-57/report.html" style="left:47.06%" data-l="#119 · 2026-08-20 21:10:53 KST · 3e96d946" data-v="CPU 포화도 49.5%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4" title="#119 · 2026-08-20 21:10:53 KST · 3e96d946
+CPU 포화도 49.5%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-09-17/report.html" style="left:52.94%" data-l="#124 · 2026-08-25 19:59:15 KST · 1e23e03c" data-v="CPU 포화도 70.3%" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5" title="#124 · 2026-08-25 19:59:15 KST · 1e23e03c
+CPU 포화도 70.3%
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-22-08/report.html" style="left:58.82%" data-l="#125 · 2026-08-25 20:12:05 KST · 1e23e03c" data-v="CPU 포화도 65.0%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5" title="#125 · 2026-08-25 20:12:05 KST · 1e23e03c
+CPU 포화도 65.0%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-34-52/report.html" style="left:64.71%" data-l="#126 · 2026-08-25 20:24:51 KST · 1e23e03c" data-v="CPU 포화도 57.8%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5" title="#126 · 2026-08-25 20:24:51 KST · 1e23e03c
+CPU 포화도 57.8%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T23-53-47/report.html" style="left:70.59%" data-l="#127 · 2026-08-26 08:43:33 KST · f915176e" data-v="CPU 포화도 52.5%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5" title="#127 · 2026-08-26 08:43:33 KST · f915176e
+CPU 포화도 52.5%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-06-28/report.html" style="left:76.47%" data-l="#128 · 2026-08-26 08:56:22 KST · f915176e" data-v="CPU 포화도 61.5%" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5" title="#128 · 2026-08-26 08:56:22 KST · f915176e
+CPU 포화도 61.5%
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-19-13/report.html" style="left:82.35%" data-l="#129 · 2026-08-26 09:09:10 KST · f915176e" data-v="CPU 포화도 41.9%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5" title="#129 · 2026-08-26 09:09:10 KST · f915176e
+CPU 포화도 41.9%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-31-58/report.html" style="left:88.24%" data-l="#130 · 2026-08-26 09:21:47 KST · f915176e" data-v="CPU 포화도 42.5%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5" title="#130 · 2026-08-26 09:21:47 KST · f915176e
+CPU 포화도 42.5%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-44-37/report.html" style="left:94.12%" data-l="#131 · 2026-08-26 09:34:36 KST · f915176e" data-v="CPU 포화도 52.6%" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5" title="#131 · 2026-08-26 09:34:36 KST · f915176e
+CPU 포화도 52.6%
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5
+클릭 → 이 실행의 리포트"></a><span class="pt now" style="left:100.00%" data-l="#136 · 2026-08-31 20:55:23 KST · 37683622" data-v="CPU 포화도 51.5%" data-st="포화 HEADROOM · 판정 FAIL" data-note="T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동" title="#136 · 2026-08-31 20:55:23 KST · 37683622
+CPU 포화도 51.5%
+포화 HEADROOM · 판정 FAIL
+T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동
+이번 실행"></span></div>
     <div class="range"><span>min 40.9%</span><span>max 70.3%</span></div>
   </div><div class="spark">
     <div class="st">Heap 최대</div>
     <div class="sv">778 MB</div>
-    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
+    <div class="spark-plot"><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Heap 최대">
   <path d="M0.00,16.47 L5.88,24.70 L11.76,9.30 L17.65,21.94 L23.53,13.96 L29.41,33.88 L35.29,7.82 L41.18,3.00 L47.06,37.00 L52.94,14.22 L58.82,19.01 L64.71,4.40 L70.59,28.84 L76.47,14.77 L82.35,10.96 L88.24,7.14 L94.12,7.95 L100.00,12.25 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,16.47 L5.88,24.70 L11.76,9.30 L17.65,21.94 L23.53,13.96 L29.41,33.88 L35.29,7.82 L41.18,3.00 L47.06,37.00 L52.94,14.22 L58.82,19.01 L64.71,4.40 L70.59,28.84 L76.47,14.77 L82.35,10.96 L88.24,7.14 L94.12,7.95 L100.00,12.25" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="12.25" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
+</svg><a class="pt" href="../normal-day-2026-08-20T04-49-23/report.html" style="left:0.00%" data-l="#109 · 2026-08-20 13:39:14 KST · 3e96d946" data-v="Heap 최대 770 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 1/3" title="#109 · 2026-08-20 13:39:14 KST · 3e96d946
+Heap 최대 770 MB
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-02-20/report.html" style="left:5.88%" data-l="#110 · 2026-08-20 13:52:09 KST · 3e96d946" data-v="Heap 최대 753 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 2/3" title="#110 · 2026-08-20 13:52:09 KST · 3e96d946
+Heap 최대 753 MB
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-14-54/report.html" style="left:11.76%" data-l="#111 · 2026-08-20 14:04:53 KST · 3e96d946" data-v="Heap 최대 784 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 3/3" title="#111 · 2026-08-20 14:04:53 KST · 3e96d946
+Heap 최대 784 MB
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 3/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-16-29/report.html" style="left:17.65%" data-l="#113 · 2026-08-20 16:06:25 KST · 3e96d946" data-v="Heap 최대 759 MB" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 1/3" title="#113 · 2026-08-20 16:06:25 KST · 3e96d946
+Heap 최대 759 MB
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-29-26/report.html" style="left:23.53%" data-l="#114 · 2026-08-20 16:19:20 KST · 3e96d946" data-v="Heap 최대 775 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 2/3" title="#114 · 2026-08-20 16:19:20 KST · 3e96d946
+Heap 최대 775 MB
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-42-13/report.html" style="left:29.41%" data-l="#116 · 2026-08-20 20:32:13 KST · 3e96d946" data-v="Heap 최대 735 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4" title="#116 · 2026-08-20 20:32:13 KST · 3e96d946
+Heap 최대 735 MB
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-55-07/report.html" style="left:35.29%" data-l="#117 · 2026-08-20 20:44:59 KST · 3e96d946" data-v="Heap 최대 787 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4" title="#117 · 2026-08-20 20:44:59 KST · 3e96d946
+Heap 최대 787 MB
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-08-10/report.html" style="left:41.18%" data-l="#118 · 2026-08-20 20:58:03 KST · 3e96d946" data-v="Heap 최대 796 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4" title="#118 · 2026-08-20 20:58:03 KST · 3e96d946
+Heap 최대 796 MB
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-20-57/report.html" style="left:47.06%" data-l="#119 · 2026-08-20 21:10:53 KST · 3e96d946" data-v="Heap 최대 729 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4" title="#119 · 2026-08-20 21:10:53 KST · 3e96d946
+Heap 최대 729 MB
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-09-17/report.html" style="left:52.94%" data-l="#124 · 2026-08-25 19:59:15 KST · 1e23e03c" data-v="Heap 최대 774 MB" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5" title="#124 · 2026-08-25 19:59:15 KST · 1e23e03c
+Heap 최대 774 MB
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-22-08/report.html" style="left:58.82%" data-l="#125 · 2026-08-25 20:12:05 KST · 1e23e03c" data-v="Heap 최대 765 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5" title="#125 · 2026-08-25 20:12:05 KST · 1e23e03c
+Heap 최대 765 MB
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-34-52/report.html" style="left:64.71%" data-l="#126 · 2026-08-25 20:24:51 KST · 1e23e03c" data-v="Heap 최대 794 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5" title="#126 · 2026-08-25 20:24:51 KST · 1e23e03c
+Heap 최대 794 MB
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T23-53-47/report.html" style="left:70.59%" data-l="#127 · 2026-08-26 08:43:33 KST · f915176e" data-v="Heap 최대 745 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5" title="#127 · 2026-08-26 08:43:33 KST · f915176e
+Heap 최대 745 MB
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-06-28/report.html" style="left:76.47%" data-l="#128 · 2026-08-26 08:56:22 KST · f915176e" data-v="Heap 최대 773 MB" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5" title="#128 · 2026-08-26 08:56:22 KST · f915176e
+Heap 최대 773 MB
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-19-13/report.html" style="left:82.35%" data-l="#129 · 2026-08-26 09:09:10 KST · f915176e" data-v="Heap 최대 781 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5" title="#129 · 2026-08-26 09:09:10 KST · f915176e
+Heap 최대 781 MB
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-31-58/report.html" style="left:88.24%" data-l="#130 · 2026-08-26 09:21:47 KST · f915176e" data-v="Heap 최대 788 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5" title="#130 · 2026-08-26 09:21:47 KST · f915176e
+Heap 최대 788 MB
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-44-37/report.html" style="left:94.12%" data-l="#131 · 2026-08-26 09:34:36 KST · f915176e" data-v="Heap 최대 787 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5" title="#131 · 2026-08-26 09:34:36 KST · f915176e
+Heap 최대 787 MB
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5
+클릭 → 이 실행의 리포트"></a><span class="pt now" style="left:100.00%" data-l="#136 · 2026-08-31 20:55:23 KST · 37683622" data-v="Heap 최대 778 MB" data-st="포화 HEADROOM · 판정 FAIL" data-note="T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동" title="#136 · 2026-08-31 20:55:23 KST · 37683622
+Heap 최대 778 MB
+포화 HEADROOM · 판정 FAIL
+T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동
+이번 실행"></span></div>
     <div class="range"><span>min 729 MB</span><span>max 796 MB</span></div>
   </div><div class="spark">
     <div class="st">GC 최대 정지</div>
     <div class="sv">32ms</div>
-    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
+    <div class="spark-plot"><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="GC 최대 정지">
   <path d="M0.00,33.89 L5.88,35.38 L11.76,35.88 L17.65,28.41 L23.53,27.29 L29.41,3.00 L35.29,22.30 L41.18,27.78 L47.06,29.40 L52.94,26.79 L58.82,12.96 L64.71,21.18 L70.59,37.00 L76.47,17.95 L82.35,28.90 L88.24,27.41 L94.12,32.89 L100.00,35.63 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,33.89 L5.88,35.38 L11.76,35.88 L17.65,28.41 L23.53,27.29 L29.41,3.00 L35.29,22.30 L41.18,27.78 L47.06,29.40 L52.94,26.79 L58.82,12.96 L64.71,21.18 L70.59,37.00 L76.47,17.95 L82.35,28.90 L88.24,27.41 L94.12,32.89 L100.00,35.63" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="35.63" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
+</svg><a class="pt" href="../normal-day-2026-08-20T04-49-23/report.html" style="left:0.00%" data-l="#109 · 2026-08-20 13:39:14 KST · 3e96d946" data-v="GC 최대 정지 46ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 1/3" title="#109 · 2026-08-20 13:39:14 KST · 3e96d946
+GC 최대 정지 46ms
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-02-20/report.html" style="left:5.88%" data-l="#110 · 2026-08-20 13:52:09 KST · 3e96d946" data-v="GC 최대 정지 34ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 2/3" title="#110 · 2026-08-20 13:52:09 KST · 3e96d946
+GC 최대 정지 34ms
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-14-54/report.html" style="left:11.76%" data-l="#111 · 2026-08-20 14:04:53 KST · 3e96d946" data-v="GC 최대 정지 30ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 3/3" title="#111 · 2026-08-20 14:04:53 KST · 3e96d946
+GC 최대 정지 30ms
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 3/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-16-29/report.html" style="left:17.65%" data-l="#113 · 2026-08-20 16:06:25 KST · 3e96d946" data-v="GC 최대 정지 90ms" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 1/3" title="#113 · 2026-08-20 16:06:25 KST · 3e96d946
+GC 최대 정지 90ms
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-29-26/report.html" style="left:23.53%" data-l="#114 · 2026-08-20 16:19:20 KST · 3e96d946" data-v="GC 최대 정지 99ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 2/3" title="#114 · 2026-08-20 16:19:20 KST · 3e96d946
+GC 최대 정지 99ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-42-13/report.html" style="left:29.41%" data-l="#116 · 2026-08-20 20:32:13 KST · 3e96d946" data-v="GC 최대 정지 294ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4" title="#116 · 2026-08-20 20:32:13 KST · 3e96d946
+GC 최대 정지 294ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-55-07/report.html" style="left:35.29%" data-l="#117 · 2026-08-20 20:44:59 KST · 3e96d946" data-v="GC 최대 정지 139ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4" title="#117 · 2026-08-20 20:44:59 KST · 3e96d946
+GC 최대 정지 139ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-08-10/report.html" style="left:41.18%" data-l="#118 · 2026-08-20 20:58:03 KST · 3e96d946" data-v="GC 최대 정지 95ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4" title="#118 · 2026-08-20 20:58:03 KST · 3e96d946
+GC 최대 정지 95ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-20-57/report.html" style="left:47.06%" data-l="#119 · 2026-08-20 21:10:53 KST · 3e96d946" data-v="GC 최대 정지 82ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4" title="#119 · 2026-08-20 21:10:53 KST · 3e96d946
+GC 최대 정지 82ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-09-17/report.html" style="left:52.94%" data-l="#124 · 2026-08-25 19:59:15 KST · 1e23e03c" data-v="GC 최대 정지 103ms" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5" title="#124 · 2026-08-25 19:59:15 KST · 1e23e03c
+GC 최대 정지 103ms
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-22-08/report.html" style="left:58.82%" data-l="#125 · 2026-08-25 20:12:05 KST · 1e23e03c" data-v="GC 최대 정지 214ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5" title="#125 · 2026-08-25 20:12:05 KST · 1e23e03c
+GC 최대 정지 214ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-34-52/report.html" style="left:64.71%" data-l="#126 · 2026-08-25 20:24:51 KST · 1e23e03c" data-v="GC 최대 정지 148ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5" title="#126 · 2026-08-25 20:24:51 KST · 1e23e03c
+GC 최대 정지 148ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T23-53-47/report.html" style="left:70.59%" data-l="#127 · 2026-08-26 08:43:33 KST · f915176e" data-v="GC 최대 정지 21ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5" title="#127 · 2026-08-26 08:43:33 KST · f915176e
+GC 최대 정지 21ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-06-28/report.html" style="left:76.47%" data-l="#128 · 2026-08-26 08:56:22 KST · f915176e" data-v="GC 최대 정지 174ms" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5" title="#128 · 2026-08-26 08:56:22 KST · f915176e
+GC 최대 정지 174ms
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-19-13/report.html" style="left:82.35%" data-l="#129 · 2026-08-26 09:09:10 KST · f915176e" data-v="GC 최대 정지 86ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5" title="#129 · 2026-08-26 09:09:10 KST · f915176e
+GC 최대 정지 86ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-31-58/report.html" style="left:88.24%" data-l="#130 · 2026-08-26 09:21:47 KST · f915176e" data-v="GC 최대 정지 98ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5" title="#130 · 2026-08-26 09:21:47 KST · f915176e
+GC 최대 정지 98ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-44-37/report.html" style="left:94.12%" data-l="#131 · 2026-08-26 09:34:36 KST · f915176e" data-v="GC 최대 정지 54ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5" title="#131 · 2026-08-26 09:34:36 KST · f915176e
+GC 최대 정지 54ms
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5
+클릭 → 이 실행의 리포트"></a><span class="pt now" style="left:100.00%" data-l="#136 · 2026-08-31 20:55:23 KST · 37683622" data-v="GC 최대 정지 32ms" data-st="포화 HEADROOM · 판정 FAIL" data-note="T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동" title="#136 · 2026-08-31 20:55:23 KST · 37683622
+GC 최대 정지 32ms
+포화 HEADROOM · 판정 FAIL
+T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동
+이번 실행"></span></div>
     <div class="range"><span>min 21ms</span><span>max 294ms</span></div>
   </div><div class="spark">
     <div class="st">Slow Query</div>
     <div class="sv">758</div>
-    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
+    <div class="spark-plot"><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Slow Query">
   <path d="M0.00,24.82 L5.88,37.00 L11.76,24.82 L17.65,28.18 L23.53,3.00 L29.41,13.07 L35.29,12.66 L41.18,29.02 L47.06,34.48 L52.94,16.85 L58.82,18.53 L64.71,29.03 L70.59,25.66 L76.47,22.73 L82.35,16.85 L88.24,18.53 L94.12,25.67 L100.00,23.15 L100.00,40 L0.00,40 Z" fill="var(--series-1)" opacity="0.10"/>
   <path d="M0.00,24.82 L5.88,37.00 L11.76,24.82 L17.65,28.18 L23.53,3.00 L29.41,13.07 L35.29,12.66 L41.18,29.02 L47.06,34.48 L52.94,16.85 L58.82,18.53 L64.71,29.03 L70.59,25.66 L76.47,22.73 L82.35,16.85 L88.24,18.53 L94.12,25.67 L100.00,23.15" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
         vector-effect="non-scaling-stroke"/>
   <circle cx="100.00" cy="23.15" r="2.6" fill="var(--series-1)"
           stroke="var(--surface)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-</svg>
+</svg><a class="pt" href="../normal-day-2026-08-20T04-49-23/report.html" style="left:0.00%" data-l="#109 · 2026-08-20 13:39:14 KST · 3e96d946" data-v="Slow Query 754" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 1/3" title="#109 · 2026-08-20 13:39:14 KST · 3e96d946
+Slow Query 754
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-02-20/report.html" style="left:5.88%" data-l="#110 · 2026-08-20 13:52:09 KST · 3e96d946" data-v="Slow Query 724" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 2/3" title="#110 · 2026-08-20 13:52:09 KST · 3e96d946
+Slow Query 724
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T05-14-54/report.html" style="left:11.76%" data-l="#111 · 2026-08-20 14:04:53 KST · 3e96d946" data-v="Slow Query 754" data-st="포화 HEADROOM · 판정 FAIL" data-note="P1 open model RATE=4 CV validation — repeatability 3/3" title="#111 · 2026-08-20 14:04:53 KST · 3e96d946
+Slow Query 754
+포화 HEADROOM · 판정 FAIL
+P1 open model RATE=4 CV validation — repeatability 3/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-16-29/report.html" style="left:17.65%" data-l="#113 · 2026-08-20 16:06:25 KST · 3e96d946" data-v="Slow Query 745" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 1/3" title="#113 · 2026-08-20 16:06:25 KST · 3e96d946
+Slow Query 745
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 1/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T07-29-26/report.html" style="left:23.53%" data-l="#114 · 2026-08-20 16:19:20 KST · 3e96d946" data-v="Slow Query 806" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-A (open model RATE=4) — repeatability 2/3" title="#114 · 2026-08-20 16:19:20 KST · 3e96d946
+Slow Query 806
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-A (open model RATE=4) — repeatability 2/3
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-42-13/report.html" style="left:29.41%" data-l="#116 · 2026-08-20 20:32:13 KST · 3e96d946" data-v="Slow Query 782" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4" title="#116 · 2026-08-20 20:32:13 KST · 3e96d946
+Slow Query 782
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 1/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T11-55-07/report.html" style="left:35.29%" data-l="#117 · 2026-08-20 20:44:59 KST · 3e96d946" data-v="Slow Query 783" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4" title="#117 · 2026-08-20 20:44:59 KST · 3e96d946
+Slow Query 783
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 2/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-08-10/report.html" style="left:41.18%" data-l="#118 · 2026-08-20 20:58:03 KST · 3e96d946" data-v="Slow Query 743" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4" title="#118 · 2026-08-20 20:58:03 KST · 3e96d946
+Slow Query 743
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 3/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-20T12-20-57/report.html" style="left:47.06%" data-l="#119 · 2026-08-20 21:10:53 KST · 3e96d946" data-v="Slow Query 730" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4" title="#119 · 2026-08-20 21:10:53 KST · 3e96d946
+Slow Query 730
+포화 HEADROOM · 판정 FAIL
+KI-27 Before-B (drift error bar, unchanged code) — repeatability 4/4
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-09-17/report.html" style="left:52.94%" data-l="#124 · 2026-08-25 19:59:15 KST · 1e23e03c" data-v="Slow Query 773" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5" title="#124 · 2026-08-25 19:59:15 KST · 1e23e03c
+Slow Query 773
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-22-08/report.html" style="left:58.82%" data-l="#125 · 2026-08-25 20:12:05 KST · 1e23e03c" data-v="Slow Query 769" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5" title="#125 · 2026-08-25 20:12:05 KST · 1e23e03c
+Slow Query 769
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T11-34-52/report.html" style="left:64.71%" data-l="#126 · 2026-08-25 20:24:51 KST · 1e23e03c" data-v="Slow Query 743" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5" title="#126 · 2026-08-25 20:24:51 KST · 1e23e03c
+Slow Query 743
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-25T23-53-47/report.html" style="left:70.59%" data-l="#127 · 2026-08-26 08:43:33 KST · f915176e" data-v="Slow Query 752" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5" title="#127 · 2026-08-26 08:43:33 KST · f915176e
+Slow Query 752
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 1/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-06-28/report.html" style="left:76.47%" data-l="#128 · 2026-08-26 08:56:22 KST · f915176e" data-v="Slow Query 759" data-st="포화 NEAR_LIMIT · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5" title="#128 · 2026-08-26 08:56:22 KST · f915176e
+Slow Query 759
+포화 NEAR_LIMIT · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 2/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-19-13/report.html" style="left:82.35%" data-l="#129 · 2026-08-26 09:09:10 KST · f915176e" data-v="Slow Query 773" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5" title="#129 · 2026-08-26 09:09:10 KST · f915176e
+Slow Query 773
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 3/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-31-58/report.html" style="left:88.24%" data-l="#130 · 2026-08-26 09:21:47 KST · f915176e" data-v="Slow Query 769" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5" title="#130 · 2026-08-26 09:21:47 KST · f915176e
+Slow Query 769
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 4/5
+클릭 → 이 실행의 리포트"></a><a class="pt" href="../normal-day-2026-08-26T00-44-37/report.html" style="left:94.12%" data-l="#131 · 2026-08-26 09:34:36 KST · f915176e" data-v="Slow Query 752" data-st="포화 HEADROOM · 판정 FAIL" data-note="KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5" title="#131 · 2026-08-26 09:34:36 KST · f915176e
+Slow Query 752
+포화 HEADROOM · 판정 FAIL
+KI-27 Before — API 축 포함 CV 확정용 5회 (재시작) — repeatability 5/5
+클릭 → 이 실행의 리포트"></a><span class="pt now" style="left:100.00%" data-l="#136 · 2026-08-31 20:55:23 KST · 37683622" data-v="Slow Query 758" data-st="포화 HEADROOM · 판정 FAIL" data-note="T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동" title="#136 · 2026-08-31 20:55:23 KST · 37683622
+Slow Query 758
+포화 HEADROOM · 판정 FAIL
+T-42 재빌드 후 첫 정식 실행 — 엔드포인트별 쿼리 비용 계측 최초 가동
+이번 실행"></span></div>
     <div class="range"><span>min 724</span><span>max 806</span></div>
   </div></div>
     <div class="note">같은 시나리오·같은 환경의 최근 실행만 모았다. 오른쪽 끝이 이번 실행이다.
     한 번의 변화보다 <b>추세의 방향</b>이 중요하다 — 매 실행 5%씩 나빠지면 개별 판정은 계속 통과하지만
-    10회 뒤에는 1.6배가 된다.</div></section>
+    10회 뒤에는 1.6배가 된다.<br>
+    점 위에 마우스를 올리면 그 회차의 값·포화 판정·메모가 나오고, <b>누르면 그 실행의 리포트로 이동</b>한다.
+    값이 없는 회차는 자리를 비워 둔다 — 그 자리가 좁아 보이면 그때 그 지표를 안 재고 있었다는 뜻이다.</div></section>
   <details class="fold">
     <summary>SLO Thresholds</summary>
     <section><h2>SLO Thresholds</h2>
