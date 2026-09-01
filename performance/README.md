@@ -62,6 +62,9 @@ node datasets/seed.js --profile medium
 bash datasets/verify.sh medium          # 수량·카운터·참조 무결성·인기 분포 판정
 node tools/snapshot.js create medium    # 검증을 통과한 상태를 불변 사본으로 보존
 
+# 1-b. 판정용 측정을 시작하기 전 — 측정 가능한 상태인지 확인 (통과해야 다음으로 간다)
+node tools/preflight.js --dataset medium --rate 4
+
 # 2~3. 스모크 → 기준선  (모든 명령은 performance/ 루트에서)
 node tools/perf-run.js scripts/posts.js --vus 5 --duration 1m --dataset medium
 # --warmup은 k6의 ramp-up 단계 자체를 그 길이로 만든다(300초). 수집기가 사후에 자르는
