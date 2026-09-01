@@ -171,8 +171,42 @@ function diff(before, after) {
     }
     if (any) out.push(rec);
   }
-  out.sort((x, y) => y.rowsExamined - x.rowsExamined);
   return { rows: out, rewound };
+}
+
+/**
+ * 상위 목록을 만드는 축들.
+ *
+ * **왜 셋인가 — 하나로는 찾는 것을 놓친다.**
+ * 원래는 `rowsExamined` 하나로만 정렬해 상위 25개를 실었다. 그 목록은 "행을 많이 훑은
+ * 쿼리"는 잘 보여주지만 **행을 거의 안 읽으면서 수없이 불리는 쿼리는 절대 보여주지 않는다.**
+ * 그런데 N+1 이 정확히 그 모양이다 — 1행짜리 조회가 수천 번.
+ *
+ * 실측(normal-day-2026-08-31T08-35-17)에서 그 구멍이 그대로 드러났다. 앱이 실행한 문장은
+ * 60,763회·10,090ms 였는데 행 기준 상위 25개에 들어온 것은 5,520회·1,394ms 뿐이었다.
+ * **호출의 91%, 시간의 86% 가 목록 밖**에 있었고, 그것들이 읽은 행은 다 합쳐 306행이었다.
+ * 행이 없으니 영원히 순위에 못 든다. N+1 을 판정하려고 만든 도구가 N+1 의 흔적을 구조적으로
+ * 가리고 있었던 것이다.
+ *
+ * 축마다 답하는 질문이 다르다.
+ *   rows  — 어느 쿼리가 데이터를 많이 훑었나 (인덱스·쿼리 계획 문제)
+ *   calls — 어느 쿼리가 많이 불렸나         (N+1·루프 안 조회)
+ *   time  — 어느 쿼리가 서버 시간을 썼나    (실제 비용의 소재)
+ */
+const AXES = [
+  { id: 'byRows', field: 'rowsExamined', label: '읽은 행 기준' },
+  { id: 'byCalls', field: 'calls', label: '호출 수 기준' },
+  { id: 'byTime', field: 'totalMs', label: '소요 시간 기준' },
+];
+
+function shape(r) {
+  return {
+    stmt: r.stmt, kind: r.kind, calls: r.calls,
+    rowsExamined: r.rowsExamined, rowsPerCall: r.calls ? +(r.rowsExamined / r.calls).toFixed(1) : 0,
+    rowsSent: r.rowsSent, selectScan: r.selectScan, selectFullJoin: r.selectFullJoin,
+    noIndexUsed: r.noIndexUsed, totalMs: r.totalMs,
+    msPerCall: r.calls ? +(r.totalMs / r.calls).toFixed(3) : 0,
+  };
 }
 
 /**
@@ -180,6 +214,9 @@ function diff(before, after) {
  *
  * 상위 N 개만 싣되 **합계는 전체로 낸다.** 상위만 더한 합계를 실으면 나중에 읽는 사람이
  * "이게 전부"로 오해한다.
+ *
+ * `coverage` 를 함께 싣는 이유도 같다. 목록이 전체의 몇 %를 설명하는지 적어 두지 않으면,
+ * 읽는 사람은 목록에 없는 것을 "없는 것"으로 읽는다. 위 실측이 그 오독의 실례다.
  */
 function summarize(d, opts = {}) {
   const topN = opts.topN || TOP_N;
@@ -198,16 +235,34 @@ function summarize(d, opts = {}) {
   }
   // 상위 목록에서도 self 는 제외한다 — 항상 상위권에 들어와 자리만 차지한다.
   const ranked = d.rows.filter((r) => r.kind !== 'self');
+
+  const top = {};
+  const coverage = {};
+  // 목록에 한 번이라도 등장한 digest 의 합집합. 세 축을 합치면 실제로 무엇이 보이지 않는지가
+  // 나온다 — 축 하나씩 따로 세면 같은 쿼리를 세 번 세게 된다.
+  const shown = new Set();
+  for (const axis of AXES) {
+    const sorted = [...ranked].sort((x, y) => y[axis.field] - x[axis.field]).slice(0, topN);
+    top[axis.id] = sorted.map(shape);
+    for (const r of sorted) shown.add(r.digest);
+    const sum = sorted.reduce((a, r) => a + r[axis.field], 0);
+    const all = totals.all[axis.field];
+    coverage[axis.id] = { shown: sum, total: all, pct: all ? +((100 * sum) / all).toFixed(1) : null };
+  }
+  // 세 축 어디에도 안 나온 문장들. 여기 호출이 많이 남아 있으면 목록만 보고 판단하면 안 된다.
+  const hiddenRows = ranked.filter((r) => !shown.has(r.digest));
+  const hidden = { statements: hiddenRows.length };
+  for (const f of NUMERIC) hidden[f] = hiddenRows.reduce((a, r) => a + r[f], 0);
+
   return {
     totals,
     distinctStatements: ranked.length,
     rewound: d.rewound,
-    top: ranked.slice(0, topN).map((r) => ({
-      stmt: r.stmt, kind: r.kind, calls: r.calls,
-      rowsExamined: r.rowsExamined, rowsPerCall: r.calls ? +(r.rowsExamined / r.calls).toFixed(1) : 0,
-      rowsSent: r.rowsSent, selectScan: r.selectScan, selectFullJoin: r.selectFullJoin,
-      noIndexUsed: r.noIndexUsed, totalMs: r.totalMs,
-    })),
+    topN,
+    axes: AXES.map((a) => ({ id: a.id, label: a.label })),
+    top,
+    coverage,
+    hidden,
   };
 }
 
@@ -261,4 +316,4 @@ function stop(handle) {
   }
 }
 
-module.exports = { capture, diff, summarize, classify, start, stop, SQL, TOP_N, CONTAINER, DATABASE };
+module.exports = { capture, diff, summarize, classify, start, stop, SQL, TOP_N, AXES, CONTAINER, DATABASE };
