@@ -10,7 +10,10 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
@@ -52,6 +55,25 @@ public class CommentReactionService {
         } else {
             createDislikeInternal(comment, user);
         }
+    }
+
+    /**
+     * 여러 댓글에 대한 "내 반응"을 한 번의 조회로 가져온다.
+     *
+     * 댓글 목록 화면은 댓글마다 좋아요·싫어요 여부만 필요하고, 개수는 이미 Comment 에
+     * 비정규화돼 있다. 그런데 댓글마다 {@link #getLikeSatateDto}를 부르면 확인 쿼리가
+     * 2N 번 나간다. 여기서는 댓글 id 전체를 한 번에 넘겨 조회를 1회로 줄인다.
+     *
+     * 반응이 없는 댓글은 결과 맵에 아예 없다 — 그쪽이 "반응 없음"을 표현하는 별도 값을
+     * 두는 것보다 호출부에서 읽기 쉽다(kind == LIKE 비교가 null 에서도 그대로 false 다).
+     *
+     * @return 댓글 id → 그 댓글에 이 사용자가 남긴 유효한 반응의 종류
+     */
+    public Map<Long, PostReactionKind> findMyReactions(List<Comment> comments, User user) {
+        if (comments.isEmpty()) return Map.of();
+        List<Long> commentIds = comments.stream().map(Comment::getId).toList();
+        return commentReactionRepository.findMineByCommentIds(user, commentIds).stream()
+                .collect(Collectors.toMap(r -> r.getComment().getId(), CommentReaction::getKind));
     }
 
     public LikeStateDto getLikeSatateDto(Comment comment, User user) {
