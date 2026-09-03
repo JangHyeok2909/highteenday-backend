@@ -19,9 +19,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -176,6 +185,92 @@ class CommentReactionServiceTest {
             assertThat(dto.getLikeCount()).isEqualTo(5);
             assertThat(dto.getDislikeCount()).isEqualTo(2);
         }
+    }
+
+    @Nested
+    @DisplayName("findMyReactions")
+    class FindMyReactions {
+
+        /**
+         * 이 메서드의 존재 이유는 조회 횟수다. 댓글마다 좋아요·싫어요를 따로 물으면 2N 번
+         * 나가던 것을 1번으로 줄인 것이라, "결과가 맞다"만큼 "조회를 한 번만 한다"가 계약이다.
+         */
+        @Test
+        @DisplayName("댓글이 몇 개든 조회는 한 번만 한다")
+        void queriesOnce() {
+            List<Comment> comments = commentsWithIds(1L, 2L, 3L, 4L, 5L);
+            when(commentReactionRepository.findMineByCommentIds(eq(user), anyCollection()))
+                    .thenReturn(List.of());
+
+            commentReactionService.findMyReactions(comments, user);
+
+            verify(commentReactionRepository, times(1)).findMineByCommentIds(eq(user), anyCollection());
+            verify(commentReactionRepository, never())
+                    .existsByCommentAndUserAndKindAndIsValidTrue(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("목록에 있는 댓글 id 전부를 한 번에 넘긴다")
+        void passesEveryCommentId() {
+            List<Comment> comments = commentsWithIds(7L, 8L, 9L);
+            when(commentReactionRepository.findMineByCommentIds(eq(user), anyCollection()))
+                    .thenReturn(List.of());
+
+            commentReactionService.findMyReactions(comments, user);
+
+            ArgumentCaptor<Collection<Long>> captor = ArgumentCaptor.forClass(Collection.class);
+            verify(commentReactionRepository).findMineByCommentIds(eq(user), captor.capture());
+            assertThat(captor.getValue()).containsExactly(7L, 8L, 9L);
+        }
+
+        @Test
+        @DisplayName("반응 종류를 댓글 id 로 찾을 수 있게 돌려준다")
+        void mapsKindByCommentId() {
+            List<Comment> comments = commentsWithIds(1L, 2L, 3L);
+            when(commentReactionRepository.findMineByCommentIds(eq(user), anyCollection()))
+                    .thenReturn(List.of(
+                            reactionOn(comments.get(0), PostReactionKind.LIKE),
+                            reactionOn(comments.get(2), PostReactionKind.DISLIKE)));
+
+            Map<Long, PostReactionKind> result = commentReactionService.findMyReactions(comments, user);
+
+            assertThat(result).containsEntry(1L, PostReactionKind.LIKE);
+            assertThat(result).containsEntry(3L, PostReactionKind.DISLIKE);
+        }
+
+        @Test
+        @DisplayName("반응이 없는 댓글은 맵에 없다")
+        void omitsCommentsWithoutReaction() {
+            // 호출부는 `kind == LIKE` 로 읽는다. 없는 키가 null 이면 그 비교가 그대로
+            // false 라, "반응 없음"을 나타내는 별도 값을 만들 이유가 없다.
+            List<Comment> comments = commentsWithIds(1L, 2L);
+            when(commentReactionRepository.findMineByCommentIds(eq(user), anyCollection()))
+                    .thenReturn(List.of(reactionOn(comments.get(0), PostReactionKind.LIKE)));
+
+            Map<Long, PostReactionKind> result = commentReactionService.findMyReactions(comments, user);
+
+            assertThat(result).doesNotContainKey(2L);
+            assertThat(result.get(2L)).isNull();
+        }
+
+        @Test
+        @DisplayName("댓글이 없으면 조회하지 않는다")
+        void skipsQueryWhenNoComments() {
+            Map<Long, PostReactionKind> result = commentReactionService.findMyReactions(List.of(), user);
+
+            assertThat(result).isEmpty();
+            verify(commentReactionRepository, never()).findMineByCommentIds(any(), anyCollection());
+        }
+    }
+
+    private List<Comment> commentsWithIds(Long... ids) {
+        return Arrays.stream(ids)
+                .map(id -> Comment.builder().id(id).post(dummyPost).build())
+                .toList();
+    }
+
+    private CommentReaction reactionOn(Comment target, PostReactionKind kind) {
+        return CommentReaction.builder().comment(target).user(user).kind(kind).build();
     }
 
     private CommentReaction reaction(PostReactionKind kind, boolean valid) {

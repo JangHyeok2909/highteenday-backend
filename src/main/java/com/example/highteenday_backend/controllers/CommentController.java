@@ -4,9 +4,9 @@ package com.example.highteenday_backend.controllers;
 import jakarta.validation.Valid;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.posts.Post;
+import com.example.highteenday_backend.domain.posts.PostReactionKind;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.CommentDto;
-import com.example.highteenday_backend.dtos.LikeStateDto;
 import com.example.highteenday_backend.dtos.RequestCommentDto;
 import com.example.highteenday_backend.enums.ErrorCode;
 import com.example.highteenday_backend.exceptions.CustomException;
@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 
 
 @Slf4j
@@ -48,12 +49,15 @@ public class CommentController {
 
         if (userPrincipal != null) {
             User user = userPrincipal.getUser();
+            // 댓글마다 좋아요·싫어요를 따로 물으면 조회가 2N 번 나간다. 댓글 500개짜리 인기
+            // 글에서 그 1,000번이 이 엔드포인트 쿼리의 3분의 2였다. 한 번에 받아 맵으로 읽는다.
+            Map<Long, PostReactionKind> myReactions = commentReactionService.findMyReactions(comments, user);
             for (int i = 0; i < comments.size(); i++) {
                 Comment c = comments.get(i);
                 CommentDto dto = dtos.get(i);
-                LikeStateDto likeDto = commentReactionService.getLikeSatateDto(c, user);
-                dto.setLiked(likeDto.isLiked());
-                dto.setDisliked(likeDto.isDisliked());
+                PostReactionKind kind = myReactions.get(c.getId());
+                dto.setLiked(kind == PostReactionKind.LIKE);
+                dto.setDisliked(kind == PostReactionKind.DISLIKE);
                 dto.setOwner(user.getId().equals(c.getUser().getId()));
             }
         }
