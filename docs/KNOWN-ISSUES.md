@@ -230,6 +230,7 @@
 - 위치: `controllers/CommentController.java · getComments()` — 로그인 상태면 댓글마다 `commentReactionService.getLikeSatateDto()`를 호출하고, 이는 `existsByCommentAndUserAndKindAndIsValidTrue`를 LIKE·DISLIKE 각 1회 실행한다.
 - 결과: 댓글 N개 조회가 N+1을 넘어 **2N+α 쿼리**가 된다 (댓글 100개면 반응 조회만 200 쿼리). 컨트롤러가 서비스 로직을 품고 있는 레이어 위반이기도 하다.
 - 확인 방법: p6spy를 켜고(`decorator.datasource.p6spy.enable-logging=true`) 로그인 상태로 댓글 많은 글을 조회해 쿼리 수를 센다.
+- → 갱신 (2026-09-04): **해소** — 두 갈래를 각각 없앴다. 반응 확인 2N 은 댓글 id 를 한 번에 넘기는 일괄 조회로([OPT-001](../performance/optimizations/OPT-001-comment-reaction-batch.md)), 작성자 LAZY 로딩은 `CommentRepository.findByPost` 의 `join fetch c.user` 로([OPT-002](../performance/optimizations/OPT-002-comment-author-fetch-join.md)) 바꿨다. 요청당 쿼리가 **1,507 → 3.9** 로 줄었고 댓글 수에 비례하지 않는다 — 댓글 6개짜리 글과 4,040개짜리 글이 똑같이 4개를 쓴다. 회귀 방지 테스트는 `CommentReactionServiceTest`(호출 횟수 고정)와 `CommentRepositoryTest`(실행 문장 수 고정)에 있다. **레이어 위반(컨트롤러가 DTO 조립을 품음)은 그대로 남아 있다.**
 
 ## 데이터 모델·스키마
 
