@@ -77,6 +77,7 @@
 | [planning/perf-trust-levels.md](planning/perf-trust-levels.md) | 결과를 근거로 개선을 이어가려면 어디까지 고쳐야 하는가 | 측정 신뢰 수준을 판정할 때 |
 | [planning/perf-review-summary.md](planning/perf-review-summary.md) | 현재 결론과 실행 순서 요약 | 전체 상황을 빠르게 파악할 때 |
 | [decisions/go-migration-rationale.md](decisions/go-migration-rationale.md) | **결정 기록.** 측정 도구를 Go 로 옮길 정당한 이유가 있는가(무엇은 이유가 **아닌가**) | Go 이식을 시작·재개하기 전 |
+| [decisions/latency-slo-per-endpoint.md](decisions/latency-slo-per-endpoint.md) | **결정 기록.** 전역 p99 30ms 가 왜 도달 불가능한가(로그인 BCrypt 가 만드는 하한), 목표를 엔드포인트 그룹별로 나눈 이유와 그룹별 값 | 지연 목표를 세우거나 인용하기 전, "왜 아직 느린가"를 물을 때 |
 | [design/perf-metrics-catalog-plan.md](design/perf-metrics-catalog-plan.md) | 어떤 Prometheus 지표를 기본·귀속·조건부로 수집할 것인가 | 지표 카탈로그를 확장하기 전 |
 | [design/perf-report-redesign.md](design/perf-report-redesign.md) | 실행 리포트에 아직 남은 과제는 무엇인가 | 리포트를 고치기 전 |
 
