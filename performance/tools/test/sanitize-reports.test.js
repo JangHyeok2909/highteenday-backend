@@ -39,7 +39,7 @@ function makeSite(runOverrides = {}) {
       id: 'posts-2026-08-11T12-05-00',
       scenario: 'posts',
       environment: 'perf-s02-ab',
-      executor: 'janghyeok@LOCALDESKTOP-DJ12345',
+      executor: 'tester@BUILD-HOST-01',
       baseUrl: 'http://192.168.0.42:18080',
       branch: 'personal/localdocs-secret-work',
       commit: 'ec1234567890abcdef1234567890abcdef123456',
@@ -163,7 +163,7 @@ function makeEscapedSite() {
   fs.writeFileSync(path.join(runDir, 'run.json'), JSON.stringify({
     run: {
       id: 'normal-day-2026-08-29T10-30-28',
-      executor: 'janghyeok@LOCALDESKTOP-DJ12345',
+      executor: 'tester@BUILD-HOST-01',
       note,
     },
   }, null, 1));
