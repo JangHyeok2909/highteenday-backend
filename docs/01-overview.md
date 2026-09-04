@@ -49,7 +49,7 @@ graph TD
 | 게시판 | `domain/boards/Board` | 자유·수능·이과·문과·질문 등. 시드로 생성 |
 | 게시글 | `domain/posts/Post` | `likeCount`·`viewCount`·`commentCount` 등을 비정규화 컬럼으로 보유 |
 | 댓글 / 대댓글 | `domain/comments/Comment` | `parent` 자기참조로 대댓글 표현 |
-| 반응 (좋아요/싫어요) | `domain/posts/PostReaction` + `PostReactionKind` | LIKE / DISLIKE 단일 테이블. 댓글은 `CommentReaction` |
+| 반응 (좋아요/싫어요) | `domain/posts/PostReaction` + `ReactionKind` | LIKE / DISLIKE 단일 테이블. 댓글은 `CommentReaction` |
 | 스크랩 | `domain/scraps/Scrap` | 토글 방식 |
 | 핫게시글 (일간) | `domain/hot/DailyHotPost` + Redis ZSET | 랭킹 산식은 `Utils/HotScoreCalculator` |
 | 조회수 | Redis 버퍼 → 배치 반영 | `infrastructure/redis/RedisViewCountStore`, `schedulers/ViewCountScheduler` |

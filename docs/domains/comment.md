@@ -52,7 +52,7 @@
 
 `POST /api/comments/{commentId}/reaction?type=LIKE|DISLIKE` → `controllers/CommentReactionController.java · react()` → `services/domain/CommentReactionService.java`.
 
-- 저장 구조는 게시글 반응과 동일한 단일 테이블 패턴: `comments_reactions`, `(CMT_id, USR_id)` 유니크, kind는 `PostReactionKind` enum을 재사용, 취소는 `isValid=false` soft cancel (`domain/comments/CommentReaction.java`).
+- 저장 구조는 게시글 반응과 동일한 단일 테이블 패턴: `comments_reactions`, `(CMT_id, USR_id)` 유니크, kind는 `ReactionKind` enum을 재사용, 취소는 `isValid=false` soft cancel (`domain/comments/CommentReaction.java`).
 - 상태 전이 규칙도 결과적으로 동일하다(같은 버튼 재클릭=취소, 반대 버튼=전환). 구현은 `cancelLikeInternal()`/`createDislikeInternal()` 등 세분화된 내부 메서드로 나뉘어 있고, 게시글 쪽과 달리 kind·isValid를 확인하고 상태를 바꾼다.
 - 매 변경 후 `syncCounts()`가 count 쿼리로 `Comment`의 카운트 컬럼을 재집계한다.
 - **이벤트를 발행하지 않는다** — 댓글 반응은 핫스코어·알림 어느 쪽에도 연결되지 않는다.

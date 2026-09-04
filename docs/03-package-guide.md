@@ -64,7 +64,6 @@
 | 실제 이름 | 의도한 이름 | 위치 |
 |---|---|---|
 | `timetableTamplates` | timetableTemplates | `domain/schools/timetableTamplates/` 패키지 |
-| `getLikeSatateDto` | getLikeStateDto | `services/domain/PostReactionService`, `CommentReactionService` 양쪽 |
 | `MainHader` | MainHeader | 프론트엔드 `src/components/Header/MainHader/` (참고용) |
 
 ### F-4. Redis 코드가 두 곳에 나뉘어 있는 이유

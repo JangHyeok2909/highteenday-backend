@@ -130,7 +130,7 @@ for (int i = 0; i < comments.size(); i++) {
 
 ### 2-4. 건드리지 않은 것
 
-- `getLikeSatateDto` 는 남겼다. 단건 토글 응답(`CommentReactionController`)이 쓴다.
+- `getLikeStateDto` 는 남겼다. 단건 토글 응답(`CommentReactionController`)이 쓴다.
 - 쓰기 경로(`likeReact`·`dislikeReact`)는 그대로다. 그쪽의 체크-후-삽입 경쟁은 별개
   결함이며 OPT-003 으로 분리했다.
 - 작성자 지연 로딩(U) — OPT-002.
