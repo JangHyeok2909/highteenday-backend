@@ -1,6 +1,6 @@
 package com.example.highteenday_backend.domain.comments;
 
-import com.example.highteenday_backend.domain.posts.PostReactionKind;
+import com.example.highteenday_backend.domain.posts.ReactionKind;
 import com.example.highteenday_backend.domain.users.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -16,9 +16,9 @@ public interface CommentReactionRepository extends JpaRepository<CommentReaction
 
     Optional<CommentReaction> findByCommentAndUser(Comment comment, User user);
 
-    boolean existsByCommentAndUserAndKindAndIsValidTrue(Comment comment, User user, PostReactionKind kind);
+    boolean existsByCommentAndUserAndKindAndIsValidTrue(Comment comment, User user, ReactionKind kind);
 
-    int countByCommentAndKindAndIsValidTrue(Comment comment, PostReactionKind kind);
+    int countByCommentAndKindAndIsValidTrue(Comment comment, ReactionKind kind);
 
     /**
      * 한 사용자가 주어진 댓글들에 남긴 유효한 반응을 한 번에 가져온다.

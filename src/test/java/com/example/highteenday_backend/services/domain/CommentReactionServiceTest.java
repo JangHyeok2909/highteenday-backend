@@ -4,7 +4,7 @@ import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.comments.CommentReaction;
 import com.example.highteenday_backend.domain.comments.CommentReactionRepository;
 import com.example.highteenday_backend.domain.posts.Post;
-import com.example.highteenday_backend.domain.posts.PostReactionKind;
+import com.example.highteenday_backend.domain.posts.ReactionKind;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.LikeStateDto;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,8 +59,8 @@ class CommentReactionServiceTest {
     }
 
     private void stubCounts(int likes, int dislikes) {
-        when(commentReactionRepository.countByCommentAndKindAndIsValidTrue(comment, PostReactionKind.LIKE)).thenReturn(likes);
-        when(commentReactionRepository.countByCommentAndKindAndIsValidTrue(comment, PostReactionKind.DISLIKE)).thenReturn(dislikes);
+        when(commentReactionRepository.countByCommentAndKindAndIsValidTrue(comment, ReactionKind.LIKE)).thenReturn(likes);
+        when(commentReactionRepository.countByCommentAndKindAndIsValidTrue(comment, ReactionKind.DISLIKE)).thenReturn(dislikes);
     }
 
     @Nested
@@ -70,10 +70,10 @@ class CommentReactionServiceTest {
         @Test
         @DisplayName("좋아요 상태 -> 취소")
         void cancelsLike() {
-            CommentReaction like = reaction(PostReactionKind.LIKE, true);
-            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.LIKE))
+            CommentReaction like = reaction(ReactionKind.LIKE, true);
+            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.LIKE))
                     .thenReturn(true);
-            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.DISLIKE))
+            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.DISLIKE))
                     .thenReturn(false);
             when(commentReactionRepository.findByCommentAndUser(comment, user)).thenReturn(Optional.of(like));
 
@@ -89,10 +89,10 @@ class CommentReactionServiceTest {
         @Test
         @DisplayName("싫어요 상태 -> 좋아요 전환")
         void switchesFromDislikeToLike() {
-            CommentReaction row = reaction(PostReactionKind.DISLIKE, true);
-            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.LIKE))
+            CommentReaction row = reaction(ReactionKind.DISLIKE, true);
+            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.LIKE))
                     .thenReturn(false);
-            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.DISLIKE))
+            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.DISLIKE))
                     .thenReturn(true);
             when(commentReactionRepository.findByCommentAndUser(comment, user)).thenReturn(Optional.of(row));
 
@@ -100,16 +100,16 @@ class CommentReactionServiceTest {
 
             commentReactionService.likeReact(comment, user);
 
-            assertThat(row.getKind()).isEqualTo(PostReactionKind.LIKE);
+            assertThat(row.getKind()).isEqualTo(ReactionKind.LIKE);
             assertThat(row.getIsValid()).isTrue();
         }
 
         @Test
         @DisplayName("반응x -> 새 좋아요 저장")
         void createsNewLike() {
-            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.LIKE))
+            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.LIKE))
                     .thenReturn(false);
-            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.DISLIKE))
+            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.DISLIKE))
                     .thenReturn(false);
             when(commentReactionRepository.findByCommentAndUser(comment, user)).thenReturn(Optional.empty());
 
@@ -119,7 +119,7 @@ class CommentReactionServiceTest {
             commentReactionService.likeReact(comment, user);
 
             verify(commentReactionRepository).save(captor.capture());
-            assertThat(captor.getValue().getKind()).isEqualTo(PostReactionKind.LIKE);
+            assertThat(captor.getValue().getKind()).isEqualTo(ReactionKind.LIKE);
         }
     }
 
@@ -130,10 +130,10 @@ class CommentReactionServiceTest {
         @Test
         @DisplayName("싫어요 상태 -> 취소")
         void cancelsDislike() {
-            CommentReaction dislike = reaction(PostReactionKind.DISLIKE, true);
-            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.LIKE))
+            CommentReaction dislike = reaction(ReactionKind.DISLIKE, true);
+            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.LIKE))
                     .thenReturn(false);
-            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.DISLIKE))
+            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.DISLIKE))
                     .thenReturn(true);
             when(commentReactionRepository.findByCommentAndUser(comment, user)).thenReturn(Optional.of(dislike));
 
@@ -148,10 +148,10 @@ class CommentReactionServiceTest {
         @Test
         @DisplayName("좋아요 상태 -> 싫어요 전환")
         void switchesFromLikeToDislike() {
-            CommentReaction row = reaction(PostReactionKind.LIKE, true);
-            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.LIKE))
+            CommentReaction row = reaction(ReactionKind.LIKE, true);
+            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.LIKE))
                     .thenReturn(true);
-            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.DISLIKE))
+            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.DISLIKE))
                     .thenReturn(false);
             when(commentReactionRepository.findByCommentAndUser(comment, user)).thenReturn(Optional.of(row));
 
@@ -159,7 +159,7 @@ class CommentReactionServiceTest {
 
             commentReactionService.dislikeReact(comment, user);
 
-            assertThat(row.getKind()).isEqualTo(PostReactionKind.DISLIKE);
+            assertThat(row.getKind()).isEqualTo(ReactionKind.DISLIKE);
             assertThat(row.getIsValid()).isTrue();
         }
     }
@@ -172,12 +172,12 @@ class CommentReactionServiceTest {
         @DisplayName("댓글 id, 좋아요·싫어요 여부, 카운트를 반환")
         void returnsCommentState() {
             comment = Comment.builder().id(COMMENT_ID).post(dummyPost).likeCount(5).dislikeCount(2).build();
-            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.LIKE))
+            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.LIKE))
                     .thenReturn(false);
-            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.DISLIKE))
+            when(commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.DISLIKE))
                     .thenReturn(true);
 
-            LikeStateDto dto = commentReactionService.getLikeSatateDto(comment, user);
+            LikeStateDto dto = commentReactionService.getLikeStateDto(comment, user);
 
             assertThat(dto.getCommentId()).isEqualTo(COMMENT_ID);
             assertThat(dto.isLiked()).isFalse();
@@ -229,13 +229,13 @@ class CommentReactionServiceTest {
             List<Comment> comments = commentsWithIds(1L, 2L, 3L);
             when(commentReactionRepository.findMineByCommentIds(eq(user), anyCollection()))
                     .thenReturn(List.of(
-                            reactionOn(comments.get(0), PostReactionKind.LIKE),
-                            reactionOn(comments.get(2), PostReactionKind.DISLIKE)));
+                            reactionOn(comments.get(0), ReactionKind.LIKE),
+                            reactionOn(comments.get(2), ReactionKind.DISLIKE)));
 
-            Map<Long, PostReactionKind> result = commentReactionService.findMyReactions(comments, user);
+            Map<Long, ReactionKind> result = commentReactionService.findMyReactions(comments, user);
 
-            assertThat(result).containsEntry(1L, PostReactionKind.LIKE);
-            assertThat(result).containsEntry(3L, PostReactionKind.DISLIKE);
+            assertThat(result).containsEntry(1L, ReactionKind.LIKE);
+            assertThat(result).containsEntry(3L, ReactionKind.DISLIKE);
         }
 
         @Test
@@ -245,9 +245,9 @@ class CommentReactionServiceTest {
             // false 라, "반응 없음"을 나타내는 별도 값을 만들 이유가 없다.
             List<Comment> comments = commentsWithIds(1L, 2L);
             when(commentReactionRepository.findMineByCommentIds(eq(user), anyCollection()))
-                    .thenReturn(List.of(reactionOn(comments.get(0), PostReactionKind.LIKE)));
+                    .thenReturn(List.of(reactionOn(comments.get(0), ReactionKind.LIKE)));
 
-            Map<Long, PostReactionKind> result = commentReactionService.findMyReactions(comments, user);
+            Map<Long, ReactionKind> result = commentReactionService.findMyReactions(comments, user);
 
             assertThat(result).doesNotContainKey(2L);
             assertThat(result.get(2L)).isNull();
@@ -256,7 +256,7 @@ class CommentReactionServiceTest {
         @Test
         @DisplayName("댓글이 없으면 조회하지 않는다")
         void skipsQueryWhenNoComments() {
-            Map<Long, PostReactionKind> result = commentReactionService.findMyReactions(List.of(), user);
+            Map<Long, ReactionKind> result = commentReactionService.findMyReactions(List.of(), user);
 
             assertThat(result).isEmpty();
             verify(commentReactionRepository, never()).findMineByCommentIds(any(), anyCollection());
@@ -269,11 +269,11 @@ class CommentReactionServiceTest {
                 .toList();
     }
 
-    private CommentReaction reactionOn(Comment target, PostReactionKind kind) {
+    private CommentReaction reactionOn(Comment target, ReactionKind kind) {
         return CommentReaction.builder().comment(target).user(user).kind(kind).build();
     }
 
-    private CommentReaction reaction(PostReactionKind kind, boolean valid) {
+    private CommentReaction reaction(ReactionKind kind, boolean valid) {
         CommentReaction r = CommentReaction.builder()
                 .comment(comment)
                 .user(user)
