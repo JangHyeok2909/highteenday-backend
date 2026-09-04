@@ -104,7 +104,7 @@ sequenceDiagram
 ## 알려진 문제·미확인 사항
 
 - [KI-05](../KNOWN-ISSUES.md#ki-05-게시글댓글-수정삭제에-소유권-검증이-없음-idor) 댓글 수정/삭제 소유권 검증 부재
-- [KI-27](../KNOWN-ISSUES.md) — **댓글 목록 N+1**: `CommentController.getComments()`가 댓글 리스트를 for 루프로 돌며 댓글마다 `commentReactionService.getLikeSatateDto()`(exists 쿼리 2회)를 호출하고, `CommentDto.fromEntity()`의 `comment.getUser()` 접근도 LAZY 로딩을 유발한다. 댓글 n개 조회가 대략 3n+α 쿼리가 된다.
+- [KI-27](../KNOWN-ISSUES.md) — **댓글 목록 N+1**: **해소 (2026-09-04).** 예전에는 `CommentController.getComments()` 가 댓글마다 반응 조회 2회를 돌리고 `CommentDto.fromEntity()` 의 `comment.getUser()` 가 작성자마다 LAZY 로딩을 유발해 댓글 n개 조회가 대략 3n+α 쿼리였다. 지금은 반응을 댓글 id 목록으로 한 번에 받고(`CommentReactionService.findMyReactions`), 작성자는 `CommentRepository.findByPost` 의 `join fetch c.user` 로 목록과 함께 읽는다. **요청당 쿼리는 댓글 수와 무관하게 4개다.**
 - [KI-39](../KNOWN-ISSUES.md) — **삭제 댓글이 그대로 노출**: `CommentRepository.findByPost()`에 `isValid` 필터가 없고 DTO 변환도 삭제 여부를 보지 않아, soft delete된 댓글이 내용까지 포함된 채 목록에 반환된다.
 - [KI-40](../KNOWN-ISSUES.md) — **단건 조회의 익명화 미적용**: `CommentController.getCommentByIdTest()`가 `CommentDto.fromEntity()`를 직접 반환해 익명 댓글의 작성자 닉네임과 `userId`가 노출된다 (GET이라 비인증으로도 접근 가능 — [KI-04](../KNOWN-ISSUES.md#ki-04-get-전체가-permitall인-블랙리스트-인가-구조) 참고).
 - [KI-25](../KNOWN-ISSUES.md) — **이벤트 필드 오입력**: `CommentService.createComment()`가 `parentCommentAuthorId`에 부모 댓글 **작성자 ID가 아니라 부모 댓글의 ID**(`comment.getParent().getId()`)를 넣는다. 현재는 리스너가 이 필드를 쓰지 않아 드러나지 않지만, 대댓글 알림을 구현하는 순간 잘못된 수신자에게 발송된다. 또한 자기 게시글에 단 댓글도 본인에게 알림이 생성된다(sender=receiver 검사 없음).
