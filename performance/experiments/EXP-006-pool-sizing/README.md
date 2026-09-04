@@ -2,7 +2,7 @@
 
 > 상태: **부분 완료 — 판정 일부 무효**
 > 날짜: 2026-08-29 | 관련: BTL-002(풀/스레드 불균형), BTL-005(댓글 N+1)
-> 짝 문서: `localDocs/investigations/perf-comment-nplus1-diagnosis.md`(1차 판단의 오독 기록)
+> 짝 문서: `performance/docs/investigations/perf-comment-nplus1-diagnosis.md`(1차 판단의 오독 기록)
 
 ---
 
@@ -47,7 +47,7 @@ HikariCP 기본값 10이 쓰이는 반면, 같은 파일 60행이 `server.tomcat
 이 불균형이 BTL-002 로 기록돼 있고, BTL-002 의 "개선 전 선행 조건 ④" 가
 **"Before 가 10이었다는 사실을 기록에 남길 것"** 을 요구한다. 이 실험이 그 기록이다.
 
-`localDocs/investigations/perf-comment-nplus1-diagnosis.md` 는 같은 경고를 1차 판단에서 병목으로 읽었다가
+`performance/docs/investigations/perf-comment-nplus1-diagnosis.md` 는 같은 경고를 1차 판단에서 병목으로 읽었다가
 기각한 과정을 담고 있다. 이 실험은 그 기각을 **실측으로 확인**하려는 것이다.
 
 ## 4. 테스트 환경
@@ -215,7 +215,7 @@ DB +12.6%)은 그보다 **작다.** 벤치로 나눠 정규화하면 앱 −4.6%
 
 `comment_list` p95 가 +17% 인 것도 같은 크기다(CPU −16.9% ↔ 지연 +17%).
 
-> **주의 — E-50 과의 관계.** E-50(`localDocs/findings/perf-findings-environment.md`)은
+> **주의 — E-50 과의 관계.** E-50(`performance/docs/findings/perf-findings-environment.md`)은
 > "실행 직전 벤치와 앱 p95 의
 > 상관이 r = −0.006" 이므로 측정 시각을 고정할 필요가 없다고 결론지었다. 그 결론은
 > 여기서도 유효하다 — CPU 가 17% 느린 날에도 p95 는 기준선 범위 안에 그대로 들어왔다.
