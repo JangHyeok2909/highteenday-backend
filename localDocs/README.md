@@ -85,6 +85,7 @@ Toss 지원 관련 문서는 별도 학습 자료다. 이 성능 문서 묶음�
 
 | 문서 | 답하는 질문 | 언제 읽나 |
 |---|---|---|
+| [military-service-company-ranking.md](career/military-service-company-ranking.md) | **어느 회사에 지원할 것인가?** 보충역 4급 신규편입으로 지원 가능한 병역특례 백엔드 공고 전체(병무청 540개 업체 · 449건 공고 기준)를 성장 가능성 순으로 줄 세운 것. 지원 불가 회사와 그 이유 포함 | **지원 대상 회사를 정할 때 — `toss-target-role.md` 보다 먼저** |
 | [resume-assets.md](career/resume-assets.md) | **토스 Server Developer [산업기능요원/전문연구요원] (Product) 공고의 각 줄에 이 프로젝트의 무엇으로 답하는가?** 답할 것이 없는 줄은 어디이고 무엇을 만들어야 채워지는가? | 이력서를 쓰기 전, **프로젝트 고도화 항목을 고를 때** |
 | [paytalab-application.md](career/paytalab-application.md) | **페이타랩(패스오더) 백엔드 공고의 각 줄에 무엇으로 답하는가?** 커피 주문 앱 도메인과 내 병목 사례는 어떻게 연결되는가? | 페이타랩에 지원하기 전, 다른 병역지정업체 지원 시 재사용 |
 | [toss-product-playbook.md](career/toss-product-playbook.md) | **컨설턴트 관점.** 토스 Product 병특 전형의 각 단계가 무엇을 거르고, 무엇이 사람을 떨어뜨리며, 스프린트 항목을 "어떻게" 해야 합격으로 이어지는가? 핵심가치 8개 대조, 편입 행정 | 이력서를 쓰기 전, 모의면접 전, 합격 후 편입 절차 때 |

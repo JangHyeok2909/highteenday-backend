@@ -300,7 +300,7 @@ p6spy 는 이미 의존성에 있다(`p6spy-spring-boot-starter`).
 | 할 일 | 상태 (2026-08-28 확인) |
 |---|---|
 | 프로덕션 메서드명에 `Test` 가 붙어 있던 것 제거 | **해소(KI-40).** `getCommentByIdTest` → `getCommentById` |
-| 오타 메서드명 `getLikeSatateDto` → `getLikeStateDto` | **미해소.** `CommentReactionService.java:57` 선언 + `CommentController.java:54` 호출 |
+| 오타 메서드명 `getLikeSatateDto` → `getLikeStateDto` | **해소.** 선언(`CommentReactionService`·`PostReactionService`)과 호출부를 함께 고쳤다 |
 | 두 리스트를 인덱스로 짝짓는 구조 제거 (`comments.get(i)` / `dtos.get(i)`) | **미해소.** `CommentController.java:51`(목록) 과 **`:74`(단건 조회)** 두 곳으로 늘었다 |
 | DTO 조립 로직을 컨트롤러 밖으로 | **미해소** |
 
