@@ -465,7 +465,7 @@ git diff --stat 03b09e85 dd0f1830 -- src/ build.gradle Dockerfile   # 출력 없
 git diff --stat dd0f1830 3e96d946 -- src/ build.gradle Dockerfile   # 출력 없음
 ```
 
-실행 기록의 커밋 해시가 세션마다 다른 것은 `localDocs/` 와 측정 도구 변경 때문이고, 앱
+실행 기록의 커밋 해시가 세션마다 다른 것은 문서와 측정 도구 변경 때문이고, 앱
 JAR 을 이루는 소스는 한 줄도 다르지 않다. MySQL 은 `mysql:8.0.36` 으로 태그가 고정돼 있어
 재빌드조차 없었다.
 
@@ -837,8 +837,8 @@ k6: The moduleSpecifier "scenarios\normal-day.js" couldn't be found on local dis
 
 **절차상 잘못이 둘 더 있다.**
 
-1. 새로 만든 실행기를 **검증 없이 밤새 걸었다.** `localDocs/CLAUDE.md` 의 smoke 규칙과
-   NEXT-DAY 문서의 공통 규칙 4 가 정확히 이 상황을 막으려는 것이다 — "밤새 돌려놓고 아침에
+1. 새로 만든 실행기를 **검증 없이 밤새 걸었다.** `performance/docs/README.md` 의 smoke 규칙과
+   로드맵 문서(`planning/ROADMAP.md`)의 공통 규칙 4 가 정확히 이 상황을 막으려는 것이다 — "밤새 돌려놓고 아침에
    배관 오류로 전부 버리는 것이 최악이다".
 2. 루프에 **실패 중단 장치가 없어** 같은 실패를 9번 반복했다. `overnight-runner.js` 에는
    그 장치가 있는데(overnight-execution-fixes 문서의 수정 5) 급조한 스크립트에 넣지 않았다.

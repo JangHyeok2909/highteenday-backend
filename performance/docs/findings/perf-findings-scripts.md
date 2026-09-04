@@ -213,7 +213,7 @@ After에서 `op:auth`와 `feature:auth`의 평균·p90·p95·p99가 모두 정�
 > 됐다. 동시성 10, 총 150만 요청에서 **재시도 9,437회 / 최종 실패 1건**이었고, 단계별로는
 > 게시글 0% · 댓글 0.87% · 반응 0.59%다. 게시글은 서로 다른 행을 INSERT해 경합이 없고,
 > 댓글·반응만 같은 `posts` 행의 카운터를 갱신해 경합이 생긴다는 구조적 차이가 그대로 나온다.
-> 수치와 해석 주의사항은 [BTL-003](../../performance/bottlenecks/BTL-003-hot-row-counter.md)의
+> 수치와 해석 주의사항은 [BTL-003](../../bottlenecks/BTL-003-hot-row-counter.md)의
 > "규모 실측" 절에 있다. **다만 이건 시더의 동시성(10)에서 나온 값이라 정상 부하 조건의
 > 크기는 아니다** — EXP-003이 부하 시나리오로 다시 재야 한다.
 >
@@ -595,7 +595,7 @@ stress, breakpoint, spike, chaos, failover는 자체 threshold를 정의하면�
 > - *C안 — `baseline-policy.json` 같은 정책 설정 파일*: 버렸다. 자격 규칙은 지금 2개뿐이고
 >   전부 코드에서 파생되는 값이다. 설정으로 빼면 `rules.json`처럼 검증 로직을 또 만들어야
 >   하고, "왜 기준선이 없나"를 설명할 지점이 하나 더 늘어난다.
-> - *`MEASURED`만 기준선으로 허용*(NEXT-DAY-PERF-TASKS.md의 원래 계획): 버렸다. `PARTIAL`은
+> - *`MEASURED`만 기준선으로 허용*(ROADMAP.md의 원래 계획): 버렸다. `PARTIAL`은
 >   성격이 다른 두 상황을 묶는다 — Redis 익스포터만 죽은 실행(k6 지연·오류율은 온전)과
 >   measure 구간을 못 채우고 끊긴 실행. 전자까지 막으면 참고 지표 하나 때문에 p95 대조군
 >   자격을 잃는다. 후자만 제외한다 — `report.js`가 이미 "이 실행을 정상 완료된 실행과

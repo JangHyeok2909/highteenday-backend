@@ -147,7 +147,7 @@ k6와 SUT가 같은 컴퓨터의 CPU, 메모리, 디스크, 네트워크를 함�
 
 **현재 실행 환경**
 
-기록된 23개 실행의 executor는 모두 `user@DESKTOP-DJJPASG`다. 하나의 Windows 데스크톱에서 다음 구성 요소가 함께 실행됐다.
+기록된 23개 실행의 executor는 모두 동일한 단일 호스트다. 하나의 Windows 데스크톱에서 다음 구성 요소가 함께 실행됐다.
 
 - k6
 - Spring 애플리케이션
@@ -1013,7 +1013,7 @@ CI 아티팩트를 Pages 또는 별도 결과 저장소로 직접 게시해야 �
 > 비활성 상태이고, 2026-08-09 실행은 deploy 단계에서 실패했다.
 >
 > 커밋된 `run.json` 100건을 전수 조사한 결과: 자격 증명은 없었고, 실행자 4종
-> (`사용자명@DESKTOP-...` 포함), 커밋 해시, 브랜치 5종, 실행 메모 99건이 있었다.
+> (`사용자명@호스트명` 포함), 커밋 해시, 브랜치 5종, 실행 메모 99건이 있었다.
 >
 > **설계 결정 두 가지.**
 >
@@ -1045,7 +1045,7 @@ CI 아티팩트를 Pages 또는 별도 결과 저장소로 직접 게시해야 �
 
 Pages에 게시되는 리포트에는 다음 정보가 포함될 수 있다.
 
-- executor 호스트명: `user@DESKTOP-...`
+- executor 호스트명: `사용자명@호스트명`
 - 내부 브랜치 이름
 - dirty 상태가 붙은 커밋 SHA
 - 사용자가 입력한 자유 텍스트 노트
@@ -1109,7 +1109,7 @@ CI에서 k6 버전을 고정하고 실제 사용 버전을 런 메타데이터�
 
 이전에는 `compare.js + thresholds.json`과 `regression.js + rules.json`이 서로 다른 기준으로 함께 존재했다.
 
-`compare.js`와 `thresholds.json`을 삭제해 하나의 판정 시스템만 남겼다. 자세한 내용은 `localDocs/findings/perf-findings-tools.md`의 T-20을 참고한다.
+`compare.js`와 `thresholds.json`을 삭제해 하나의 판정 시스템만 남겼다. 자세한 내용은 `performance/docs/findings/perf-findings-tools.md`의 T-20을 참고한다.
 
 ## 재현성
 
@@ -1517,7 +1517,7 @@ const req = r2.data.find((q) => q.userId === sa.userId) || r2.data[r2.data.lengt
 > **① 부분 실패를 식별하지 못하는 문제 (2026-08-14).** 생성 지문에 `stageCounts`(단계별
 > 실제 생성 수)가 들어갔다. 이전에는 users·posts·boards 세 수량만 해싱해서 "댓글이 5%
 > 모자란 데이터셋"과 온전한 것의 지문이 같았다. 지금은 댓글·반응·스크랩·친구·채팅방까지
-> 전부 지문에 반영된다. 자세한 내용은 `NEXT-DAY-PERF-TASKS.md`의 P0-1.
+> 전부 지문에 반영된다. 자세한 내용은 `ROADMAP.md`의 P0-1.
 >
 > **② 실행 중 DB 변화를 반영하지 못하는 문제 (2026-08-16).** 이건 생성 지문을 아무리
 > 정교하게 만들어도 해결되지 않는다 — 생성 지문은 **생성 시점에 고정되는 값**이기 때문이다.

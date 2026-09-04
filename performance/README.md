@@ -96,6 +96,7 @@ node tools/history.js          # reports/history.html — 이력과 추세
 performance/
 ├── README.md          # 이 문서
 ├── MANUAL.md          # 운영 매뉴얼 — 실행 절차와 전체 명령어 사용설명서
+├── docs/              # 측정 시스템 문서 — 발견 장부·조사 기록·안내서·로드맵
 ├── scripts/           # 기능별 k6 스크립트 (독립 실행 + 시나리오에서 import)
 │   └── lib/           # 설정·세션·Zipf 샘플러·summary 공통 모듈
 ├── scenarios/         # 워크로드 시나리오 16종 (가중치 프로파일 기반)
@@ -118,6 +119,9 @@ performance/
 성능 관리 파이프라인의 구조와 설계 근거는 별도 문서로 분리했다:
 **[`PERFORMANCE-MANAGEMENT.md`](PERFORMANCE-MANAGEMENT.md)**
 데이터셋 상태 고정(스냅샷·상태 지문·`--guard`)은 **[`DATASET-STATE.md`](DATASET-STATE.md)**
+
+이 결과를 **어디까지 믿을 수 있는지**, 무엇이 아직 틀렸는지, 남은 개선 순서는
+**[`docs/`](docs/README.md)** 에 있다 — 발견 장부(T/S/E), 조사 기록, 안내서, 로드맵.
 
 ## 6. 사용 도구
 

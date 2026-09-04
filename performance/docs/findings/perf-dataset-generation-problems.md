@@ -19,7 +19,7 @@
 4. 이 상태가 성능 수치와 기준선 해석을 어떻게 왜곡하는가?
 5. 지금 무엇을 사실로 알고 있고, 무엇은 아직 추론인가?
 
-관련 작업 상태와 실행 계획은 `NEXT-DAY-PERF-TASKS.md`, `perf-findings-scripts.md`,
+관련 작업 상태와 실행 계획은 `ROADMAP.md`, `perf-findings-scripts.md`,
 `perf-review-summary.md`에서 관리한다. 이 문서는 그 장부를 읽기 전에 문제의 전체 그림을
 이해하기 위한 설명서다.
 
@@ -253,7 +253,7 @@ k6를 실행하면 상세 조회 약 열두 번 중 한 번은 “인기글”�
 > 명시해야 하고(기본 0), 허용치가 단계를 살렸다면 로그와 `meta.json` 양쪽에 남는다.
 > 검문 기준은 작업 목록 길이가 아니라 프로파일이 선언한 수량이라, `uniquePairs()`가 조합을
 > 덜 확보한 경우도 미달로 잡힌다. 실행법은 `performance/datasets/README.md`의 "실패 정책",
-> 결정 근거는 `NEXT-DAY-PERF-TASKS.md`의 P0-1 기록 참고.
+> 결정 근거는 `ROADMAP.md`의 P0-1 기록 참고.
 >
 > 아래는 수정 전 상태의 기록이다.
 
@@ -322,7 +322,7 @@ API 400, 친구 검색 실패처럼 나타나며, 서버 성능이 아니라 데
 > (읽고-더하고-쓰기)를 `PostRepository`의 원자 UPDATE로 교체했다
 > (`set p.commentCount = p.commentCount + 1`). 감소는 `where p.commentCount > 0`으로
 > 하한을 DB가 보장한다. 엔티티의 증감 메서드는 삭제하고 "다시 만들지 말 것" 주석을 남겼다.
-> 상세는 [`docs/defects/KI-53`](../../docs/defects/KI-53-comment-counter-lost-update.md).
+> 상세는 [`docs/defects/KI-53`](../../../docs/defects/KI-53-comment-counter-lost-update.md).
 >
 > **이 수정이 재생성의 선행 조건이었다.** 시더는 Zipf로 인기글에 댓글을 몰아넣고 동시성
 > 10으로 돌리므로, **시더 자신이 드리프트를 만든다**. 실측으로 확인했다 — 같은 게시글에
@@ -378,7 +378,7 @@ ID 3의 저장된 commentCount: 65,473
 
 > **이 문서는 "데이터가 틀렸다"까지만 다룬다.** 왜 댓글만 틀리고 스크랩은 안 틀리는지,
 > 애플리케이션의 어느 코드가 그렇게 만드는지, 어떻게 고칠지는 저장소의
-> [`docs/defects/KI-53`](../../docs/defects/KI-53-comment-counter-lost-update.md)에 있다
+> [`docs/defects/KI-53`](../../../docs/defects/KI-53-comment-counter-lost-update.md)에 있다
 > (목록 항목은 `docs/KNOWN-ISSUES.md`의 KI-53).
 > 요약하면 댓글은 `commentCount++`(메모리 증감)이고 스크랩은 DB 재계산 후 대입이라,
 > 전자만 갱신 유실에 노출된다 — 재조회 결과 스크랩 불일치는 **0건**이다.
@@ -432,7 +432,7 @@ ID 3의 저장된 commentCount: 65,473
 > 친구 신청의 409(이미 친구)도 가입 409와 같이 성공으로 센다 — 목표 상태가 이미 성립했기 때문이다.
 >
 > **서버는 그대로다.** 토글 API가 멱등하지 않다는 사실 자체는 애플리케이션 결함으로
-> 별도 등록돼 있다 — [`docs/KNOWN-ISSUES.md`의 KI-54](../../docs/defects/KI-54-toggle-non-idempotent.md).
+> 별도 등록돼 있다 — [`docs/KNOWN-ISSUES.md`의 KI-54](../../../docs/defects/KI-54-toggle-non-idempotent.md).
 > 실사용자와 프론트엔드는 여전히 노출돼 있고, `PUT`/`DELETE` 분리로만 닫힌다.
 > 아래는 그 결함의 상세 설명이다.
 
@@ -651,7 +651,7 @@ off-by-one 수정뿐 아니라 “헤비 유저가 얼마나 헤비한가”라�
 > 반응은 포화돼 퍼지고, 스크랩은 안 퍼진다.
 >
 > 조치는 데이터셋이 아니라 **실험 설계** 쪽이다 —
-> [EXP-003](../../performance/experiments/EXP-003-hot-row-contention/README.md)에 경고와
+> [EXP-003](../../experiments/EXP-003-hot-row-contention/README.md)에 경고와
 > 보완안(댓글 경로 병행 또는 토글 반복)을 달았다.
 
 반응과 스크랩은 `(사용자, 게시글)` 조합이 유일하다. 한 사용자가 같은 글에 여러 개의 활성

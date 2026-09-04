@@ -366,7 +366,7 @@ node --inspect-brk tools/test/regression.test.js
 node tools/perf-run.js scripts/posts.js --dataset smoke --vus 5 --duration 1m --loadgen docker
 ```
 
-`localDocs/CLAUDE.md`의 smoke 규칙과 같은 근거다. **도구의 결함은 데이터 규모와 무관하다.**
+`performance/docs/README.md` 의 smoke 규칙과 같은 근거다. **도구의 결함은 데이터 규모와 무관하다.**
 반대로 성능 판정은 smoke로 할 수 없다 — 게시글 50건은 전부 버퍼풀에 들어가 medium(1만 건)과
 다른 병목을 낸다. **smoke는 도구 확인용, 성능 판정은 medium 이상.**
 
@@ -930,7 +930,7 @@ processRun() → analyze() → isApplicable() [true]
 - **사전 가설을 먼저 쓰게 한 것**이 이 양식의 핵심이다. 값을 본 뒤에 가설을 쓰면 언제나
   자기가 맞았던 것처럼 보인다. 틀린 가설이 남아야 "그때 왜 그렇게 생각했는지"를 재구성할
   수 있고, 그게 다음 추적의 출발점이 된다.
-- **관측값을 요약하지 않는 것**은 localDocs 공통 규칙(분량보다 재구성 가능성)과 같다.
+- **관측값을 요약하지 않는 것**은 이 문서군의 공통 규칙(분량보다 재구성 가능성)과 같다.
 - **6번에서 사실과 추측을 나눈 것**은 E-46의 교훈이다. 관측값(포화 신호)은 정확했는데
   해석(앱 지연)이 추측이었고, 그 둘이 한 문장에 섞여 있어서 닷새 동안 아무도 의심하지
   않았다.

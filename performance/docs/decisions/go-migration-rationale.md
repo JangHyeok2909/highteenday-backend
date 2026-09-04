@@ -7,8 +7,7 @@
 > `perf-*.md` 가 "무엇이 잘못됐나"를 다루는 것과 달리, 여기는 "무엇을 하기로 했고 왜인가"를
 > 다룬다.
 > 짝 문서: 시스템이 무엇을 재는지는 [perf-measurement-explained.md](../guides/perf-measurement-explained.md),
-> 학습 진도는 [perf-mastery-checklist.md](../guides/perf-mastery-checklist.md),
-> CLI 오픈소스화 목표의 출처는 [toss-gap-analysis.md](../career/toss-gap-analysis.md) G7.
+> 오픈소스화 목표는 아래 1-2 절에서 다룬다.
 
 ---
 
@@ -114,9 +113,8 @@ k6 실행이 끝난 뒤 결과 파일을 파싱해서 지표를 정리하는 작
 
 **등급: 강함. 다만 오픈소스화를 실제로 착수할 때만 유효하다.**
 
-[toss-gap-analysis.md](../career/toss-gap-analysis.md) G7에 최종 목표가 **"측정 시스템 CLI
-오픈소스화"** 로 적혀 있다. [perf-mastery-checklist.md](../guides/perf-mastery-checklist.md):1191 에는
-판매 포인트가 **"CI 한 줄로 게이트"** 로 적혀 있다.
+이 측정 시스템의 최종 목표는 **CLI 로 추출해 오픈소스로 공개하는 것**이고, 그때 내세울
+핵심은 **"CI 한 줄로 성능 게이트"** 다.
 
 이 목표에 한해 Go가 명확히 우월하다.
 
@@ -184,8 +182,7 @@ tools/lib/loadbench-worker.js   46줄  ┘   동일
 
 **이 명분을 숨기지 말 것.** "레거시를 이해하기 위해 이식했고, 이해했음을 차등 테스트로
 증명했다"는 서사는 그 자체로 강하다. **레거시 인수인계와 구조가 같기 때문이다.**
-[toss-gap-analysis.md](../career/toss-gap-analysis.md) G6이 지적하는 "솔로 프로젝트의 협업 경험 부재"에
-대한 답으로도 쓸 수 있다. 어설픈 기술적 포장을 씌우는 것보다 A·B·C와 나란히 놓는 편이
+혼자 만든 시스템이라 남이 쓴 코드를 넘겨받아 본 경험이 없다는 약점에 대한 답으로도 쓸 수 있다. 어설픈 기술적 포장을 씌우는 것보다 A·B·C와 나란히 놓는 편이
 훨씬 신뢰를 준다.
 
 ---
@@ -477,7 +474,7 @@ k6 기반 CI 도구들의 일반적인 형태다.
    5,984ms → 541ms 로 "빨라진 것처럼 보인" 사건(`cpu-bench.js:52`). 주석을 버리면 같은
    함정을 다시 밟는다.
 4. **모듈 하나 = 커밋 하나.** 커밋 본문에 차등 테스트 결과를 적는다.
-5. **도구를 고쳤으면 smoke 로 확인한다.** [CLAUDE.md](../CLAUDE.md) 의 규칙이 그대로 적용된다.
+5. **도구를 고쳤으면 smoke 로 확인한다.** [README.md](../README.md) 의 smoke 규칙이 그대로 적용된다.
    Go 이식본도 `tools/` 를 고친 것과 같은 취급이다.
 
 ## 4-2. 하지 말 것

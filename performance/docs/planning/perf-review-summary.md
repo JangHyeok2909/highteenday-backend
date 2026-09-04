@@ -44,7 +44,7 @@
 > 성능 테스트를 돌리다 발견한 **서버 자체의 정합성 결함**은 저장소의
 > `docs/KNOWN-ISSUES.md`에 있다 — 댓글 카운터 유실(KI-53), 토글 API 비멱등성(KI-54),
 > 게시판 글 개수 캐시 부활(KI-56), 캐시 경로의 빈 목록 반환(KI-57).
-> 상세 분석은 [`docs/defects/`](../../docs/defects/). 측정을 아무리 정확하게 만들어도
+> 상세 분석은 [`docs/defects/`](../../../docs/defects/). 측정을 아무리 정확하게 만들어도
 > 그쪽은 사라지지 않는다.
 
 ## 현재 가장 중요한 문제 6개
@@ -298,5 +298,4 @@ PR 트리거가 없고, 시딩 절차는 bootstrap을 건너뛰어 실패하며,
 - 판정·기준선·PromQL: [perf-findings-tools.md](../findings/perf-findings-tools.md)
 - k6 사용자 모델과 SLO: [perf-findings-scripts.md](../findings/perf-findings-scripts.md)
 - 환경·데이터셋·CI: [perf-findings-environment.md](../findings/perf-findings-environment.md)
-- 단계별 학습: [perf-mastery-checklist.md](../guides/perf-mastery-checklist.md)
 - EXP-000 원자료 해석: `performance/experiments/EXP-000-measurement-integrity/README.md`

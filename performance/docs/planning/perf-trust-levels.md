@@ -4,7 +4,7 @@
 > 답하는 질문: **"이 테스트 결과를 근거로 성능 개선을 이어가려면, 남은 문제 중 어디까지
 > 고쳐야 하는가?"**
 > 짝 문서: 무엇이 문제인지는 `perf-findings-*.md`, 어떤 순서로 고칠지는
-> `NEXT-DAY-PERF-TASKS.md`, E-46 조사 전문은 [perf-session-drift.md](../investigations/perf-session-drift.md).
+> `ROADMAP.md`, E-46 조사 전문은 [perf-session-drift.md](../investigations/perf-session-drift.md).
 > 이 문서는 **어디서 멈춰도 되는지**를 정한다.
 >
 > **2026-08-25 갱신 요약** — E-46 해결(2026-08-21)을 반영해 세 가지를 바꿨다.
@@ -754,7 +754,7 @@ P2 전부(E-23~E-31). **레벨 2가 안정적으로 유지되는 것을 여러 �
 
 이유는 단순하다. 판정이 흔들리는 상태에서 CI에 연결하면 거짓 실패가 반복되고, 사람은 곧
 그 게이트를 무시하거나 꺼 버린다. 그러면 장치가 있는데 아무도 안 보는 최악의 상태가 된다.
-`NEXT-DAY-PERF-TASKS.md`의 P2가 "로컬 판정이 신뢰 가능해진 뒤"라고 못 박은 것과 같은 판단이다.
+`ROADMAP.md`의 P2가 "로컬 판정이 신뢰 가능해진 뒤"라고 못 박은 것과 같은 판단이다.
 
 ---
 
@@ -779,7 +779,7 @@ P2 전부(E-23~E-31). **레벨 2가 안정적으로 유지되는 것을 여러 �
 
 ## 그래서 지금 무엇을 하면 되는가
 
-레벨 2까지의 최단 경로다. `NEXT-DAY-PERF-TASKS.md`의 순서를 이 문서의 기준으로 걸러낸 것이다.
+레벨 2까지의 최단 경로다. `ROADMAP.md`의 순서를 이 문서의 기준으로 걸러낸 것이다.
 
 ```text
 ✔ 0. P0-0 보안 노출 확인          2026-08-14 저장소 조치 완료 (운영 키 대조만 남음)
@@ -963,6 +963,6 @@ P2 전부(E-23~E-31). **레벨 2가 안정적으로 유지되는 것을 여러 �
 - **포화가 왜 레벨 판정을 뒤집었나 → [perf-session-drift.md](../investigations/perf-session-drift.md)**
   (E-46 조사 전문. 0절이 결론, 0.7절이 "무엇이 남았나")
 - 데이터셋 문제의 상세 → `perf-dataset-generation-problems.md`
-- 어떤 순서로 고칠 것인가 → `NEXT-DAY-PERF-TASKS.md`
+- 어떤 순서로 고칠 것인가 → `ROADMAP.md`
 - 현재 무엇을 믿을 수 있는가 → `perf-review-summary.md`
 - 아카이브로 분리된 포화 실행 49건의 사유·복원 방법 → `performance/reports/archive/README.md`
