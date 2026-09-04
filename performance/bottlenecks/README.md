@@ -13,9 +13,11 @@
 | [BTL-002](BTL-002-pool-mismatch.md) | Tomcat 400 vs HikariCP 10 불균형 | Connection Pool | 의심 | EXP-002 | — |
 | [BTL-003](BTL-003-hot-row-counter.md) | 인기글 비정규화 카운터 락 경합 (2026-08-16 large 생성에서 재시도 9,437회·실패 1건으로 규모 계측) | Lock | **확정** | EXP-003 | — |
 | [BTL-004](BTL-004-cache-stampede.md) | 캐시 스탬피드/애벌랜치 무방비 | Cache | 의심 | EXP-004 | — |
-| [BTL-005](BTL-005-comment-nplus1.md) | 댓글 목록 N+1 | JPA/Query | 의심 | EXP-005 | — |
+| [BTL-005](BTL-005-comment-nplus1.md) | 댓글 목록 N+1 | JPA/Query | **해소** | EXP-005 | OPT-001 · OPT-002 |
 | [BTL-006](BTL-006-simplebroker-scale.md) | SimpleBroker 인메모리 브로커 한계 | WebSocket | 의심 | — | — |
 | [BTL-007](BTL-007-scheduler-burst.md) | 스케줄러 flush 버스트 간섭 | Scheduler | 의심 | — | — |
+| [BTL-013](BTL-013-post-search-like-fullscan.md) | 게시글 검색의 `LIKE` 전체 스캔 (slow query 의 주인) | Index/DB | **확정** | EXP-005(H2 기각 과정) | — |
+| [BTL-014](BTL-014-write-path-sync-postprocessing.md) | 쓰기 경로가 응답에 필요 없는 후처리를 동기로 기다림 | Event/DB | 의심 | — | — |
 
 병목 문서는 `TEMPLATE.md` 양식을 따른다. 각 문서의 "재현 방법"은
 이 저장소의 시나리오/스크립트 명령으로 완결되어야 한다.
