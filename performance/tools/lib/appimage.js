@@ -53,7 +53,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 
 /**
  * 이미지 내용을 결정하는 입력들. Dockerfile 이 무엇을 COPY 하는지와 맞춰야 한다.
- * `performance/` 와 `localDocs/` 는 이미지에 들어가지 않으므로 일부러 뺀다 — 넣으면
+ * `performance/` 와 문서 디렉터리는 이미지에 들어가지 않으므로 일부러 뺀다 — 넣으면
  * 성능 도구를 고칠 때마다 "이미지가 낡았다"는 경고가 떠서 경고가 무의미해진다.
  */
 const BUILD_INPUTS = ['src/main', 'build.gradle', 'settings.gradle', 'Dockerfile'];

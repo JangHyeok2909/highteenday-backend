@@ -425,7 +425,7 @@ After 세트 5회 중 2회(2026-09-02 08:36 · 08:48)가 **애플리케이션과
 **호스트가 3초씩 멈추는 동안에도 요청당 쿼리 수는 흔들리지 않았다.** 결정적 지표는 환경
 잡음에 면역이고 통계적 지표는 아니다. 이 최적화의 효과는 오염된 회차를 포함해도 성립한다.
 
-상세: `localDocs/findings/perf-findings-environment.md` **E-53**.
+상세: `performance/docs/findings/perf-findings-environment.md` **E-53**.
 
 ---
 

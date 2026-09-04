@@ -101,7 +101,7 @@ export function startVusFor(plan, targetVus) {
  * 도착률을 고정하면 이 되먹임이 끊긴다. 시스템이 못 따라오면 부하가 줄어드는 대신
  * **dropped_iterations 로 드러난다** — 숨지 않고 신호가 된다.
  *
- * 자세한 근거: localDocs/findings/perf-findings-tools.md T-36
+ * 자세한 근거: performance/docs/findings/perf-findings-tools.md T-36
  */
 export function ratesFor(plan, targetRate) {
   const stages = [];
