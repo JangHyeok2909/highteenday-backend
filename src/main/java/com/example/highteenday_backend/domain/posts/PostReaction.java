@@ -37,9 +37,9 @@ public class PostReaction extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "PST_RCT_kind", nullable = false, length = 16)
-    private PostReactionKind kind;
+    private ReactionKind kind;
 
-    public void applyState(PostReactionKind kind) {
+    public void applyState(ReactionKind kind) {
         this.kind = kind;
         this.isValid = true;
     }

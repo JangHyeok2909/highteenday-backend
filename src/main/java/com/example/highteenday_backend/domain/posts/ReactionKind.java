@@ -1,6 +1,6 @@
 package com.example.highteenday_backend.domain.posts;
 
-public enum PostReactionKind {
+public enum ReactionKind {
     LIKE,
     DISLIKE
 }
