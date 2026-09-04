@@ -613,7 +613,10 @@ DB를 기준으로 처리하여 안정성을 유지했습니다.
 
 ## API 엔드포인트
 
-api 명세서: https://api.highteenday.org/swagger-ui/index.html#/ (로컬 실행 시 http://localhost:8080/swagger-ui/index.html)
+api 명세서: 로컬 실행 시 `http://localhost:8080/swagger-ui/index.html`
+
+> 운영 배포(`api.highteenday.org`)는 **현재 비용 문제로 내려둔 상태**입니다.
+> 아래 표와 `docs/02-architecture.md`의 구성은 배포 당시 기준입니다.
 
 | 도메인 | 경로 | 주요 기능 |
 |--------|------|-----------|
