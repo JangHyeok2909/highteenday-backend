@@ -1,9 +1,6 @@
 package com.example.highteenday_backend.services.testing;
 
-import com.example.highteenday_backend.domain.posts.Post;
-import com.example.highteenday_backend.domain.posts.PostReactionKind;
-import com.example.highteenday_backend.domain.posts.PostReactionRepository;
-import com.example.highteenday_backend.domain.posts.PostRepository;
+import com.example.highteenday_backend.domain.posts.*;
 import com.example.highteenday_backend.dtos.PostConsistencyResponse;
 import com.example.highteenday_backend.services.domain.PostService;
 import lombok.RequiredArgsConstructor;
@@ -28,11 +25,11 @@ public class PostConsistencyService {
         int dislikeCount = post.getDislikeCount();
 
         int likeActual = reactionRepository.countByPostAndKindAndIsValidTrue(
-                post, PostReactionKind.LIKE
+                post, ReactionKind.LIKE
         );
 
         int dislikeActual = reactionRepository.countByPostAndKindAndIsValidTrue(
-                post, PostReactionKind.DISLIKE
+                post, ReactionKind.DISLIKE
         );
 
         boolean drift = (likeCount != likeActual) || (dislikeCount != dislikeActual);

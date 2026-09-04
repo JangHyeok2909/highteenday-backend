@@ -3,7 +3,7 @@ package com.example.highteenday_backend.services.domain;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.comments.CommentReaction;
 import com.example.highteenday_backend.domain.comments.CommentReactionRepository;
-import com.example.highteenday_backend.domain.posts.PostReactionKind;
+import com.example.highteenday_backend.domain.posts.ReactionKind;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.LikeStateDto;
 import jakarta.transaction.Transactional;
@@ -22,11 +22,11 @@ public class CommentReactionService {
     private final CommentReactionRepository commentReactionRepository;
 
     public boolean isLikedByUser(Comment comment, User user) {
-        return commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.LIKE);
+        return commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.LIKE);
     }
 
     public boolean isDislikedByUser(Comment comment, User user) {
-        return commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, PostReactionKind.DISLIKE);
+        return commentReactionRepository.existsByCommentAndUserAndKindAndIsValidTrue(comment, user, ReactionKind.DISLIKE);
     }
 
     @Transactional
@@ -61,7 +61,7 @@ public class CommentReactionService {
      * 여러 댓글에 대한 "내 반응"을 한 번의 조회로 가져온다.
      *
      * 댓글 목록 화면은 댓글마다 좋아요·싫어요 여부만 필요하고, 개수는 이미 Comment 에
-     * 비정규화돼 있다. 그런데 댓글마다 {@link #getLikeSatateDto}를 부르면 확인 쿼리가
+     * 비정규화돼 있다. 그런데 댓글마다 {@link #getLikeStateDto}를 부르면 확인 쿼리가
      * 2N 번 나간다. 여기서는 댓글 id 전체를 한 번에 넘겨 조회를 1회로 줄인다.
      *
      * 반응이 없는 댓글은 결과 맵에 아예 없다 — 그쪽이 "반응 없음"을 표현하는 별도 값을
@@ -69,14 +69,14 @@ public class CommentReactionService {
      *
      * @return 댓글 id → 그 댓글에 이 사용자가 남긴 유효한 반응의 종류
      */
-    public Map<Long, PostReactionKind> findMyReactions(List<Comment> comments, User user) {
+    public Map<Long, ReactionKind> findMyReactions(List<Comment> comments, User user) {
         if (comments.isEmpty()) return Map.of();
         List<Long> commentIds = comments.stream().map(Comment::getId).toList();
         return commentReactionRepository.findMineByCommentIds(user, commentIds).stream()
                 .collect(Collectors.toMap(r -> r.getComment().getId(), CommentReaction::getKind));
     }
 
-    public LikeStateDto getLikeSatateDto(Comment comment, User user) {
+    public LikeStateDto getLikeStateDto(Comment comment, User user) {
         boolean isLiked = isLikedByUser(comment, user);
         boolean isDisliked = isDislikedByUser(comment, user);
         return LikeStateDto.builder()
@@ -91,7 +91,7 @@ public class CommentReactionService {
     private void cancelLikeInternal(Comment comment, User user) {
         commentReactionRepository.findByCommentAndUser(comment, user)
                 .ifPresent(r -> {
-                    if (r.getKind() == PostReactionKind.LIKE && Boolean.TRUE.equals(r.getIsValid())) {
+                    if (r.getKind() == ReactionKind.LIKE && Boolean.TRUE.equals(r.getIsValid())) {
                         r.cancel();
                     }
                 });
@@ -101,7 +101,7 @@ public class CommentReactionService {
     private void cancelDislikeInternal(Comment comment, User user) {
         commentReactionRepository.findByCommentAndUser(comment, user)
                 .ifPresent(r -> {
-                    if (r.getKind() == PostReactionKind.DISLIKE && Boolean.TRUE.equals(r.getIsValid())) {
+                    if (r.getKind() == ReactionKind.DISLIKE && Boolean.TRUE.equals(r.getIsValid())) {
                         r.cancel();
                     }
                 });
@@ -114,19 +114,19 @@ public class CommentReactionService {
             commentReactionRepository.save(CommentReaction.builder()
                     .comment(comment)
                     .user(user)
-                    .kind(PostReactionKind.LIKE)
+                    .kind(ReactionKind.LIKE)
                     .build());
             syncCounts(comment);
             return;
         }
         CommentReaction r = opt.get();
         if (!Boolean.TRUE.equals(r.getIsValid())) {
-            r.applyActive(PostReactionKind.LIKE);
+            r.applyActive(ReactionKind.LIKE);
             syncCounts(comment);
             return;
         }
-        if (r.getKind() == PostReactionKind.DISLIKE) {
-            r.applyActive(PostReactionKind.LIKE);
+        if (r.getKind() == ReactionKind.DISLIKE) {
+            r.applyActive(ReactionKind.LIKE);
             syncCounts(comment);
         }
     }
@@ -137,26 +137,26 @@ public class CommentReactionService {
             commentReactionRepository.save(CommentReaction.builder()
                     .comment(comment)
                     .user(user)
-                    .kind(PostReactionKind.DISLIKE)
+                    .kind(ReactionKind.DISLIKE)
                     .build());
             syncCounts(comment);
             return;
         }
         CommentReaction r = opt.get();
         if (!Boolean.TRUE.equals(r.getIsValid())) {
-            r.applyActive(PostReactionKind.DISLIKE);
+            r.applyActive(ReactionKind.DISLIKE);
             syncCounts(comment);
             return;
         }
-        if (r.getKind() == PostReactionKind.LIKE) {
-            r.applyActive(PostReactionKind.DISLIKE);
+        if (r.getKind() == ReactionKind.LIKE) {
+            r.applyActive(ReactionKind.DISLIKE);
             syncCounts(comment);
         }
     }
 
     private void syncCounts(Comment comment) {
-        int likes = commentReactionRepository.countByCommentAndKindAndIsValidTrue(comment, PostReactionKind.LIKE);
-        int dislikes = commentReactionRepository.countByCommentAndKindAndIsValidTrue(comment, PostReactionKind.DISLIKE);
+        int likes = commentReactionRepository.countByCommentAndKindAndIsValidTrue(comment, ReactionKind.LIKE);
+        int dislikes = commentReactionRepository.countByCommentAndKindAndIsValidTrue(comment, ReactionKind.DISLIKE);
         comment.syncReactionCounts(likes, dislikes);
     }
 }

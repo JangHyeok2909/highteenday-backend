@@ -14,9 +14,9 @@ public interface PostReactionRepository extends JpaRepository<PostReaction, Long
 
     Optional<PostReaction> findByPostAndUser(Post post, User user);
 
-    boolean existsByPostAndUserAndKindAndIsValidTrue(Post post, User user, PostReactionKind kind);
+    boolean existsByPostAndUserAndKindAndIsValidTrue(Post post, User user, ReactionKind kind);
 
-    int countByPostAndKindAndIsValidTrue(Post post, PostReactionKind kind);
+    int countByPostAndKindAndIsValidTrue(Post post, ReactionKind kind);
 
     /**
      * 반응을 지정한 종류로 설정한다 — 없으면 만들고, 있으면 종류를 바꾸며 되살린다.

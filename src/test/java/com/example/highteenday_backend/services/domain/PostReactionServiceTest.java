@@ -1,9 +1,6 @@
 package com.example.highteenday_backend.services.domain;
 
-import com.example.highteenday_backend.domain.posts.Post;
-import com.example.highteenday_backend.domain.posts.PostReaction;
-import com.example.highteenday_backend.domain.posts.PostReactionKind;
-import com.example.highteenday_backend.domain.posts.PostReactionRepository;
+import com.example.highteenday_backend.domain.posts.*;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.LikeStateDto;
 import com.example.highteenday_backend.eventEntities.events.PostReactedEvent;
@@ -59,8 +56,8 @@ class PostReactionServiceTest {
     }
 
     private void stubCounts(int likes, int dislikes) {
-        when(postReactionRepository.countByPostAndKindAndIsValidTrue(post, PostReactionKind.LIKE)).thenReturn(likes);
-        when(postReactionRepository.countByPostAndKindAndIsValidTrue(post, PostReactionKind.DISLIKE)).thenReturn(dislikes);
+        when(postReactionRepository.countByPostAndKindAndIsValidTrue(post, ReactionKind.LIKE)).thenReturn(likes);
+        when(postReactionRepository.countByPostAndKindAndIsValidTrue(post, ReactionKind.DISLIKE)).thenReturn(dislikes);
     }
 
     @Nested
@@ -70,10 +67,10 @@ class PostReactionServiceTest {
         @Test
         @DisplayName("좋아요 상태 → 좋아요 취소, 이벤트 발행 없음")
         void cancelsLike_withoutEvent() {
-            PostReaction like = reaction(PostReactionKind.LIKE, true);
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
+            PostReaction like = reaction(ReactionKind.LIKE, true);
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.LIKE))
                     .thenReturn(true);
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.DISLIKE))
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.DISLIKE))
                     .thenReturn(false);
             when(postReactionRepository.findByPostAndUser(post, user)).thenReturn(Optional.of(like));
 
@@ -90,10 +87,10 @@ class PostReactionServiceTest {
         @Test
         @DisplayName("싫어요 상태 → 좋아요 전환 + PostReactedEvent 발행")
         void switchesFromDislikeToLike_publishesEvent() {
-            PostReaction row = reaction(PostReactionKind.DISLIKE, true);
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
+            PostReaction row = reaction(ReactionKind.DISLIKE, true);
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.LIKE))
                     .thenReturn(false);
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.DISLIKE))
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.DISLIKE))
                     .thenReturn(true);
             when(postReactionRepository.findByPostAndUser(post, user)).thenReturn(Optional.of(row));
 
@@ -113,9 +110,9 @@ class PostReactionServiceTest {
         @Test
         @DisplayName("반응 없음 → 새 좋아요 저장 + PostReactedEvent 발행")
         void createsNewLike_publishesEvent() {
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.LIKE))
                     .thenReturn(false);
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.DISLIKE))
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.DISLIKE))
                     .thenReturn(false);
             when(postReactionRepository.findByPostAndUser(post, user)).thenReturn(Optional.empty());
 
@@ -134,10 +131,10 @@ class PostReactionServiceTest {
         @Test
         @DisplayName("취소된 리액션 → 좋아요 재활성화 + PostReactedEvent 발행")
         void reactivatesInvalidRow_publishesEvent() {
-            PostReaction softCanceled = reaction(PostReactionKind.LIKE, false);
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
+            PostReaction softCanceled = reaction(ReactionKind.LIKE, false);
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.LIKE))
                     .thenReturn(false);
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.DISLIKE))
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.DISLIKE))
                     .thenReturn(false);
             when(postReactionRepository.findByPostAndUser(post, user)).thenReturn(Optional.of(softCanceled));
 
@@ -157,10 +154,10 @@ class PostReactionServiceTest {
         @Test
         @DisplayName("싫어요 상태 → 싫어요 취소, 이벤트 발행 없음")
         void cancelsDislike_withoutEvent() {
-            PostReaction dislike = reaction(PostReactionKind.DISLIKE, true);
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
+            PostReaction dislike = reaction(ReactionKind.DISLIKE, true);
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.LIKE))
                     .thenReturn(false);
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.DISLIKE))
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.DISLIKE))
                     .thenReturn(true);
             when(postReactionRepository.findByPostAndUser(post, user)).thenReturn(Optional.of(dislike));
 
@@ -177,10 +174,10 @@ class PostReactionServiceTest {
         @Test
         @DisplayName("좋아요 상태 → 싫어요 전환 + PostReactedEvent 발행")
         void switchesFromLikeToDislike_publishesEvent() {
-            PostReaction row = reaction(PostReactionKind.LIKE, true);
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
+            PostReaction row = reaction(ReactionKind.LIKE, true);
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.LIKE))
                     .thenReturn(true);
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.DISLIKE))
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.DISLIKE))
                     .thenReturn(false);
             when(postReactionRepository.findByPostAndUser(post, user)).thenReturn(Optional.of(row));
 
@@ -195,9 +192,9 @@ class PostReactionServiceTest {
         @Test
         @DisplayName("반응 없음 → 새 싫어요 저장 + PostReactedEvent 발행")
         void createsNewDislike_publishesEvent() {
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.LIKE))
                     .thenReturn(false);
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.DISLIKE))
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.DISLIKE))
                     .thenReturn(false);
             when(postReactionRepository.findByPostAndUser(post, user)).thenReturn(Optional.empty());
 
@@ -218,9 +215,9 @@ class PostReactionServiceTest {
         @DisplayName("좋아요·싫어요 여부 + 좋아요 수 반환")
         void returnsFlagsAndLikeCount() {
             post = Post.builder().id(POST_ID).likeCount(12).dislikeCount(3).build();
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.LIKE))
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.LIKE))
                     .thenReturn(true);
-            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, PostReactionKind.DISLIKE))
+            when(postReactionRepository.existsByPostAndUserAndKindAndIsValidTrue(post, user, ReactionKind.DISLIKE))
                     .thenReturn(false);
 
             LikeStateDto dto = postReactionService.getLikeSatateDto(post, user);
@@ -232,7 +229,7 @@ class PostReactionServiceTest {
         }
     }
 
-    private PostReaction reaction(PostReactionKind kind, boolean valid) {
+    private PostReaction reaction(ReactionKind kind, boolean valid) {
         PostReaction r = PostReaction.builder()
                 .post(post)
                 .user(user)

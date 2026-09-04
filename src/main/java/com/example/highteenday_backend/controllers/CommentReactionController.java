@@ -1,7 +1,7 @@
 package com.example.highteenday_backend.controllers;
 
 import com.example.highteenday_backend.domain.comments.Comment;
-import com.example.highteenday_backend.domain.posts.PostReactionKind;
+import com.example.highteenday_backend.domain.posts.ReactionKind;
 import com.example.highteenday_backend.domain.users.User;
 import com.example.highteenday_backend.dtos.LikeStateDto;
 import com.example.highteenday_backend.security.CustomUserPrincipal;
@@ -26,16 +26,16 @@ public class CommentReactionController {
     @PostMapping("/reaction")
     public ResponseEntity<LikeStateDto> react(@PathVariable Long commentId,
                                               @AuthenticationPrincipal CustomUserPrincipal userPrincipal,
-                                              @RequestParam PostReactionKind type) {
+                                              @RequestParam ReactionKind type) {
         User user = userPrincipal.getUser();
         Comment comment = commentService.findCommentById(commentId);
 
-        if (type == PostReactionKind.LIKE) {
+        if (type == ReactionKind.LIKE) {
             commentReactionService.likeReact(comment, user);
         } else {
             commentReactionService.dislikeReact(comment, user);
         }
 
-        return ResponseEntity.ok(commentReactionService.getLikeSatateDto(comment, user));
+        return ResponseEntity.ok(commentReactionService.getLikeStateDto(comment, user));
     }
 }
