@@ -59,8 +59,8 @@
 > | 5 | 무엇으로 FAIL 을 만드는가? | 두 실행이 **같은 체제**(포화/비포화)에 있는가? |
 >
 > **관련 코드:** `tools/lib/saturation.js` (다섯 신호로 `HEADROOM / NEAR_LIMIT / SATURATED`
-> 판정). **조사 전문:** [perf-session-drift.md](../investigations/perf-session-drift.md) 0절.
-> **레벨 판정에 미친 영향:** [perf-trust-levels.md](../planning/perf-trust-levels.md).
+> 판정). **조사 전문:** [perf-session-drift.md](../../performance/docs/investigations/perf-session-drift.md) 0절.
+> **레벨 판정에 미친 영향:** [perf-trust-levels.md](../../performance/docs/planning/perf-trust-levels.md).
 >
 > **자가진단 질문 (추가).**
 >
@@ -148,7 +148,7 @@ AI 도우미는 이 파일을 읽고 다음을 판단한다.
 
 ### 결정 안건 진행표
 
-학습 직후에 내리는 것이 가장 정확하다. 결정하면 `localDocs/planning/perf-review-summary.md`의
+학습 직후에 내리는 것이 가장 정확하다. 결정하면 `performance/docs/planning/perf-review-summary.md`의
 해당 항목 상태도 같이 갱신한다.
 
 | 안건 | 어느 단계 후 | 결정됨 |
@@ -321,7 +321,7 @@ curl -s 'http://localhost:9090/api/v1/query?query=container_cpu_usage_seconds_to
 
 ## D. 이 단계의 결함
 
-`localDocs/findings/perf-findings-environment.md`에서 확인:
+`performance/docs/findings/perf-findings-environment.md`에서 확인:
 
 - [ ] **E-01** 부하 발생기가 SUT와 같은 호스트 — 원칙 선언은 있는데 강제 장치가 없다
 - [ ] **E-02** 관측 계층에 리소스 한계 없음
@@ -468,7 +468,7 @@ node tools/perf-run.js scripts/boards.js --vus 5 --duration 30s --no-collect --n
 
 ## D. 이 단계의 결함
 
-`localDocs/findings/perf-findings-scripts.md`:
+`performance/docs/findings/perf-findings-scripts.md`:
 
 - [ ] **S-01** 매 iteration 로그인은 해결됨. 시작 시 VU 전원이 동시에 로그인해 짧은 실행의
       p95를 오염하는 후속 문제를 확인
@@ -871,7 +871,7 @@ console.log('값이 null 인 지표 수:', Object.values(r.infra.flat).filter(v=
 > `thresholdsPassed` 필터는 사라졌고, 기준선 자격은 같은 파일의 `eligibilityOf()`가 측정
 > 무결성만 보고 판정한다. 지금 읽을 때는 "무엇을 보고 무엇을 안 보는가"를 그 함수와
 > `findBaseline()`의 후보 순회 루프에서 확인할 것. 왜 이렇게 바뀌었는지는
-> [perf-findings-scripts.md](../findings/perf-findings-scripts.md)의 S-10 기록에 있다.
+> [perf-findings-scripts.md](../../performance/docs/findings/perf-findings-scripts.md)의 S-10 기록에 있다.
 
 ### 판정 엔진 (이 순서로)
 
@@ -965,7 +965,7 @@ for(const id of ['normal-day-2026-08-05T09-39-43','friends-2026-08-05T09-00-06']
 
 ## D. 이 단계의 결함
 
-`localDocs/findings/perf-findings-tools.md`:
+`performance/docs/findings/perf-findings-tools.md`:
 
 - [ ] **T-01** pick 평면 키 (해결)
 - [ ] **T-26** rules.json 무검증 (해결)
@@ -1268,7 +1268,7 @@ console.log(by);
       이 우선순위표가 여전히 맞는지가 8단계의 판단 대상이다
 - [ ] `performance/PERFORMANCE-MANAGEMENT.md` **§9 알려진 한계**
       **볼 것:** 여기 적힌 6가지가 일반화(추출) 대상 목록과 상당 부분 겹친다
-- [ ] `localDocs/planning/perf-review-summary.md` — 남은 P0/P1/P2 중 추출 전에 반드시 해소할 것 고르기
+- [ ] `performance/docs/planning/perf-review-summary.md` — 남은 P0/P1/P2 중 추출 전에 반드시 해소할 것 고르기
 
 ## B. 실행
 
@@ -1306,7 +1306,7 @@ console.log(by);
 ## D. 산출물
 
 - [ ] `localDocs/`에 **추출 설계 초안** 작성 — 코어/어댑터 경계, v0.1 범위, 제외할 것
-- [ ] `localDocs/planning/perf-review-summary.md`의 P0/P1/P2 우선순위를 학습 결과에 맞게 재조정
+- [ ] `performance/docs/planning/perf-review-summary.md`의 P0/P1/P2 우선순위를 학습 결과에 맞게 재조정
 - [ ] 결정 안건 11개가 전부 채워졌는지 확인 (상단 결정 안건 진행표)
 
 ---

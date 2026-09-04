@@ -71,7 +71,7 @@
 다른 문서의 링크를 새 위치로 고친다. 발견 ID(`E-46` 등)는 그대로 두어 기존 상호참조가
 깨지지 않게 한다.
 
-**선례**: E-46(세션 간 성능 편차) → [perf-session-drift.md](investigations/perf-session-drift.md)
+**선례**: E-46(세션 간 성능 편차) → [perf-session-drift.md](../performance/docs/investigations/perf-session-drift.md)
 
 ---
 
@@ -91,7 +91,7 @@
 
 ## 함께 갱신할 것
 
-- 발견 사항의 상태를 바꿨으면 [perf-review-summary.md](planning/perf-review-summary.md)의
+- 발견 사항의 상태를 바꿨으면 [perf-review-summary.md](../performance/docs/planning/perf-review-summary.md)의
   P0/P1/P2 실행 계획에서 해당 항목 상태도 같이 맞춘다 — 두 문서가 어긋나면
   백로그로서 신뢰를 잃는다
 - 학습 장부([perf-mastery-checklist.md](guides/perf-mastery-checklist.md))의 **결정 안건**에서
