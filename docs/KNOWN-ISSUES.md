@@ -18,11 +18,15 @@
 - 결과: `docker compose up`이 `service "app" depends on undefined service "mysql"`로 즉시 실패한다.
 - 확인 방법: 저장소 루트에서 `docker compose up` 실행.
 - 우회: [00-quickstart.md](00-quickstart.md)의 절차대로 Redis만 compose로 띄우고 MySQL·앱은 개별 기동.
+- → 갱신 (2026-08-28, 커밋 `64e399a`): **해소** — `docker-compose.yml`에 `mysql` 서비스 정의를 채우고 `mysql-data` 볼륨을 붙였다. 현재 정의된 서비스는 `mysql`·`redis`·`app` 셋이라 `depends_on`이 실재하는 대상을 가리킨다. 같은 커밋에서 `00-quickstart.md`의 절차도 "Redis만 개별 기동"에서 compose 일괄 기동으로 고쳤다.
+- → 기록 정정 (2026-09-05): 위 갱신 줄이 **10일 가까이 누락돼 있었다.** 코드는 8/28에 고쳤는데 장부는 계속 "실행 불가"라고 말하고 있었다. 저장소를 공개(2026-09-04)한 뒤에는 이 항목이 **KNOWN-ISSUES를 여는 사람이 가장 먼저 읽는 두 줄**이 되므로, 장부가 틀린 채로 남으면 나머지 항목의 신뢰도까지 함께 깎인다. **코드를 고치면 같은 작업 안에서 장부를 갱신한다.**
 
 ### KI-02. 기본 프로파일 local의 프로퍼티 파일이 없음
 - 위치: `src/main/resources/application.properties` — `spring.profiles.active=local`이 기본값인데 `application-local.properties`는 gitignore 대상이며 저장소에 없다.
 - 결과: 아무 옵션 없이 `./gradlew bootRun` 하면 datasource·JWT 키가 없어 부팅에 실패한다.
 - 우회: dev 프로파일 사용 ([00-quickstart.md](00-quickstart.md)).
+- → 갱신 (2026-08-28, 커밋 `64e399a`): **해소** — `src/main/resources/application-local.properties.example`(60줄)을 추가해 복사만 하면 되는 상태로 만들었고, `application-dev.properties`의 기본값을 손봐 **아무 설정 없이도 dev 프로파일이 뜨도록** 했다. gitignore 대상인 실제 `application-local.properties`는 여전히 저장소에 없지만, **없어서 막히는 상황이 사라졌다**는 점이 달라진 것이다.
+- → 기록 정정 (2026-09-05): KI-01과 같은 이유로 갱신이 누락돼 있었다.
 
 ## 보안
 
@@ -30,6 +34,11 @@
 - 위치: `api/SchoolInfoService.java` — `apiKey` 필드 위 주석에 실제 키 문자열이 남아 있고, git 히스토리 다수 리비전에도 존재한다.
 - 조치 필요: 주석 삭제 + NEIS 포털에서 키 재발급(히스토리에 남으므로 삭제만으로는 무효화되지 않음).
 - → 갱신 (2026-08-11): 소스의 주석은 삭제됨. **키 재발급은 여전히 필요** — git 히스토리에 키가 남아 있다.
+- → 등급 상향 (2026-09-05): **저장소가 2026-09-04에 공개로 전환되면서 성격이 바뀌었다.** 비공개일 때는 "언젠가 재발급할 것"이었지만, 지금은 **누구나 읽을 수 있는 노출된 자격증명**이다.
+  - 노출 범위(실측): 공개 히스토리의 커밋 **6개**, 파일 **6개**(`api/`와 이전 위치 `services/school/`의 `SchoolInfoService`·`SchoolMealService`·`SchoolScheduleService`). 최초 유입은 커밋 `37f1bcd`의 `apiKey` 필드 주석이고, 키는 32자 hex(`cee4ba90…`)다. **현재 HEAD 트리에는 없다** — 히스토리에만 남아 있다.
+  - **히스토리 재작성으로는 해결되지 않는다.** force-push 이후에도 GitHub는 dangling 커밋을 한동안 API로 제공하고, 포크·클론·캐시에는 그대로 남는다. **NEIS 포털에서 키를 폐기·재발급하는 것이 유일한 무효화 방법이다.**
+  - 재발급 후 할 일: 운영 환경변수 `NEIS_API_KEY` 교체. 소스·프로퍼티는 이미 `${NEIS_API_KEY}` 참조라 코드 변경은 필요 없다.
+  - 함께 확인한 것: 설정 파일(`application*.properties`, `docker-compose*.yml`)의 전체 히스토리를 훑었고 **리터럴 비밀값은 테스트용 더미뿐이다.** 공개 히스토리에서 실제로 유효한 자격증명은 이 키 하나다.
 
 ### KI-04. GET 전체가 permitAll인 블랙리스트 인가 구조
 - 위치: `security/SecurityConfig.java · filterChain()` — 명시된 GET 경로만 `authenticated()`이고 마지막에 `GET /**`가 `permitAll()`이다.
@@ -477,6 +486,24 @@
   - `RedisPostsCache.getPostPrevs()`: 재적재 판정을 `range()` 결과가 아니라 `opsForList().size(key)` 로 바꿨다. 부수적으로 재적재 경로의 중복 `range` 호출이 사라졌고, `ids` 가 null 일 때 NPE 로 예외 폴백에 빠지던 것이 명시적 빈 목록 반환이 됐다.
 - 검증: 단위 테스트 8개 추가. 라우팅 6개(`page=3&size=20`·`page=2&size=20` → DB, `page=1&size=20`·`page=0&size=50`(경계) → 캐시, `page=1&size=50` → DB, `page=9&size=5` → 캐시 — 마지막은 기존 조건이면 캐시를 쓸 수 있는데도 DB로 새던 경우다)와 재적재 판정 2개(리스트가 비면 재적재, 차 있는데 구간만 밖이면 DB를 다시 읽지 않음). 저장소 전체 테스트 597개가 통과했다.
 
+### KI-58. 저장소에 커밋된 실행 기록이 정화되지 않은 상태다
+- 위치: `performance/reports/runs/**`, `performance/reports/archive/**` — `run.json`·`dbstate.json`·`hostprobe.jsonl`·`report.html` 이 실행 메타데이터(`executor` = `사용자명@호스트명`, `branch`, `commit`, `note`)를 원문으로 담고 있다.
+- 결과: 개발 PC 호스트명이 **592개 파일**, 작업 브랜치명이 **417개 파일**에서 공개적으로 읽힌다. 자격증명은 아니지만 개발 환경과 비공개 작업 브랜치 이름이 드러난다.
+- 확인 방법: `git grep -l "<호스트명>" -- performance/reports/ | wc -l`
+- 왜 이렇게 됐나: 정화(`performance/tools/sanitize-reports.js`)는 **GitHub Pages 게시본에만** 적용하도록 설계했다. 워크플로 주석에 의도가 적혀 있다 — *"저장소의 원본은 그대로 두어 로컬 분석에는 영향이 없다."* **저장소가 비공개라는 전제 위의 결정이었고, 2026-09-04 공개 전환으로 그 전제가 깨졌다.** KI-03(NEIS 키)과 같은 종류의 전제 붕괴다.
+- **판단: 지금 고치지 않는다** (2026-09-05).
+  - 노출된 값 중 자격증명은 없다. 호스트명은 NAT 뒤 개인 데스크톱의 이름이고, Windows 계정명이 `user` 라 개인을 식별하지 않는다. 브랜치명은 이미 히스토리에서 제거된 브랜치를 가리킨다.
+  - 반면 `commit` 과 `note` 는 **지우면 손해다.** "이 측정이 어느 코드 상태에서 나왔나"는 재현성의 근거이고 실행 메모는 실험의 맥락이다. 공개 저장소에서는 오히려 신뢰의 재료가 된다.
+  - 592개 파일을 일괄 치환하면 diff 가 저장소 이력을 덮어쓰다시피 하고, HEAD 만 고쳐도 히스토리에는 남아 실효가 반쪽이다.
+  - **정말 지운다면 대상을 `executor` 하나로 좁히는 편이 낫다.** 그때는 `sanitize-reports.js` 가 `FIELDS` 를 인자로 받게 만들고 저장소 사본에 적용한다.
+- 함께 처리한 것: `performance/reports/overnight/` 은 삭제하고 gitignore 했다. 러너 콘솔 로그라 분석 가치가 없는데(결과는 `runs/`·`repeatability/` 에 구조화돼 있다) 구조가 없어 정화 대상으로 삼기도 어려웠고, 같은 메타데이터를 매 실행 헤더에 그대로 찍고 있었다.
+
+### KI-59. level-series.ps1 에 로컬 절대 경로가 하드코딩되어 있다
+- 위치: `performance/tools/level-series.ps1` — `$perf` 와 `$node` 가 특정 개발 PC 의 절대 경로다(`C:\Users\<계정>\...`, `nvm\v22.23.1\node.exe`).
+- 결과: 다른 사람이 클론하면 그대로는 실행되지 않는다. 공개 저장소에서는 로컬 디렉터리 구조와 Node 설치 방식도 함께 드러난다.
+- 조치 방향: 스크립트 위치 기준 상대 경로(`$PSScriptRoot`)와 PATH 의 `node` 로 바꾼다. 야간 실행기는 본인만 쓰는 도구라 우선순위는 낮다.
+
 마지막 검증일: 2026-08-11 (최초 작성 2026-07-30, 이후 해소분은 각 항목의 "→ 갱신" 줄 참고)
 KI-53·54는 2026-08-14 추가 — 부하 테스트 중 발견분. KI-55는 같은 날 데이터셋 재생성 검증 중 발견.
 KI-56·57은 2026-08-18 추가 — "이미 아는 문제 말고 새 문제"를 찾는 코드 재독에서 발견. 부하 테스트가 밟지 않는 경로라 실행 결과로는 드러나지 않았다.
+KI-58·59는 2026-09-05 추가 — **저장소를 공개로 바꾼 뒤 외부인 시점에서 다시 훑다가 발견.** 둘 다 "비공개 저장소" 전제 위에서 내렸던 결정이 공개 전환으로 무효가 된 경우다.
