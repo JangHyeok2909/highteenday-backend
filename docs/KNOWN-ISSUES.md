@@ -18,11 +18,15 @@
 - 결과: `docker compose up`이 `service "app" depends on undefined service "mysql"`로 즉시 실패한다.
 - 확인 방법: 저장소 루트에서 `docker compose up` 실행.
 - 우회: [00-quickstart.md](00-quickstart.md)의 절차대로 Redis만 compose로 띄우고 MySQL·앱은 개별 기동.
+- → 갱신 (2026-08-28, 커밋 `64e399a`): **해소** — `docker-compose.yml`에 `mysql` 서비스 정의를 채우고 `mysql-data` 볼륨을 붙였다. 현재 정의된 서비스는 `mysql`·`redis`·`app` 셋이라 `depends_on`이 실재하는 대상을 가리킨다. 같은 커밋에서 `00-quickstart.md`의 절차도 "Redis만 개별 기동"에서 compose 일괄 기동으로 고쳤다.
+- → 기록 정정 (2026-09-05): 위 갱신 줄이 **10일 가까이 누락돼 있었다.** 코드는 8/28에 고쳤는데 장부는 계속 "실행 불가"라고 말하고 있었다. 저장소를 공개(2026-09-04)한 뒤에는 이 항목이 **KNOWN-ISSUES를 여는 사람이 가장 먼저 읽는 두 줄**이 되므로, 장부가 틀린 채로 남으면 나머지 항목의 신뢰도까지 함께 깎인다. **코드를 고치면 같은 작업 안에서 장부를 갱신한다.**
 
 ### KI-02. 기본 프로파일 local의 프로퍼티 파일이 없음
 - 위치: `src/main/resources/application.properties` — `spring.profiles.active=local`이 기본값인데 `application-local.properties`는 gitignore 대상이며 저장소에 없다.
 - 결과: 아무 옵션 없이 `./gradlew bootRun` 하면 datasource·JWT 키가 없어 부팅에 실패한다.
 - 우회: dev 프로파일 사용 ([00-quickstart.md](00-quickstart.md)).
+- → 갱신 (2026-08-28, 커밋 `64e399a`): **해소** — `src/main/resources/application-local.properties.example`(60줄)을 추가해 복사만 하면 되는 상태로 만들었고, `application-dev.properties`의 기본값을 손봐 **아무 설정 없이도 dev 프로파일이 뜨도록** 했다. gitignore 대상인 실제 `application-local.properties`는 여전히 저장소에 없지만, **없어서 막히는 상황이 사라졌다**는 점이 달라진 것이다.
+- → 기록 정정 (2026-09-05): KI-01과 같은 이유로 갱신이 누락돼 있었다.
 
 ## 보안
 
@@ -30,6 +34,11 @@
 - 위치: `api/SchoolInfoService.java` — `apiKey` 필드 위 주석에 실제 키 문자열이 남아 있고, git 히스토리 다수 리비전에도 존재한다.
 - 조치 필요: 주석 삭제 + NEIS 포털에서 키 재발급(히스토리에 남으므로 삭제만으로는 무효화되지 않음).
 - → 갱신 (2026-08-11): 소스의 주석은 삭제됨. **키 재발급은 여전히 필요** — git 히스토리에 키가 남아 있다.
+- → 등급 상향 (2026-09-05): **저장소가 2026-09-04에 공개로 전환되면서 성격이 바뀌었다.** 비공개일 때는 "언젠가 재발급할 것"이었지만, 지금은 **누구나 읽을 수 있는 노출된 자격증명**이다.
+  - 노출 범위(실측): 공개 히스토리의 커밋 **6개**, 파일 **6개**(`api/`와 이전 위치 `services/school/`의 `SchoolInfoService`·`SchoolMealService`·`SchoolScheduleService`). 최초 유입은 커밋 `37f1bcd`의 `apiKey` 필드 주석이고, 키는 32자 hex(`cee4ba90…`)다. **현재 HEAD 트리에는 없다** — 히스토리에만 남아 있다.
+  - **히스토리 재작성으로는 해결되지 않는다.** force-push 이후에도 GitHub는 dangling 커밋을 한동안 API로 제공하고, 포크·클론·캐시에는 그대로 남는다. **NEIS 포털에서 키를 폐기·재발급하는 것이 유일한 무효화 방법이다.**
+  - 재발급 후 할 일: 운영 환경변수 `NEIS_API_KEY` 교체. 소스·프로퍼티는 이미 `${NEIS_API_KEY}` 참조라 코드 변경은 필요 없다.
+  - 함께 확인한 것: 설정 파일(`application*.properties`, `docker-compose*.yml`)의 전체 히스토리를 훑었고 **리터럴 비밀값은 테스트용 더미뿐이다.** 공개 히스토리에서 실제로 유효한 자격증명은 이 키 하나다.
 
 ### KI-04. GET 전체가 permitAll인 블랙리스트 인가 구조
 - 위치: `security/SecurityConfig.java · filterChain()` — 명시된 GET 경로만 `authenticated()`이고 마지막에 `GET /**`가 `permitAll()`이다.
