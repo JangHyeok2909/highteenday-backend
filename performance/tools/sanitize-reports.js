@@ -55,10 +55,29 @@ const FIELDS = [
   { key: 'branch', reason: '브랜치 이름' },
   // 실행 메모는 내부 논의 맥락이 그대로 들어간다("S-02 이후 인증 태그 분리 확인" 등).
   { key: 'note', reason: '실행 메모' },
+  // 중단된 실행을 복구할 때 기록되는 원래 명령줄. **로컬 절대 경로가 통째로 들어간다** —
+  // 실측(2026-09-05): `C:\Users\<계정>\AppData\Local\nvm\v24.20.0\node.exe ...`.
+  // 점(.)으로 중첩 경로를 쓴다.
+  { key: 'recovery.sourceCommand', reason: '복구 명령(로컬 절대 경로 포함)' },
 ];
 
-/** 정화 대상 확장자. 바이너리를 문자열로 다루면 파일이 깨진다. */
-const TEXT_EXT = new Set(['.json', '.html', '.txt', '.csv', '.md']);
+/** `a.b.c` 형태의 중첩 경로를 읽는다. 중간이 비면 undefined. */
+function getPath(obj, dotted) {
+  return dotted.split('.').reduce((o, k) => (o == null ? o : o[k]), obj);
+}
+
+/**
+ * 정화 대상 확장자. 바이너리를 문자열로 다루면 파일이 깨진다.
+ *
+ * **여기에 없는 확장자는 지워지지도, 검사되지도 않는다.** `--verify` 도 같은 집합을 쓰므로
+ * 빠진 확장자는 양쪽 모두의 맹점이 된다.
+ *
+ * 실측(2026-09-05): `.jsonl` 과 `.log` 가 빠져 있어 실제로 샜다. 게시 대상 1,312개 중
+ * `hostprobe.jsonl` 49개와 `overnight/*.log` 46개가 통째로 검사 밖이었고, 그 안에
+ * 호스트명과 `personal/localdocs` 브랜치명이 원문으로 남아 있었다. 그런데도
+ * `--verify` 는 "잔존 없음"으로 통과시켰다. **새 산출물 형식을 추가하면 이 집합부터 본다.**
+ */
+const TEXT_EXT = new Set(['.json', '.jsonl', '.html', '.txt', '.csv', '.md', '.log']);
 
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -96,7 +115,41 @@ function variantsOf(value) {
   const out = new Set([value]);
   const escaped = escapeHtml(value);
   if (escaped !== value) out.add(escaped);
+
+  // JSON 이스케이프본도 넣는다 — HTML 과 같은 이유로 새는 두 번째 표기다.
+  //
+  // `run.json` 은 값을 JSON 문자열로 싣는다. 값에 역슬래시나 따옴표가 들어 있으면
+  // 파일에는 이스케이프된 형태로 저장된다. 예를 들어 복구 명령의
+  // `C:\Users\...\node.exe` 는 파일 안에서 `C:\\Users\\...\\node.exe` 다.
+  // 파싱해서 얻은 원문(역슬래시 1개)으로 찾으면 **한 번도 매칭되지 않는다.**
+  //
+  // 실측(2026-09-05): `recovery.sourceCommand` 를 FIELDS 에 넣은 직후 회귀 테스트가
+  // 이걸 잡았다. 필드를 추가해 값을 배웠는데도 파일에는 그대로 남아 있었다.
+  const jsonEscaped = JSON.stringify(value).slice(1, -1);
+  if (jsonEscaped !== value) out.add(jsonEscaped);
+
   return [...out];
+}
+
+/**
+ * 한 필드 값에서 **따로 지워야 하는 조각**을 뽑는다.
+ *
+ * 왜 필요한가 — 필드를 지웠다고 값이 사라진 것이 아니다
+ * -------------------------------------------------------
+ * `executor` 는 `사용자명@호스트명` 형태다. 통짜로 치환하면 그 표기만 사라지는데,
+ * Windows 성능 카운터는 같은 호스트명을 **호스트명만** 실어 나른다:
+ * `\\HOSTNAME\Processor Information(_Total)\% Processor Time`.
+ * 통짜 문자열은 여기에 한 번도 매칭되지 않는다.
+ *
+ * 실측(2026-09-05): 정화를 마친 게시본에서 호스트명이 파일 159개에 남아 있었다.
+ * `run.json` 한 건 안에만 50회였고, 정작 그 파일의 `executor` 필드는 `redacted` 였다.
+ * `hostProbe` 가 카운터 헤더를 배열로 싣기 때문이다.
+ */
+function fragmentsOf(key, value) {
+  if (key !== 'executor') return [];
+  const at = value.lastIndexOf('@');
+  if (at < 0) return [];
+  return [{ value: value.slice(at + 1), reason: '호스트명(단독 표기)' }];
 }
 
 /**
@@ -119,8 +172,15 @@ function collectSecrets(siteDir) {
     const run = rec && rec.run;
     if (!run) continue;
     for (const { key, reason } of FIELDS) {
-      const v = run[key];
-      if (typeof v === 'string' && v.trim().length > 4) values.set(v, reason);
+      const v = getPath(run, key);
+      if (typeof v !== 'string' || v.trim().length <= 4) continue;
+      values.set(v, reason);
+      // 조각도 같은 규칙(4자 초과)을 적용한다 — 짧은 호스트명까지 지우면 본문이 깨진다.
+      for (const frag of fragmentsOf(key, v)) {
+        if (frag.value.trim().length > 4 && !values.has(frag.value)) {
+          values.set(frag.value, frag.reason);
+        }
+      }
     }
   }
 
@@ -139,10 +199,17 @@ function collectSecrets(siteDir) {
  * 그래서 이제 검사는 정화와 **다른 자료**를 본다. 정화는 값을 지우고, 검사는 게시될
  * 파일 전체에서 그 값(원문·이스케이프본 모두)을 찾는다. 한쪽이 틀려도 다른 쪽이 잡는다.
  */
-function verify(siteDir) {
-  const { values, runFileCount } = collectSecrets(siteDir);
-  // 정화 후의 `run.json` 에서 다시 수집하면 값이 전부 `redacted` 다. 그건 지울 대상이
-  // 아니므로 뺀다 — 남기면 자기 자신을 유출로 신고한다.
+function verify(siteDir, sourceDir) {
+  // **어디서 "지울 값"을 배우는지가 이 검사의 전부다.**
+  //
+  // 정화된 산출물에서 수집하면 값이 전부 `redacted` 로 바뀌어 있고, 아래 필터가 그걸
+  // 걸러내므로 **찾을 대상이 하나도 남지 않는다.** 그 상태에서 파일을 아무리 뒤져도
+  // "잔존 없음"이 나온다 — 검사가 항상 통과하는 것이지 깨끗한 것이 아니다.
+  //
+  // 실측(2026-09-05): 호스트명이 파일 159개에 남은 게시본을 이 검사가 통과시켰다.
+  // 그래서 `--source` 로 **정화 전 원본**을 지목할 수 있게 했다. 원본에서 값을 배우고
+  // 게시본에서 찾으면, 정화와 검사가 비로소 서로 다른 자료를 보게 된다.
+  const { values, runFileCount } = collectSecrets(sourceDir || siteDir);
   const targets = [...values.entries()].filter(([v]) => v !== REDACTED);
 
   const files = walk(siteDir).filter((f) => TEXT_EXT.has(path.extname(f).toLowerCase()));
@@ -172,18 +239,31 @@ function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const verifyOnly = args.includes('--verify');
-  const siteDir = args.find((a) => !a.startsWith('--'));
+
+  // `--source <원본>` 은 값을 뒤에 받으므로, 그 값을 위치 인자로 착각하지 않게 뺀다.
+  const sourceIdx = args.indexOf('--source');
+  const sourceDir = sourceIdx >= 0 ? args[sourceIdx + 1] : null;
+  // `--source` 가 없으면 sourceIdx 는 -1 이고 sourceIdx+1 은 0 이다. 그 조건을 그대로
+  // 쓰면 **첫 위치 인자(대개 사이트 디렉터리)를 건너뛴다.** 있을 때만 배제한다.
+  const siteDir = args.find((a, i) => !a.startsWith('--') && (sourceIdx < 0 || i !== sourceIdx + 1));
 
   if (!siteDir) {
-    console.error('사용법: node tools/sanitize-reports.js <사이트 디렉터리> [--dry-run|--verify]');
+    console.error('사용법: node tools/sanitize-reports.js <사이트 디렉터리> [--dry-run] [--verify [--source <정화 전 원본>]]');
     process.exit(2);
   }
-  if (!fs.existsSync(siteDir) || !fs.statSync(siteDir).isDirectory()) {
-    console.error(`디렉터리가 아닙니다: ${siteDir}`);
+  for (const [label, d] of [['사이트', siteDir], ['원본', sourceDir]]) {
+    if (!d) continue;
+    if (!fs.existsSync(d) || !fs.statSync(d).isDirectory()) {
+      console.error(`${label} 디렉터리가 아닙니다: ${d}`);
+      process.exit(2);
+    }
+  }
+  if (sourceIdx >= 0 && !verifyOnly) {
+    console.error('--source 는 --verify 와만 함께 씁니다 — 정화는 산출물 자체에서 값을 읽습니다.');
     process.exit(2);
   }
 
-  if (verifyOnly) process.exit(verify(siteDir));
+  if (verifyOnly) process.exit(verify(siteDir, sourceDir));
 
   const { values, runFileCount } = collectSecrets(siteDir);
 
