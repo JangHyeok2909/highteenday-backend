@@ -165,15 +165,19 @@ file.
 | Path | Size |
 |------|------|
 | `performance/reports/index.json` | ~250 KB (~65k tokens) |
-| `performance/reports/overnight/*.log` | 300 KB – 950 KB each |
 | `performance/reports/runs/*/hostprobe.jsonl` | ~300 KB each, 89 runs |
+| `performance/reports/archive/**` | ~23 MB total |
 | `schoolData/**/*.json` | 400 KB – 32 MB |
 | `src/main/resources/static/testImg.png`, `testGif.gif` | ~1 MB each |
 
+`performance/reports/overnight/*.log` is no longer in the repository — it is
+runtime output of the overnight runner and is now gitignored (the reason is in
+`performance/.gitignore`). It still appears locally after a run, and it is the
+largest of all at 300 KB – 950 KB per file, so the same rule applies to it.
+
 ```bash
 node -e "const r=require('./performance/reports/index.json'); console.log(r.runs.slice(-5))"
-grep -c ERROR performance/reports/overnight/exp7.stdout.log
-tail -40 performance/reports/overnight/exp7.stdout.log
+tail -40 performance/reports/overnight/exp7.stdout.log   # local only
 ```
 
 The same rule applies to command output, which also lands in context in full:
