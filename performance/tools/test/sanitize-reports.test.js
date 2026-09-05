@@ -202,3 +202,102 @@ test('--verify 는 원문이 남아 있는 산출물을 잡는다', () => {
   assert.equal(r.code, 1, '정화 전인데 verify 가 통과했다');
   assert.match(r.stderr, /게시를 중단합니다/);
 });
+
+/**
+ * 확장자 누락 유출 — 실제로 새고 있던 두 번째 경로다(2026-09-05 발견).
+ *
+ * `TEXT_EXT` 에 `.jsonl` 과 `.log` 가 없어서 `hostprobe.jsonl` 49개와
+ * `overnight/*.log` 46개가 통째로 검사 밖이었다. 정화도 검사도 그 파일들을 열지 않았고,
+ * `--verify` 는 "잔존 없음"으로 통과시켰다.
+ */
+test('.jsonl 과 .log 도 정화한다 — 확장자가 빠지면 통째로 샌다', () => {
+  const { dir, record } = makeSite();
+  const runDir = path.join(dir, 'runs', 'posts-2026-08-11T12-05-00');
+  fs.writeFileSync(path.join(runDir, 'hostprobe.jsonl'),
+    `{"t":1,"by":"${record.run.executor}"}\n{"t":2,"by":"${record.run.executor}"}\n`);
+  fs.writeFileSync(path.join(runDir, 'runner.log'),
+    `[00:00] branch=${record.run.branch} 시작\n`);
+
+  run([dir]);
+
+  const jsonl = fs.readFileSync(path.join(runDir, 'hostprobe.jsonl'), 'utf8');
+  const log = fs.readFileSync(path.join(runDir, 'runner.log'), 'utf8');
+  assert.ok(!jsonl.includes(record.run.executor), '.jsonl 에 실행자가 남아 있다');
+  assert.ok(!log.includes(record.run.branch), '.log 에 브랜치명이 남아 있다');
+});
+
+/**
+ * 호스트명 단독 표기 유출 — 세 번째 경로다(2026-09-05 발견).
+ *
+ * `executor` 는 `사용자명@호스트명` 인데 Windows 성능 카운터는 호스트명만 싣는다.
+ * 통짜 문자열 치환은 여기에 한 번도 매칭되지 않아, `executor` 필드가 `redacted` 인
+ * 바로 그 `run.json` 안에 호스트명이 50회 남아 있었다.
+ */
+test('호스트명이 단독으로 박힌 곳도 지운다 — executor 를 지운 것과 다른 문제다', () => {
+  const { dir, record } = makeSite();
+  const runDir = path.join(dir, 'runs', 'posts-2026-08-11T12-05-00');
+  const host = record.run.executor.split('@')[1]; // BUILD-HOST-01
+  fs.writeFileSync(path.join(runDir, 'hostprobe.jsonl'),
+    JSON.stringify({ header: [`\\${host}\Processor Information(_Total)\% Processor Time`] }) + '\n');
+
+  run([dir]);
+
+  const probe = fs.readFileSync(path.join(runDir, 'hostprobe.jsonl'), 'utf8');
+  assert.ok(!probe.includes(host), `성능 카운터 헤더에 호스트명 "${host}" 가 남아 있다`);
+});
+
+/**
+ * `--verify` 가 무엇을 기준으로 판정하는가 — 이 도구에서 가장 잘못되기 쉬운 지점이다.
+ *
+ * 정화된 산출물에서 지울 값을 배우면 값이 전부 `redacted` 라 **찾을 대상이 0개**가 되고,
+ * 무엇이 남아 있든 통과한다. 실측(2026-09-05): 호스트명이 159개 파일에 남은 게시본을
+ * 그대로 통과시켰다. 그래서 `--source` 로 정화 전 원본을 지목한다.
+ */
+test('--verify --source: 정화 후 남은 유출을 잡는다', () => {
+  const { dir, record } = makeSite();
+  const source = fs.mkdtempSync(path.join(os.tmpdir(), 'sanitize-src-'));
+  fs.cpSync(dir, source, { recursive: true }); // 정화 전 원본을 따로 보관
+
+  run([dir]);
+  // 정화가 놓친 파일이 하나 있는 상태를 만든다 — 확장자 누락·새 산출물 등으로 실제로 생긴다.
+  fs.writeFileSync(path.join(dir, 'runs', 'posts-2026-08-11T12-05-00', 'missed.txt'),
+    `실행자: ${record.run.executor}\n`);
+
+  const withSource = run([dir, '--verify', '--source', source], { allowFail: true });
+  assert.equal(withSource.code, 1, '원본을 기준으로 삼았는데도 유출을 놓쳤다');
+  assert.match(withSource.stderr, /게시를 중단합니다/);
+
+  // 대조 — 원본 없이 검사하면 통과한다. `--source` 가 왜 필요한지가 이 줄이다.
+  const withoutSource = run([dir, '--verify'], { allowFail: true });
+  assert.equal(withoutSource.code, 0,
+    '이 검사가 실패하도록 바뀌었다면 --source 없이도 안전해진 것이니 이 테스트를 갱신할 것');
+});
+
+test('--source 는 --verify 없이 쓰면 거부한다 — 정화는 산출물에서 값을 읽어야 한다', () => {
+  const { dir } = makeSite();
+  const r = run([dir, '--source', dir], { allowFail: true });
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /--verify/);
+});
+
+/**
+ * 중첩 필드 유출 — 네 번째 경로다(2026-09-05 발견).
+ *
+ * 중단된 실행을 복구하면 `run.recovery.sourceCommand` 에 원래 명령줄이 통째로 남는데,
+ * 여기에 로컬 절대 경로(`C:\Users\<계정>\AppData\Local\nvm\...\node.exe`)가 들어 있다.
+ * `FIELDS` 가 최상위 키만 읽던 시절에는 이 값을 아예 배우지 못했다.
+ */
+test('중첩 필드(recovery.sourceCommand)도 지운다 — 최상위 키만 보면 놓친다', () => {
+  const cmd = 'C:\Users\tester\AppData\Local\nvm\v24.20.0\node.exe tools/perf-run.js --dataset medium';
+  const { dir } = makeSite({ recovery: { recoveredAt: '2026-09-01T08:25:35.844Z', sourceCommand: cmd } });
+  const runDir = path.join(dir, 'runs', 'posts-2026-08-11T12-05-00');
+  // dbstate.json 은 같은 값을 최상위 recovery 에 싣는다 — 값만 알면 파일 전체 치환이 처리한다.
+  fs.writeFileSync(path.join(runDir, 'dbstate.json'), JSON.stringify({ recovery: { sourceCommand: cmd } }));
+
+  run([dir]);
+
+  for (const f of ['run.json', 'dbstate.json']) {
+    const text = fs.readFileSync(path.join(runDir, f), 'utf8');
+    assert.ok(!text.includes('AppData'), `${f} 에 로컬 절대 경로가 남아 있다`);
+  }
+});
