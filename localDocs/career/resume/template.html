@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>이력서</title>
+<style>
+  /* ------------------------------------------------------------------
+     인쇄 기준. Chrome --print-to-pdf 는 @page 의 여백을 그대로 쓴다.
+     여백을 줄이면 한 페이지에 더 들어가지만 12mm 밑으로는 인쇄가 답답해진다.
+     ------------------------------------------------------------------ */
+  @page { size: A4; margin: 14mm 15mm 14mm 15mm; }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  body {
+    margin: 0;
+    font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo",
+                 "Noto Sans KR", sans-serif;
+    font-size: 10pt;
+    line-height: 1.55;
+    color: #1a1a1a;
+  }
+
+  /* 이름 */
+  h1 {
+    font-size: 20pt;
+    line-height: 1.2;
+    margin: 0 0 2mm;
+    letter-spacing: -0.02em;
+  }
+
+  /* 대분류: 소개 / 기술 스택 / 경력 / 프로젝트 / 학력 */
+  h2 {
+    font-size: 11.5pt;
+    margin: 4.5mm 0 2.2mm;
+    padding-bottom: 1.2mm;
+    border-bottom: 1.2px solid #1a1a1a;
+    letter-spacing: -0.01em;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* 회사명 / 프로젝트명 */
+  h3 {
+    font-size: 10.5pt;
+    margin: 4mm 0 1mm;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* 프로젝트 안의 항목 제목 */
+  h4 {
+    font-size: 10pt;
+    margin: 3.5mm 0 1mm;
+    padding-left: 2.2mm;
+    border-left: 3px solid #444;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  p { margin: 0 0 2mm; }
+
+  ul { margin: 0 0 2mm; padding-left: 4.5mm; }
+  ul ul { margin: 0.6mm 0 0.6mm; }
+  li { margin: 0 0 0.9mm; break-inside: avoid; page-break-inside: avoid; }
+  li::marker { color: #777; }
+
+  hr {
+    border: 0;
+    border-top: 1px solid #e0e0e0;
+    margin: 2mm 0;
+  }
+
+  blockquote {
+    margin: 0 0 2mm;
+    padding: 1.5mm 0 1.5mm 3mm;
+    border-left: 2.5px solid #bbb;
+    color: #333;
+  }
+
+  code {
+    font-family: Consolas, "D2Coding", monospace;
+    font-size: 9pt;
+    background: #f2f2f2;
+    padding: 0 1px;
+    border-radius: 2px;
+  }
+
+  a { color: #1a1a1a; text-decoration: none; border-bottom: 0.5px solid #999; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0 0 2.5mm;
+    font-size: 9.5pt;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  th, td { border: 1px solid #ddd; padding: 1.2mm 2mm; text-align: left; vertical-align: top; }
+  th { background: #f5f5f5; font-weight: 600; }
+
+  /* 아직 안 채운 자리. 초안에서 눈에 띄어야 하므로 일부러 강한 색을 쓴다.
+     제출 전에는 이 표시가 0개여야 한다. */
+  mark.gap {
+    background: #ffe0e0;
+    color: #b00000;
+    font-weight: 600;
+    padding: 0 1mm;
+    border: 1px dashed #d06060;
+    border-radius: 2px;
+  }
+
+  strong { font-weight: 700; }
+
+  pre {
+    background: #f7f7f7;
+    border: 1px solid #e2e2e2;
+    border-radius: 3px;
+    padding: 2mm 2.5mm;
+    margin: 0 0 2.5mm;
+    font-size: 8.8pt;
+    line-height: 1.45;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  /* ---------------------------------------------------------------
+     아래는 포트폴리오용. ```html-raw 블록에서만 쓰인다.
+     이력서는 이 클래스를 쓰지 않으므로 영향을 받지 않는다.
+     --------------------------------------------------------------- */
+
+  /* 장 나눔 */
+  .pagebreak { break-before: page; page-break-before: always; height: 0; }
+
+  /* 표지 부제·메타 */
+  .lead { font-size: 11pt; color: #333; margin: 0 0 1.5mm; }
+  .meta { font-size: 9pt; color: #666; margin: 0 0 4mm; }
+
+  /* 목차 */
+  .toc { font-size: 9.5pt; border: 1px solid #ddd; border-radius: 3px; padding: 3mm 4mm; margin: 0 0 4mm; }
+  .toc div { margin: 0.6mm 0; }
+  .toc .num { display: inline-block; width: 7mm; color: #777; }
+
+  /* 그림 공통 */
+  .fig { margin: 2.5mm 0 4mm; break-inside: avoid; page-break-inside: avoid; }
+  .fig-cap { font-size: 8.8pt; color: #666; margin-top: 1.5mm; line-height: 1.45; }
+
+  /* 막대 */
+  .bar-row { display: flex; align-items: center; gap: 2mm; margin: 1.2mm 0; font-size: 9pt; }
+  .bar-label { width: 26mm; text-align: right; color: #444; flex: none; }
+  .bar-track { flex: 1; background: #f0f0f0; height: 4.5mm; border-radius: 2px; }
+  .bar-fill { background: #444; height: 100%; border-radius: 2px; min-width: 0.6mm; }
+  .bar-fill.after { background: #1a7f4b; }
+  .bar-val { width: 16mm; text-align: right; font-variant-numeric: tabular-nums; flex: none; }
+
+  /* 흐름도 */
+  .flow { display: flex; align-items: stretch; gap: 0; font-size: 8.8pt; }
+  .flow-step {
+    flex: 1; border: 1px solid #bbb; border-radius: 3px;
+    padding: 1.8mm 1.5mm; text-align: center; line-height: 1.4;
+  }
+  .flow-step b { display: block; font-size: 9.2pt; margin-bottom: 0.6mm; }
+  .flow-step span { color: #666; }
+  .flow-arrow { display: flex; align-items: center; padding: 0 1.2mm; color: #999; }
+
+  /* 핵심 성과 스트립 — 이력서 첫 화면의 스캔용 */
+  .kpi { display: flex; gap: 3mm; margin: 1mm 0 2mm; break-inside: avoid; }
+  .kpi > div { flex: 1; border: 1px solid #d8d8d8; border-radius: 3px; padding: 2mm 2.5mm; }
+  .kpi b { display: block; font-size: 13pt; letter-spacing: -0.02em; line-height: 1.15; }
+  .kpi span { display: block; font-size: 8.6pt; color: #555; line-height: 1.4; margin-top: 1mm; }
+
+  /* 대비 상자 */
+  .compare { display: flex; gap: 3mm; margin: 2.5mm 0 3mm; break-inside: avoid; }
+  .compare > div { flex: 1; border: 1px solid #ddd; border-radius: 3px; padding: 2mm 2.5mm; font-size: 9pt; }
+  .compare h5 { margin: 0 0 1mm; font-size: 9pt; color: #666; font-weight: 600; }
+</style>
+</head>
+<body>
+<!--CONTENT-->
+</body>
+</html>
