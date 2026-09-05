@@ -1,5 +1,25 @@
 # HighTeenDay Backend
 
+> 고등학생 익명 커뮤니티 백엔드입니다. 기능 구현과 함께
+> **"개선했다"고 말해도 되는 조건을 코드로 정의하는 일**을 같은 비중으로 다룹니다.
+
+| 요청당 쿼리 수 | 오진을 반박한 폭 | 개선폭 |
+|---|---|---|
+| **1,507 → 3.9개** | **38배** | **40.1%** |
+| 댓글 목록 API — 데이터 크기와 무관한 상수로 만들었습니다 | 지연 원인을 애플리케이션으로 오진했다가 커넥션 풀 대기로 정정했습니다 | 5회 반복 실험의 검출 한계 16%의 2.5배라 노이즈로 설명되지 않습니다 |
+
+**[측정 결과 대시보드 →](https://janghyeok2909.github.io/highteenday-backend/)**
+실행 106건의 보고서를 가공 없이 공개합니다. 개별 실행의 지표·판정·환경을 그대로 볼 수 있습니다.
+
+| 무엇을 보려면 | 어디로 |
+|---|---|
+| **병목 하나를 끝까지 쫓은 기록** | [OPT-002](performance/optimizations/OPT-002-comment-author-fetch-join.md) — 버린 대안 5개 · 검증 3중 · 부작용까지 |
+| 진단한 병목 목록 | [performance/bottlenecks/](performance/bottlenecks/) 14건 |
+| **실험 설계와 판정 기준** | [performance/experiments/](performance/experiments/) 7건 · [측정 시스템 전체](performance/README.md) |
+| 알고 있는 결함 | [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md) — 고친 것과 **안 고치기로 정한 것**을 이유와 함께 |
+
+---
+
 하이틴데이는 고등학생을 위한 익명 커뮤니티 플랫폼입니다.
 
 학교에서 무슨 일이 일어나고 있는지,  
