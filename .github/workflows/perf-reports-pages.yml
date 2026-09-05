@@ -59,6 +59,17 @@ jobs:
         run: |
           mkdir -p _site
           cp -r performance/reports/. _site/
+
+          # overnight/ 는 게시하지 않는다.
+          #
+          # 러너의 원시 stdout 이라 읽는 사람에게 주는 정보가 사실상 없는데(보고서가 아니라
+          # 진행 로그다), 구조가 없는 텍스트라 정화기가 값을 배울 근거인 run.json 과
+          # 연결되지 않는 내용이 섞여 들어온다 — 내부 실험 ID, 작업 브랜치 이름, 경로.
+          # 실측(2026-09-05): 이 디렉터리의 로그 17개에 `personal/localdocs` 가 원문으로
+          # 남아 있었다. **가치는 낮고 위험은 가장 큰 묶음이라 통째로 뺀다.**
+          # 저장소의 원본(performance/reports/overnight/)은 그대로 두어 분석에는 영향이 없다.
+          rm -rf _site/overnight
+
           # Pages의 진입점은 index.html 이다. history.html 이 곧 랜딩 페이지가 된다.
           if [ -f _site/history.html ]; then
             cp _site/history.html _site/index.html
@@ -79,11 +90,16 @@ jobs:
         working-directory: performance
         run: node tools/sanitize-reports.js ../_site
 
-      # 정화가 실제로 됐는지 게시 직전에 결과물만 보고 다시 판정한다. 위 단계의 성공
-      # 여부와 별개로 산출물을 검사하므로, 단계 순서가 어긋나거나 도구가 바뀌어도 잡힌다.
+      # 정화가 실제로 됐는지 게시 직전에 다시 판정한다. 위 단계의 성공 여부와 별개로
+      # 산출물을 검사하므로, 단계 순서가 어긋나거나 도구가 바뀌어도 잡힌다.
+      #
+      # `--source reports` 가 핵심이다. 지울 값을 **정화 전 원본**에서 배우고, 찾기는
+      # 게시본에서 한다. 이걸 빼면 정화된 게시본에서 값을 배우게 되는데 그 값은 전부
+      # `redacted` 라 찾을 대상이 0개가 되고, 검사는 무엇이 남아 있든 항상 통과한다.
+      # 실제로 그렇게 통과했다 — 호스트명이 파일 159개에 남은 게시본을 통과시켰다.
       - name: Verify no internal metadata remains
         working-directory: performance
-        run: node tools/sanitize-reports.js ../_site --verify
+        run: node tools/sanitize-reports.js ../_site --verify --source reports
 
       - uses: actions/upload-pages-artifact@v3
         with:
