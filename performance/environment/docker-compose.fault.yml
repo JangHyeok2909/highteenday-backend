@@ -1,0 +1,51 @@
+# 장애 주입 오버레이 — 앱과 의존성 사이에 toxiproxy 를 끼운다.
+#
+#   docker compose -f environment/docker-compose.perf.yml -f environment/docker-compose.fault.yml \
+#     --env-file environment/.env.perf up -d
+#
+# 무엇이 바뀌나
+#   앱은 DB_URL / REDIS_HOST 환경변수로 의존성에 붙는다(docker-compose.perf.yml). 그 두 값만
+#   toxiproxy 로 돌린다. 앱 이미지·MySQL·Redis·관측 스택은 그대로다.
+#
+#   app ──▶ toxiproxy:3306 ──▶ mysql:3306
+#   app ──▶ toxiproxy:6379 ──▶ redis:6379
+#
+# 왜 tc netem 이 아니라 toxiproxy 인가
+#   netem 은 컨테이너 안에 iproute2 와 NET_ADMIN 이 필요해 Docker Desktop 에서 번거롭다.
+#   toxiproxy 는 컨테이너 하나이고, HTTP API 로 지연(latency)·응답 없음(timeout)·대역폭·
+#   연결 끊김(reset_peer)을 ms 단위로 켜고 끈다. 의존성은 멀쩡한 채 **앱 클라이언트의 거동만**
+#   격리해 볼 수 있다 — Redis 를 실제로 멈추면 "Redis 가 멈춘 것"과 "Lettuce 가 기다리는 것"이
+#   섞이는데, timeout toxic 은 후자만 만든다.
+#
+# ⚠ 이 오버레이를 얹은 실행은 성능 기준선과 비교하면 안 된다. 프록시 홉이 하나 더 있다.
+#   perf-run.js 로 돌리지 말고 resilience/fault-run.js 로만 돌린다. 실행기는 앱이 프록시를
+#   거치는지(`docker inspect` 의 DB_URL) 확인해 run.json 에 남긴다.
+#
+# 원복: 오버레이 없이 다시 up 하면 app 컨테이너가 원래 환경변수로 재생성된다.
+#   docker compose -f environment/docker-compose.perf.yml --env-file environment/.env.perf up -d
+services:
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    container_name: perf-toxiproxy
+    restart: unless-stopped
+    command: ["-host", "0.0.0.0", "-config", "/config/toxiproxy.json"]
+    volumes:
+      - ./toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
+    ports:
+      # API 는 루프백 전용(E-14 와 같은 이유 — 인증이 없다. 열리면 누구나 DB 경로를 끊을 수 있다)
+      - "127.0.0.1:${TOXIPROXY_HOST_PORT:-18474}:8474"
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "/toxiproxy-cli", "-h", "127.0.0.1:8474", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    environment:
+      DB_URL: jdbc:mysql://toxiproxy:3306/${MYSQL_DATABASE:-highteenday}
+      REDIS_HOST: toxiproxy
+    depends_on:
+      toxiproxy: { condition: service_healthy }

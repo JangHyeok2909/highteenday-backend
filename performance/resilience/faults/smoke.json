@@ -1,0 +1,16 @@
+{
+  "id": "smoke",
+  "question": "배관 확인용 — 도구가 망가지지 않았는가 (성능·장애 판단에 쓰지 않는다)",
+  "load": { "rate": 2, "preVus": 20, "maxVus": 100 },
+  "phases": { "preSec": 30, "faultSec": 20, "postSec": 30 },
+  "inject": [
+    { "at": "fault.start", "tool": "docker", "action": "pause", "container": "perf-redis" },
+    { "at": "fault.end",   "tool": "docker", "action": "unpause", "container": "perf-redis" }
+  ],
+  "expect": [
+    "k6 가 세 구간(pre/fault/post) 모두에 표본을 남긴다",
+    "events 에 두 주입이 계획 시각 ±2초 안에 기록된다",
+    "세 구간 각각의 infra 수집이 비어 있지 않다"
+  ],
+  "watch": []
+}
