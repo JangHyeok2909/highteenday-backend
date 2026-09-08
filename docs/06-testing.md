@@ -9,48 +9,29 @@
 
 ## 3줄 요약
 
-- 서비스 단위 테스트(Mockito)가 두껍고(전체 약 180개 `@Test` 중 대다수), `@Nested` + 한글 `@DisplayName` + AssertJ가 표준 스타일이다.
-- 대부분 인프라 없이 돌지만 `HighteendayBackendApplicationTests`(@SpringBootTest)는 테스트 프로파일이 없어 실패할 수 있고, CI에는 테스트 단계 자체가 없다 ([KI-12](KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음)).
-- 컨트롤러 HTTP 슬라이스(@WebMvcTest 0건)·보안(spring-security-test 의존성 부재)·통합(@Disabled 1건뿐) 테스트가 공백이다.
+- 테스트 클래스 54개, `@Test`·`@ParameterizedTest` 약 600건. 서비스 단위 테스트(Mockito)가 가장 두껍고(`ChatServiceTest` 114건, `UserServiceTest` 46건 등), `@Nested` + 한글 `@DisplayName` + AssertJ가 표준 스타일이다.
+- 전부 MySQL·Redis 없이 돈다 — `src/test/resources/application-test.properties`(H2 + 인메모리 파일 저장소)가 `@SpringBootTest`·`@DataJpaTest`·웹 슬라이스를 받친다. CI(`ci.yml`, `deploy.yml`의 `test` 잡)가 같은 명령을 병합·배포 게이트로 돌린다.
+- 2026-08-28에 웹 슬라이스·보안 테스트 기반(`support/WebSliceTest`, `spring-security-test`)이 깔렸고, 결함 수정마다 "그 결함의 증상 자체를 잡는" 회귀 테스트를 함께 넣는 것이 관례다 ([KNOWN-ISSUES.md](KNOWN-ISSUES.md)의 "회귀 방지" 줄).
 
 ## 테스트 인벤토리
 
-`src/test/java` 전체 30개 파일 = 테스트 클래스 27개 + 헬퍼 2개(`TestFileStorageConfig`, `LocalFileStorageAdapter`) + `@SpringBootTest` 스모크 1개. `@Test` 수는 `grep -c "@Test"` 기준 대략치다.
+`src/test/java` 전체 58개 파일 = 테스트 클래스 54개 + 지원 코드 4개(`support/WebSliceTest`, `support/WebSliceSecuritySupport`, `support/TestPrincipals`, `configs/TestFileStorageConfig` + `services/global/LocalFileStorageAdapter`). 건수는 `grep -c "@Test"` 기준 대략치다 (2026-09-05).
 
-| 테스트 클래스 (`src/test/java/.../` 이하) | @Test | 유형 | 상태 |
-|---|---|---|---|
-| `services/domain/FriendServiceTest` | 17 | Mockito 단위 | 활성 |
-| `services/domain/NotificationServiceTest` | 16 | Mockito 단위 | 활성 |
-| `services/domain/MediaProcessingServiceTest` | 16 | Mockito 단위 (`FileStoragePort` mock) | 활성 |
-| `services/domain/HotPostServiceTest` | 15 | Mockito 단위 | 활성 |
-| `services/domain/TokenServiceTest` | 15 | Mockito 단위 | 활성 |
-| `services/domain/PostReactionServiceTest` | 8 | Mockito 단위 | 활성 |
-| `services/domain/MediaServiceTest` | 8 | Mockito 단위 | 활성 |
-| `services/domain/CommentAnonymizationServiceTest` | 8 | 순수 JUnit (의존성 없는 서비스 직접 생성) | 활성 |
-| `services/domain/PostServiceTest` | 7 | Mockito 단위 | 활성 |
-| `services/domain/ScrapServiceTest` | 7 | Mockito 단위 | 활성 |
-| `services/domain/CommentReactionServiceTest` | 6 | Mockito 단위 | 활성 |
-| `services/domain/redisService/ViewCountServiceTest` | 6 | Mockito 단위 | 활성 |
-| `services/domain/redisService/RedisPostsCacheTest` | 3 | Mockito 단위 | 활성 |
-| `security/TokenProviderTest` | 6 | Mockito 단위 | 활성 |
-| `controllers/TokenControllerTest` | 5 | Mockito 단위 (컨트롤러 메서드 직접 호출 — HTTP 슬라이스 아님) | 활성 |
-| `schedulers/ViewCountSchedulerTest` | 5 | Mockito 단위 | 활성 |
-| `schedulers/HotScoreSchedulerTest` | 2 | Mockito 단위 | 활성 |
-| `eventEntities/eventListeners/HotPostEventListenerTest` | 4 | Mockito 단위 | 활성 |
-| `eventEntities/eventListeners/NotificationEventListenerTest` | 3 | Mockito 단위 | 활성 |
-| `aop/ResilientRedisAspectTest` | 7 | Aspect 위빙 (SpringExtension + `@EnableAspectJAutoProxy` 최소 컨텍스트) | 활성 |
-| `aop/SchedulerJobAspectTest` | 3 | Aspect 위빙 (동일 방식) | 활성 |
-| `aop/ExecutionLoggingAspectTest` | 4 | 순수 JUnit (JoinPoint를 mock) | 활성 |
-| `domain/friends/FriendRepositoryTest` | 4 | @DataJpaTest (H2, `@Import(QueryDslConfig)`) | 활성 |
-| `controllers/HandlerMethodVisibilityTest` | 1 | 아키텍처 테스트 (클래스패스 스캔) | 활성 |
-| `utils/HotScoreCalculatorTest` | 1 | 순수 JUnit | 활성 (단언 없음 — 아래 ⑤) |
-| `HighteendayBackendApplicationTests` | 1 | @SpringBootTest (contextLoads) | 환경 따라 실패 ([KI-12](KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음)) |
-| `PostMediaFlowTest` | 2 | @SpringBootTest + MockMvc 통합 (실 S3·DB 필요) | **@Disabled** ("run manually") |
+| 영역 | 클래스 (건수) | 유형 |
+|---|---|---|
+| 도메인 서비스 | `services/domain/` 15개 — `ChatServiceTest`(114), `UserServiceTest`(46), `FriendServiceTest`(29), `CommentServiceTest`(21), `MediaProcessingServiceTest`(19), `TokenServiceTest`(19), `PostServiceTest`(18), `NotificationServiceTest`(17), `HotPostServiceTest`(15), `CommentReactionServiceTest`(11), `PostReactionServiceTest`·`ScrapServiceTest`·`MediaServiceTest`(8), `CommentAnonymizationServiceTest`(8, 순수 JUnit), `redisService/RedisPostsCacheTest`·`ViewCountServiceTest`(9) | Mockito 단위 |
+| 그 외 서비스 | `services/TimetableTemplateServiceTest`(27), `services/security/CustomOAuth2UserServiceTest`(8)·`JwtCookieServiceTest`(11), `services/global/AfterCommitExecutorTest`(5) | Mockito 단위 |
+| 보안 | `security/TokenProviderTest`(6), `TokenAuthenticationFilterTest`(10), `WebSocketAuthChannelInterceptorTest`(16), `CsrfOriginValidationFilterTest`(10 — 필터 직접 호출 + `FilterChainProxy` 등록 확인), `AuthorizationMatrixTest`(파라미터화 — 공개 7경로·보호 18경로의 비로그인 응답 표) | 단위 + 웹 슬라이스 |
+| 웹 슬라이스 | `controllers/PostControllerWebSliceTest`(5 — 매핑·`@Valid`·직렬화·비로그인 쓰기 차단), `exceptions/GlobalExceptionHandlerTest`(6 — 응답 본문에 내부 문자열이 없는지) | `@WebMvcTest` (`support/WebSliceTest`) |
+| 구조 규칙 | `controllers/HandlerMethodVisibilityTest`(1), `controllers/RequestBodyValidationTest`(2 — 모든 `@RequestBody`에 `@Valid`), `ci/CiTestGateTest`(4)·`ci/DeploymentHealthCheckTest`(4 — 워크플로 YAML을 파싱해 게이트·헬스체크·롤백 존재를 단언) | 클래스패스·파일 스캔 |
+| JPA 슬라이스 | `domain/friends/FriendRepositoryTest`(8 — soft delete 필터), `FriendReqRepositoryTest`(3), `domain/comments/CommentRepositoryTest`(4 — Hibernate 통계로 실행 문장 수 고정) | `@DataJpaTest` (H2, `@Import(QueryDslConfig, JpaAuditingConfig)`) |
+| AOP·스케줄러·리스너 | `aop/ResilientRedisAspectTest`(9, 위빙 + Logback `ListAppender`), `SchedulerJobAspectTest`(3), `ExecutionLoggingAspectTest`(4), `schedulers/ViewCountSchedulerTest`(6 — `InOrder`로 반영 → 차감 순서), `HotScoreSchedulerTest`(2), `eventEntities/eventListeners/*`(4·3) | 위빙 / Mockito |
+| 인프라·계측 | `infrastructure/redis/RedisHotPostRankingTest`(2 — TTL 호출), `metrics/QueryCountMetricsTest`(7, `@SpringBootTest`), `QueryCountRecorderTest`(6) | 단위 / 통합 |
+| VO·DTO·유틸 | `domain/users/vo/*`(6개 클래스, 23), `dtos/Login/OAuth2UserInfoTest`(8), `utils/HotScoreCalculatorTest`(8), `utils/PageUtilsTest`(9) | 순수 JUnit |
+| 외부 API·초기화 | `api/SchoolMealServiceTest`(3 — 삭제 → 저장 순서), `initializers/SchoolDataProdInitializerTest`(3) | Mockito |
+| 통합 | `HighteendayBackendApplicationTests`(1, `@SpringBootTest` contextLoads — test 프로파일로 통과), `PostMediaFlowTest`(2, 실 S3·DB 필요 — **@Disabled**) | `@SpringBootTest` |
 
-헬퍼 2개는 현재 어떤 테스트도 참조하지 않는다 (전체 grep 0건 — 아래 ⑤):
-
-- `configs/TestFileStorageConfig` — `FileStoragePort`를 로컬 인메모리 구현으로 바꾸는 `@TestConfiguration`
-- `services/global/LocalFileStorageAdapter` — S3 없이 동작하는 `FileStoragePort` 인메모리 구현
+지원 코드의 역할: `TestFileStorageConfig` + `LocalFileStorageAdapter`는 `test` 프로파일에서 S3 어댑터(`@Profile("!test")`) 자리를 인메모리 구현으로 채운다. `WebSliceSecuritySupport`는 `SecurityConfig`가 주입받는 OAuth2 협력자 3개의 목이고, `TestPrincipals`는 `@WithMockUser` 대신 실제 `CustomUserPrincipal`을 심는 헬퍼다.
 
 ## 컨벤션
 
@@ -86,17 +67,17 @@ verify(eventPublisher, never()).publishEvent(any());
 ./gradlew test
 ```
 
-- **인프라 없이 도는 것**: Mockito 단위 전부, aspect 위빙 테스트(최소 Spring 컨텍스트만 생성), `FriendRepositoryTest`(H2 — `build.gradle`의 `testRuntimeOnly 'com.h2database:h2'`), `HandlerMethodVisibilityTest`.
-- **안 도는 것**: `HighteendayBackendApplicationTests`는 전체 컨텍스트를 띄우는데 `src/test/resources`가 없어 테스트 전용 프로파일·설정이 없다. 기본 프로파일 local은 프로퍼티 파일이 저장소에 없으므로 ([KI-02](KNOWN-ISSUES.md#ki-02-기본-프로파일-local의-프로퍼티-파일이-없음)) 개인 `application-local.properties`와 실 DB가 없는 환경에서는 실패한다 ([KI-12](KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음)). `PostMediaFlowTest`는 `@Disabled`라 항상 스킵된다.
-- **CI**: `.github/workflows/deploy.yml`에 테스트 단계가 없고 `Dockerfile`도 `-x test`로 빌드한다 ([KI-12](KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음)). 테스트는 현재 로컬에서만 도는 안전망이다.
+- **인프라 없이 전부 돈다**: `build.gradle · test` 태스크가 `spring.profiles.active=test`와 `spring.flyway.enabled=false`를 넣고, `src/test/resources/application-test.properties`가 H2(MySQL 모드)·인메모리 파일 저장소로 갈아끼운다. 스키마는 Hibernate가 엔티티에서 만든다 — MySQL 문법인 Flyway 마이그레이션은 테스트에서 실행되지 않으므로, 마이그레이션 자체의 검증은 [MIGRATION.md](MIGRATION.md)의 임시 컨테이너 절차로 따로 한다.
+- **CI**: `.github/workflows/ci.yml`이 develop 대상 PR과 develop push에서, `deploy.yml`의 `test` 잡이 main push에서 같은 명령을 돌린다. `build`가 `needs: test`라 테스트가 실패하면 이미지 빌드도 배포도 시작되지 않는다 ([KI-12](KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음) 갱신). `Dockerfile`은 여전히 `-x test`다 — 게이트 잡이 이미 통과한 뒤라 같은 검증을 두 번 하지 않는다.
+- **안 도는 것**: `PostMediaFlowTest`만 `@Disabled`다 (실 S3 필요).
 
 ## 커버리지의 형태
 
-- **두꺼운 곳**: `services/domain/` 단위 테스트 — 반응·친구·알림·미디어·토큰 등 핵심 비즈니스 로직 분기.
-- **공백 1 — 컨트롤러 HTTP 슬라이스**: `@WebMvcTest`가 0건이다. `TokenControllerTest`는 컨트롤러 자바 메서드를 직접 호출하므로 요청 매핑·바인딩·검증·상태코드 변환은 테스트되지 않는다.
-- **공백 2 — 보안**: `build.gradle`에 `spring-security-test` 의존성이 없다. 필터 체인·인가 규칙([KI-04](KNOWN-ISSUES.md#ki-04-get-전체가-permitall인-블랙리스트-인가-구조) 같은 구조)을 검증할 수단이 없는 상태.
-- **공백 3 — 통합**: 유일한 통합 테스트 `PostMediaFlowTest`가 `@Disabled`다. 미사용 헬퍼(`TestFileStorageConfig`/`LocalFileStorageAdapter`)는 이 공백을 메우려던 흔적으로 보이나 연결되지 않았다 `[미확인: 작성 의도는 기록이 없어 추정]`.
-- `build.gradle`의 `it.ozimov:embedded-redis`도 어떤 테스트에서도 import되지 않는다 (CLAUDE.md의 "Embedded Redis 사용" 서술과 불일치 — 아래 ⑤).
+- **두꺼운 곳**: `services/domain/` 단위 테스트 — 반응·친구·알림·미디어·토큰·채팅의 비즈니스 분기. 결함 수정마다 붙은 회귀 테스트는 예외만 보지 않고 **부수 효과가 없었는지**까지 본다 (예: 타인 요청이 403이면서 본문·`isValid`·캐시·댓글 수가 하나도 안 바뀌는지 — `PostServiceTest.Ownership`).
+- **구조를 단언하는 테스트**가 넷 있다. 개별 요청 테스트로는 못 잡는 종류의 결함(제약을 붙여도 무시되는 `@Valid`, private 핸들러, 워크플로에서 빠진 게이트)을 리플렉션·파일 스캔으로 막는다.
+- **공백 1 — 웹 슬라이스 범위**: `@WebMvcTest`는 `PostController`와 예외 핸들러, 인가 매트릭스에만 있다. 나머지 컨트롤러의 매핑·바인딩·상태코드는 테스트되지 않는다.
+- **공백 2 — 통합**: 실 브로커(STOMP)·실 Redis·실 S3를 띄우는 테스트가 없다. Redis 장애 시 `DailyHotPost` fallback이 의도대로 노출되는지도 실측이 없다.
+- **공백 3 — 마이그레이션**: Flyway 스크립트는 테스트 스위트 밖이다 (위 참고).
 
 ## 좋은 사례: HandlerMethodVisibilityTest
 
@@ -111,31 +92,32 @@ verify(eventPublisher, never()).publishEvent(any());
 ## 새 테스트 작성 가이드 (이 코드베이스 관례)
 
 1. 위치·이름: `src/test/java`에서 대상 클래스와 같은 패키지, `{대상}Test`.
-2. 서비스 로직이면 `@ExtendWith(MockitoExtension.class)` + `@Mock` 리포지토리/`@InjectMocks` 서비스. DB를 띄우지 않는다 (리포지토리 쿼리 자체를 검증할 때만 `FriendRepositoryTest`처럼 `@DataJpaTest` + `@Import(QueryDslConfig.class)` + H2 프로퍼티).
+2. 서비스 로직이면 `@ExtendWith(MockitoExtension.class)` + `@Mock` 리포지토리/`@InjectMocks` 서비스. DB를 띄우지 않는다 (리포지토리 쿼리 자체를 검증할 때만 `@DataJpaTest` + `@Import(QueryDslConfig.class, JpaAuditingConfig.class)` — Auditing 설정을 빼먹으면 `created_at` NOT NULL에 걸린다).
 3. 메서드별 `@Nested` 클래스 + 한글 `@DisplayName`("상태 → 결과"), 단언은 AssertJ.
-4. 부작용(이벤트·저장·삭제)은 `verify(...)`로, 일어나면 안 되는 것은 `verify(never())`로 명시한다.
+4. 부작용(이벤트·저장·삭제)은 `verify(...)`로, 일어나면 안 되는 것은 `verify(never())`로 명시한다. 커밋 후 작업(`AfterCommitExecutor`)은 예약된 람다를 일부러 실행하지 않고 "메서드가 끝난 시점까지 아무 일도 없었는지"를 본다.
 5. 외부 인프라(S3·Redis)는 Port를 mock한다 (`MediaProcessingServiceTest`가 `FileStoragePort`를 mock하는 방식).
-6. `@SpringBootTest`는 추가하지 않는 것이 현재로서는 안전하다 — 테스트 프로파일 부재로 CI는 물론 다른 개발자 로컬에서도 재현이 어렵다 ([KI-12](KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음)).
+6. 컨트롤러의 매핑·검증·직렬화·인가는 `@WebSliceTest`(= `@WebMvcTest` + test 프로파일 + `SecurityConfig` import)로 쓴다. 로그인 사용자는 `TestPrincipals`로 심는다 — `@WithMockUser`는 `@AuthenticationPrincipal CustomUserPrincipal`을 null로 만든다.
+7. 결함을 고칠 때는 **그 결함의 증상 자체가 재현되는 테스트**를 먼저 쓴다 — "던지긴 하는데 클라이언트는 여전히 500을 받는" 식으로 타입만 맞는 통과를 피하기 위해 `ErrorCode`와 HTTP 상태까지 단언한다 (`TokenServiceTest.FailureStatus`).
 
 ## 코드 좌표
 
 | 개념 | 위치 |
 |---|---|
 | 컨벤션 예시 (Nested/DisplayName/AssertJ/never) | `src/test/.../services/domain/PostReactionServiceTest.java`, `src/test/.../controllers/TokenControllerTest.java` |
-| 아키텍처 테스트 | `src/test/.../controllers/HandlerMethodVisibilityTest.java · allHandlerMethodsArePublic()` |
+| 아키텍처 테스트 | `src/test/.../controllers/HandlerMethodVisibilityTest.java`, `RequestBodyValidationTest.java`, `src/test/.../ci/` |
+| 웹 슬라이스 기반 | `src/test/.../support/WebSliceTest.java`, `WebSliceSecuritySupport.java`, `TestPrincipals.java` |
 | Aspect 위빙 테스트 | `src/test/.../aop/ResilientRedisAspectTest.java`, `SchedulerJobAspectTest.java` |
-| JPA 슬라이스 테스트 | `src/test/.../domain/friends/FriendRepositoryTest.java` |
+| JPA 슬라이스 테스트 | `src/test/.../domain/friends/FriendRepositoryTest.java`, `domain/comments/CommentRepositoryTest.java` |
 | 비활성 통합 테스트 | `src/test/.../PostMediaFlowTest.java` (@Disabled) |
-| 미사용 헬퍼 | `src/test/.../configs/TestFileStorageConfig.java`, `src/test/.../services/global/LocalFileStorageAdapter.java` |
-| 테스트 의존성 | `build.gradle · dependencies` (spring-boot-starter-test, H2, embedded-redis) |
+| 테스트 프로파일·파일 저장소 대체 | `src/test/resources/application-test.properties`, `src/test/.../configs/TestFileStorageConfig.java` |
+| 테스트 의존성 | `build.gradle · dependencies` (spring-boot-starter-test, spring-security-test, H2) |
 
 ## 알려진 문제·미확인 사항
 
-- [KI-12](KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음) 테스트가 CI에서 실행되지 않음 + @SpringBootTest 컨텍스트 로딩 실패
-- [KI-02](KNOWN-ISSUES.md#ki-02-기본-프로파일-local의-프로퍼티-파일이-없음) local 프로파일 부재 — @SpringBootTest 실패의 원인
-- [KI-50](KNOWN-ISSUES.md) 미사용 테스트 헬퍼 2개(`TestFileStorageConfig`, `LocalFileStorageAdapter`, 참조 0건) + `embedded-redis` 의존성 미사용 — CLAUDE.md "Embedded Redis 사용" 서술과 불일치
-- [KI-51](KNOWN-ISSUES.md) `HotScoreCalculatorTest`에 단언이 없음 (System.out 출력만 — 항상 통과)
-- [KI-52](KNOWN-ISSUES.md) 보안 테스트 불가: `spring-security-test` 의존성 부재, `@WebMvcTest` 0건
-- `[미확인]` 1건: 미사용 헬퍼의 작성 의도
+- [KI-12](KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음) 테스트가 CI에서 실행되지 않음 — 해소
+- [KI-50](KNOWN-ISSUES.md) 미사용 테스트 헬퍼·의존성 — 해소 (헬퍼는 test 프로파일에서 사용, `embedded-redis` 제거)
+- [KI-51](KNOWN-ISSUES.md) `HotScoreCalculatorTest`에 단언이 없음 — 해소
+- [KI-52](KNOWN-ISSUES.md) 보안·웹 슬라이스 테스트 기반 부재 — 해소. 다만 슬라이스가 적용된 컨트롤러는 아직 일부다
+- 통합 테스트 공백(브로커·Redis·S3)은 그대로다
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-09-05

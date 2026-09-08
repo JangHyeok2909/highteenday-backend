@@ -92,6 +92,6 @@ curl -i localhost:18080/api/hotposts/daily
 | Flyway 신규 마이그레이션(V4)으로 정정된 `daily_hot_post` 생성 + 고아 `DailyHotPost` DROP | 근본 해결, 네이밍 컨벤션 일치 | 마이그레이션 스크립트 추가 필요, `ddl/V_daily_hot_post.sql`의 FK 오타(`post`→`posts`)도 함께 수정해야 함 |
 | `ddl/V_daily_hot_post.sql`을 그대로 신규 환경에 적용 | 즉효 | FK 오타부터 먼저 고쳐야 하고, 제약명이 baseline의 고아 테이블과 충돌하므로 baseline의 `DailyHotPost`를 먼저 DROP하거나 제약명을 바꿔야 함(실측 중 실제로 이 충돌을 겪음) |
 
-**성능 테스트 환경 임시 조치**: 이 저장소의 `environment/README.md` "게시판 시드"
-절차 옆에 `daily_hot_post` 테이블을 (FK 대상을 `posts`로 고쳐서, 제약명을 바꿔서)
-직접 생성하는 절차를 추가해야 한다. 근본 수정은 백엔드 코드/마이그레이션 담당자 몫이다.
+**적용한 해결**: 두 번째 후보(Flyway 신규 마이그레이션)를 택해 V6 가 `daily_hot_post` 를
+정식으로 만든다. 성능 환경도 같은 마이그레이션을 타므로 별도 임시 조치는 필요 없어졌다.
+

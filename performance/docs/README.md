@@ -3,7 +3,7 @@
 이 디렉터리는 `performance/` 아래 성능 측정 시스템이 **무엇을 재고, 그 결과를 어디까지
 믿을 수 있으며, 무엇이 아직 틀렸는지**를 기록한 문서 모음이다.
 
-`performance/` 최상위의 [README.md](../README.md) · [MANUAL.md](../MANUAL.md) ·
+`performance/` 최상위의 [README.md](../README.md) 와
 [PERFORMANCE-MANAGEMENT.md](../PERFORMANCE-MANAGEMENT.md) 가 **"어떻게 쓰는가"** 를
 다룬다면, 이곳은 **"왜 그 숫자를 믿어도 되는가"** 를 다룬다.
 
@@ -60,26 +60,19 @@
 | [investigations/perf-host-clock-cycle.md](investigations/perf-host-clock-cycle.md) | **E-50 조사 기록.** 호스트 CPU 의 일중 주기는 실재하지만 앱 측정에는 전달되지 않는다(r=−0.006) | "밤에 재도 되나"를 물을 때 |
 | [investigations/perf-request-cost-skew.md](investigations/perf-request-cost-skew.md) | **E-51 조사 기록.** 반복 세트의 한 회차만 2배 느린 이유(= 커넥션 풀 고갈), 요청 비용 편중이 변동계수에 얼마나 섞이는가 | 반복 세트에 이상 회차가 나올 때, CV·MDE 를 해석할 때 |
 
-### 안내서 — 시스템을 이해하고 실행하기
+### 판정 기준과 결정
 
 | 문서 | 답하는 질문 | 언제 읽나 |
 |---|---|---|
-| [guides/perf-measurement-explained.md](guides/perf-measurement-explained.md) | 이 시스템은 **무엇을 어떻게** 측정하고, 무엇을 못 재는가 | 시스템 전체를 처음 이해할 때, 계측을 확장하기 전 |
-| [guides/perf-beginner-guide.md](guides/perf-beginner-guide.md) | 처음 보는 사람이 환경 구축부터 개선 전후 비교까지 어떻게 하는가 | `performance/` 를 처음 열었을 때 |
-| [guides/perf-environment-essentials.md](guides/perf-environment-essentials.md) | 스택을 어떻게 띄우고 왜 그렇게 구성했는가 | 환경을 직접 실행하거나 설명할 때 |
-| [guides/perf-debug-trace-guide.md](guides/perf-debug-trace-guide.md) | 디버거로 측정 시스템 내부의 값 흐름을 직접 확인하는 방법 | "코드를 읽었다"를 "실제로 이랬다"로 바꿔야 할 때 |
-
-### 계획과 결정
-
-| 문서 | 답하는 질문 | 언제 읽나 |
-|---|---|---|
-| [planning/ROADMAP.md](planning/ROADMAP.md) | 남은 개선 우선순위. **이 작업 전에는 무엇을 믿을 수 없는가** | 다음에 무엇을 할지 고를 때 |
-| [planning/perf-trust-levels.md](planning/perf-trust-levels.md) | 결과를 근거로 개선을 이어가려면 어디까지 고쳐야 하는가 | 측정 신뢰 수준을 판정할 때 |
-| [planning/perf-review-summary.md](planning/perf-review-summary.md) | 현재 결론과 실행 순서 요약 | 전체 상황을 빠르게 파악할 때 |
-| [decisions/go-migration-rationale.md](decisions/go-migration-rationale.md) | **결정 기록.** 측정 도구를 Go 로 옮길 정당한 이유가 있는가(무엇은 이유가 **아닌가**) | Go 이식을 시작·재개하기 전 |
+| [planning/perf-trust-levels.md](planning/perf-trust-levels.md) | 결과를 어디까지 믿을 수 있는가. 신뢰 수준 5단계와 **최소 검출 가능 효과(MDE)** | 개선을 주장하기 전, 변화가 노이즈인지 판정할 때 |
+| [planning/perf-instrumentation-gaps.md](planning/perf-instrumentation-gaps.md) | 이 계측 체계가 **구조적으로 못 재는 것** 12가지 | 없는 지표로 결론을 내려 하고 있을 때 |
 | [decisions/latency-slo-per-endpoint.md](decisions/latency-slo-per-endpoint.md) | **결정 기록.** 전역 p99 30ms 가 왜 도달 불가능한가(로그인 BCrypt 가 만드는 하한), 목표를 엔드포인트 그룹별로 나눈 이유와 그룹별 값 | 지연 목표를 세우거나 인용하기 전, "왜 아직 느린가"를 물을 때 |
-| [design/perf-metrics-catalog-plan.md](design/perf-metrics-catalog-plan.md) | 어떤 Prometheus 지표를 기본·귀속·조건부로 수집할 것인가 | 지표 카탈로그를 확장하기 전 |
-| [design/perf-report-redesign.md](design/perf-report-redesign.md) | 실행 리포트에 아직 남은 과제는 무엇인가 | 리포트를 고치기 전 |
+
+> **2026-09-07 정리.** 안내서 4건(`guides/`)·로드맵·현황 요약·미구현 설계 2건을 이
+> 트리에서 뺐다. 실행 방법은 [../README.md](../README.md), 판정 설계는
+> [../PERFORMANCE-MANAGEMENT.md](../PERFORMANCE-MANAGEMENT.md) 가 이미 단일 출처였고,
+> 안내서는 그것을 다시 서술한 것이었다. 안내서에만 있던 **못 재는 것 12가지**는
+> `planning/perf-instrumentation-gaps.md` 로 옮겨 남겼다.
 
 ---
 
@@ -154,8 +147,6 @@ performance/docs/
   README.md            이 문서 — 색인과 규칙
   findings/            발견 장부: 무엇이 잘못됐는가 (T-## / S-## / E-##)
   investigations/      조사 기록: 한 문제를 끝까지 판 과정, 기각된 가설 포함
-  guides/              안내서: 시스템을 이해하고 실행하는 방법
-  planning/            로드맵, 신뢰 수준 판정, 현황 요약
+  planning/            신뢰 수준 판정(MDE)과 계측의 구조적 공백
   decisions/           결정 기록(ADR): 무엇을 하기로 했고 왜인가
-  design/              설계 문서: 아직 구현되지 않은 확장 계획
 ```

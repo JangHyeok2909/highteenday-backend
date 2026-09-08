@@ -35,3 +35,8 @@ require('./trend-links.test.js');
 require('./stomp.test.js');
 require('./seed-text.test.js');
 require('./preflight.test.js');
+
+// resilience/ — 장애 관측 실험기. 성능 회귀 판정과는 분리돼 있지만 배관(promql·catalog·collect)을
+// 빌려 쓰므로 같은 테스트 진입점에서 함께 돈다.
+require('../../resilience/test/plan.test.js');
+require('../../resilience/test/report.test.js');

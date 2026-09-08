@@ -63,11 +63,12 @@ After가 빨라지는 것은 예상 가능한 결과다. 중요한 것은 절대
 
 이 문서는 결과를 본 뒤 합격 기준을 유리하게 바꾸는 일을 막기 위해 사전 등록 형식을 사용한다. 판정 기준은 6장에 모아 두며, 변경이 필요하면 이유와 시점을 변경 이력에 남긴다.
 
-다만 현재 작업 트리에서 이 실험 디렉터리는 아직 Git에 추적되지 않는다. 따라서 Git 이력만으로는 6장의 기준이 Before 측정 전에 확정됐다는 사실을 독립적으로 증명할 수 없다.
+다만 이 문서와 Before 원자료는 Before 측정이 끝난 뒤에 처음 커밋됐다. 따라서 Git 이력만으로는 6장의 기준이 Before 측정 전에 확정됐다는 사실을 독립적으로 증명할 수 없다.
 
 - 이 문서에는 당시 작성한 기준을 그대로 유지한다.
 - 이 재작성에서는 판정 수치를 변경하지 않는다.
-- After 측정 전에 문서와 Before 원자료를 버전 관리에 남겨야 이후 변경을 감사할 수 있다.
+- After 측정은 이 문서가 버전 관리에 들어간 뒤에 하므로, 그 시점부터는 기준 변경이 이력에 남는다.
+
 
 EXP-000이라는 번호를 사용한 이유도 여기에 있다. 측정 시스템을 믿을 수 없다면 EXP-001의 기준선도 의미가 없으므로, 논리적으로 먼저 검증해야 한다.
 
@@ -95,7 +96,8 @@ EXP-000이라는 번호를 사용한 이유도 여기에 있다. 측정 시스�
 
 **이유**
 
-현재 k6는 CPU 제한이 없는 Windows 프로세스다. 실행 시점의 브라우저, IDE, Claude Code 등 다른 프로세스 상태에 따라 확보하는 CPU가 달라질 수 있다.
+현재 k6는 CPU 제한이 없는 Windows 프로세스다. 실행 시점의 브라우저, IDE 등 다른 프로세스 상태에 따라 확보하는 CPU가 달라질 수 있다.
+
 
 k6를 컨테이너로 옮기고 CPU 상한을 지정하면 이 변동을 제한하고 자원 사용량도 기록할 수 있다.
 
@@ -240,7 +242,8 @@ k6 평균 - 서버 평균
 
 | 항목 | 값 |
 |---|---|
-| 애플리케이션 커밋 | `3c73667244a399613434d5a5ad89144219b4f032` (personal/localdocs) |
+| 애플리케이션 커밋 | `3c73667` |
+
 | 데이터셋 | `large` |
 | 생성 데이터 | `performance/datasets/generated/large/` |
 | CPU | Intel Core i7-13700H, 논리 코어 20개 |
@@ -250,11 +253,12 @@ k6 평균 - 서버 평균
 | OS | Windows 11 + Docker Desktop WSL2 backend |
 | Docker | 29.6.1 |
 | k6 | v2.1.0, windows/amd64 |
-| k6 실행 파일 | `C:\ProgramData\chocolatey\lib\k6\tools\k6-v2.1.0-windows-amd64\k6.exe` |
+| k6 실행 파일 | Windows 네이티브 k6 v2.1.0 (chocolatey 설치본) |
 | 반복 초기 상태 | 앱 재시작 + Redis `FLUSHALL` |
-| 동시 실행 프로그램 | IDE와 Claude Code가 같은 호스트에서 동작 |
+| 동시 실행 프로그램 | IDE 등 개발 도구가 같은 호스트에서 동작 |
 
-IDE와 Claude Code를 함께 실행한 것은 이상적인 격리 조건은 아니다. 하지만 E-01이 다루는 실제 사용 조건이므로 Before와 After에서 동일하게 유지한다.
+개발 도구를 함께 실행한 것은 이상적인 격리 조건은 아니다. 하지만 E-01이 다루는 실제 사용 조건이므로 Before와 After에서 동일하게 유지한다.
+
 
 ---
 
@@ -274,8 +278,9 @@ docker compose \
 ### 5-2. 같은 조건으로 10회 반복
 
 ```bash
-K6_BIN="C:/ProgramData/chocolatey/lib/k6/tools/k6-v2.1.0-windows-amd64/k6.exe" \
+K6_BIN="<k6 v2.1.0 실행 파일 경로>" \
 node tools/repeatability.js scripts/posts.js \
+
   --runs 10 \
   --vus 20 \
   --duration 90s \

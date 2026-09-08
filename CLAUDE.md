@@ -17,7 +17,7 @@ Stack: Java 17 · Spring Boot 3.4.5 · MySQL 8 · Redis · AWS S3 · JWT + OAuth
 # Build (skip tests)
 ./gradlew build -x test
 
-# Run locally — dev profile has localhost defaults built in (see docs/00-quickstart.md)
+# Run locally — dev profile has localhost defaults built in (see README.md)
 ./gradlew bootRun --args='--spring.profiles.active=dev'
 
 # Run tests
@@ -232,7 +232,7 @@ ALB
 
 **Profiles:**
 - `local` — default profile; requires a personal gitignored `application-local.properties` (not in the repo)
-- `dev` — recommended for local development; localhost defaults built in, actuator on port 8081 (`docs/00-quickstart.md`)
+- `dev` — recommended for local development; localhost defaults built in, actuator on port 8081 (`README.md`)
 - `prod` — all credentials from environment variables, actuator on port 8081
 - `perf` — layered on top of prod (`--spring.profiles.active=prod,perf`) for load testing; see `application-perf.properties` comments
 
@@ -268,10 +268,11 @@ work branches off `develop` and merges back into `develop`.
 
 ### Commits
 
-- **Commit messages must be written in English**
-- Follow Conventional Commits format: `type: short description`
+- **Commit subject and body are written in Korean** (rule changed on 2026-09-04; older commits are English and are left as they are)
+- Follow Conventional Commits format: `type: short description` — the type prefix stays in English
   - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`
-  - Example: `feat: add OAuth2 auto-registration for new users`
+  - Example: `feat: OAuth2 신규 사용자 자동 가입 추가`
+
 - Keep subject line under 72 characters
 - Commit description(body) must include:
   - What was changed 

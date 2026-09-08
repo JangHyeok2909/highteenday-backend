@@ -1,6 +1,6 @@
 # ADR-003. 게시글 목록은 커서+오프셋 하이브리드 페이징을 쓴다
 
-상태: 소급 채록 (결정 당시 기록이 아니라 README·코드에서 재구성) — 마지막 검증일: 2026-07-30
+상태: 소급 채록 (결정 당시 기록이 아니라 README·코드에서 재구성) — 마지막 검증일: 2026-09-07
 
 ## 배경
 
@@ -20,7 +20,7 @@ OFFSET 페이징은 뒤 페이지로 갈수록 앞의 모든 행을 스캔 후 �
 - 오프셋 경로: 그 외 전부 — `page * size` offset.
 - 두 경로 모두 복합 인덱스(`idx_posts_brd_valid_id` 등, `domain/posts/Post.java · @Table(indexes)`)를 타도록 (BRD_id, is_valid, 정렬 컬럼) 순서로 설계됐다.
 
-앞쪽 페이지(0~4, 최신순)는 아예 이 쿼리에 오지 않고 Redis 캐시가 처리한다 (`services/domain/PostService.java · getPagedPosts()` — [07-performance.md](../07-performance.md)).
+앞쪽 페이지(0~4, 최신순)는 아예 이 쿼리에 오지 않고 Redis 캐시가 처리한다 (`services/domain/PostService.java · getPagedPosts()`).
 
 ## 결과·트레이드오프
 

@@ -79,8 +79,9 @@ return /[Dd]eadlock/.test(m)
 - **실사용자**: 네트워크가 불안정할 때 좋아요·스크랩이 저절로 취소된다. 재현이 간헐적이라
   버그 리포트가 올라와도 원인을 잡기 어렵다.
 - **데이터셋 생성**: 반응·스크랩 수가 목표에 미달한 채로 "성공"으로 끝날 수 있다.
-- **프로젝트 규칙과의 충돌**: `CLAUDE.md`의 REST 설계 규칙은 `POST`를 "create new resource",
+- **프로젝트 규칙과의 충돌**: 이 저장소의 REST 설계 규칙은 `POST`를 "create new resource",
   `DELETE`를 "remove resource"로 정의한다. 토글은 둘 중 어디에도 해당하지 않는다.
+
 
 ## 해결 방법 후보
 
