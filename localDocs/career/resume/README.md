@@ -1,7 +1,8 @@
 # 이력서·포트폴리오 작업 디렉토리
 
-> 만든 날: 2026-09-04 · 현재 원고 기준: **당근 Feed Infra 백엔드**
-> 원고는 [resume.md](resume.md) 와 [portfolio.md](portfolio.md) **둘뿐이다.**
+> 만든 날: 2026-09-04 · 현재 제출본 기준: **당근 Feed Infra 백엔드 산업기능요원**
+> 기존 범용 원고 [resume.md](resume.md)·[portfolio.md](portfolio.md)는 보존하고, 제출본은
+> [resume-feed-infra.md](resume-feed-infra.md)·[portfolio-feed-infra.md](portfolio-feed-infra.md)에서 관리한다.
 > HTML 과 PDF 는 매번 다시 만든다.
 
 ---
@@ -26,9 +27,12 @@
 |---|---|---|
 | **[resume.md](resume.md)** | **이력서 원고** | 사람 |
 | **[portfolio.md](portfolio.md)** | **포트폴리오 원고** (9개 장) | 사람 |
+| **[resume-feed-infra.md](resume-feed-infra.md)** | **당근 Feed Infra 제출용 이력서** (2쪽) | 사람 |
+| **[portfolio-feed-infra.md](portfolio-feed-infra.md)** | **당근 Feed Infra 제출용 포트폴리오** (7쪽) | 사람 |
 | [GAPS.md](GAPS.md) | **보충이 필요한 것 전부.** 공란·미검증 수치·미구현 소재·형식 문제 | 사람 + AI |
 | [template.html](template.html) | 인쇄용 스타일(A4, 여백, 글꼴, 페이지 나눔, 그림) | 형식을 바꿀 때만 |
 | [build.js](build.js) | 마크다운 → HTML → PDF 변환기 | 거의 안 건드림 |
+| [lint.js](lint.js) | **문체 계측기.** AI 티·개조식 위반을 줄 번호와 함께 센다. `node lint.js resume.md`, `--strict`, `--extract out/x.md`(맹검 심사용 본문 추출). 기준은 `../references/rules-korean-prose.md` | 규칙이 바뀔 때만 |
 | `out/` | 생성물. **직접 고치지 않는다** (다음 빌드에 덮어써진다) | — |
 
 ---
@@ -40,6 +44,13 @@ cd localDocs/career/resume
 node build.js                                  # resume.md → out/resume.pdf
 node build.js resume.md    resume-daangn       # 원본과 출력 이름을 따로 지정
 node build.js portfolio.md portfolio-daangn
+
+# 당근 Feed Infra 산업기능요원 제출본
+$env:CAREER_OUTPUT_DIR="$PWD/output/pdf"
+$env:CAREER_DOC_TITLE='장혁 - 당근 Feed Infra 이력서'
+node build.js resume-feed-infra.md resume-feed-infra
+$env:CAREER_DOC_TITLE='장혁 - 당근 Feed Infra 포트폴리오'
+node build.js portfolio-feed-infra.md portfolio-feed-infra
 ```
 
 의존성이 없다. `npm install` 불필요하고 pandoc·wkhtmltopdf 도 필요 없다.
@@ -49,6 +60,18 @@ Chrome 경로는 `C:\Program Files\Google\Chrome\Application\chrome.exe` 를 기
 다른 곳에 있으면 `CHROME_PATH` 환경변수로 지정한다.
 
 빌드가 끝나면 **덜 채운 자리가 몇 개 남았는지** 콘솔에 나온다. 제출 전에는 0이어야 한다.
+
+### 문체 계측 (2026-09-07 추가)
+
+```bash
+node lint.js resume.md portfolio.md          # 강한 위반 항목과 줄 번호
+node lint.js resume.md --strict              # 위반이 있으면 exit 1
+node lint.js resume.md --extract out/resume-screen.md   # 맹검 심사 에이전트에 넘길 본문만 추출
+```
+
+원고 작업 절차 전체(읽을 규칙, 계측, 빌드, 검토 에이전트 호출 순서)는 `/career-docs` 스킬
+(`.claude/skills/career-docs/SKILL.md`)에 있다. 검토 에이전트 셋은 `.claude/agents/` 의
+`resume-prose-reviewer`(문체) · `resume-structure-auditor`(구조) · `resume-screener`(맹검 심사)다.
 
 ---
 
@@ -105,12 +128,14 @@ PDF 에서 **빨간 점선 상자**로 찍힌다. 일부러 눈에 거슬리게 
 
 ---
 
-## 지금 상태 (2026-09-04)
+## 지금 상태 (2026-09-07)
 
 | 산출물 | 분량 | 덜 채운 자리 |
 |---|---|---|
 | `out/resume-daangn.pdf` | **A4 2쪽** | 12곳 (고유 8종) |
 | `out/portfolio-daangn.pdf` | **A4 12쪽** | 2곳 (이름 · GitHub 주소) |
+| `output/pdf/resume-feed-infra.pdf` | **A4 2쪽** | 0곳 |
+| `output/pdf/portfolio-feed-infra.pdf` | **A4 7쪽** | 0곳 |
 
 둘 다 한글 글꼴(맑은 고딕)이 정상 임베드됐다.
 
@@ -124,6 +149,8 @@ PDF 에서 **빨간 점선 상자**로 찍힌다. 일부러 눈에 거슬리게 
 | 문서 | 무엇이 있나 |
 |---|---|
 | [../daangn-feed-infra.md](../daangn/daangn-feed-infra.md) | 당근 공고 분석과 합격 전략. **이 원고의 구성 근거** |
+| [../daangn/video-interview-guide.md](../daangn/video-interview-guide.md) | **화상 인터뷰 대비서** (A4 45쪽). 이력서 한 줄마다 문답 카드, 예상 질문 통합표, 정직 답변집, 라이브 코딩, CS 기초, 숫자 카드. 빌드: `CAREER_OUTPUT_DIR=../daangn/out node build.js ../daangn/video-interview-guide.md video-interview-guide` |
+| [../references/README.md](../references/README.md) | 해외 모범 사례 레퍼런스 14건과 규칙 문서 2건. **뼈대의 근거.** 원고 대조표는 `rules-resume.md` 12절 · `rules-portfolio.md` 10절 |
 | [../resume-assets.md](../resume-assets.md) | 소재 장부. 각 줄의 원재료와 예상 꼬리질문 |
 | [../toss-sprint-1month.md](../toss-sprint-1month.md) | 구현·제출 일정 |
 | `performance/optimizations/OPT-001·OPT-002` | 이력서에 쓴 개선 수치의 1차 출처 |

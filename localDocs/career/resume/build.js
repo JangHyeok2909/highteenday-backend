@@ -26,7 +26,11 @@ const SRC_ARG = ARGS[0] || 'resume.md';
 const SRC = path.isAbsolute(SRC_ARG) ? SRC_ARG : path.join(ROOT, SRC_ARG);
 const NAME = ARGS[1] || path.basename(SRC, '.md');
 const TPL = path.join(ROOT, 'template.html');
-const OUT_DIR = path.join(ROOT, 'out');
+const OUT_DIR = process.env.CAREER_OUTPUT_DIR
+  ? path.resolve(process.env.CAREER_OUTPUT_DIR)
+  : path.join(ROOT, 'out');
+const DOC_TITLE = process.env.CAREER_DOC_TITLE
+  || (NAME.includes('portfolio') ? '장혁 - 포트폴리오' : '장혁 - 이력서');
 
 const CHROME_CANDIDATES = [
   process.env.CHROME_PATH,
@@ -53,9 +57,22 @@ function inline(text) {
   return s;
 }
 
-function renderTableRow(line, tag) {
+/** 구분줄(`|---:|`)의 콜론 위치로 정렬을 읽는다. 오른쪽 정렬은 r, 가운데는 c 클래스 */
+function tableAligns(sepLine) {
+  return sepLine.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => {
+    const t = c.trim();
+    if (/^:-+:$/.test(t)) return 'c';
+    if (/^-+:$/.test(t)) return 'r';
+    return '';
+  });
+}
+
+function renderTableRow(line, tag, aligns = []) {
   const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|');
-  return '<tr>' + cells.map((c) => `<${tag}>${inline(c.trim())}</${tag}>`).join('') + '</tr>';
+  return '<tr>' + cells.map((c, n) => {
+    const cls = aligns[n] ? ` class="${aligns[n]}"` : '';
+    return `<${tag}${cls}>${inline(c.trim())}</${tag}>`;
+  }).join('') + '</tr>';
 }
 
 function markdownToHtml(md) {
@@ -78,6 +95,12 @@ function markdownToHtml(md) {
     // 빈 줄
     if (!line.trim()) {
       closeLists(0);
+      i += 1;
+      continue;
+    }
+
+    // 원고 주석(`//` 로 시작하는 줄)은 PDF 에 넣지 않는다. 사용자 코멘트와 그 답을 원고 안에 두기 위한 규칙이다.
+    if (/^\s*\/\//.test(line)) {
       i += 1;
       continue;
     }
@@ -109,11 +132,12 @@ function markdownToHtml(md) {
     // 표
     if (/^\s*\|/.test(line) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|/.test(lines[i + 1])) {
       closeLists(0);
-      const head = renderTableRow(line, 'th');
+      const aligns = tableAligns(lines[i + 1]);
+      const head = renderTableRow(line, 'th', aligns);
       const body = [];
       i += 2;
       while (i < lines.length && /^\s*\|/.test(lines[i])) {
-        body.push(renderTableRow(lines[i], 'td'));
+        body.push(renderTableRow(lines[i], 'td', aligns));
         i += 1;
       }
       out.push(`<table><thead>${head}</thead><tbody>${body.join('')}</tbody></table>`);
@@ -171,7 +195,7 @@ function markdownToHtml(md) {
     while (
       i < lines.length &&
       lines[i].trim() &&
-      !/^(#{1,4}\s|>|\s*[-*]\s|---+$|\s*\||\s*<!--|```)/.test(lines[i])
+      !/^(#{1,4}\s|>|\s*[-*]\s|---+$|\s*\||\s*<!--|\s*\/\/|```)/.test(lines[i])
     ) {
       para.push(lines[i]);
       i += 1;
@@ -210,10 +234,17 @@ function main() {
       droppedLines += m.split(/\r?\n/).length - 1;
       return '';
     });
+    // 강제 페이지 나눔은 전체본의 절 배치에 맞춰 넣은 것이다. 절을 뺀 축약본에서는
+    // 빈 여백만 만들어 쪽수를 늘리므로 함께 뺀다.
+    md = md.replace(/```html-raw\n<div class="pagebreak"><\/div>\n```\n/g, '');
   }
 
   const body = markdownToHtml(md);
-  const html = fs.readFileSync(TPL, 'utf8').replace('<!--CONTENT-->', body);
+  const html = fs.readFileSync(TPL, 'utf8')
+    .replace('<title>이력서</title>', `<title>${escapeHtml(DOC_TITLE)}</title>`)
+    // 머리글(@top-right)에 찍히는 문서 이름. CSS 문자열 안에 들어가므로 따옴표만 벗긴다.
+    .replace('__DOC_TITLE__', DOC_TITLE.replace(/["\\]/g, ''))
+    .replace('<!--CONTENT-->', body);
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const htmlPath = path.join(OUT_DIR, `${NAME}.html`);
