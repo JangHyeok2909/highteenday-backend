@@ -76,7 +76,8 @@ graph TD
 | Google OAuth2 | 소셜 로그인 | `services/security/CustomOAuth2UserService`, `security/OAuth2SuccessHandler` |
 | NEIS API | 학교·급식 데이터 수집 | `api/SchoolInfoService`, `api/SchoolMealService` |
 
-장애 시 동작 원칙: Redis는 캐시 레이어이므로 장애 시 DB fallback으로 서비스가 유지되도록 설계되어 있다 (`aop/ResilientRedis` 애노테이션과 `services/domain/redisService/RedisPostsCache`의 fallback 분기). 상세는 crosscutting/redis.md (Phase 2 예정).
+장애 시 동작 원칙: Redis는 캐시 레이어이므로 장애 시 DB fallback으로 서비스가 유지되도록 설계되어 있다 (`aop/ResilientRedis` 애노테이션과 `services/domain/redisService/RedisPostsCache`의 fallback 분기). 상세는 [crosscutting/redis.md](crosscutting/redis.md).
+
 
 ## 코드 좌표
 

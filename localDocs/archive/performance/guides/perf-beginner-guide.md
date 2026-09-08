@@ -243,8 +243,9 @@ arrival-rate 방식이다. 다른 단일 기능 스크립트에 `--rate`를 전�
 모든 명령은 저장소 루트가 아니라 아래 디렉터리에서 실행한다.
 
 ```powershell
-cd C:\Users\user\Desktop\projects\highteen\highteenday-backend\performance
+cd <저장소 루트>\performance
 ```
+
 
 스크립트가 상대 경로로 다른 파일을 참조하기 때문이다.
 

@@ -34,11 +34,13 @@
 3. `saveAndFlush` 후 기본 시간표 템플릿 1개를 자동 생성 (`createDefaultTimetableTemplate()`).
 4. 곧바로 `JwtCookieService.setJwtCookie()`를 호출해 **가입 즉시 로그인 상태**가 된다.
 
-이때 `UserService.register()`가 `HttpServletResponse`를 파라미터로 직접 받아 서비스 레이어에서 쿠키를 굽는다 — 웹 계층 관심사의 레이어 역류다. 상세는 아래 ⑤ 참고.
+쿠키 발급은 컨트롤러가 한다 — `UserService.register()`는 `Authentication`을 돌려주고 `UserController`가 `JwtCookieService`에 넘긴다. 예전에는 서비스가 `HttpServletResponse`를 직접 받아 쿠키를 구웠다 ([KI-32](../KNOWN-ISSUES.md) 갱신 참고).
+
 
 ## 소셜 로그인 (OAuth2)
 
-활성 provider는 **Google뿐**이다 — Kakao/Naver 설정은 `application-dev.properties`·`application-prod.properties`에 주석으로만 존재한다. 진입 URL은 `/oauth2/authorization/google`, 콜백은 `/oauth2/login/code/*`다 (`security/SecurityConfig.java · filterChain()`의 `authorizationEndpoint`/`redirectionEndpoint` 설정, `application.properties`의 `google.redirect-uri={baseUrl}/oauth2/login/code/{registrationId}`와 일치). CLAUDE.md·README가 안내하는 콜백 경로 `/login/oauth2/code/{provider}`는 코드와 다르다 (⑤).
+활성 provider는 **Google뿐**이다 — Kakao/Naver 설정은 `application-dev.properties`·`application-prod.properties`에 주석으로만 존재한다. 진입 URL은 `/oauth2/authorization/google`, 콜백은 `/oauth2/login/code/*`다 (`security/SecurityConfig.java · filterChain()`의 `authorizationEndpoint`/`redirectionEndpoint` 설정, `application.properties`의 `google.redirect-uri={baseUrl}/oauth2/login/code/{registrationId}`와 일치). Spring Security 기본 경로(`/login/oauth2/code/*`)가 아니라는 점에 주의한다.
+
 
 ```mermaid
 sequenceDiagram
@@ -78,7 +80,8 @@ sequenceDiagram
 
 - **신규/기존 분기** — `services/security/CustomOAuth2UserService.java · processOAuthUser()`: `super.loadUser()`로 Google 프로필을 받아 `UserService.existsByEmail()`로 판정한다. 신규면 `UserService.registerOAuthUser()`가 자동 가입시킨다 — 닉네임은 이메일 prefix 최대 12자를 기반으로, 중복 시 숫자 suffix를 붙여 생성하며 기본 시간표 템플릿도 만든다. 판정 결과는 `CustomUserPrincipal`의 `isNewUser` 필드로 전달된다.
 - **리다이렉트** — `security/OAuth2SuccessHandler.java · onAuthenticationSuccess()`: 쿠키 발급 후 `isNewUser`면 `{app.frontend-url}/welcome`, 아니면 `{app.frontend-url}`로 302.
-- **역할** — CLAUDE.md는 "신규 유저 → ROLE_GUEST"라 하나, `domain/users/User · createOAuth()`는 항상 `Role.USER`를 넣고 `security/CustomUserPrincipal`의 3-인자 생성자도 무조건 `Role.USER.getKey()` 권한을 부여한다. 따라서 `TokenProvider.generateRefreshToken()`의 "GUEST면 리프레시 미발급" 분기는 실제로 도달하지 않는다 (⑤).
+- **역할** — `domain/users/User · createOAuth()`는 항상 `Role.USER`를 넣고 `security/CustomUserPrincipal`의 3-인자 생성자도 무조건 `Role.USER.getKey()` 권한을 부여한다. 신규 여부는 역할이 아니라 `isNewUser` 플래그로 전달되므로, `TokenProvider.generateRefreshToken()`의 "GUEST면 리프레시 미발급" 분기는 실제로 도달하지 않는다 (⑤).
+
 
 ## 토큰 저장 위치와 쿠키 스코프
 
@@ -125,12 +128,14 @@ sequenceDiagram
 
 - 검증은 2중이다: JWT 자체 검증(`TokenProvider.getAuthentication()` — 만료/서명 오류 시 `TokenException`으로 401 계열 응답)과 서버측 보유 검증(`TokenService.findByRefreshTokenOrThrow()` — Redis 우선, 장애·미스 시 DB fallback).
 - 회전은 `TokenService.saveOrUpdate()`가 수행한다: 기존 Redis 키 삭제 → `Token` 행의 refresh/access 갱신 → 새 Redis 키 put. 즉 이전 리프레시 토큰은 재사용 불가가 된다.
-- 단, 서버측 검증 실패는 raw `RuntimeException`이라 401이 아닌 500으로 떨어진다 (⑤).
+- 서버측 검증 실패는 `CustomException(TOKEN_EXPIRED | INVALID_TOKEN)`으로 401이 나간다. 만료와 무효를 다른 코드로 둔 이유는 클라이언트가 해야 할 일(조용한 재로그인 vs 저장된 자격증명 삭제)이 다르기 때문이다 ([KI-14](../KNOWN-ISSUES.md#ki-14-tokenservice가-errorcode-없이-raw-runtimeexception을-던짐) 갱신).
+
 
 ## 로그아웃 · 회원 탈퇴
 
 - **로그아웃** — `POST /api/user/logout` (authenticated) → `UserController · logout()`: `TokenService.deleteByUserEmail()`이 Redis `RT:` 키와 DB `Token` 행을 삭제하고, `JwtCookieService.expireAccessCookie()/expireRefreshCookie()`로 두 쿠키를 maxAge 0으로 만료시킨다. 액세스 토큰 자체는 만료 전까지 유효하다(서버측 액세스 토큰 블랙리스트 없음).
-- **탈퇴** — `DELETE /api/user/account` (authenticated) → `UserController · deleteAccount()`: 토큰 삭제 + 쿠키 만료는 로그아웃과 동일하고, 추가로 `UserService.deleteAccount()`가 `userRepository.delete()`로 **물리 삭제를 시도**한다. 게시글·댓글 등 FK 참조가 남아 있으면 `DATA_INTEGRITY_ERROR`로 실패한다 — soft delete 원칙(`domain/base/BaseEntity`)과 어긋나는 지점이다 (⑤).
+- **탈퇴** — `DELETE /api/user/account` (authenticated) → `UserController · deleteAccount()`: 토큰 삭제 + 쿠키 만료는 로그아웃과 동일하고, 추가로 `UserService.deleteAccount()`가 `User.withdraw()`로 **soft delete**한다 — `isValid=false`로 두면서 이메일을 `deleted-{id}@deleted.invalid` 표식값으로 치환해 같은 이메일로 재가입할 수 있게 한다. `findByEmail`·`existsByEmail`은 `isValid = true` 조건을 걸어 탈퇴 계정으로는 로그인·토큰 재발급이 되지 않는다 ([KI-34](../KNOWN-ISSUES.md) 갱신).
+
 
 ## 코드 좌표
 
@@ -150,13 +155,14 @@ sequenceDiagram
 
 ## 알려진 문제·미확인 사항
 
-- [KI-06](../KNOWN-ISSUES.md#ki-06-쿠키-인증--samesitenone--csrf-비활성-조합) 쿠키 인증 + SameSite=None + CSRF 비활성 조합
-- [KI-07](../KNOWN-ISSUES.md#ki-07-tokenauthenticationfilter가-예외를-삼켜-tokenexceptionfilter가-사실상-동작하지-않음) 만료 토큰이 코드별 401 대신 획일적 401로 응답됨
-- [KI-08](../KNOWN-ISSUES.md#ki-08-인증-성공-경로가-요청마다-db를-조회) 인증 성공 경로의 요청당 DB 조회
-- [KI-32](../KNOWN-ISSUES.md) — **회원가입의 레이어 역류**: `UserService.register()`가 `HttpServletResponse`를 받아 서비스 레이어에서 쿠키를 발급한다 (`UserService`가 `JwtCookieService`에 의존). 컨트롤러 없이 재사용·테스트하기 어렵다.
-- [KI-33](../KNOWN-ISSUES.md) — **ROLE_GUEST 분기가 죽은 코드**: `CustomUserPrincipal`의 3-인자 생성자가 사용자 실제 역할을 무시하고 항상 `ROLE_USER`를 부여해, `TokenProvider.generateRefreshToken()`의 GUEST 시 리프레시 미발급 분기와 CLAUDE.md의 "신규 유저 ROLE_GUEST" 서술이 모두 실동작과 다르다. CLAUDE.md의 OAuth 콜백 경로 서술(`/login/oauth2/code/{provider}`)도 코드(`/oauth2/login/code/*`)와 불일치.
-- [KI-34](../KNOWN-ISSUES.md) — **탈퇴가 물리 삭제**: `UserService.deleteAccount()`가 hard delete를 시도해 게시글·댓글이 있는 사용자는 `DATA_INTEGRITY_ERROR`로 탈퇴에 실패한다.
-- [KI-14](../KNOWN-ISSUES.md) — **리프레시 검증 실패가 500**: `TokenService.findByRefreshTokenOrThrow()`가 `CustomException`이 아닌 raw `RuntimeException`을 던져, 위조·폐기된 리프레시 토큰 요청이 `GlobalExceptionHandler`의 `Exception.class` 핸들러로 흘러 401이 아닌 500으로 응답된다.
+- [KI-06](../KNOWN-ISSUES.md#ki-06-쿠키-인증--samesitenone--csrf-비활성-조합) 쿠키 인증 + SameSite=None + CSRF 비활성 조합 — Origin 검증 필터로 최소 방어 (해소, 한계 명시)
+- [KI-07](../KNOWN-ISSUES.md#ki-07-tokenauthenticationfilter가-예외를-삼켜-tokenexceptionfilter가-사실상-동작하지-않음) 만료 토큰이 코드별 401 대신 획일적 401로 응답됨 — 미해결
+- [KI-08](../KNOWN-ISSUES.md#ki-08-인증-성공-경로가-요청마다-db를-조회) 인증 성공 경로의 요청당 DB 조회 — 미해결
+- [KI-32](../KNOWN-ISSUES.md) 회원가입의 레이어 역류 — 해소 (서비스가 `Authentication`을 반환하고 컨트롤러가 쿠키를 발급)
+- [KI-33](../KNOWN-ISSUES.md) **ROLE_GUEST 분기가 죽은 코드** — `CustomUserPrincipal`의 3-인자 생성자가 항상 `ROLE_USER`를 부여해 `TokenProvider.generateRefreshToken()`의 GUEST 분기에 도달하지 않는다. 미해결 (관리자 권한을 붙이려는 순간 함정이 된다)
+- [KI-34](../KNOWN-ISSUES.md) 탈퇴가 물리 삭제 — soft delete + 이메일 무효화로 해소
+- [KI-14](../KNOWN-ISSUES.md) 리프레시 검증 실패가 500 — 해소
 - `[미확인]` Google 콘솔에 등록된 실제 redirect URI가 `/oauth2/login/code/google`과 일치하는지 — 외부 설정이라 저장소만으로 검증 불가.
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-09-05
+

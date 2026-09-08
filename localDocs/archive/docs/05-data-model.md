@@ -12,7 +12,8 @@
 
 - 커뮤니티(게시글·댓글·반응·스크랩), 소셜(친구·채팅·알림), 학교(급식·시간표), 인증(토큰)의 4개 군집이 모두 `users`를 중심으로 연결된다.
 - 대부분의 엔티티는 `BaseEntity`를 상속해 `is_valid` soft delete와 감사 필드를 공유하지만, 상속하지 않는 엔티티도 7개 있다 (아래 표).
-- 스키마는 dev에서 `ddl-auto=update`, prod에서 `ddl-auto=none` + 수동 SQL(`src/main/resources/ddl/`)로 관리되며, Flyway 도입은 미병합 브랜치로만 존재한다.
+- 스키마는 Flyway 마이그레이션(`src/main/resources/db/migration/`, V1 baseline ~ V9)이 소유하고 dev·prod 모두 `ddl-auto=none`이다 ([MIGRATION.md](MIGRATION.md)).
+
 
 ## ERD (주요 엔티티)
 
@@ -63,7 +64,8 @@ erDiagram
 
 ## 명명 규칙 — 실제 코드 기준
 
-CLAUDE.md의 "컬럼은 `{DOMAIN_PREFIX}_{column}` UPPER_SNAKE" 서술은 절반만 맞다. 실제 엔티티를 대조한 결과:
+규약 문서가 요약한 "컬럼은 `{DOMAIN_PREFIX}_{column}`" 규칙을 실제 엔티티와 대조하면 접두어만 대문자다:
+
 
 | 항목 | 실제 규칙 | 근거 예 |
 |---|---|---|
@@ -119,12 +121,12 @@ CLAUDE.md의 "컬럼은 `{DOMAIN_PREFIX}_{column}` UPPER_SNAKE" 서술은 절반
 
 | 환경 | 방식 | 근거 |
 |---|---|---|
-| dev | `spring.jpa.hibernate.ddl-auto=update` — 엔티티 변경이 자동 반영 | `application-dev.properties` |
-| prod | `ddl-auto=none` + 수동 `ALTER TABLE` | `application-prod.properties` |
-| 수동 SQL | `src/main/resources/ddl/V_daily_hot_post.sql`, `V_group_chat.sql` — 애플리케이션이 실행하지 않는 참고용 스크립트 | 해당 파일 |
+| dev · prod | Flyway 마이그레이션이 스키마를 소유, `ddl-auto=none` | `application-dev.properties`, `application-prod.properties`, `src/main/resources/db/migration/` |
+| 테스트 | H2 + Hibernate 자동 생성 (Flyway 비활성) | `build.gradle · test` 태스크, `src/test/resources/application-test.properties` |
+| 수동 SQL | `src/main/resources/ddl/V_daily_hot_post.sql`, `V_group_chat.sql` — Flyway 도입 이전의 기록용 스크립트. 애플리케이션이 실행하지 않는다 | 해당 파일 |
 
-- 수동 SQL과 실제 스키마 사이에 불일치가 있다 (`V_daily_hot_post.sql`의 FK가 존재하지 않는 `post` 테이블을 참조 — [KI-28](KNOWN-ISSUES.md#ki-28-수동-ddl과-실제-스키마의-불일치)).
-- Flyway 마이그레이션 도입 작업은 `feature/flyway-migration` 브랜치로 존재하지만 병합되지 않았다 (`git branch -a` 및 `git branch --no-merged`로 확인, 2026-07-30 기준). 현 시점의 스키마 이력 단일 출처는 없다.
+- 마이그레이션은 V1(baseline)부터 V9까지 있고, 파일 규칙·`baseline-on-migrate` 동작·로컬 검증 절차는 [MIGRATION.md](MIGRATION.md)에 있다. 이미 적용된 파일은 수정하지 않고 새 번호를 추가한다.
+- Flyway 도입 전 수동 SQL과 실제 스키마의 불일치([KI-28](KNOWN-ISSUES.md#ki-28-수동-ddl과-실제-스키마의-불일치))는 V6가 `daily_hot_post`를 정식 생성하면서 대부분 해소됐다. 명명 규칙을 벗어난 컬럼 3개는 V8이 정리했고, `BaseEntity`의 `created_at`/`is_valid`/`UPT_*` 혼재는 데이터셋 스크립트 호환을 위해 의도적으로 남겨 두었다 (V8 주석).
 
 ## 코드 좌표
 
@@ -141,9 +143,11 @@ CLAUDE.md의 "컬럼은 `{DOMAIN_PREFIX}_{column}` UPPER_SNAKE" 서술은 절반
 
 ## 알려진 문제·미확인 사항
 
-- [KI-28](KNOWN-ISSUES.md#ki-28-수동-ddl과-실제-스키마의-불일치) 수동 DDL FK 오타·prod 프로퍼티 주석 불일치
-- [KI-29](KNOWN-ISSUES.md#ki-29-엔티티-명명-규칙-이탈-모음) 명명 규칙 이탈 모음
+- [KI-28](KNOWN-ISSUES.md#ki-28-수동-ddl과-실제-스키마의-불일치) 수동 DDL FK 오타·prod 프로퍼티 주석 불일치 — Flyway 도입으로 대부분 해소
+- [KI-29](KNOWN-ISSUES.md#ki-29-엔티티-명명-규칙-이탈-모음) 명명 규칙 이탈 모음 — `Token`(V5)과 컬럼 3개(V8)는 정리됨, `BaseEntity` 혼재는 의도적 유지
+
 - [KI-26](KNOWN-ISSUES.md#ki-26-스크랩-목록이-전량-로딩과-메모리-페이징으로-동작) soft delete 필터 누락 사례 포함
 - `[미확인]` 1건: 대댓글 깊이 제한의 프론트 처리
 
-마지막 검증일: 2026-07-30 (2026-08-11 코드 변경 반영분은 본문의 갱신 표시 참고)
+마지막 검증일: 2026-09-05
+

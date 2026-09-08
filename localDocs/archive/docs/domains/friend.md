@@ -10,13 +10,15 @@
 
 ## 3줄 요약
 
-- 요청은 `FriendReq`(requester → receiver) 한 행으로 살다가, 수락/거절/차단 어느 응답이든 **행이 삭제**되며 수락 시에만 `Friend` 두 행(양방향)이 생긴다.
+- 요청은 `FriendReq`(requester → receiver) 한 행으로 살다가, 수락/거절/차단 어느 응답이든 **soft delete로 종결**(이력 보존)되며 수락 시에만 `Friend` 두 행(양방향)이 생긴다.
+
 - 친구·차단은 모두 `Friend` 단방향 행의 `FriendStatus`(FRIEND/BLOCKED)로 표현한다. 차단은 내 방향 행만 BLOCKED로 바꾸므로 상대는 차단 사실을 알 수 없다.
 - 요청 발송·수락은 이벤트로 알림을 만들지만(FRIEND_REQUEST/FRIEND_ACCEPT), 거절·차단 이벤트는 발행만 되고 아무도 구독하지 않는다.
 
 ## 상태 머신
 
-`enums/FriendRequestStatus`는 REQUESTED / ACCEPTED / DECLINED / BLOCKED. 단, DB에 저장되는 값은 사실상 REQUESTED뿐이다 — ACCEPTED/DECLINED/BLOCKED는 `RespondFriendRequestDto.status` 문자열로 들어오는 **응답 종류**이며, 어떤 응답이든 처리 후 `FriendReq` 행은 삭제된다 (`services/domain/FriendService · respondToFriendRequest()`).
+`enums/FriendRequestStatus`는 REQUESTED / ACCEPTED / DECLINED / BLOCKED. 단, DB에 저장되는 값은 사실상 REQUESTED뿐이다 — ACCEPTED/DECLINED/BLOCKED는 `RespondFriendRequestDto.status` 문자열로 들어오는 **응답 종류**이며, 어떤 응답이든 처리 후 `FriendReq` 행은 soft delete된다 (`services/domain/FriendService · respondToFriendRequest()`). 응답 값은 응답 전용 enum(`FriendResponse`)으로 먼저 검증해, 허용되지 않는 값이면 `INVALID_REQUEST`(400)로 막고 요청 행은 그대로 둔다 ([KI-42](../KNOWN-ISSUES.md) 갱신).
+
 
 `enums/FriendStatus`는 FRIEND / BLOCKED 두 값이며 `Friend` 행(단방향)의 상태다.
 
@@ -24,16 +26,18 @@
 stateDiagram-v2
     state "FriendReq 요청 행" as REQ {
         [*] --> REQUESTED : sendFriendsRequest
-        REQUESTED --> [*] : ACCEPTED 응답 후 행 삭제
-        REQUESTED --> [*] : DECLINED 응답 후 행 삭제
-        REQUESTED --> [*] : BLOCKED 응답 후 행 삭제
+        REQUESTED --> [*] : ACCEPTED 응답 후 soft delete
+        REQUESTED --> [*] : DECLINED 응답 후 soft delete
+        REQUESTED --> [*] : BLOCKED 응답 후 soft delete
+
     }
     state "Friend 관계 행 단방향" as FR {
         [*] --> FRIEND : 수락 시 양방향 2행 생성
         [*] --> BLOCKED : 차단 응답 또는 blockUser 시 1행 생성
         FRIEND --> BLOCKED : blockUser 가 내 방향 행만 차단
         BLOCKED --> FRIEND : unBlockUser 가 친구였던 관계 복원
-        FRIEND --> [*] : deleteFriends 가 양방향 행 삭제
+        FRIEND --> [*] : deleteFriends 가 양방향 행 soft delete
+
         BLOCKED --> [*] : unBlockUser 가 친구 이력 없으면 행 삭제
     }
 ```
@@ -70,7 +74,8 @@ stateDiagram-v2
 | GET | `/requests/received` | `getReceivedFriendsList()` | DTO의 `id`는 **FriendReq id** (응답 API에 필요) |
 | POST | `/request` | `sendFriendsRequest()` | 수신자 지정 후 자기 자신·차단(양방향)·기존 친구·중복/역방향 요청을 검증 |
 | POST | `/respond` | `respondToFriendRequest()` | status 문자열로 수락/거절/차단 |
-| DELETE | `/delete` | `deleteFriends()` | 양방향 행 물리 삭제 |
+| DELETE | `/delete` | `deleteFriends()` | 양방향 행 soft delete (`Friend::delete`). 조회 쿼리 6개 전부가 `is_valid = true`를 건다 |
+
 | PATCH | `/block` | `blockUser()` | 이메일로 대상 지정 |
 | PATCH | `/unBlock` | `unBlockUser()` | 경로 대소문자 주의 |
 | POST | `/search` | `selectFriend()` | 닉네임 검색, 없으면 빈 리스트 |
@@ -103,13 +108,11 @@ stateDiagram-v2
 
 ## 알려진 문제·미확인 사항
 
-아래는 이번 검증에서 확인한 신규 결함으로, [KI-42](../KNOWN-ISSUES.md)(요청 검증 공백·status 오입력 시 소실), [KI-43](../KNOWN-ISSUES.md)(물리 삭제), [KI-25](../KNOWN-ISSUES.md)(리스너 없는 이벤트)로 등재되어 있다. 마지막 DTO id 항목은 경미하여 미등재.
-
-- ~~`sendFriendsRequest()`가 같은 방향 중복만 막는다~~ → 갱신 (2026-08-11): **해소** — 자기 자신·차단(양방향)·기존 친구·역방향 요청 검증이 추가됐다 ([KI-42](../KNOWN-ISSUES.md) 갱신 참고). 역방향 요청이 있으면 자동 수락하지 않고 "받은 요청에서 처리"를 안내한다.
-- `respondToFriendRequest()`는 status가 세 값 중 무엇과도 일치하지 않으면 아무 분기도 타지 않고 요청만 종결한다 (오타 요청이 거절과 동일하게 동작하되 이벤트도 없음) — 잔존.
-- ~~`Friend`·`FriendReq`는 물리 삭제~~ → 갱신 (2026-08-11): **부분 해소** — `FriendReq`는 `BaseEntity.delete()`(soft delete)로 전환되어 이력이 보존된다. `Friend` 관계 행은 여전히 물리 삭제다 ([KI-43](../KNOWN-ISSUES.md) 갱신 참고).
-- `FriendRequestDeclinedEvent`, `FriendBlockedEvent`는 발행되지만 구독하는 리스너가 없다 — 의도된 확장 지점인지 죽은 코드인지 불명.
-- sent/received 목록 DTO의 `id` 의미가 다르다(상대 user id vs FriendReq id) — API 계약 혼선 소지.
+- [KI-42](../KNOWN-ISSUES.md) 요청 검증 공백 — 2026-08-11에 자기 자신·차단(양방향)·기존 친구·역방향 요청 검증이 추가됐고(역방향 요청이 있으면 자동 수락하지 않고 "받은 요청에서 처리"를 안내), 2026-08-28에 알 수 없는 응답 값을 400으로 막아 해소.
+- [KI-43](../KNOWN-ISSUES.md) 물리 삭제 — `FriendReq`(2026-08-11), `Friend`(2026-08-28) 모두 soft delete로 전환. 핵심은 삭제 쪽이 아니라 조회 쪽이었다 — `FriendRepository`의 네이티브 쿼리에는 `@SQLRestriction`이 적용되지 않으므로 쿼리마다 `is_valid = true`를 직접 넣었다.
+- [KI-25](../KNOWN-ISSUES.md) `FriendRequestDeclinedEvent`, `FriendBlockedEvent`는 발행되지만 구독하는 리스너가 없다 — 의도된 확장 지점인지 죽은 코드인지 불명. 미해결.
+- sent/received 목록 DTO의 `id` 의미가 다르다(상대 user id vs FriendReq id) — API 계약 혼선 소지. 경미하여 미등재.
 - `[미확인]` 차단 시 게시글·댓글 등 커뮤니티 영역에서의 상호 비노출 — 주석의 정책 서술과 달리 Post/Comment 조회 경로에서 차단 필터를 확인하지 못함 (친구·채팅 영역에서만 확인됨).
 
-마지막 검증일: 2026-07-30 (2026-08-11 코드 변경 반영분은 본문의 갱신 표시 참고)
+마지막 검증일: 2026-09-05
+

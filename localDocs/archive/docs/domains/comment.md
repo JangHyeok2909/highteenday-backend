@@ -28,14 +28,17 @@
 
 엔드포인트는 모두 `controllers/CommentController.java` (`/api/posts/{postId}/comments`).
 
-- **작성** (`POST`) — `services/domain/CommentService.java · createComment()`: 엔티티 생성 → `parentId` 연결 → `post.incrementCommentCount()` → 저장 → 이미지가 있으면 확정 처리 → `CommentCreatedEvent` 발행. 커밋 후 이 이벤트를 두 리스너가 받는다 (아래 알림 절과 [reaction-hotpost.md](reaction-hotpost.md)).
-- **수정** (`PATCH /{commentId}`) — `updateComment()`: 내용 교체 + `processUpdateCommentMedia()`로 이미지 교체/제거.
-- **삭제** (`DELETE /{commentId}`) — `deleteComment()`: soft delete + `post.decrementCommentCount()`.
-- 수정/삭제에 소유권 검증이 없는 문제는 [KI-05](../KNOWN-ISSUES.md#ki-05-게시글댓글-수정삭제에-소유권-검증이-없음-idor)만 참고.
+- **작성** (`POST`) — `services/domain/CommentService.java · createComment()`: 엔티티 생성 → `parentId` 연결 → 저장 → 이미지가 있으면 확정 처리 → `CommentCreatedEvent` 발행 → 마지막에 `PostRepository.incrementCommentCount()`로 `commentCount`를 원자 UPDATE한다 (JVM에서 `++`하던 방식은 동시 쓰기에서 증가분이 유실됐다 — [KI-53](../KNOWN-ISSUES.md#ki-53-댓글-수-카운터가-동시-쓰기에서-유실됨)). 커밋 후 이 이벤트를 두 리스너가 받는다 (아래 알림 절과 [reaction-hotpost.md](reaction-hotpost.md)).
+
+- **수정** (`PATCH /{commentId}`) — `updateComment()`: `validateOwnership()`으로 작성자 본인인지 확인한 뒤 내용 교체 + `processUpdateCommentMedia()`로 이미지 교체/제거.
+- **삭제** (`DELETE /{commentId}`) — `deleteComment()`: 소유권 검증 후 soft delete + 원자 UPDATE로 `commentCount` 감소 (`PostRepository.decrementCommentCount`).
+- 소유권 검증은 서비스 계층에 있다 — 타인이 요청하면 `CustomException(NO_ACCESS)` → 403 ([KI-05](../KNOWN-ISSUES.md#ki-05-게시글댓글-수정삭제에-소유권-검증이-없음-idor) 갱신). 게시글 작성자에게도 남의 댓글 삭제 권한은 주지 않는다.
+
 
 ## 목록 조회와 익명 처리
 
-`GET /api/posts/{postId}/comments` → `CommentController · getComments()`: 게시글의 댓글 전체를 `CommentService.getCommentsByPost()`로 읽고, `CommentAnonymizationService.anonymize()`로 익명 라벨을 적용한 뒤, 로그인 사용자면 댓글마다 반응 상태·소유 여부를 채워 반환한다. 이 마지막 단계의 반복 쿼리 구조는 성능 결함이 있다 (⑤ — 본문에서는 정상 동작으로 서술하지 않는다).
+`GET /api/posts/{postId}/comments` → `CommentController · getComments()`: 게시글의 댓글 전체를 `CommentService.getCommentsByPost()`로 읽고(작성자는 `join fetch`로 함께 읽는다), `CommentAnonymizationService.anonymize()`로 익명 라벨을 적용한 뒤, 로그인 사용자면 `CommentReactionService.findMyReactions()`로 내 반응을 댓글 id 목록 한 번에 받아 반응 상태·소유 여부를 채운다. 요청당 쿼리는 댓글 수와 무관하게 4개다 ([KI-27](../KNOWN-ISSUES.md) 해소 기록, [OPT-001](../../performance/optimizations/OPT-001-comment-reaction-batch.md)·[OPT-002](../../performance/optimizations/OPT-002-comment-author-fetch-join.md)).
+
 
 익명 번호 부여 규칙 (`services/domain/CommentAnonymizationService.java · anonymize()`를 그대로 옮김):
 
@@ -56,7 +59,8 @@
 - 상태 전이 규칙도 결과적으로 동일하다(같은 버튼 재클릭=취소, 반대 버튼=전환). 구현은 `cancelLikeInternal()`/`createDislikeInternal()` 등 세분화된 내부 메서드로 나뉘어 있고, 게시글 쪽과 달리 kind·isValid를 확인하고 상태를 바꾼다.
 - 매 변경 후 `syncCounts()`가 count 쿼리로 `Comment`의 카운트 컬럼을 재집계한다.
 - **이벤트를 발행하지 않는다** — 댓글 반응은 핫스코어·알림 어느 쪽에도 연결되지 않는다.
-- 응답은 `getLikeSatateDto()`를 다시 호출해 만들므로 게시글 반응 API와 달리 토글 후 상태가 정확히 반영된다.
+- 응답은 토글 후 상태를 다시 조회해 만들므로 게시글 반응 API([KI-38](../KNOWN-ISSUES.md))와 달리 토글 결과가 정확히 반영된다.
+
 
 ## 알림 이벤트 연결
 
@@ -103,12 +107,14 @@ sequenceDiagram
 
 ## 알려진 문제·미확인 사항
 
-- [KI-05](../KNOWN-ISSUES.md#ki-05-게시글댓글-수정삭제에-소유권-검증이-없음-idor) 댓글 수정/삭제 소유권 검증 부재
-- [KI-27](../KNOWN-ISSUES.md) — **댓글 목록 N+1**: **해소 (2026-09-04).** 예전에는 `CommentController.getComments()` 가 댓글마다 반응 조회 2회를 돌리고 `CommentDto.fromEntity()` 의 `comment.getUser()` 가 작성자마다 LAZY 로딩을 유발해 댓글 n개 조회가 대략 3n+α 쿼리였다. 지금은 반응을 댓글 id 목록으로 한 번에 받고(`CommentReactionService.findMyReactions`), 작성자는 `CommentRepository.findByPost` 의 `join fetch c.user` 로 목록과 함께 읽는다. **요청당 쿼리는 댓글 수와 무관하게 4개다.**
-- [KI-39](../KNOWN-ISSUES.md) — **삭제 댓글이 그대로 노출**: `CommentRepository.findByPost()`에 `isValid` 필터가 없고 DTO 변환도 삭제 여부를 보지 않아, soft delete된 댓글이 내용까지 포함된 채 목록에 반환된다.
-- [KI-40](../KNOWN-ISSUES.md) — **단건 조회의 익명화 미적용**: `CommentController.getCommentByIdTest()`가 `CommentDto.fromEntity()`를 직접 반환해 익명 댓글의 작성자 닉네임과 `userId`가 노출된다 (GET이라 비인증으로도 접근 가능 — [KI-04](../KNOWN-ISSUES.md#ki-04-get-전체가-permitall인-블랙리스트-인가-구조) 참고).
+- [KI-05](../KNOWN-ISSUES.md#ki-05-게시글댓글-수정삭제에-소유권-검증이-없음-idor) 댓글 수정/삭제 소유권 검증 부재 — 해소
+- [KI-27](../KNOWN-ISSUES.md) 댓글 목록 N+1 — **해소 (2026-09-04).** 예전에는 댓글마다 반응 조회 2회와 작성자 LAZY 로딩이 일어나 댓글 n개 조회가 대략 3n+α 쿼리였다. 지금은 요청당 4개로 고정이다. 컨트롤러가 DTO 조립을 품는 레이어 위반은 그대로다.
+- [KI-53](../KNOWN-ISSUES.md#ki-53-댓글-수-카운터가-동시-쓰기에서-유실됨) 댓글 수 카운터 유실 — 원자 UPDATE로 해소
+- [KI-39](../KNOWN-ISSUES.md) — **삭제 댓글이 그대로 노출**: `CommentRepository.findByPost()`는 `isValid=true`를 거르지만 DTO 변환과 단건 경로가 삭제 여부를 따로 보지 않는다. 미해결 여부는 항목 참고.
+- [KI-40](../KNOWN-ISSUES.md) — **단건 조회의 익명화 미적용**: `CommentController.getCommentById()`는 목록과 같은 경로를 타지만, 익명 정책 적용 범위는 항목 참고 (GET이라 비인증으로도 접근 가능).
 - [KI-25](../KNOWN-ISSUES.md) — **이벤트 필드 오입력**: `CommentService.createComment()`가 `parentCommentAuthorId`에 부모 댓글 **작성자 ID가 아니라 부모 댓글의 ID**(`comment.getParent().getId()`)를 넣는다. 현재는 리스너가 이 필드를 쓰지 않아 드러나지 않지만, 대댓글 알림을 구현하는 순간 잘못된 수신자에게 발송된다. 또한 자기 게시글에 단 댓글도 본인에게 알림이 생성된다(sender=receiver 검사 없음).
-- [KI-41](../KNOWN-ISSUES.md) — **이미지 없는 댓글 수정 시 NPE 가능**: `MediaProcessingService.processUpdateCommentMedia()`가 `comment.getS3Url()`이 null인 상태(이미지 없이 작성된 댓글)에서 `deleteUrl.isEmpty()`를 호출해 NPE로 500이 날 수 있다.
+- [KI-41](../KNOWN-ISSUES.md) 이미지 없는 댓글 수정 시 NPE — null 가드로 해소
 - `[미확인]` 대댓글 트리의 프론트엔드 렌더링 규칙(깊이 제한을 UI에서 강제하는지) — 백엔드 저장소만으로는 확인 불가.
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-09-05
+

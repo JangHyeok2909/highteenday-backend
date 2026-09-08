@@ -18,7 +18,8 @@
 
 | 패키지 | 내용 | 새 코드를 둘 때 |
 |---|---|---|
-| `controllers/` | REST 컨트롤러 16개 + `controllers/testing/` (부하테스트 검증용, `@Profile("!prod")`) | 도메인당 1 컨트롤러 원칙 |
+| `controllers/` | REST·STOMP 컨트롤러 21개 + `controllers/testing/` (부하테스트 검증용, `@Profile("!prod")`) | 도메인당 1 컨트롤러 원칙 |
+
 | `services/domain/` | 핵심 비즈니스 서비스 (`PostService`, `ChatService` 등) | **새 서비스는 여기** (아래 함정 F-1 참고) |
 | `services/domain/redisService/` | DB fallback이 필요한 Redis 캐시 서비스 (`RedisPostsCache`, `ViewCountService` 등) | Port로 격리하기 애매한 캐시 로직 |
 | `services/security/` | 인증 관련 서비스 (`CustomOAuth2UserService`, `JwtCookieService` 등) | |
@@ -97,6 +98,7 @@ JPA 엔티티가 아니라 Spring Event 클래스(record)와 리스너다. DB와
 ## 알려진 문제·미확인 사항
 
 - F-8의 미사용 코드들은 삭제 대상 후보다 — 정리 여부는 별도 작업으로 결정한다.
-- 이 문서의 함정 목록은 Phase 1 시점 기준이다. 패키지 정리(리네임) 작업이 이뤄지면 이 문서를 함께 갱신해야 한다.
+- 이 문서의 함정 목록은 2026-07-30 시점 기준이다.
+ 패키지 정리(리네임) 작업이 이뤄지면 이 문서를 함께 갱신해야 한다.
 
 마지막 검증일: 2026-07-30 (2026-08-11 코드 변경 반영분은 본문의 갱신 표시 참고)

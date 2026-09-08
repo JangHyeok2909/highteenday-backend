@@ -33,11 +33,13 @@
 | 항목 | 값 (코드 실측) |
 |---|---|
 | 주기 | `@Scheduled(fixedDelay = 60000)` — 이전 실행 종료 후 60초 |
-| 트랜잭션 | `syncViewsToDB()`에 `@Transactional` — 배치 전체가 한 트랜잭션 |
-| 흐름 | `ViewCountService.drainViewCounts()`로 Redis `post:views:*`를 KEYS+GETDEL 소비 → 게시글별 `applyViewCount()`로 `viewCount` 증가 → 각 게시글의 일별 핫스코어도 재계산 (`HotPostService.updateLeaderboardDayScore`) |
-| 실패 시 | Redis 장애면 AOP 기본값(빈 Map)으로 그 주기 스킵. 게시글 단위 예외는 루프 안 try/catch로 건너뜀. 단 드레인이 선(先)삭제라 DB 반영 실패분은 유실된다 |
+| 트랜잭션 | 스케줄러 메서드에는 없다. 게시글 단위 트랜잭션은 `PostService.applyViewCount()`가 가진다 (별도 빈이라 프록시를 거친다) |
+| 흐름 | `ViewCountService.peekPendingViewCounts()`로 Redis `post:views:*`를 KEYS로 읽기만 → 게시글별 `postService.applyViewCount()`로 `viewCount` 증가 + 일별 핫스코어 재계산 (`HotPostService.updateLeaderboardDayScore`) → 성공한 게시글의 증가분만 `settleViewCounts()`로 차감 |
+| 실패 시 | Redis 장애면 AOP 기본값(빈 Map)으로 그 주기 스킵. 게시글 단위 예외는 루프 안 try/catch로 건너뛰고 그 증가분은 Redis에 남아 다음 주기에 재시도된다. 삭제된 게시글은 반영된 것으로 쳐서 정리한다 |
 
-내부 `applyViewCount()`의 `@Transactional`은 자기호출이라 무효다. 유실·자기호출 상세는 [KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실), KEYS 명령 문제는 [KI-17](../KNOWN-ISSUES.md#ki-17-조회수-드레인이-블로킹-keys-명령-사용).
+
+예전에는 스케줄러가 `this.applyViewCount()`를 직접 불러 그 메서드의 `@Transactional`이 무시됐고, GETDEL로 먼저 지운 뒤 반영해 실패분이 유실됐다. 둘 다 2026-08-28에 고쳤다 ([KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실) 갱신, 회귀 방지 `ViewCountSchedulerTest.DrainOrder`). KEYS 명령 문제는 남아 있다 ([KI-17](../KNOWN-ISSUES.md#ki-17-조회수-드레인이-블로킹-keys-명령-사용)).
+
 
 ### 2. HotScoreScheduler — 핫스코어 top-50 갱신
 
@@ -72,7 +74,8 @@ sequenceDiagram
 
 - **쿼리 횟수**: 갱신 루프 최대 50 SELECT + DB 동기화 루프 최대 100 SELECT(+INSERT) = 회당 최대 약 150 쿼리. 전부 id 단건 조회라 IN 절 배치화 여지가 있다.
 - **조회 경로도 같은 특성이다**: `GET /api/hotposts/daily` → `HotPostService · getLeaderboardDayHotPosts()`가 ZSET 상위 10개 id를 받아 **id당 `findOptionalById` 1 SELECT씩 최대 10 쿼리**를 날리고, 좋아요 10개 미만을 걸러낸다. Redis가 비면 `DailyHotPost` 테이블 fallback을 탄다.
-- 스코어 계산식 자체(`Utils/HotScoreCalculator`)와 이벤트 트리거는 [transactions-events.md](transactions-events.md)·기존 [HOT_POST_SYSTEM.md](../HOT_POST_SYSTEM.md) 참고. README의 "1분/전체 갱신" 서술은 구버전이다 ([KI-11](../KNOWN-ISSUES.md#ki-11-readme의-핫스코어-갱신-주기-서술이-코드와-다름)).
+- 스코어 계산식 자체(`utils/HotScoreCalculator`)와 이벤트 트리거는 [domains/reaction-hotpost.md](../domains/reaction-hotpost.md)·[transactions-events.md](transactions-events.md) 참고.
+
 
 ### 3. TokenCleanupScheduler — 만료 리프레시 토큰 정리
 
@@ -87,10 +90,12 @@ sequenceDiagram
 
 | 항목 | 값 (코드 실측) |
 |---|---|
-| 주기 | `@Scheduled(cron = "0 0 0 1 * ?")` — **매월 1일 00:00** (README의 "매월 말일" 서술과 다름 — [KI-30](../KNOWN-ISSUES.md#ki-30-급식-수집-주기가-readme와-다름)) |
+| 주기 | `@Scheduled(cron = "0 0 0 1 * ?")` — **매월 1일 00:00** |
+
 | 트랜잭션 | 스케줄러 메서드에 `@Transactional` 없음 — 하위 서비스 경계에 위임 |
-| 흐름 | `SchoolMealService.loadAllSchoolMealsForMonth(당월)` → NEIS API 수집 → `importMealsFromJson(당월)` DB 적재 |
-| 실패 시 | rethrow 정책, 재시도 없음 — 실패하면 다음 달 1일까지 해당 월 급식이 비게 된다. 수동 재실행 수단은 코드에 없다 |
+| 흐름 | `SchoolMealService.loadAllSchoolMealsForMonth(당월)` → NEIS API 수집 → `importMealsFromJson(당월)` DB 적재. 새 행을 다 만든 뒤에야 기존 행을 지우고, 만들어진 행이 0건이면 기존 데이터를 건드리지 않는다 ([KI-45](../KNOWN-ISSUES.md) 갱신) |
+| 실패 시 | rethrow 정책, 재시도 없음 — 실패하면 다음 달 1일까지 해당 월 급식이 갱신되지 않는다 (기존 데이터는 남는다). 수동 재실행 수단은 코드에 없다 |
+
 
 ## 코드 좌표
 
@@ -105,12 +110,10 @@ sequenceDiagram
 
 ## 알려진 문제·미확인 사항
 
-- [KI-17](../KNOWN-ISSUES.md#ki-17-조회수-드레인이-블로킹-keys-명령-사용) KEYS 블로킹 명령
-- [KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실) 자기호출 무효 트랜잭션 + 유실 창
-- [KI-20](../KNOWN-ISSUES.md#ki-20-핫랭킹-zset-키에-ttl이-없어-무기한-누적) 날짜별 랭킹 키 누적 — 정리 스케줄러가 없다
-- [KI-30](../KNOWN-ISSUES.md#ki-30-급식-수집-주기가-readme와-다름) 급식 주기 문서 불일치
-- [KI-11](../KNOWN-ISSUES.md#ki-11-readme의-핫스코어-갱신-주기-서술이-코드와-다름) 핫스코어 주기 문서 불일치
-- [KI-44](../KNOWN-ISSUES.md#ki-44-외부-api-resttemplate에-타임아웃이-없음) 스케줄러 스레드 풀 크기 **1** — 장시간 작업이 다른 주기를 밀어낸다
+- [KI-17](../KNOWN-ISSUES.md#ki-17-조회수-드레인이-블로킹-keys-명령-사용) KEYS 블로킹 명령 — 미해결
+- [KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실) 자기호출 무효 트랜잭션 + 유실 창 — 해소
+- [KI-20](../KNOWN-ISSUES.md#ki-20-핫랭킹-zset-키에-ttl이-없어-무기한-누적) 날짜별 랭킹 키 누적 — 정리 스케줄러 대신 키 TTL(2일)로 해소. `DailyHotPost` 테이블의 과거 행 정리는 여전히 없다
+- [KI-44](../KNOWN-ISSUES.md#ki-44-외부-api-resttemplate에-타임아웃이-없음) 스케줄러 스레드 풀 크기 **1** + RestTemplate 타임아웃 없음 — 미해결. 장시간 작업이 다른 주기를 밀어낸다
 
 ### 스레드 풀 크기 — `[미확인]` 해소 (2026-08-18)
 
@@ -140,4 +143,5 @@ NEIS가 무응답이면 그 스레드가 무기한 대기하고 **조회수 동�
 
 조치는 KI-44에 적었다 — 타임아웃 설정과 풀 크기 확대가 **둘 다** 필요하다.
 
-마지막 검증일: 2026-08-18 (최초 작성 2026-07-30)
+마지막 검증일: 2026-09-05 (최초 작성 2026-07-30)
+

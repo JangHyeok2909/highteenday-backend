@@ -12,7 +12,8 @@
 ## 3줄 요약
 
 - 알림 생성은 도메인 서비스가 직접 호출하지 않는다: 도메인 트랜잭션이 커밋된 뒤 `NotificationEventListener`(AFTER_COMMIT)가 받아 `NotificationService`가 새 트랜잭션(REQUIRES_NEW)으로 저장한다.
-- 저장 직후 같은 메서드 안에서 `/user/queue/notifications`(사용자 목적지)로 WebSocket push가 나간다 — 단, 이 push는 REQUIRES_NEW 트랜잭션 커밋 전에 발행된다 (아래 ⑤).
+- 저장 후 `/user/queue/notifications`(사용자 목적지)로 WebSocket push가 나간다. push는 `AfterCommitExecutor`로 REQUIRES_NEW 트랜잭션이 커밋된 뒤에 실행된다 ([KI-24](../KNOWN-ISSUES.md#ki-24-stomp-발행이-트랜잭션-커밋-전에-일어남) 갱신).
+
 - 조회·읽음·삭제는 `NotificationController`가 담당하며, 단건 조작은 `validateOwnership()`이 수신자 본인인지 검증한다.
 
 ## 알림 생성 경로
@@ -31,9 +32,10 @@ sequenceDiagram
     EV->>LSN: 이벤트 전달
     LSN->>NSVC: create...Notification - REQUIRES_NEW 트랜잭션 시작
     NSVC->>DB: Notification INSERT
-    NSVC->>BR: convertAndSendToUser 목적지 /queue/notifications
+    Note over NSVC: REQUIRES_NEW 트랜잭션 커밋
+    NSVC->>BR: afterCommit 에서 convertAndSendToUser 목적지 /queue/notifications
     BR-->>BR: 수신자 세션으로 라우팅 - /user/queue/notifications
-    Note over NSVC: 이후 REQUIRES_NEW 트랜잭션 커밋
+
 ```
 
 ### 이벤트 → 알림 대응 (NotificationEventListener 전수)
@@ -62,7 +64,8 @@ sequenceDiagram
 `NotificationService · saveNotification()`이 두 가지를 연달아 한다.
 
 1. `notificationRepository.save()` — `domain/notification/Notification` 엔티티 저장 (receiver, sender, category, entityType/entityId — 클릭 시 이동할 대상 좌표, message, contentMessage, isRead 기본 false).
-2. `messagingTemplate.convertAndSendToUser(String.valueOf(receiver.getId()), "/queue/notifications", dto)` — 사용자 목적지 push.
+2. DTO를 커밋 전에 만들어 두고, `AfterCommitExecutor.run(...)` 안에서 `messagingTemplate.convertAndSendToUser(String.valueOf(receiver.getId()), "/queue/notifications", dto)` — 커밋 이후 사용자 목적지 push. 롤백되면 push도 나가지 않는다.
+
 
 실제 목적지 문자열: `configs/WebSocketConfig · configureMessageBroker()`가 user prefix를 `/user`로 설정하므로, 클라이언트는 **`/user/queue/notifications`** 를 구독한다. 사용자 식별은 STOMP 세션 principal의 `getName()`이 담당하며, `security/WebSocketUserPrincipal`이 이를 userId 문자열로 맞춰 둔 이유가 이 라우팅이다 (해당 클래스 상단 주석 참고).
 
@@ -94,10 +97,11 @@ sequenceDiagram
 
 ## 알려진 문제·미확인 사항
 
-- **커밋 전 push 발행** — `saveNotification()`의 `convertAndSendToUser()`는 REQUIRES_NEW 트랜잭션이 커밋되기 전에 실행된다. INSERT 이후 커밋이 실패하면 클라이언트는 DB에 존재하지 않는 알림을 이미 받은 상태가 된다. `afterCommit` 동기화로 옮기는 것이 표준 해법 — [KI-24](../KNOWN-ISSUES.md).
-- **자기 게시글에 단 자기 댓글도 알림 생성** — `CommentService · createComment()`와 리스너 어디에도 작성자==게시글 작성자 예외가 없어, 본인 글에 댓글을 달면 본인에게 POST_COMMENT 알림이 간다 — [KI-25](../KNOWN-ISSUES.md).
-- **`CommentCreatedEvent.parentCommentAuthorId`에 부모 댓글의 "작성자 ID"가 아니라 "댓글 ID"가 담긴다** (`CommentService · createComment()`의 `comment.getParent().getId()`). 현재 이 필드를 읽는 곳이 없어 실해는 없지만, COMMENT_REPLY 알림을 구현하는 순간 버그가 된다 — [KI-25](../KNOWN-ISSUES.md).
+- **커밋 전 push 발행** — 2026-08-28에 `AfterCommitExecutor`로 커밋 이후로 옮겨 해소 ([KI-24](../KNOWN-ISSUES.md), 회귀 방지 `NotificationServiceTest.doesNotPushBeforeCommit()`).
+- **자기 게시글에 단 자기 댓글도 알림 생성** — `CommentService · createComment()`와 리스너 어디에도 작성자==게시글 작성자 예외가 없어, 본인 글에 댓글을 달면 본인에게 POST_COMMENT 알림이 간다 — [KI-25](../KNOWN-ISSUES.md). 미해결.
+- **`CommentCreatedEvent.parentCommentAuthorId`에 부모 댓글의 "작성자 ID"가 아니라 "댓글 ID"가 담긴다** (`CommentService · createComment()`의 `comment.getParent().getId()`). 현재 이 필드를 읽는 곳이 없어 실해는 없지만, COMMENT_REPLY 알림을 구현하는 순간 버그가 된다 — [KI-25](../KNOWN-ISSUES.md). 미해결.
 - `COMMENT_REPLY` 등 4개 카테고리는 생성 경로 미구현 상태다 (결함이 아니라 미구현 기능).
 - `[미확인]` push 실패(수신자 미접속) 시 재전송·유실 정책 — 코드상 별도 처리가 없고 SimpleBroker 특성상 미접속자에게는 유실되는 것으로 보이나 실측하지 않음.
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-09-05
+

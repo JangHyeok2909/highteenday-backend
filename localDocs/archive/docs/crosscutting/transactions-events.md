@@ -11,7 +11,8 @@
 
 - 트랜잭션 경계는 서비스 계층의 관례다: 쓰기 메서드에 `@Transactional`, 읽기에 `readOnly = true` (예: `services/domain/ChatService`).
 - 이벤트 7종 중 5종만 리스너가 있고, 리스너는 전부 `AFTER_COMMIT`이라 원본 트랜잭션과 실패가 격리된다 — 기본 구조는 [02-architecture.md](../02-architecture.md#이벤트-기반-부가-작업) 참고.
-- 커밋 전에 외부 세계(S3, Redis 캐시, STOMP)를 바꾸는 코드가 여러 곳 있어, 롤백 시 DB와 외부 상태가 어긋난다 ([KI-21](../KNOWN-ISSUES.md#ki-21-s3-원격-호출이-트랜잭션-내부에서-실행됨)~[KI-24](../KNOWN-ISSUES.md#ki-24-stomp-발행이-트랜잭션-커밋-전에-일어남)).
+- 커밋 전에 외부 세계를 바꾸던 코드 중 Redis 캐시 갱신과 STOMP 발행은 `services/global/AfterCommitExecutor`로 커밋 이후로 옮겼다 ([KI-22](../KNOWN-ISSUES.md#ki-22-게시글-생성-시-커밋-전에-redis-캐시를-갱신)·[KI-24](../KNOWN-ISSUES.md#ki-24-stomp-발행이-트랜잭션-커밋-전에-일어남) 해소). S3 호출이 트랜잭션 안에 있는 문제([KI-21](../KNOWN-ISSUES.md#ki-21-s3-원격-호출이-트랜잭션-내부에서-실행됨))는 남아 있다.
+
 
 ## @Transactional 관례
 
@@ -19,9 +20,12 @@
 |---|---|---|
 | 위치 | 서비스 계층 public 메서드. 컨트롤러·리포지토리에는 걸지 않는다 | `services/domain/` 전반 |
 | 읽기 | `@Transactional(readOnly = true)` | `ChatService · getChatRoomList()`, `NotificationService · getNotifications()` |
-| import | `org.springframework.transaction.annotation.Transactional`이 표준. 예외적으로 `TokenService`만 `jakarta.transaction.Transactional`을 쓴다 (`readOnly` 옵션 사용 불가 — [KI-14](../KNOWN-ISSUES.md#ki-14-tokenservice가-errorcode-없이-raw-runtimeexception을-던짐)에 부기) | `services/domain/TokenService.java` import 절 |
+| import | `org.springframework.transaction.annotation.Transactional`이 표준. `TokenService`는 [KI-14](../KNOWN-ISSUES.md#ki-14-tokenservice가-errorcode-없이-raw-runtimeexception을-던짐) 갱신 때 교체됐지만, `CommentReactionService`·`FriendService`·`PostReactionService`는 아직 `jakarta.transaction.Transactional`을 쓴다 (`readOnly` 옵션 불가, 체크 예외 롤백 규칙이 다름) | 각 파일 import 절 |
+
 | 리스너 쓰기 | AFTER_COMMIT 리스너가 부르는 쓰기 메서드는 `REQUIRES_NEW` | `NotificationService · createCommentNotification()` 등 3개 |
-| 자기호출 금지 | 같은 클래스 내부 호출은 프록시를 우회해 애노테이션이 무시된다. 위반 사례 존재 ([KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실)) | `schedulers/ViewCountScheduler · applyViewCount()` |
+| 자기호출 금지 | 같은 클래스 내부 호출은 프록시를 우회해 애노테이션이 무시된다. `ViewCountScheduler`가 그 위반 사례였고, 게시글 단위 트랜잭션을 `PostService.applyViewCount()`로 옮겨 해소했다 ([KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실)) | `services/domain/PostService · applyViewCount()` |
+| 커밋 후 작업 | 캐시 갱신·STOMP 발행처럼 "실패해도 다음 조회가 복구하는" 작업은 `AfterCommitExecutor.run(...)`으로 `afterCommit`에 미룬다. 트랜잭션 밖이면 즉시 실행한다. 페이로드 DTO는 커밋 전에 만든다 (커밋 후에는 영속성 컨텍스트가 닫혀 지연 로딩이 깨진다) | `services/global/AfterCommitExecutor` |
+
 
 ## 이벤트 전수표 (7종)
 
@@ -51,17 +55,16 @@
 
 ## 커밋 전에 외부 세계를 바꾸는 코드들
 
-이벤트로 분리된 부가 작업과 달리, 아래는 **트랜잭션 안에서 직접** 외부 상태를 바꾼다. 롤백이 나면 DB만 되돌아가고 외부는 남는다. 각각의 상세·영향은 KI 참조 — 본문에서는 위치만 짚는다.
+이벤트로 분리된 부가 작업과 달리, 아래는 **트랜잭션 안에서 직접** 외부 상태를 바꾼다. 롤백이 나면 DB만 되돌아가고 외부는 남는다.
 
-| 위치 | 트랜잭션 안에서 하는 외부 작업 | KI |
+| 위치 | 트랜잭션 안에서 하는 외부 작업 | 상태 |
 |---|---|---|
-| `services/domain/MediaProcessingService · processCreatePostMedia()` 등 전 메서드 | S3 복사·삭제 (`FileStoragePort` 호출) — DB 커넥션을 문 채 네트워크 I/O | [KI-21](../KNOWN-ISSUES.md#ki-21-s3-원격-호출이-트랜잭션-내부에서-실행됨) |
-| `services/domain/PostService · createPost()` | Redis 게시글 캐시 evict·적재·카운트 증가 | [KI-22](../KNOWN-ISSUES.md#ki-22-게시글-생성-시-커밋-전에-redis-캐시를-갱신) |
-| `services/domain/ChatService · markAsRead()` + `writeSystemMessage()` / `publishMemberEvent()`를 부르는 초대·강퇴·퇴장·이름변경 메서드들 | STOMP 브로드캐스트 | [KI-24](../KNOWN-ISSUES.md#ki-24-stomp-발행이-트랜잭션-커밋-전에-일어남) |
-| `services/domain/NotificationService · saveNotification()` | STOMP 개인 전송 (REQUIRES_NEW 트랜잭션 안, 커밋 전) | [KI-24](../KNOWN-ISSUES.md#ki-24-stomp-발행이-트랜잭션-커밋-전에-일어남) |
-| `schedulers/ViewCountScheduler · syncViewsToDB()` | Redis 카운터를 먼저 삭제(GETDEL)한 뒤 DB 반영 | [KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실) |
+| `services/domain/MediaProcessingService · processCreatePostMedia()` 등 전 메서드 | S3 복사·삭제 (`FileStoragePort` 호출) — DB 커넥션을 문 채 네트워크 I/O | **미해결** — [KI-21](../KNOWN-ISSUES.md#ki-21-s3-원격-호출이-트랜잭션-내부에서-실행됨) |
+| `services/domain/PostService · createPost() / deletePost()` | Redis 게시글 캐시 evict·적재·카운트 증감 | 해소 — `AfterCommitExecutor`로 커밋 후 실행 ([KI-22](../KNOWN-ISSUES.md#ki-22-게시글-생성-시-커밋-전에-redis-캐시를-갱신)) |
+| `services/domain/ChatService · markAsRead() / writeSystemMessage() / publishMemberEvent()`, `NotificationService · saveNotification()` | STOMP 브로드캐스트·개인 전송 | 해소 — 같은 장치 ([KI-24](../KNOWN-ISSUES.md#ki-24-stomp-발행이-트랜잭션-커밋-전에-일어남)) |
+| `schedulers/ViewCountScheduler · syncViewsToDB()` | Redis 카운터를 먼저 삭제한 뒤 DB 반영 | 해소 — 읽기 → 반영 → 반영분 차감 순서로 변경 ([KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실)) |
 
-채팅의 커밋 전 발행은 기존 문서도 스스로 인지하고 있다 — [GROUP_CHAT.md](../GROUP_CHAT.md) 8절 "알려진 한계: 트랜잭션 커밋 전에 WebSocket 메시지가 나갑니다".
+`@TransactionalEventListener(AFTER_COMMIT)` 대신 `AfterCommitExecutor`를 쓴 이유: 캐시 갱신 하나를 위해 이벤트 타입·리스너·발행 지점 세 개를 만들어야 하고 실행 지점이 코드에서 멀어진다. 이 프로젝트에는 리스너 없는 이벤트가 방치된 전례가 있다 ([KI-25](../KNOWN-ISSUES.md#ki-25-리스너-없는-이벤트와-이벤트-페이로드-오류)). 회귀 방지: `AfterCommitExecutorTest`(5건), `PostServiceTest.CacheAfterCommit`, `ChatServiceTest.MarkAsRead.doesNotPublishBeforeCommit()`, `NotificationServiceTest.doesNotPushBeforeCommit()` — 예약된 작업을 일부러 실행하지 않고 커밋 전에 아무 일도 없었는지 본다.
 
 ## 코드 좌표
 
@@ -72,15 +75,16 @@
 | REQUIRES_NEW 알림 생성 | `services/domain/NotificationService · createCommentNotification() / createFriendRequestNotification() / createFriendAcceptNotification()` |
 | 발행처 | `services/domain/CommentService · createComment()`, `PostReactionService · createReaction()`, `ScrapService · toggleScrap()`, `FriendService · sendFriendsRequest() / respondToFriendRequest()` |
 | 읽기 전용 관례 예 | `services/domain/ChatService`, `NotificationService`의 `readOnly = true` 메서드들 |
-| jakarta import 예외 | `services/domain/TokenService.java` |
+| 커밋 후 실행 장치 | `services/global/AfterCommitExecutor.java` |
+| jakarta import 잔존 | `services/domain/CommentReactionService.java`, `FriendService.java`, `PostReactionService.java` |
+
 
 ## 알려진 문제·미확인 사항
 
-- [KI-21](../KNOWN-ISSUES.md#ki-21-s3-원격-호출이-트랜잭션-내부에서-실행됨) 트랜잭션 내 S3 호출
-- [KI-22](../KNOWN-ISSUES.md#ki-22-게시글-생성-시-커밋-전에-redis-캐시를-갱신) 커밋 전 캐시 갱신
-- [KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실) 스케줄러 자기호출 + 드레인 유실
-- [KI-24](../KNOWN-ISSUES.md#ki-24-stomp-발행이-트랜잭션-커밋-전에-일어남) 커밋 전 STOMP 발행
-- [KI-25](../KNOWN-ISSUES.md#ki-25-리스너-없는-이벤트와-이벤트-페이로드-오류) 리스너 없는 이벤트 2종, `parentCommentAuthorId` 오값, 본인 게시글 댓글 시 자기 알림
+- [KI-21](../KNOWN-ISSUES.md#ki-21-s3-원격-호출이-트랜잭션-내부에서-실행됨) 트랜잭션 내 S3 호출 — 미해결
+- [KI-22](../KNOWN-ISSUES.md#ki-22-게시글-생성-시-커밋-전에-redis-캐시를-갱신) 커밋 전 캐시 갱신, [KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실) 스케줄러 자기호출 + 드레인 유실, [KI-24](../KNOWN-ISSUES.md#ki-24-stomp-발행이-트랜잭션-커밋-전에-일어남) 커밋 전 STOMP 발행 — 해소
+- [KI-25](../KNOWN-ISSUES.md#ki-25-리스너-없는-이벤트와-이벤트-페이로드-오류) 리스너 없는 이벤트 2종, `parentCommentAuthorId` 오값, 본인 게시글 댓글 시 자기 알림 — 미해결
 - `[미확인]` 리스너 예외 발생 시 로깅 형태 — Spring 기본 `ApplicationEventMulticaster` 경로를 실측하지 않음
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-09-05
+

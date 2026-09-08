@@ -11,7 +11,8 @@
 
 - JWT는 HS512 서명, 액세스 30분·리프레시 7일이며 리프레시는 사용자당 1행(`Token` 엔티티) + Redis 캐시(`RT:` 키)로 서버 측 폐기가 가능하다.
 - 쿠키는 항상 HttpOnly이고, `Secure`/`SameSite`/`Domain`은 프로파일 프로퍼티로 갈린다 (prod만 `Secure; SameSite=None; Domain=.highteenday.org`).
-- 인가는 명시된 GET 경로만 인증을 요구하는 블랙리스트 구조라서 ([KI-04](../KNOWN-ISSUES.md#ki-04-get-전체가-permitall인-블랙리스트-인가-구조)), 친구 목록 등 일부 GET이 의도와 달리 공개 상태다 — 아래 전수표 참고.
+- 인가는 화이트리스트다 — 비로그인 열람을 의도한 GET 9개 패턴과 로그인·가입·토큰 재발급 POST만 공개이고 나머지는 전부 인증을 요구한다 (2026-08-28 전환, [KI-04](../KNOWN-ISSUES.md#ki-04-get-전체가-permitall인-블랙리스트-인가-구조)). 아래 전수표 참고.
+
 
 인증 필터 체인이 요청을 처리하는 순서(인증 vs 인가, 예외 3갈래)는 [04-request-flow.md](../04-request-flow.md)가 단일 출처다. 이 문서는 그 위에서 토큰·쿠키·인가 규칙의 세부만 다룬다.
 
@@ -25,7 +26,8 @@
 | 액세스 토큰 만료 | 30분 (`ACCESS_TOKEN_EXPIRE_TIME = 1000*60*30`) | `TokenProvider` 상수 |
 | 리프레시 토큰 만료 | 7일 (`REFRESH_TOKEN_EXPIRE_TIME`) | `TokenProvider` 상수 |
 | 클레임 | `sub`(이메일), `role`, `name`, `provider`, `iat`, `exp` | `TokenProvider · generateToken()` |
-| ROLE_GUEST | 리프레시 토큰을 발급하지 않는다 (null 반환) | `TokenProvider · generateRefreshToken()` |
+| ROLE_GUEST | 리프레시 토큰을 발급하지 않는다 (null 반환) — 단 GUEST를 부여하는 경로가 없어 도달하지 않는 분기다 ([KI-33](../KNOWN-ISSUES.md)) | `TokenProvider · generateRefreshToken()` |
+
 | 서버 측 저장 | 사용자당 1행 `Token` 엔티티(`TNK_refresh`/`TNK_access`, 만료 `TNK_expires_at`) + Redis `RT:{refreshToken}` 캐시 | `services/domain/TokenService · saveOrUpdate()` |
 
 액세스·리프레시 토큰의 클레임 구성은 동일하고 만료만 다르다 — 리프레시 토큰만의 식별 클레임은 없다.
@@ -77,56 +79,56 @@ sequenceDiagram
 ```
 
 - 회전형이다: 갱신 때마다 리프레시 토큰 자체가 교체되고, 구 토큰의 Redis 키는 삭제, DB 행은 새 값으로 갱신된다 (`TokenService · saveOrUpdate()`).
-- 쿠키가 없으면 401, 검증 실패는 `TokenException`/`RuntimeException`으로 전파된다. 이 경로의 예외가 ErrorCode 없는 raw `RuntimeException`이라는 문제는 [KI-14](../KNOWN-ISSUES.md#ki-14-tokenservice가-errorcode-없이-raw-runtimeexception을-던짐) 참고.
+- 쿠키가 없으면 401. 서명·만료 실패는 `TokenException`, 서버측 보유 검증 실패는 `CustomException(TOKEN_EXPIRED | INVALID_TOKEN)`으로 401이 나간다 (예전에는 raw `RuntimeException`이라 500이었다 — [KI-14](../KNOWN-ISSUES.md#ki-14-tokenservice가-errorcode-없이-raw-runtimeexception을-던짐) 갱신 참고).
+
 - 로그아웃·탈퇴 시 `TokenService · deleteByUserEmail()`이 DB 행과 Redis 키를 함께 지운다.
 
 ## 엔드포인트 × 인가 규칙 전수표
 
-`security/SecurityConfig.java · filterChain()`의 규칙(위에서 아래로 첫 매칭)과 `controllers/` 전 파일의 매핑을 대조했다. "근거"는 매칭되는 SecurityConfig 규칙이다.
+`security/SecurityConfig.java · filterChain()`의 규칙(위에서 아래로 첫 매칭)과 `controllers/` 전 파일의 매핑을 대조했다. "근거"는 매칭되는 SecurityConfig 규칙이다. 2026-08-28에 블랙리스트(`GET /**` permitAll)에서 화이트리스트로 뒤집었고, 전환 전후로 공개 여부가 바뀐 엔드포인트는 없다. 공개 7경로·보호 18경로의 비로그인 응답은 `security/AuthorizationMatrixTest`가 표로 고정한다.
 
 | 경로 | 메서드 | 인가 상태 | 근거 |
 |---|---|---|---|
 | `/ws/**` | 핸드셰이크 | 공개 (이후 STOMP 검문은 [04](../04-request-flow.md)) | `/ws/**` permitAll |
-| `/api/boards` | GET | 공개 | `GET /**` permitAll |
-| `/api/boards/{boardId}/posts` | GET | 공개 | `GET /**` permitAll |
-| `/api/posts/{postId}`, `/api/posts/search` | GET | 공개 | `GET /**` permitAll |
+| `/actuator/**`, `/error`, `/oauth2/**`, `OPTIONS /**` | — | 공개 (관측·프리플라이트·OAuth2 플로우) | 명시 permitAll |
+| `/api/boards` | GET | 공개 | 공개 GET 목록 |
+| `/api/boards/{boardId}/posts` | GET | 공개 | 공개 GET 목록 |
+| `/api/posts/{postId}`, `/api/posts/search` | GET | 공개 | 공개 GET 목록 |
 | `/api/posts` | POST | 인증 | anyRequest |
-| `/api/posts/{postId}` | PATCH, DELETE | 인증 (소유권 검증은 없음 — [KI-05](../KNOWN-ISSUES.md#ki-05-게시글댓글-수정삭제에-소유권-검증이-없음-idor)) | anyRequest |
+| `/api/posts/{postId}` | PATCH, DELETE | 인증 + 작성자 본인 검증 (`PostService.validateOwnership()`, [KI-05](../KNOWN-ISSUES.md#ki-05-게시글댓글-수정삭제에-소유권-검증이-없음-idor) 갱신) | anyRequest |
 | `/api/posts/{postId}/reaction` | POST | 인증 | anyRequest |
 | `/api/posts/{postId}/scraps` | POST | 인증 | anyRequest |
-| `/api/posts/{postId}/comments`, `.../comments/{commentId}` | GET | 공개 | `GET /**` permitAll |
+| `/api/posts/{postId}/comments`, `.../comments/{commentId}` | GET | 공개 | 공개 GET 목록 |
 | `/api/posts/{postId}/comments` | POST | 인증 | anyRequest |
-| `/api/posts/{postId}/comments/{commentId}` | PATCH, DELETE | 인증 (소유권 검증 없음 — KI-05) | anyRequest |
-| `/api/posts/{postId}/consistency` | GET | 공개 · 단 `@Profile("!prod")`라 운영엔 없음 | `GET /**` permitAll |
+| `/api/posts/{postId}/comments/{commentId}` | PATCH, DELETE | 인증 + 작성자 본인 검증 (KI-05 갱신) | anyRequest |
+| `/api/posts/{postId}/consistency` | GET | 인증 · `@Profile("!prod")`라 운영엔 없음 | anyRequest |
 | `/api/comments/{commentId}/reaction` | POST | 인증 | anyRequest |
-| `/api/hotposts/daily` | GET | 공개 | `GET /**` permitAll |
-| `/api/friends/list`, `/api/friends/requests/sent`, `/api/friends/requests/received` | GET | **공개 — 의도와 다를 가능성 높음.** 비인증 호출 시 principal null로 500 | `GET /**` permitAll ([KI-04](../KNOWN-ISSUES.md#ki-04-get-전체가-permitall인-블랙리스트-인가-구조)) |
+| `/api/hotposts/daily` | GET | 공개 | 공개 GET 목록 (`/api/hotposts/**`) |
+| `/api/friends/list`, `/api/friends/requests/sent`, `/api/friends/requests/received` | GET | 인증 (전환 전에는 `GET /**` permitAll에 걸려 비인증 호출 시 NPE 500이 났다) | anyRequest |
 | `/api/friends/search`, `/request`, `/respond` | POST | 인증 | anyRequest |
 | `/api/friends/delete` | DELETE | 인증 | anyRequest |
 | `/api/friends/block`, `/unBlock` | PATCH | 인증 | anyRequest |
-| `/api/chat/**` (rooms, messages, read-status, members) | GET | 인증 | `GET /api/chat/**` authenticated |
-| `/api/chat/**` | POST, PATCH, DELETE | 인증 | anyRequest |
-| `/api/notifications/**` | GET | 인증 | `GET /api/notifications/**` authenticated |
-| `/api/notifications/**` | PATCH, DELETE | 인증 | anyRequest |
-| `/api/mypage/posts`, `/comments`, `/scraps` | GET | 인증 | `GET /api/mypage/**` authenticated |
+| `/api/chat/**` (rooms, messages, read-status, members) | GET, POST, PATCH, DELETE | 인증 | anyRequest |
+| `/api/notifications/**` | GET, PATCH, DELETE | 인증 | anyRequest |
+| `/api/mypage/posts`, `/comments`, `/scraps` | GET | 인증 | anyRequest |
 | `/api/media` | POST | 인증 | anyRequest |
 | `/api/media/profile-image` | PATCH | 인증 | anyRequest |
-| `/api/schools/search` | GET | 공개 (`/api/schools/meals/**`에 불포함) | `GET /**` permitAll |
-| `/api/schools/meals/today`, `/date`, `/month` | GET | 인증 | `GET /api/schools/meals/**` authenticated |
-| `/api/timetableTemplates/**` (템플릿·과목·시간표 전 GET) | GET | 인증 | `GET /api/timetableTemplates/**` authenticated |
-| `/api/timetableTemplates/**` | POST, PATCH, DELETE | 인증 | anyRequest |
-| `/api/user/check/nickname`, `/email`, `/phone` | GET | 공개 | `GET /api/user/check/**` permitAll (인증 규칙보다 먼저 선언) |
-| `/api/user/OAuth2UserInfo`, `/api/user/userInfo` | GET | 인증 | `GET /api/user/**` authenticated |
+| `/api/schools/search` | GET | 공개 (가입 절차에서 필요) | 공개 GET 목록 |
+| `/api/schools/meals/today`, `/date`, `/month` | GET | 인증 | anyRequest |
+| `/api/timetableTemplates/**` (템플릿·과목·시간표) | GET, POST, PATCH, DELETE | 인증 | anyRequest |
+| `/api/user/check/nickname`, `/email`, `/phone` | GET | 공개 | 공개 GET 목록 (`/api/user/check/**`) |
+| `/api/user/OAuth2UserInfo`, `/api/user/userInfo` | GET | 인증 | anyRequest |
 | `/api/user/register`, `/api/user/login` | POST | 공개 | 명시 permitAll |
-| `/api/user/logout` | POST | 인증 | 명시 authenticated |
-| `/api/user/account` | DELETE | 인증 | 명시 authenticated |
+| `/api/user/logout` | POST | 인증 | anyRequest |
+| `/api/user/account` | DELETE | 인증 | anyRequest |
 | `/api/user/password/verify` | POST | 인증 | anyRequest |
 | `/api/user/password`, `/nickname`, `/school`, `/phone` | PATCH | 인증 | anyRequest |
 | `/api/token/refresh` | POST | 공개 (토큰 자체가 자격) | 명시 permitAll |
-| `/error` | POST | 공개 | 명시 permitAll |
-| `/oauth2/authorization/*`, `/oauth2/login/code/*` | GET | 공개 (OAuth2 로그인 플로우) | `oauth2Login` 설정 + `GET /**` |
+| `/oauth2/authorization/*`, `/oauth2/login/code/*` | GET | 공개 (OAuth2 로그인 플로우) | `/oauth2/**` permitAll |
 
-새 GET 엔드포인트를 추가하면 **기본값이 "공개"** 라는 점이 이 표의 핵심 함정이다 (KI-04).
+새 엔드포인트는 GET이든 아니든 **기본값이 "차단"** 이다. 공개해야 하면 SecurityConfig의 목록에 명시적으로 추가해야 하고, 목록에 없는 GET을 비로그인으로 호출하면 401이 난다 — `AuthorizationMatrixTest.unlistedGetPathDefaultsToDenied()`가 이 성질을 고정한다.
+
+쓰기 요청은 인가와 별도로 `security/CsrfOriginValidationFilter`가 `Origin`(없으면 `Referer`)을 CORS 허용 목록과 대조한다 ([KI-06](../KNOWN-ISSUES.md#ki-06-쿠키-인증--samesitenone--csrf-비활성-조합) 갱신). 두 헤더가 모두 없는 서버 간 호출·curl은 통과시킨다.
 
 ## Swagger — 전 프로파일 개방
 
@@ -146,13 +148,14 @@ sequenceDiagram
 
 ## 알려진 문제·미확인 사항
 
-- [KI-03](../KNOWN-ISSUES.md#ki-03-실제-neis-api-키가-소스-주석에-커밋되어-있음) 소스 주석의 실 API 키
-- [KI-04](../KNOWN-ISSUES.md#ki-04-get-전체가-permitall인-블랙리스트-인가-구조) 블랙리스트 인가 — 위 표의 공개 GET들이 그 결과다
-- [KI-05](../KNOWN-ISSUES.md#ki-05-게시글댓글-수정삭제에-소유권-검증이-없음-idor) 수정·삭제 IDOR
-- [KI-06](../KNOWN-ISSUES.md#ki-06-쿠키-인증--samesitenone--csrf-비활성-조합) CSRF 비활성 조합
-- [KI-07](../KNOWN-ISSUES.md#ki-07-tokenauthenticationfilter가-예외를-삼켜-tokenexceptionfilter가-사실상-동작하지-않음) / [KI-08](../KNOWN-ISSUES.md#ki-08-인증-성공-경로가-요청마다-db를-조회) 필터 체인 동작
-- [KI-14](../KNOWN-ISSUES.md#ki-14-tokenservice가-errorcode-없이-raw-runtimeexception을-던짐) 갱신 실패 응답이 500으로 나가는 문제
-- 사소한 잔재: SecurityConfig 명시 규칙의 `/api/user/loginUser`는 컨트롤러에 실제 매핑이 없다 (상위 `/api/user/**` 규칙에 포섭되므로 동작 영향 없음)
+- [KI-03](../KNOWN-ISSUES.md#ki-03-실제-neis-api-키가-소스-주석에-커밋되어-있음) 소스 주석에 있던 실 API 키 — 주석은 삭제됐고 git 히스토리에만 남아 있어 키 재발급이 필요하다
+- [KI-04](../KNOWN-ISSUES.md#ki-04-get-전체가-permitall인-블랙리스트-인가-구조) 블랙리스트 인가 — 화이트리스트로 전환돼 해소 (위 표가 그 결과다)
+- [KI-05](../KNOWN-ISSUES.md#ki-05-게시글댓글-수정삭제에-소유권-검증이-없음-idor) 수정·삭제 IDOR — 서비스 계층 소유권 검증으로 해소
+- [KI-06](../KNOWN-ISSUES.md#ki-06-쿠키-인증--samesitenone--csrf-비활성-조합) CSRF 비활성 조합 — Origin 검증 필터로 최소 방어 적용 (토큰 방식보다 약하다는 한계 명시)
+- [KI-07](../KNOWN-ISSUES.md#ki-07-tokenauthenticationfilter가-예외를-삼켜-tokenexceptionfilter가-사실상-동작하지-않음) / [KI-08](../KNOWN-ISSUES.md#ki-08-인증-성공-경로가-요청마다-db를-조회) 필터 체인 동작 — 미해결
+- [KI-14](../KNOWN-ISSUES.md#ki-14-tokenservice가-errorcode-없이-raw-runtimeexception을-던짐) 갱신 실패가 500으로 나가던 문제 — 해소
+- 사소한 잔재: SecurityConfig 명시 규칙의 `/api/user/loginUser`는 컨트롤러에 실제 매핑이 없다 (동작 영향 없음)
 - `[미확인]` 리프레시/액세스 토큰이 클레임으로 구분되지 않는 것이 의도인지 — 액세스 토큰을 refresh 쿠키에 넣어도 서명·만료 검증은 통과하고 DB 대조 단계에서만 걸러진다
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-09-05
+

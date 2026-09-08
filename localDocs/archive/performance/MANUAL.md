@@ -38,8 +38,9 @@ node tools/perf-run.js <스크립트>
 참조하므로 다른 위치에서 실행하면 파일을 찾지 못한다.
 
 ```powershell
-cd C:\Users\user\Desktop\projects\highteen\highteenday-backend\performance
+cd <저장소 루트>\performance
 ```
+
 
 ---
 
@@ -1102,5 +1103,6 @@ node tools/sanitize-reports.js <dir> [--dry-run | --verify]
 | [`reports/README.md`](reports/README.md) | 산출물 구조와 보고서 섹션 |
 | [`tools/README.md`](tools/README.md) | 도구별 책임과 외부 도구 카탈로그 |
 | [`experiments/README.md`](experiments/README.md) | 실험 대장 (EXP-001~005)과 실험 규칙 |
-| [`bottlenecks/README.md`](bottlenecks/README.md) | 병목 카탈로그 (BTL-001~012) |
+| [`bottlenecks/README.md`](bottlenecks/README.md) | 병목 카탈로그 (BTL-001~014) |
+
 | [`optimizations/README.md`](optimizations/README.md) | 개선 기록 규칙 (Before/After 필수) |

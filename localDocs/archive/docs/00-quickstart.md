@@ -37,27 +37,13 @@ MySQL(3306) · Redis(6379) · 앱(8080)이 함께 뜬다. `.env`가 없어도 `d
 
 ## 1. 인프라 기동 (Redis, MySQL)
 
-Redis — compose 파일의 redis 서비스만 단독 기동한다:
+compose 파일의 두 서비스만 단독 기동한다:
 
 ```bash
-docker compose up -d redis
+docker compose up -d mysql redis
 ```
 
-MySQL — 로컬 설치본을 쓰거나 컨테이너로 직접 띄운다:
-
-```bash
-docker run -d --name highteenday-mysql -p 3306:3306 \
-  -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=highteenday_db \
-  mysql:8
-```
-
-dev 프로파일의 datasource 기본값은 `jdbc:mysql://localhost:3306/highteenday_db`, 사용자 `root`, 비밀번호 빈 문자열이다 (`application-dev.properties`). 위처럼 비밀번호를 설정했다면 환경변수로 덮어쓴다(아래 2단계).
-
-MySQL — compose 파일의 mysql 서비스만 단독 기동해도 되고, 로컬 설치본을 써도 된다:
-
-```bash
-docker compose up -d mysql
-```
+로컬에 설치된 MySQL을 써도 된다. dev 프로파일의 datasource 기본값은 `jdbc:mysql://localhost:3306/highteenday_db`, 사용자 `root`, 비밀번호 빈 문자열이다 (`application-dev.properties`). 비밀번호가 다르면 환경변수로 덮어쓴다(아래 2단계).
 
 ## 2. 환경변수 설정
 
@@ -123,7 +109,8 @@ prod가 아닌 프로파일에서는 `initializers/AppStartupRunner.java · onAp
 ./gradlew test
 ```
 
-주의: 단위 테스트 대부분은 Mockito 기반이라 인프라 없이 돌지만, `HighteendayBackendApplicationTests`(@SpringBootTest)는 테스트 전용 프로파일이 없어 환경에 따라 실패한다 ([KI-12](KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음)). 테스트는 H2로 돌므로 MySQL 문법인 Flyway 마이그레이션은 테스트에서 비활성화되어 있다 (`build.gradle · test` 태스크). 테스트 구조와 실행 전략은 [06-testing.md](06-testing.md)에서 다룬다.
+`src/test/resources/application-test.properties`(H2)가 있어 `@SpringBootTest`를 포함한 전체 테스트가 MySQL·Redis 없이 돈다. Flyway 마이그레이션은 MySQL 문법이라 테스트에서는 비활성화되어 있다 (`build.gradle · test` 태스크). CI(`.github/workflows/ci.yml`, `deploy.yml`의 `test` 잡)도 같은 명령을 게이트로 돌린다. 테스트 구조와 작성 관례는 [06-testing.md](06-testing.md)에서 다룬다.
+
 
 ## 코드 좌표
 
@@ -138,9 +125,8 @@ prod가 아닌 프로파일에서는 `initializers/AppStartupRunner.java · onAp
 
 ## 알려진 문제·미확인 사항
 
-- [KI-01](KNOWN-ISSUES.md#ki-01-docker-composeyml이-실행-불가) docker compose 전체 기동 불가
-- [KI-02](KNOWN-ISSUES.md#ki-02-기본-프로파일-local의-프로퍼티-파일이-없음) local 프로파일 파일 부재
-- [KI-09](KNOWN-ISSUES.md#ki-09-readme-실행-가이드가-현재-코드와-불일치) README 실행 가이드의 프로퍼티 키가 코드와 불일치 — 이 문서가 현행 기준이다
+- compose 전체 기동 불가([KI-01](KNOWN-ISSUES.md#ki-01-docker-composeyml이-실행-불가))와 local 프로퍼티 파일 부재([KI-02](KNOWN-ISSUES.md#ki-02-기본-프로파일-local의-프로퍼티-파일이-없음))는 2026-08-28에 해소됐다 — 이 문서의 절차가 그 결과다.
 - `[미확인]` 항목 2건: NEIS 무효 키 시 부팅 동작, 시드 재실행 멱등성
 
-마지막 검증일: 2026-08-11
+마지막 검증일: 2026-09-05
+

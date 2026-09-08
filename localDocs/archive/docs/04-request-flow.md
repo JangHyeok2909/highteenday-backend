@@ -45,7 +45,8 @@ sequenceDiagram
 1. **필터 등록 순서** — `security/SecurityConfig.java · filterChain()`의 `addFilterBefore` 두 줄이 순서를 만든다: `TokenExceptionFilter` → `TokenAuthenticationFilter` → (Spring 기본) `ExceptionTranslationFilter` → 인가 필터 → 서블릿.
 2. **인증** — `security/TokenAuthenticationFilter.java · doFilterInternal()`이 쿠키 배열에서 `accessToken`을 찾아 `TokenProvider.getAuthentication()`을 호출한다. 이 메서드는 JWT 서명·만료를 검증한 뒤 `userRepository.findByEmail()`로 사용자를 DB에서 조회해 `CustomUserPrincipal`을 만든다 — 즉 인증 성공 경로는 매 요청 DB를 1회 조회한다 ([KI-08](KNOWN-ISSUES.md#ki-08-인증-성공-경로가-요청마다-db를-조회)).
 3. **인증 실패의 실제 동작** — 만료·위조 토큰이면 `TokenException`이 던져지지만 같은 메서드의 `catch (RuntimeException)`이 잡아 경고 로그만 남기고 통과시킨다. 따라서 앞단 `TokenExceptionFilter`(에러코드별 401 응답 담당, `security/TokenExceptionFilter.java`)는 실제로는 발동 기회가 없고, 클라이언트는 항상 인가 단계의 획일적 401을 받는다 ([KI-07](KNOWN-ISSUES.md#ki-07-tokenauthenticationfilter가-예외를-삼켜-tokenexceptionfilter가-사실상-동작하지-않음)).
-4. **인가** — `SecurityConfig.filterChain()`의 `authorizeHttpRequests` 규칙이 위에서 아래로 첫 매칭으로 판정된다. 현재 구조는 명시된 GET 경로만 `authenticated()`이고 나머지 GET 전부가 `permitAll()`인 블랙리스트 방식이다 ([KI-04](KNOWN-ISSUES.md#ki-04-get-전체가-permitall인-블랙리스트-인가-구조)). 비인증 상태로 보호 경로에 접근하면 `authenticationEntryPoint`가 `401 {"error": "Unauthorize request"}`를 내려준다.
+4. **인가** — `SecurityConfig.filterChain()`의 `authorizeHttpRequests` 규칙이 위에서 아래로 첫 매칭으로 판정된다. 현재 구조는 화이트리스트다 — 공개 GET 9개 패턴(게시판·글 목록·글 상세·검색·댓글·인기글·학교 검색·중복 확인)과 로그인·가입·토큰 재발급 POST만 `permitAll()`이고, 나머지는 전부 `anyRequest().authenticated()`로 떨어진다 (2026-08-28 전환, [KI-04](KNOWN-ISSUES.md#ki-04-get-전체가-permitall인-블랙리스트-인가-구조) 갱신 참고).
+ 비인증 상태로 보호 경로에 접근하면 `authenticationEntryPoint`가 `401 {"error": "Unauthorize request"}`를 내려준다.
 5. **컨트롤러 → 서비스** — 핸들러는 `@AuthenticationPrincipal CustomUserPrincipal`로 사용자에 접근하고, 비즈니스 로직과 트랜잭션은 서비스가 담당한다 (`@Transactional`). 컨트롤러 핸들러 메서드는 반드시 public이어야 한다 — private이면 CGLIB 프록시 문제로 주입 필드가 null이 되어 500이 난다. 이 규칙은 `src/test/.../controllers/HandlerMethodVisibilityTest`가 아키텍처 테스트로 강제한다.
 6. **Swagger·actuator 예외 경로** — `/swagger-ui/**`, `/actuator/health` 등은 `SecurityConfig.securityCustomizer()`의 `web.ignoring()`으로 시큐리티 필터 체인 자체를 타지 않는다.
 
@@ -57,7 +58,8 @@ sequenceDiagram
 | 인가 실패 (비인증 접근) | `SecurityConfig`의 `authenticationEntryPoint` | `401 {"error": "Unauthorize request"}` |
 | 필터 단계의 `TokenException` | `TokenExceptionFilter` (설계상) | `{"error": ...}` — 단 KI-07로 현재 도달 경로 없음 |
 
-응답 스키마가 통일되어 있지 않다는 점은 프론트엔드 에러 처리 시 주의해야 한다. 상세 규칙과 ErrorCode 목록은 crosscutting/error-handling.md (Phase 2 예정).
+응답 스키마가 통일되어 있지 않다는 점은 프론트엔드 에러 처리 시 주의해야 한다. 상세 규칙과 ErrorCode 목록은 [crosscutting/error-handling.md](crosscutting/error-handling.md).
+
 
 ### 구체 예시: GET /api/posts/{postId}
 
@@ -119,9 +121,11 @@ sequenceDiagram
 
 ## 알려진 문제·미확인 사항
 
-- [KI-04](KNOWN-ISSUES.md#ki-04-get-전체가-permitall인-블랙리스트-인가-구조) 블랙리스트 인가 구조
+- [KI-04](KNOWN-ISSUES.md#ki-04-get-전체가-permitall인-블랙리스트-인가-구조) 블랙리스트 인가 구조 — 2026-08-28 화이트리스트로 전환돼 해소. 전환 전후 인가 매트릭스는 `security/AuthorizationMatrixTest`가 고정한다
+
 - [KI-07](KNOWN-ISSUES.md#ki-07-tokenauthenticationfilter가-예외를-삼켜-tokenexceptionfilter가-사실상-동작하지-않음) 필터 예외 삼킴으로 세분화된 401 코드가 무력화
 - [KI-08](KNOWN-ISSUES.md#ki-08-인증-성공-경로가-요청마다-db를-조회) 인증 경로의 요청당 DB 조회
 - `[미확인]` 핸드셰이크 거부 시 클라이언트가 받는 정확한 HTTP 상태 코드 — 프론트 주석은 "빈 200"이라 기록하나 서버 측에서 실측하지 않음
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-09-05
+

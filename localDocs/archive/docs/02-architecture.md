@@ -28,7 +28,8 @@ graph TD
 
 | 레이어 | 패키지 | 책임 | 규칙 |
 |---|---|---|---|
-| Web | `controllers/` | 요청 파싱, 응답 조립, 서비스 위임 | 비즈니스 로직 금지 (일부 위반 존재 — Phase 3에서 도메인별로 명시) |
+| Web | `controllers/` | 요청 파싱, 응답 조립, 서비스 위임 | 비즈니스 로직 금지 (위반 사례는 도메인 문서와 KNOWN-ISSUES에 좌표로 명시 — 예: `CommentController`의 DTO 조립, [KI-27](KNOWN-ISSUES.md)) |
+
 | Service | `services/domain/`, `services/security/`, `services/global/` | 비즈니스 로직, `@Transactional` 경계 | 엔티티를 DTO로 변환해 반환하는 것이 원칙 |
 | Domain | `domain/` | 엔티티, 리포지토리, 값 객체(VO), Port 인터페이스 | 엔티티는 setter 없이 도메인 메서드로 상태 변경 (`domain/posts/Post`의 `editTitle` 등) |
 | Infrastructure | `infrastructure/redis/`, `services/global/S3FileStorageAdapter` | Port 구현체 | 도메인은 이 패키지를 직접 참조하지 않음 |
@@ -69,14 +70,17 @@ graph LR
 
 ## 스케줄러 (요약)
 
-상세는 crosscutting/schedulers.md (Phase 2 예정).
+상세는 [crosscutting/schedulers.md](crosscutting/schedulers.md).
+
 
 | 스케줄러 | 주기 | 하는 일 |
 |---|---|---|
 | `schedulers/ViewCountScheduler` | 60초 | Redis에 버퍼링된 조회수를 DB에 일괄 반영 |
-| `schedulers/HotScoreScheduler` | 5분 | 리더보드 상위 게시글의 핫스코어 재계산·DB 동기화 ([KI-11](KNOWN-ISSUES.md#ki-11-readme의-핫스코어-갱신-주기-서술이-코드와-다름): README의 "1분/전체" 서술은 구버전) |
+| `schedulers/HotScoreScheduler` | 5분 | 리더보드 상위 50개의 핫스코어 재계산·DB 동기화 |
+
 | `schedulers/TokenCleanupScheduler` | 매일 03:00 (`cron = "0 0 3 * * *"`) | 만료 리프레시 토큰 정리 |
-| `schedulers/SchoolMealScheduler` | 매월 1일 00:00 (`cron = "0 0 0 1 * ?"`) | 급식 데이터 NEIS 수집. README의 "매월 말일 수집" 서술과 다름 |
+| `schedulers/SchoolMealScheduler` | 매월 1일 00:00 (`cron = "0 0 0 1 * ?"`) | 급식 데이터 NEIS 수집 |
+
 
 ## 배포 토폴로지
 
@@ -92,18 +96,21 @@ graph TD
     ECR -- pull --> EC2
 ```
 
-- CI/CD: `main` push → GitHub Actions가 Docker 이미지를 빌드해 ECR에 push → SSH로 EC2에서 pull 후 `docker-compose.prod.yml`로 재기동 (`.github/workflows/deploy.yml`). AWS 자격증명은 정적 키 없이 OIDC(`role-to-assume`)와 EC2 Instance Profile을 쓴다.
+- CI/CD: `main` push → `test` 잡(`./gradlew test`) → `build` 잡(Docker 이미지 빌드 → ECR push) → `deploy` 잡(SSH로 EC2에서 pull 후 `docker-compose.prod.yml`로 재기동, `/actuator/health`가 UP이 될 때까지 기다리고 실패하면 직전 이미지로 되돌린다) (`.github/workflows/deploy.yml`). develop 대상 PR과 push에서는 `ci.yml`이 같은 테스트를 돌린다. AWS 자격증명은 정적 키 없이 OIDC(`role-to-assume`)와 EC2 Instance Profile을 쓴다.
+
 - 컨테이너: 멀티스테이지 빌드 + JRE 런타임 + non-root 사용자 (`Dockerfile`).
 - prod 컨테이너는 `network_mode: host`로 EC2 호스트의 Redis에 localhost로 접근한다 (`docker-compose.prod.yml` 주석). MySQL의 위치는 `[미확인: prod compose 주석은 RDS를 언급하지만 실제 DB_URL은 배포 시크릿이라 저장소에서 확정 불가]`.
-- 이 파이프라인에는 테스트 실행 단계가 없다 ([KI-12](KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음)).
+
 
 ## 프로파일
 
 | 프로파일 | 용도 | 특징 |
 |---|---|---|
-| local | 개발자 개인 환경 (기본값) | 프로퍼티 파일이 저장소에 없음 ([KI-02](KNOWN-ISSUES.md#ki-02-기본-프로파일-local의-프로퍼티-파일이-없음)) |
-| dev | 개발 서버·로컬 실행 실질 표준 | `ddl-auto=update`, 기본값 포함 (`application-dev.properties`) |
-| prod | 운영 | 전부 환경변수 주입, `ddl-auto=none`, actuator는 health만 노출 (`application-prod.properties`) |
+| local | 개발자 개인 환경 (기본값) | 개인 파일은 gitignore 대상 — `application-local.properties.example`을 복사해 만든다 |
+| dev | 개발 서버·로컬 실행 실질 표준 | `ddl-auto=none`(스키마는 Flyway), 로컬용 기본값 내장 (`application-dev.properties`) |
+| prod | 운영 | 전부 환경변수 주입, `ddl-auto=none`, actuator는 관리 포트 8081로 분리 (`application-prod.properties`) |
+| perf | 부하 테스트 | 단독이 아니라 `prod,perf`로 겹쳐 쓴다 ([operations/environments.md](operations/environments.md)) |
+
 
 ## 코드 좌표
 
@@ -120,9 +127,8 @@ graph TD
 
 ## 알려진 문제·미확인 사항
 
-- 기존 `SYSTEM_ARCHITECTURE.md`는 구버전 서술이 많아 이 문서가 현행 기준이다 ([KI-10](KNOWN-ISSUES.md#ki-10-system_architecturemd가-구버전-상태로-방치됨))
 - `[미확인]` 1건: prod MySQL 위치(RDS 여부)
-- 급식 수집 주기가 README("매월 말일")와 코드(매월 1일 00:00)가 다르다 — KNOWN-ISSUES 보강 예정(Phase 2)
-- 레이어 규칙 위반 사례(서비스가 `HttpServletResponse`를 받는 등)는 Phase 3 도메인 문서에서 좌표와 함께 다룬다
+- 레이어 규칙 위반 사례는 도메인 문서와 KNOWN-ISSUES에 좌표와 함께 있다 — 서비스가 응답 객체를 받던 [KI-32](KNOWN-ISSUES.md)는 해소됐고, 컨트롤러가 DTO를 조립하는 [KI-27](KNOWN-ISSUES.md)의 레이어 위반은 남아 있다.
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-09-05
+

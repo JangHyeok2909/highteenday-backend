@@ -9,20 +9,27 @@
 
 ## 3줄 요약
 
-- `main` push → build job(GitHub 러너에서 Docker 이미지 빌드 → ECR push) → deploy job(SSH로 EC2 접속 → `.env` 생성 → `docker-compose.prod.yml` 재기동).
+- `main` push → test job(`./gradlew test`, 실패하면 여기서 멈춘다) → build job(GitHub 러너에서 Docker 이미지 빌드 → ECR push) → deploy job(SSH로 EC2 접속 → `.env` 생성 → `docker-compose.prod.yml` 재기동 → 헬스체크, 실패 시 직전 이미지로 롤백).
 - AWS 정적 키가 없다 — GitHub 쪽은 OIDC(`role-to-assume`), EC2 쪽은 Instance Profile로 ECR/S3에 접근한다.
-- 배포 후 헬스체크·자동 롤백 단계가 없고 테스트도 실행되지 않는다 ([KI-12](../KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음), 아래 ⑤).
+- develop 대상 PR과 develop push는 `ci.yml`이 같은 테스트를 병합 전 게이트로 돌린다 ([KI-12](../KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음) 갱신).
+
 
 ## 트리거와 전체 흐름
 
-`.github/workflows/deploy.yml` — `on: push: branches: [main]`. 잡 2개가 `needs`로 직렬 연결된다.
+`.github/workflows/deploy.yml` — `on: push: branches: [main]`. 잡 3개가 `needs`로 직렬 연결된다.
 
 ```mermaid
 graph LR
-    P[main push] --> B[build job<br>이미지 빌드+ECR push]
-    B -- outputs.image --> D[deploy job<br>SSH로 EC2 재기동]
+    P[main push] --> T[test job<br>gradlew test]
+    T --> B[build job<br>이미지 빌드+ECR push]
+    B -- outputs.image --> D[deploy job<br>SSH로 EC2 재기동 + 헬스체크]
     D --> EC2[EC2 - docker compose]
 ```
+
+## test job
+
+`./gradlew test`를 돌리고 테스트 리포트를 아티팩트로 올린다. `build`가 `needs: test`라 테스트가 실패하면 이미지 빌드도 배포도 시작되지 않는다. `Dockerfile`의 `-x test`는 그대로다 — 게이트 잡이 이미 통과한 뒤에만 이미지 빌드가 시작되므로 같은 검증을 두 번 할 이유가 없다 (이유가 Dockerfile 주석에 있다). 회귀 방지: `ci/CiTestGateTest`가 워크플로 YAML을 직접 파싱해 테스트 잡 존재·`needs` 연결·PR 트리거를 단언한다.
+
 
 ## build job 스텝별 해설
 
@@ -34,7 +41,8 @@ graph LR
 | Create ECR repository if not exists | `aws ecr describe-repositories \|\| create-repository` — 최초 배포 대비 |
 | Build and push | `docker build`로 커밋 SHA 태그와 `latest` 태그를 모두 빌드·push. SHA 태그 이미지 URI를 `outputs.image`로 deploy job에 전달 |
 
-이미지 빌드는 `Dockerfile` 멀티스테이지다: JDK 스테이지에서 `./gradlew build -x test`(테스트 생략 — [KI-12](../KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음)), JRE 스테이지에서 non-root `spring` 사용자로 실행, `ENTRYPOINT`에 `--spring.profiles.active=prod` 고정.
+이미지 빌드는 `Dockerfile` 멀티스테이지다: JDK 스테이지에서 `./gradlew build -x test`(테스트는 앞 단계 잡이 이미 돌렸다), JRE 스테이지에서 non-root `spring` 사용자로 실행, `ENTRYPOINT`에 `--spring.profiles.active=prod` 고정.
+
 
 ## deploy job 스텝별 해설
 
@@ -47,6 +55,8 @@ EC2에서 실행되는 스크립트 순서:
 3. `aws ecr get-login-password | docker login` — **EC2 Instance Profile** 자격으로 ECR 로그인 (여기서도 정적 키 없음).
 4. `printf ... > .env` — 전달받은 시크릿 11개를 EC2의 `.env` 파일로 기록.
 5. `docker compose -f docker-compose.prod.yml --env-file .env pull` → `up -d --force-recreate` — ECR에서 이미지 pull 후 컨테이너 재생성. EC2에서 빌드하지 않는다.
+6. 기동 확인 — `http://localhost:8081/actuator/health`(관리 포트, `network_mode: host`라 localhost로 닿는다)가 `"status":"UP"`을 돌려줄 때까지 5초 간격으로 최대 120초 기다린다. 컨테이너가 이미 죽었으면(`docker ps -q`가 빈 값) 즉시 중단한다. 통과하지 못하면 컨테이너 상태와 마지막 200줄 로그를 출력하고, 배포 직전에 `docker inspect`로 기록해 둔 이미지로 되돌린 뒤 `exit 1`로 실패시킨다 ([KI-48](../KNOWN-ISSUES.md) 갱신). compose의 `healthcheck:`가 아니라 워크플로에서 확인하는 이유는 compose 헬스체크가 `up -d`의 종료 코드를 바꾸지 않기 때문이다. 회귀 방지: `ci/DeploymentHealthCheckTest`.
+
 
 `docker-compose.prod.yml`: 서비스는 `app` 하나뿐이고 `network_mode: host`(EC2 호스트의 Redis에 localhost로 접근), `restart: unless-stopped`, `container_name: highteenday-app`. MySQL·Redis는 compose가 관리하지 않는다 (주석은 RDS·호스트 Redis를 전제 — [02-architecture.md](../02-architecture.md)의 `[미확인]` 참고).
 
@@ -84,8 +94,9 @@ EC2에서 실행되는 스크립트 순서:
 
 ## 알려진 문제·미확인 사항
 
-- [KI-12](../KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음) 파이프라인에 테스트 단계 없음
-- [KI-48](../KNOWN-ISSUES.md) **배포 후 검증·롤백 부재** — deploy job이 `up -d`로 끝나며 헬스체크·스모크 테스트·실패 시 이전 이미지 복귀 단계가 없다. 기동 실패 시 파이프라인은 성공으로 표시된 채 서비스만 죽는다. 수동 롤백 절차는 [runbook.md](runbook.md) 참고.
+- [KI-12](../KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음) 파이프라인에 테스트 단계 없음 — 해소 (test 잡 + `ci.yml`)
+- [KI-48](../KNOWN-ISSUES.md) 배포 후 검증·롤백 부재 — 해소 (헬스체크 + 직전 이미지 롤백). 수동 롤백 절차는 [runbook.md](runbook.md)에 그대로 남겨 둔다
 - `[미확인]` 1건: prod MySQL 위치(RDS 여부 — [02-architecture.md](../02-architecture.md)와 동일 항목)
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-09-05
+

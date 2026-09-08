@@ -1,7 +1,7 @@
 # Chat — 1:1·단체 채팅 도메인
 
-> 이 문서는 기존 [GROUP_CHAT.md](../GROUP_CHAT.md)(단체 채팅 작업 기록)를 흡수해 현행 코드 기준으로 재검증한 결정판이다.
 > WebSocket 핸드셰이크·CONNECT·SUBSCRIBE 검문은 [04-request-flow.md](../04-request-flow.md)에 있다 — 여기서는 반복하지 않는다.
+
 
 ## 이 문서가 답하는 질문
 
@@ -27,7 +27,8 @@
 
 - 역할은 `enums/ChatRole`(OWNER/ADMIN/MEMBER, `canManageRoom()` = OWNER 또는 ADMIN), 방 분류는 `enums/ChatRoomCategory`(`isMultiParty()` = PRIVATE 아님). `SCHOOL`/`GRADE`는 enum에만 있고 생성 경로가 없다.
 - 나가기·강퇴는 `ChatParticipants`의 soft delete(`isValid=false`)로 표현하고, 재입장 시 `rejoin()`이 행을 되살린다.
-- prod는 `ddl-auto=none`이므로 이 스키마는 `src/main/resources/ddl/V_group_chat.sql`을 수동 실행해 반영한다 (컬럼 추가 → 백필 → 제약 순서 고정).
+- 이 스키마는 Flyway V1 baseline에 포함되어 있고, `ChatRoomCategory`의 `GROUP` 값은 V4가 기존 DB의 MySQL ENUM에 추가한다 (`db/migration/V4__chat_room_category_group.sql`). Flyway 도입 전의 수동 스크립트 `ddl/V_group_chat.sql`(컬럼 추가 → 백필 → 제약 순서)은 기록용으로 남아 있다 ([MIGRATION.md](../MIGRATION.md)).
+
 
 ## 1:1 방 생성 — pairKey 동시성 처리
 
@@ -162,10 +163,12 @@ SYSTEM 메시지(입장/퇴장/강퇴/이름변경 안내)는 `writeSystemMessag
 
 ## 알려진 문제·미확인 사항
 
-- **트랜잭션 커밋 전 WebSocket 발행** — `ChatService`의 `writeSystemMessage()`, `publishMemberEvent()`, `markAsRead()`는 `@Transactional` 메서드 내부에서 `convertAndSend()`를 호출한다. 이후 트랜잭션이 롤백되면 클라이언트는 저장되지 않은 이벤트를 이미 받은 상태가 된다. (반면 `ChatWebSocketController · sendMessage()`의 메시지 브로드캐스트는 서비스 트랜잭션 커밋 후에 실행되므로 해당 없음.) `afterCommit` 동기화로 옮기는 것이 표준 해법 — [KI-24](../KNOWN-ISSUES.md).
-- 채팅 도메인은 단위·통합 테스트가 없다. 우선순위는 `unreadCountOf()`/`countLessThan()` 경계 조건과 방장 위임 로직. 테스트가 CI에서 돌지 않는 전반 문제는 [KI-12](../KNOWN-ISSUES.md#ki-12-테스트가-ci에서-실행되지-않음).
+- **트랜잭션 커밋 전 WebSocket 발행** — `writeSystemMessage()`, `publishMemberEvent()`, `markAsRead()`의 `convertAndSend()`는 2026-08-28부터 `AfterCommitExecutor.run(...)`으로 커밋 이후에 실행된다. 페이로드 DTO는 커밋 전에 만든다 ([KI-24](../KNOWN-ISSUES.md) 갱신, 회귀 방지 `ChatServiceTest.MarkAsRead.doesNotPublishBeforeCommit()`). `ChatWebSocketController · sendMessage()`의 브로드캐스트는 원래 서비스 트랜잭션 커밋 후에 실행된다.
+- 단위 테스트는 `services/domain/ChatServiceTest`(110건 이상)가 pairKey 경쟁·멱등성·읽음 집계 경계·방장 위임·권한 판정을 다룬다. 실제 브로커를 띄우는 통합 테스트는 없다.
 - `ChatRoomCategory`의 `SCHOOL`/`GRADE`는 enum에만 존재하고 생성·가입 경로가 없다 (자동 가입 방은 미구현).
 - `ChatParticipants.notificationEnabled`(방별 알림)는 저장만 되고 실제 푸시 경로에 연결되어 있지 않다.
+- 읽음 이벤트의 서버측 디바운스(일정 시간 묶음 발행)는 없다 — 대형 방 부하를 보고 판단한다.
 - `[미확인]` 프론트엔드의 커서 페이징·per-user queue 연동 상태 — 프론트 저장소를 이번 검증에서 확인하지 않음.
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-09-05
+
