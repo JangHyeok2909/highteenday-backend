@@ -91,9 +91,9 @@
 
 ## 함께 갱신할 것
 
-- 발견 사항의 상태를 바꿨으면 [perf-review-summary.md](../performance/docs/planning/perf-review-summary.md)의
+- 발견 사항의 상태를 바꿨으면 [ROADMAP.md](archive/performance/planning/ROADMAP.md)·[perf-review-summary.md](archive/performance/planning/perf-review-summary.md)의
   P0/P1/P2 실행 계획에서 해당 항목 상태도 같이 맞춘다 — 두 문서가 어긋나면
-  백로그로서 신뢰를 잃는다
+  백로그로서 신뢰를 잃는다. **두 문서는 2026-09-07 에 `localDocs/archive/` 로 옮겼다**
 - 학습 장부([perf-mastery-checklist.md](guides/perf-mastery-checklist.md))의 **결정 안건**에서
   나온 결정으로 상태가 바뀐 경우, 인용블록에 어느 안건에서 나온 결정인지 적는다
 

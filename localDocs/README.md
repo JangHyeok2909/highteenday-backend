@@ -13,10 +13,11 @@
 |---|---|
 | 발견 장부 (T/S/E) | [`performance/docs/findings/`](../performance/docs/findings/) |
 | 조사 기록 (E-46 세션 편차 등) | [`performance/docs/investigations/`](../performance/docs/investigations/) |
-| 안내서 (측정 원리·입문·환경·디버깅) | [`performance/docs/guides/`](../performance/docs/guides/) |
-| 로드맵·신뢰 수준·현황 요약 | [`performance/docs/planning/`](../performance/docs/planning/) |
+| 안내서 (측정 원리·입문·환경·디버깅) | [`localDocs/archive/performance/guides/`](archive/performance/guides/) — 2026-09-07 저장소에서 뺐다 |
+| 신뢰 수준(MDE)·계측 공백 | [`performance/docs/planning/`](../performance/docs/planning/) |
+| 로드맵·현황 요약 | [`localDocs/archive/performance/planning/`](archive/performance/planning/) — 2026-09-07 저장소에서 뺐다 |
 | 결정 기록 (Go 이식) | [`performance/docs/decisions/`](../performance/docs/decisions/) |
-| 설계 문서 (지표 카탈로그·리포트) | [`performance/docs/design/`](../performance/docs/design/) |
+| 설계 문서 (지표 카탈로그·리포트) | [`localDocs/archive/performance/design/`](archive/performance/design/) — 2026-09-07 저장소에서 뺐다 |
 | 색인과 문서 규칙 | [`performance/docs/README.md`](../performance/docs/README.md) |
 
 ---
@@ -32,6 +33,8 @@
 |---|---|---|
 | [military-service-company-ranking.md](career/military-service-company-ranking.md) | **어느 회사에 지원할 것인가?** 보충역 4급 신규편입으로 지원 가능한 병역특례 백엔드 공고 전체를 성장 가능성 순으로 줄 세운 것. 지원 불가 회사와 그 이유 포함 | **지원 대상 회사를 정할 때 — `toss-target-role.md` 보다 먼저** |
 | [resume-assets.md](career/resume-assets.md) | 공고의 각 줄에 이 프로젝트의 무엇으로 답하는가? 답할 것이 없는 줄은 어디이고 무엇을 만들어야 채워지는가? | 이력서를 쓰기 전, **프로젝트 고도화 항목을 고를 때** |
+| [career/references/README.md](career/references/README.md) | **이력서·포트폴리오의 뼈대를 무엇에 맞추는가?** 해외(미국·캐나다) 백엔드·인프라 모범 사례 14건의 원문 보존과 선정 근거, 뒤진 곳·막힌 곳 | 원고의 구조를 바꾸기 전 |
+| [career/references/rules-resume.md](career/references/rules-resume.md) · [rules-portfolio.md](career/references/rules-portfolio.md) | 그 뼈대를 어떻게 따르는가? 규칙별 출처, 현재 원고 대조표, 출처가 갈리는 곳의 판정 | 원고를 고칠 때, 제출 전 점검표 |
 | [paytalab-application.md](career/paytalab-application.md) | 페이타랩(패스오더) 백엔드 공고의 각 줄에 무엇으로 답하는가? | 지원 전, 다른 병역지정업체 지원 시 재사용 |
 | [toss-product-playbook.md](career/toss-product-playbook.md) | **컨설턴트 관점.** 전형의 각 단계가 무엇을 거르고 무엇이 사람을 떨어뜨리는가 | 이력서를 쓰기 전, 모의면접 전 |
 | [toss-sprint-1month.md](career/toss-sprint-1month.md) | 한 달 안에 무엇을 어떤 순서로 할 것인가? | 매주 계획을 세울 때 |
@@ -52,9 +55,23 @@
 | [worklog/delegation-scope.md](worklog/delegation-scope.md) | 어떤 결함을 위임할 수 있고 어떤 것은 직접 해야 하는가 |
 | [worklog/fix-log.md](worklog/fix-log.md) | 위임한 결함이 무엇이 어떻게 고쳐졌는가 |
 | [worklog/overnight-execution-fixes-2026-08-18.md](worklog/overnight-execution-fixes-2026-08-18.md) | 무인 야간 실행 중 발견해 고친 것 |
+| [worklog/roadmap-personal-ops.md](worklog/roadmap-personal-ops.md) | 성능 로드맵에서 떼어 낸 개인 실행 계획 — 다음 작업일 순서, 밤새 무인 실행 목록 (2026-09-05 분리) |
 | `guides/HighTeenDay_하드웨어_자원_병목_학습서.pdf` | 하드웨어 자원 병목 학습 자료 |
 
 ---
+
+### 공개 문서 감사와 보관 (2026-09-05)
+
+저장소를 공개한 뒤 문서를 면접관 시점으로 다시 읽은 기록이다. 무엇을 왜 뺐고 어떻게 고쳤는지,
+공개 문서에서 걷어낸 정보(NEIS 키 노출 위치 등)를 어디에 보존했는지가 여기 있다.
+
+| 문서 | 답하는 질문 |
+|---|---|
+| [review/public-docs-audit-2026-09-05.md](review/public-docs-audit-2026-09-05.md) | 공개 문서에서 무엇이 감점 요인이었고 무엇을 어떻게 고쳤는가? 남긴 결정과 잔여 위험은? 커밋은 어떻게 나누는가? |
+| [archive/README.md](archive/README.md) | 공개 저장소에서 뺀 문서 5개(`GROUP_CHAT`, `HOT_POST_SYSTEM`, `POST_REACTION_MIGRATION`, `SYSTEM_ARCHITECTURE`, Go 이식 계획)는 왜 여기 있고 무엇으로 대체됐는가? |
+
+> Go 이식 계획(`go-migration-rationale.md`)은 위 "성능 시스템 문서는 여기 없다" 표의 예외다 —
+> 커리어 관점으로 쓰인 절 때문에 `archive/performance/` 로 되돌아왔다.
 
 ## 문서 갱신 규칙
 
