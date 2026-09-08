@@ -88,9 +88,10 @@ EXPLAIN SELECT ... FROM post WHERE BRD_id=? AND is_valid=1 ORDER BY ... LIMIT 10
 
 ### ④ 카운트 비용을 OFFSET 비용과 혼동하지 말 것
 
-목록 응답의 `total`은 `RedisPostsCache.getCount()`가 돌려주고, 그 값은 **5분 TTL로
-캐시된다**(`RedisPostsCache.java:151-172`). 캐시 미스일 때만 `countTotal()`의 `COUNT(*)`가
-실행된다.
+목록 응답의 `total`은 `RedisPostsCache.getCount()`가 돌려주고, 그 값은 **60분 TTL로
+캐시된다**(`RedisPostsCache.java`의 `COUNT_TTL`, 2026-08-28 전에는 5분이었다 — KI-56). 캐시
+미스일 때만 `countTotal()`의 `COUNT(*)`가 실행된다.
+
 
 즉 `COUNT(*)`는 목록 요청마다 도는 비용이 **아니다.** OFFSET을 고쳐도 남고, 반대로 캐시가
 식은 구간에서는 OFFSET과 무관하게 튄다. 두 비용을 분리해서 봐야 하며, 후자는 이 병목이

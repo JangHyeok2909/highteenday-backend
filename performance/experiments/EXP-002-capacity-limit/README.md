@@ -79,4 +79,5 @@ node tools/perf-run.js scenarios/breakpoint.js --dataset medium --loadgen docker
 ## 13. 향후 개선
 
 - 확정된 최대 TPS의 60%를 soak 테스트 강도로 사용
-- capacity 값을 regression/baseline.json에 기록
+- 확정된 최대 TPS를 이 문서와 `docs/planning/perf-trust-levels.md`에 기록한다 (손으로 저장하는 기준선 파일은 없다 — 기준선은 이력에서 자동 선택된다)
+

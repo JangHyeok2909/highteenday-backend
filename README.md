@@ -6,7 +6,7 @@
 | 요청당 쿼리 수 | 오진을 반박한 폭 | 개선폭 |
 |---|---|---|
 | **1,507 → 3.9개** | **38배** | **40.1%** |
-| 댓글 목록 API — 데이터 크기와 무관한 상수로 만들었습니다 | 지연 원인을 애플리케이션으로 오진했다가 커넥션 풀 대기로 정정했습니다 | 5회 반복 실험의 검출 한계 16%의 2.5배라 노이즈로 설명되지 않습니다 |
+| 댓글 목록 API — 데이터 크기와 무관한 상수로 만들었습니다 | 지연 원인을 애플리케이션으로 오진했다가 커넥션 풀 대기로 정정했습니다 | 같은 조건 5회씩 반복 측정한 p95 평균의 차이입니다. 통계적 유의성은 계산하지 않았습니다 |
 
 **[측정 결과 대시보드 →](https://janghyeok2909.github.io/highteenday-backend/)**
 실행 106건의 보고서를 가공 없이 공개합니다. 개별 실행의 지표·판정·환경을 그대로 볼 수 있습니다.
@@ -39,18 +39,20 @@
 
 ## 문서 안내
 
-이 README는 프로젝트의 진입점입니다. 처음 접하는 개발자는 아래 순서로 읽으면 됩니다.
+이 README 가 서비스 소개·구조·실행 방법의 단일 출처입니다. 나머지 문서는 **코드를 읽어도
+알 수 없는 것**만 담습니다 — 무엇이 틀렸는지, 왜 그렇게 결정했는지, 무엇을 어떻게 쟀는지.
 
 | 목적 | 문서 |
 |------|------|
-| **로컬에서 바로 실행해보기** | [docs/00-quickstart.md](docs/00-quickstart.md) — 클론부터 첫 로그인까지 |
-| **코드베이스 전체 이해** | [docs/INDEX.md](docs/INDEX.md) — 온보딩 문서 체계의 목차 (아키텍처, 도메인별 심층, 운영, ADR) |
+| **로컬에서 바로 실행해보기** | 이 문서의 "실행 방법" 절 — MySQL·Redis 기동부터 헬스체크까지 |
+| **왜 그렇게 만들었나** | [docs/INDEX.md](docs/INDEX.md) — 결함 장부·의사결정 기록(ADR)·장애 대응의 지도 |
 | **알려진 결함·문서-코드 불일치** | [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md) — 코드를 읽고 확인한 결함의 단일 목록 |
 | **성능 테스트·병목 분석** | [performance/README.md](performance/README.md) — k6 부하 테스트와 자체 측정 시스템 |
 | **DB 스키마 변경 방법** | [docs/MIGRATION.md](docs/MIGRATION.md) — Flyway 마이그레이션 절차 |
 
-모든 온보딩 문서는 실제 코드를 읽고 검증한 내용만 담으며, 문서와 코드가 어긋나는 부분은
-본문에 숨기지 않고 KNOWN-ISSUES에 번호(KI-nn)로 기록하는 규칙을 따릅니다.
+문서와 코드가 어긋나는 부분은 본문에 숨기지 않고 KNOWN-ISSUES 에 번호(KI-nn)로 기록합니다.
+**해소된 항목도 지우지 않고 "→ 갱신" 줄로 남깁니다** — 장부에서 항목이 사라지면 그 항목이
+원래 있었다는 사실까지 사라집니다.
 
 ---
 
@@ -130,7 +132,7 @@ Redis, S3 같은 외부 인프라에 서비스 로직이 직접 결합되지 않
 트래픽과 성능 영향을 크게 받는 기능들을
 가용성과 성능을 우선하는 방향으로 설계했습니다.
 
-자세한 구조는 [docs/02-architecture.md](docs/02-architecture.md) 참고.
+계층 간 의존 방향과 Port/Adapter 분리 규칙은 위 트리 그대로입니다.
 
 ### Event-driven architecture
 
@@ -151,7 +153,7 @@ Spring Event 기반으로 분리했습니다.
 
 구조를 얻을 수 있었습니다.
 
-이벤트 7종의 전수 목록은 [docs/crosscutting/transactions-events.md](docs/crosscutting/transactions-events.md) 참고.
+이벤트는 모두 `@TransactionalEventListener(AFTER_COMMIT)` 로 받습니다 — 커밋된 뒤에만 후속 작업이 돌므로, 후속 작업이 실패해도 원 트랜잭션은 롤백되지 않습니다.
 
 ---
 
@@ -191,7 +193,7 @@ Spring Event 기반으로 분리했습니다.
 - 급식 데이터는 매월 1일 00:00 스케줄러가 NEIS API에서 당월 데이터를 수집 (`schedulers/SchoolMealScheduler`)
 - 시간표는 사용자별 템플릿 → 과목 → 요일/교시 매핑 구조
 
-상세 데이터 모델과 명명 규칙: [docs/05-data-model.md](docs/05-data-model.md)
+명명 규칙과 소프트 삭제 컨벤션은 [CLAUDE.md](CLAUDE.md) 의 "Database Conventions" 절에 규약으로 적어 두었습니다.
 
 ---
 
@@ -262,7 +264,7 @@ HttpOnly; Secure; SameSite=None; Domain=.highteenday.org
 | `ROLE_ADMIN` | 관리자 (enum에 정의되어 있으나 현재 부여 경로 없음) |
 | `ROLE_GUEST` | 과거 신규 OAuth2 사용자 표식 — `isNewUser` 플래그로 대체되어 현재 사용 경로 없음 |
 
-인증 전 구간 상세: [docs/domains/auth.md](docs/domains/auth.md), 엔드포인트×인가 전수 표: [docs/crosscutting/security.md](docs/crosscutting/security.md)
+인가 규칙의 단일 출처는 `security/SecurityConfig.java · filterChain()` 입니다.
 
 자세한 내용: https://janghyeok.tistory.com/39
 
@@ -276,8 +278,9 @@ HttpOnly; Secure; SameSite=None; Domain=.highteenday.org
 
 ViewCountScheduler (60초 주기, fixedDelay)
            → KEYS post:views:* 로 대기 중인 카운터 키 목록 조회
-           → 키마다 GETDEL로 값을 꺼내며 삭제
+           → 키마다 값을 읽기만 함 (삭제하지 않음)
            → 게시글별로 DB에 누적값 UPDATE + 핫스코어 갱신
+           → DB 반영에 성공한 값만 DECRBY로 차감, 실패분은 남겨 다음 주기에 재시도
 ```
 
 Redis 장애 시에도 조회 자체는 동작하도록 `@ResilientRedis` AOP로 감싸 실패를 격리합니다.
@@ -310,7 +313,8 @@ sequenceDiagram
     API->>API: Post 저장 (id 발급)
     API->>S3: CopyObject tmp → post-file/{postId}/...
     API->>API: content URL 치환, Media 저장
-    API->>S3: delete tmp/{userId}/* (해당 유저 임시 폴더 비우기)
+    API->>S3: delete 승격한 임시 객체만 (같은 사용자의 다른 초안은 유지)
+
     API-->>C: 201 /api/posts/{id}
 ```
 
@@ -320,7 +324,8 @@ sequenceDiagram
 2. 각 URL에 대해 **같은 버킷 내 `CopyObject`**: 임시 키 → `post-file/{postId}/` 아래 영구 키  
 3. 복사된 객체 메타로 **`medias` 행** 생성 후 게시글과 연결  
 4. 본문 문자열에서 **임시 URL → 영구 URL** 치환 후 `Post.content` 갱신  
-5. 해당 유저 **`tmp/{userId}/` 접두 객체 일괄 삭제**
+5. 이번 요청에서 승격한 **임시 객체만 삭제** — 사용자 단위 일괄 삭제는 같은 사용자의 다른 초안 이미지를 지우는 결함([KI-36](docs/KNOWN-ISSUES.md))이라 2026-08-28에 바꿨다
+
 
 #### S3 키 규칙 (요약)
 
@@ -358,7 +363,7 @@ weighted_sum = 5×좋아요 − 2×싫어요 + 2×스크랩 + 3×댓글 + 1×조
 - **Redis ZSET**: `ZREVRANGE`로 O(log N + K) 시간에 상위 K개 조회, Redis 장애 시 `DailyHotPost` DB 테이블로 fallback
 - **갱신 경로 2개**: 반응·댓글·스크랩·조회수 반영 시 이벤트로 즉시 갱신 + `HotScoreScheduler`가 5분 주기로 리더보드 상위 50개를 재계산하고 DB에 동기화
 
-상세 흐름: [docs/domains/reaction-hotpost.md](docs/domains/reaction-hotpost.md)
+핫스코어 산식과 갱신 주기는 `schedulers/` 의 핫포스트 스케줄러가 단일 출처입니다.
 
 ---
 
@@ -417,9 +422,10 @@ weighted_sum = 5×좋아요 − 2×싫어요 + 2×스크랩 + 3×댓글 + 1×조
 단순 CRUD 수준을 넘어, 실제 서비스 상황을 가정하고 트래픽을 발생시켜 병목을 분석하여 성능을 개선했습니다.
 k6를 활용한 부하 테스트 기반으로 개선 전후를 검증했습니다.
 
-> 아래 수치는 당시 측정 환경 기준의 기록입니다. 개선 항목별 현재 코드 좌표와 재현 가능성은
-> [docs/07-performance.md](docs/07-performance.md)에서 검증하며, 현재의 부하 테스트는
-> [performance/](performance/README.md)의 측정 시스템으로 수행·기록됩니다.
+> **아래 수치는 당시 측정 환경 기준의 기록이고, 그때 쓴 k6 스크립트는 저장소에 남아 있지
+> 않아 재현할 수 없습니다** ([KI-31](docs/KNOWN-ISSUES.md)). 재현 가능한 측정은 전부
+> [performance/](performance/README.md) 의 측정 시스템으로 옮겼습니다 — 실행 조건·데이터셋·
+> 판정 기준이 실행마다 함께 기록됩니다.
 
 ---
 
@@ -660,18 +666,15 @@ api 명세서: 로컬 실행 시 `http://localhost:8080/swagger-ui/index.html`
 
 ## 실행 방법
 
-전체 절차(사전 요구사항, 환경변수, 시드 계정, 동작 확인)는
-**[docs/00-quickstart.md](docs/00-quickstart.md)** 를 따르는 것이 가장 정확합니다. 요약하면:
+아래가 전체 절차입니다. dev 프로파일에는 로컬용 기본값이 들어 있어 별도 설정 파일 없이 부팅됩니다.
 
 ```bash
-# 1. 인프라 — Redis는 compose로, MySQL은 개별 기동
-#    (전체 docker compose up은 현재 불가 — docs/KNOWN-ISSUES.md KI-01)
-docker compose up -d redis
-docker run -d --name highteenday-mysql -p 3306:3306 \
-  -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=highteenday_db mysql:8
+# 1. 인프라 — MySQL·Redis를 compose로 기동 (앱까지 한 번에 띄우려면 docker compose up -d)
+docker compose up -d mysql redis
 
-# 2. 필수 환경변수 (전체 목록은 quickstart 참고)
-#    JWT_KEY, GOOGLE_CLIENT_ID/SECRET, NEIS_API_KEY, DB_PASSWORD ...
+# 2. 환경변수 — dev 프로파일은 전부 로컬용 기본값이 있어 아무것도 넣지 않아도 부팅된다.
+#    구글 로그인·S3 업로드·NEIS 수집을 실제로 쓸 때만 GOOGLE_CLIENT_ID/SECRET, NEIS_API_KEY 등을 넣는다.
+
 
 # 3. dev 프로파일로 기동 — 첫 부팅 시 Flyway가 스키마를 생성하고 시드 데이터가 적재됨
 ./gradlew bootRun --args='--spring.profiles.active=dev'
@@ -705,10 +708,13 @@ node tools/perf-run.js scenarios/normal-day.js --note "변경 후 측정"
 |---|---|---|
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | MySQL 접속 | `jdbc:mysql://localhost:3306/highteenday_db` / `root` / 빈 값 |
 | `REDIS_HOST` / `REDIS_PORT` | Redis 접속 | `localhost` / `6379` |
-| `JWT_KEY` | JWT HMAC-SHA512 서명 키 | 없음 (**필수**) |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth2 | 없음 (**부팅에 필수**, 더미값 가능) |
-| `NEIS_API_KEY` | 급식 데이터 수집 | 없음 (**부팅에 필수**, 더미값 가능) |
+| `JWT_KEY` | JWT HMAC-SHA512 서명 키 | 로컬 전용 더미값 — **배포되는 서버에서는 반드시 덮어쓴다** |
+
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth2 | `dummy-client-id` / `dummy-client-secret` (실제 구글 로그인에만 유효 값 필요) |
+
+| `NEIS_API_KEY` | 급식 데이터 수집 | `dummy-neis-key` (실제 수집에만 유효 키 필요) |
+
 | `S3_BUCKET` | 이미지 업로드 버킷 | `highteenday-bucket-0906` |
 
 Docker Compose로 띄울 때는 `.env.example`을 `.env`로 복사해 채웁니다.
-프로파일별 차이(local/dev/prod/perf)는 [docs/operations/environments.md](docs/operations/environments.md) 참고.
+프로파일별 차이(local/dev/prod/perf)는 `src/main/resources/application-*.properties` 각 파일 머리말에 적혀 있습니다.

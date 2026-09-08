@@ -73,13 +73,15 @@ k6 run scenarios/cold-start.js -e DATASET=medium
 
 ### 함께 볼 것 — 카운트 캐시의 5분 TTL이 애벌랜치 후보다
 
-게시판 목록의 `total`은 `RedisPostsCache.getCount()`가 **5분 TTL**로 캐시하고, 미스일 때만
-`COUNT(*)`가 실행된다(`RedisPostsCache.java:151-172`). 게시판 5개의 키가 같은 시각에 적재되면
-**5분마다 함께 만료된다** — 이 문서가 말하는 애벌랜치의 구체적 후보다.
+게시판 목록의 `total`은 `RedisPostsCache.getCount()`가 **60분 TTL**로 캐시하고(2026-08-28 전에는
+5분), 미스일 때만 `COUNT(*)`가 실행된다(`RedisPostsCache.java`의 `COUNT_TTL`). 게시판 5개의 키가
+같은 시각에 적재되면 **60분마다 함께 만료된다** — 이 문서가 말하는 애벌랜치의 구체적 후보다.
+
 
 이건 추론이며 확인 방법은 명확하다. `mysql.threadsRunning` max와 `redis.expiredKeys`(둘 다
-이미 수집 중)를 시간축에 놓고 5분 주기가 보이는지 본다. 주기가 보이면 TTL 지터가 개선
+이미 수집 중)를 시간축에 놓고 TTL 주기가 보이는지 본다. 주기가 보이면 TTL 지터가 개선
 후보에 들어간다.
+
 
 ## 해결 방법
 

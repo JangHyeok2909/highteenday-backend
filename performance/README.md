@@ -7,7 +7,8 @@ HighTeenDay 백엔드(Spring Boot 3.4.5 · MySQL 8 · Redis 7)의 **성능 엔�
 ## 1. 목적
 
 1. **성능 개선** — 실제 병목을 계측으로 찾아내고, 수치로 증명된 개선만 적용한다.
-2. **역량 증명** — 성능을 감이 아니라 체계로 다루는 과정을 문서로 남긴다.
+2. **재현 가능한 기록** — 성능을 감이 아니라 체계로 다루는 과정을, 누가 다시 돌려도 같은 답이 나오도록 문서로 남긴다.
+
 
 ## 2. 철학
 
@@ -95,8 +96,7 @@ node tools/history.js          # reports/history.html — 이력과 추세
 ```
 performance/
 ├── README.md          # 이 문서
-├── MANUAL.md          # 운영 매뉴얼 — 실행 절차와 전체 명령어 사용설명서
-├── docs/              # 측정 시스템 문서 — 발견 장부·조사 기록·안내서·로드맵
+├── docs/              # 측정 시스템 문서 — 발견 장부·조사 기록·판정 기준
 ├── scripts/           # 기능별 k6 스크립트 (독립 실행 + 시나리오에서 import)
 │   └── lib/           # 설정·세션·Zipf 샘플러·summary 공통 모듈
 ├── scenarios/         # 워크로드 시나리오 16종 (가중치 프로파일 기반)
@@ -105,23 +105,25 @@ performance/
 │   └── snapshots/     # 검증 통과 상태의 볼륨 사본 (아카이브는 gitignore, snapshot.json만 커밋)
 ├── environment/       # 컴포즈 스택 + MySQL/Redis/JVM 고정 설정 + 환경 명세
 ├── metrics/           # 지표 정의(PromQL) + Grafana 대시보드
-├── experiments/       # 가설 기반 실험 대장 (EXP-001~) + 템플릿
+├── experiments/       # 가설 기반 실험 대장 (EXP-000~006) + 템플릿
+
 ├── reports/           # runs/(실행별 저장소) + index.json + history.html + raw(구버전)
-├── bottlenecks/       # 병목 카탈로그 (BTL-001~012) — 원인/영향/재현/해결
+├── bottlenecks/       # 병목 카탈로그 (BTL-001~014) — 원인/영향/재현/해결
+
 ├── optimizations/     # 개선 기록 (Before/After 수치 필수)
 ├── regression/        # rules.json(회귀 판정 규칙) + CI 워크플로
+├── resilience/        # 장애 관측 실험 — toxiproxy·docker 주입, 판정 없음 (회귀 판정과 분리)
 ├── perf.config.json   # 도구 기본 설정 (datasetGuard 등)
 └── tools/             # perf-run/collect/history/repeatability/snapshot + lib/(수집·분석·리포트 엔진) + test/(도구 단위 테스트)
 ```
 
-실행 절차와 전체 명령어(옵션·환경변수·트러블슈팅 포함)는 사용설명서로 분리했다:
-**[`MANUAL.md`](MANUAL.md)** — 처음 돌려 보는 사람은 이 문서부터 본다.
+위 4장이 실행 순서 전체다. 개별 옵션은 각 도구의 `--help` 가 단일 출처다.
 성능 관리 파이프라인의 구조와 설계 근거는 별도 문서로 분리했다:
 **[`PERFORMANCE-MANAGEMENT.md`](PERFORMANCE-MANAGEMENT.md)**
 데이터셋 상태 고정(스냅샷·상태 지문·`--guard`)은 **[`DATASET-STATE.md`](DATASET-STATE.md)**
 
 이 결과를 **어디까지 믿을 수 있는지**, 무엇이 아직 틀렸는지, 남은 개선 순서는
-**[`docs/`](docs/README.md)** 에 있다 — 발견 장부(T/S/E), 조사 기록, 안내서, 로드맵.
+**[`docs/`](docs/README.md)** 에 있다 — 발견 장부(T/S/E), 조사 기록, 신뢰 수준과 MDE.
 
 ## 6. 사용 도구
 

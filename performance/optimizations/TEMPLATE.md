@@ -31,6 +31,7 @@ Before/After를 같은 축에 겹친 그래프 (Grafana 두 시간 범위 비교
 
 ## 후속 조치
 
-- [ ] regression/baseline.json 갱신
+- [ ] 개선 후 실행이 기준선 후보 자격(`measurementStatus = MEASURED`)을 얻었는지 확인 (기준선 파일은 없다 — 이력에서 자동 선택)
+
 - [ ] bottlenecks/BTL-XXX 상태를 "해소"로 변경
 - [ ] 관련 문서(environment 등) 동기화
