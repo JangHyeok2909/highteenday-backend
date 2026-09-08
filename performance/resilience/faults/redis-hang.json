@@ -1,0 +1,21 @@
+{
+  "id": "redis-hang",
+  "question": "Redis 가 응답 없이 멈추면(TCP 는 살아 있고 답만 안 옴) 어떻게 되나 — crash 와 같은가",
+  "requires": { "proxy": true },
+  "load": { "rate": 4, "preVus": 100, "maxVus": 1000 },
+  "phases": { "preSec": 300, "faultSec": 120, "postSec": 300 },
+  "inject": [
+    { "at": "fault.start", "tool": "toxiproxy", "action": "add", "proxy": "redis",
+      "toxic": { "name": "hang", "type": "timeout", "stream": "downstream", "toxicity": 1.0, "attributes": { "timeout": 0 } } },
+    { "at": "fault.end",   "tool": "toxiproxy", "action": "remove", "proxy": "redis", "toxicName": "hang" }
+  ],
+  "expect": [
+    "fault: Lettuce 명령 타임아웃이 설정돼 있지 않아 기본 60초. 모든 Redis 호출이 60초 대기한다",
+    "fault: 초당 4 iteration × 여정당 Redis 호출 수만큼 요청 스레드가 묶여 tomcat busy 가 400 에 닿는다",
+    "fault: 스레드가 고갈된 뒤에는 Redis 를 안 쓰는 엔드포인트(급식·시간표·친구)도 실패한다 — 폭발 반경이 전부",
+    "fault: 실패 응답의 지연이 60,000ms 부근에 몰린다(k6 요청 타임아웃 60s). 즉시 실패가 아니라 60초 대기 후 실패",
+    "post: toxic 을 걷으면 묶인 스레드가 순차로 풀린다. 회복 시간은 60초 이상 — 얼마인지는 모른다",
+    "고친 뒤(spring.data.redis.timeout=200ms): redis-crash 와 같은 거동이어야 한다"
+  ],
+  "watch": ["http.byFeature", "http.failedLatency", "pool.tomcatBusy", "k6.droppedIterations", "health"]
+}
