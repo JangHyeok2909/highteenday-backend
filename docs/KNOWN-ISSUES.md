@@ -3,9 +3,10 @@
 온보딩 문서 작성 과정에서 실제 코드를 읽고 확인한 결함·불일치의 단일 목록이다.
 다른 문서는 결함을 본문에 서술하지 않고 이 파일의 항목 번호(KI-nn)로 링크한다.
 
-> KI-01~12는 Phase 1(구조·흐름 문서), KI-13~31은 Phase 2(crosscutting·데이터 모델 문서),
-> KI-32부터는 Phase 3~4(도메인·운영 문서) 작성 중 확인된 항목이다 — 전 Phase 보강 완료.
+> KI-01~12는 구조·흐름 문서, KI-13~31은 crosscutting·데이터 모델 문서, KI-32~52는
+> 도메인·운영 문서를 쓰면서 확인된 항목이다. KI-53부터는 부하 테스트와 코드 재독에서 나왔다.
 > "확인 방법"은 신입이 직접 재현해볼 수 있는 절차다.
+
 >
 > **2026-08-11 상태 재검증**: 최초 검증(2026-07-30) 이후 Flyway 도입(V1~V7), 반응/스크랩
 > upsert 전환, RecentHotPost 엔티티 삭제 등이 반영되어 일부 항목이 해소되었다. 해소된
@@ -17,16 +18,18 @@
 - 위치: `docker-compose.yml` — `services` 아래 MySQL 섹션이 주석 헤더만 있고 서비스 정의가 비어 있는데, `app` 서비스가 `depends_on: mysql`을 참조한다.
 - 결과: `docker compose up`이 `service "app" depends on undefined service "mysql"`로 즉시 실패한다.
 - 확인 방법: 저장소 루트에서 `docker compose up` 실행.
-- 우회: [00-quickstart.md](00-quickstart.md)의 절차대로 Redis만 compose로 띄우고 MySQL·앱은 개별 기동.
+- 우회: 저장소 [README.md](../README.md) "실행 방법" 절대로 Redis만 compose 로 띄우고 MySQL·앱은 개별 기동.
 - → 갱신 (2026-08-28, 커밋 `64e399a`): **해소** — `docker-compose.yml`에 `mysql` 서비스 정의를 채우고 `mysql-data` 볼륨을 붙였다. 현재 정의된 서비스는 `mysql`·`redis`·`app` 셋이라 `depends_on`이 실재하는 대상을 가리킨다. 같은 커밋에서 `00-quickstart.md`의 절차도 "Redis만 개별 기동"에서 compose 일괄 기동으로 고쳤다.
-- → 기록 정정 (2026-09-05): 위 갱신 줄이 **10일 가까이 누락돼 있었다.** 코드는 8/28에 고쳤는데 장부는 계속 "실행 불가"라고 말하고 있었다. 저장소를 공개(2026-09-04)한 뒤에는 이 항목이 **KNOWN-ISSUES를 여는 사람이 가장 먼저 읽는 두 줄**이 되므로, 장부가 틀린 채로 남으면 나머지 항목의 신뢰도까지 함께 깎인다. **코드를 고치면 같은 작업 안에서 장부를 갱신한다.**
+- → 기록 정정 (2026-09-05): 위 갱신 줄이 코드 수정보다 8일 늦게 들어갔다. 장부가 틀린 채로 남으면 나머지 항목의 신뢰도까지 깎이므로, **코드를 고치면 같은 작업 안에서 장부를 갱신한다.**
+
 
 ### KI-02. 기본 프로파일 local의 프로퍼티 파일이 없음
 - 위치: `src/main/resources/application.properties` — `spring.profiles.active=local`이 기본값인데 `application-local.properties`는 gitignore 대상이며 저장소에 없다.
 - 결과: 아무 옵션 없이 `./gradlew bootRun` 하면 datasource·JWT 키가 없어 부팅에 실패한다.
-- 우회: dev 프로파일 사용 ([00-quickstart.md](00-quickstart.md)).
+- 우회: dev 프로파일 사용 (저장소 [README.md](../README.md) "실행 방법").
 - → 갱신 (2026-08-28, 커밋 `64e399a`): **해소** — `src/main/resources/application-local.properties.example`(60줄)을 추가해 복사만 하면 되는 상태로 만들었고, `application-dev.properties`의 기본값을 손봐 **아무 설정 없이도 dev 프로파일이 뜨도록** 했다. gitignore 대상인 실제 `application-local.properties`는 여전히 저장소에 없지만, **없어서 막히는 상황이 사라졌다**는 점이 달라진 것이다.
-- → 기록 정정 (2026-09-05): KI-01과 같은 이유로 갱신이 누락돼 있었다.
+- → 기록 정정 (2026-09-05): KI-01과 같이 갱신 줄이 늦게 들어갔다.
+
 
 ## 보안
 
@@ -35,7 +38,8 @@
 - 조치 필요: 주석 삭제 + NEIS 포털에서 키 재발급(히스토리에 남으므로 삭제만으로는 무효화되지 않음).
 - → 갱신 (2026-08-11): 소스의 주석은 삭제됨. **키 재발급은 여전히 필요** — git 히스토리에 키가 남아 있다.
 - → 등급 상향 (2026-09-05): **저장소가 2026-09-04에 공개로 전환되면서 성격이 바뀌었다.** 비공개일 때는 "언젠가 재발급할 것"이었지만, 지금은 **누구나 읽을 수 있는 노출된 자격증명**이다.
-  - 노출 범위(실측): 공개 히스토리의 커밋 **6개**, 파일 **6개**(`api/`와 이전 위치 `services/school/`의 `SchoolInfoService`·`SchoolMealService`·`SchoolScheduleService`). 최초 유입은 커밋 `37f1bcd`의 `apiKey` 필드 주석이고, 키는 32자 hex(`cee4ba90…`)다. **현재 HEAD 트리에는 없다** — 히스토리에만 남아 있다.
+  - 노출 범위(실측): 공개 히스토리의 커밋 6개, 파일 6개. **현재 HEAD 트리에는 없다** — 히스토리에만 남아 있다. (어느 커밋·어느 문자열인지는 공개 문서에 적지 않는다.)
+
   - **히스토리 재작성으로는 해결되지 않는다.** force-push 이후에도 GitHub는 dangling 커밋을 한동안 API로 제공하고, 포크·클론·캐시에는 그대로 남는다. **NEIS 포털에서 키를 폐기·재발급하는 것이 유일한 무효화 방법이다.**
   - 재발급 후 할 일: 운영 환경변수 `NEIS_API_KEY` 교체. 소스·프로퍼티는 이미 `${NEIS_API_KEY}` 참조라 코드 변경은 필요 없다.
   - 함께 확인한 것: 설정 파일(`application*.properties`, `docker-compose*.yml`)의 전체 히스토리를 훑었고 **리터럴 비밀값은 테스트용 더미뿐이다.** 공개 히스토리에서 실제로 유효한 자격증명은 이 키 하나다.
@@ -61,7 +65,8 @@
 ### KI-06. 쿠키 인증 + SameSite=None + CSRF 비활성 조합
 - 위치: `security/SecurityConfig.java · filterChain()`의 `csrf disable` + `application-prod.properties`의 `app.cookie-same-site=None`.
 - 결과: HttpOnly 쿠키로 인증하면서 CSRF 방어가 없어 크로스사이트 쓰기 위조가 이론상 가능하다. 대응 방침 결정 필요.
-- → 갱신 (2026-08-28): **해소(최소 방어)** — 사용자 결정에 따라 **Origin 검증 필터**를 넣었다. `security/CsrfOriginValidationFilter`가 쓰기 메서드(POST/PUT/PATCH/DELETE)에 대해 `Origin`이 허용 목록에 있는지 확인하고, 아니면 403으로 끊는다. `Origin`이 없으면 `Referer`의 출처로 한 번 더 본다.
+- → 갱신 (2026-08-28): **해소(최소 방어)** — **Origin 검증 필터**를 넣었다.
+ `security/CsrfOriginValidationFilter`가 쓰기 메서드(POST/PUT/PATCH/DELETE)에 대해 `Origin`이 허용 목록에 있는지 확인하고, 아니면 403으로 끊는다. `Origin`이 없으면 `Referer`의 출처로 한 번 더 본다.
   - **CSRF 토큰(double-submit)을 지금 넣지 않은 이유**: 방어력은 그쪽이 높지만 **프론트엔드가 XSRF 토큰을 되돌려 보내도록 함께 고쳐야 한다.** 프론트는 별도 저장소라 백엔드만 바꾸면 모든 쓰기 요청이 깨진다. Origin 검증은 프론트 변경 없이 지금 넣을 수 있고, 나중에 토큰 방식을 얹어도 충돌하지 않는다.
   - **한계(중요)**: `Origin`과 `Referer`가 **둘 다 없으면 통과시킨다.** 서버 간 호출·curl·k6 부하 스크립트는 이 헤더를 보내지 않고, 막으면 정상 이용과 성능 측정이 죽는다. CSRF는 브라우저를 통해서만 성립하고 브라우저는 교차 출처 쓰기에 `Origin`을 생략하지 않으므로 이 예외가 방어에 구멍을 내지는 않는다 — 다만 토큰 방식보다 약한 방어라는 점은 명시해 둔다.
   - **같은 출처는 허용 목록에 없어도 통과시킨다**: 같은 출처 요청은 CSRF가 성립하지 않고, 막으면 개발 환경에서 Swagger UI로 API를 호출하는 것이 전부 403이 된다.
@@ -72,13 +77,14 @@
 
 ### KI-07. TokenAuthenticationFilter가 예외를 삼켜 TokenExceptionFilter가 사실상 동작하지 않음
 - 위치: `security/TokenAuthenticationFilter.java · doFilterInternal()` — `tokenProvider.getAuthentication()` 실패를 `catch (RuntimeException)`으로 잡아 log.warn만 하고 통과시킨다. 같은 파일에 주석 처리된 `throw new TokenException(...)`과 빈 else 블록이 남아 있다.
-- 결과: 앞단에 등록된 `TokenExceptionFilter`(만료/서명오류를 코드별 401로 변환하는 역할)에 예외가 도달하지 못한다. 클라이언트는 토큰 상태와 무관하게 익명 사용자로 진행되다가 인가 단계에서 일괄 401을 받는다. [04-request-flow.md](04-request-flow.md) 참고.
+- 결과: 앞단에 등록된 `TokenExceptionFilter`(만료/서명오류를 코드별 401로 변환하는 역할)에 예외가 도달하지 못한다. 클라이언트는 토큰 상태와 무관하게 익명 사용자로 진행되다가 인가 단계에서 일괄 401을 받는다.
 
 ### KI-08. 인증 성공 경로가 요청마다 DB를 조회
 - 위치: `security/TokenProvider.java · getAuthentication()` — JWT 클레임 파싱 후 `userRepository.findByEmail()`로 매 요청 사용자 조회.
 - 결과: stateless JWT의 이점이 사라지고 인증 경로가 요청당 최소 1 SELECT를 유발한다.
 
-## 문서-코드 불일치 (Phase 1에서 확인분)
+## 문서-코드 불일치 (구조·흐름 문서 작성 중 확인분)
+
 
 ### KI-09. README 실행 가이드가 현재 코드와 불일치
 - `README.md` 실행 섹션이 `jwt.secret`, `jwt.access-token-expiration` 등 코드에 존재하지 않는 프로퍼티 키를 안내한다. 실제 키는 `jwt.key`다. DB명도 `highteenday`로 안내하나 dev 기본값은 `highteenday_db`다.
@@ -86,7 +92,10 @@
 - → 갱신 (2026-08-11): **해소** — README 실행 섹션을 실제 환경변수 기반으로 재작성하고 00-quickstart.md로 연결, CI/CD 표기를 ECR/Docker로 정정.
 
 ### KI-10. SYSTEM_ARCHITECTURE.md가 구버전 상태로 방치됨
-- Next.js·duckdns 도메인·`PostLike`/`PostDislike`(통합 전 스키마)·잘못된 OAuth 콜백 경로 등 현재 코드와 다른 서술 다수. 현행 기준은 [02-architecture.md](02-architecture.md)를 따른다.
+- Next.js·duckdns 도메인·`PostLike`/`PostDislike`(통합 전 스키마)·잘못된 OAuth 콜백 경로 등 현재 코드와 다른 서술 다수. 현행 기준은 저장소 [README.md](../README.md) 와 코드다.
+- → 갱신 (2026-08-28): 구버전 서술을 코드 기준으로 정정.
+- → 갱신 (2026-09-05): **문서 자체를 저장소에서 제거.** 정정 뒤에도 구조·패키지 문서와 내용이 겹치고 패키지 트리가 다시 어긋나기 시작해(존재하지 않는 클래스 5개), 같은 사실을 두 곳에 두지 않는 문서 규칙에 따라 뺐다. 단체 채팅 작업 기록(`GROUP_CHAT.md`)·핫게시글 분석(`HOT_POST_SYSTEM.md`)·반응 테이블 통합 SQL(`POST_REACTION_MIGRATION.md`)도 각각 채팅·반응 도메인 문서로 흡수된 상태라 함께 뺐다. **그 도메인 문서들도 2026-09-07 에 같은 이유로 저장소에서 뺐다** — 코드를 다시 서술한 문서는 코드가 바뀔 때마다 어긋난다.
+
 
 ### KI-11. README의 핫스코어 갱신 주기 서술이 코드와 다름
 - README는 "1분 주기로 전체 게시글 스코어 갱신"이라 하나, 코드는 `schedulers/HotScoreScheduler.java · @Scheduled(fixedRate = 5분)`로 리더보드 상위 50개만 갱신한다.
@@ -139,7 +148,8 @@
   - 무효 1곳: `services/domain/PostService · updatePost(..., @Valid UpdatePostDto)` — 클래스에 `@Validated`가 없어 메서드 검증이 동작하지 않는다.
 - 결과: 댓글·채팅·친구·회원가입 등 나머지 `@RequestBody` DTO는 Bean Validation을 타지 않고, VO·수동 검사·DB 제약에 의존한다. DTO에 어떤 제약 애노테이션을 붙여도 조용히 무시되는 함정.
 - 조치 필요: 컨트롤러 `@RequestBody`에 `@Valid` 일괄 적용 또는 서비스 클래스에 `@Validated` 추가 중 방침 결정.
-- → 갱신 (2026-08-28): **해소(배관 연결까지)** — 사용자 결정에 따라 **컨트롤러 `@RequestBody`에 `@Valid` 일괄 적용**. 31개 파라미터 전부에 붙였고, `PostService.updatePost()`의 무효한 `@Valid`는 제거했다.
+- → 갱신 (2026-08-28): **해소(배관 연결까지)** — **컨트롤러 `@RequestBody`에 `@Valid` 일괄 적용**.
+ 31개 파라미터 전부에 붙였고, `PostService.updatePost()`의 무효한 `@Valid`는 제거했다.
   - **DTO에 새 제약 애노테이션은 붙이지 않았다.** 이렇게 하면 기존 요청의 성공/실패가 하나도 바뀌지 않아 **성능 측정 기준선에 영향이 없다.** 결함의 본질은 "제약을 붙여도 조용히 무시된다"는 함정이었고, 그 함정만 없앤 것이다. 어떤 제약을 걸지는 도메인 판단이라 별도 작업이다.
   - **서비스에 `@Validated`를 붙이는 안은 버렸다**: 검증 실패가 `ConstraintViolationException`으로 나와 `GlobalExceptionHandler`에 핸들러를 하나 더 만들어야 하고, 예외가 웹 계층이 아닌 서비스 계층에서 발생해 응답 형식이 `MethodArgumentNotValidException` 경로와 달라진다. 검증 실패 응답이 두 가지 모양이 되는 건 그 자체로 결함이다.
   - `ChatController`의 `Map<String, String>` 본문 한 곳은 제외했다. `Map`은 Bean Validation이 걸 제약이 없는 타입이라 `@Valid`를 붙여도 의미가 없다.
@@ -210,12 +220,14 @@
 
 ### KI-24. STOMP 발행이 트랜잭션 커밋 전에 일어남
 - 위치: `services/domain/ChatService.java · markAsRead()` 및 `writeSystemMessage()/publishMemberEvent()`를 부르는 초대·강퇴·퇴장·이름변경 메서드들, `services/domain/NotificationService.java · saveNotification()` — 모두 `@Transactional` 안에서 `messagingTemplate.convertAndSend...`를 호출한다.
-- 결과: 트랜잭션이 롤백되면 클라이언트는 DB에 존재하지 않는 메시지·알림·멤버 이벤트를 이미 수신한 상태가 된다 (유령 이벤트). 기존 문서도 이를 인지하고 있다 — `docs/GROUP_CHAT.md` 8절 "알려진 한계: 트랜잭션 커밋 전에 WebSocket 메시지가 나갑니다".
+- 결과: 트랜잭션이 롤백되면 클라이언트는 DB에 존재하지 않는 메시지·알림·멤버 이벤트를 이미 수신한 상태가 된다 (유령 이벤트). 단체 채팅 구현 당시 작업 기록에도 "트랜잭션 커밋 전에 WebSocket 메시지가 나간다"가 알려진 한계로 적혀 있었다.
+
 - 조치 필요: `TransactionSynchronization.afterCommit` 또는 AFTER_COMMIT 이벤트로 발행 이전 방침 결정.
 - → 갱신 (2026-08-28): **해소** — 발행 4곳(`ChatService.markAsRead()`·`writeSystemMessage()`·`publishMemberEvent()`, `NotificationService.saveNotification()`)을 모두 `AfterCommitExecutor.run(...)`으로 감쌌다. KI-22와 같은 장치를 쓴다.
   - **`TransactionSynchronization.afterCommit`을 택하고 AFTER_COMMIT 이벤트를 버린 이유**: 이벤트 방식은 발행 지점마다 이벤트 타입과 리스너를 만들어야 하고, 발행 코드가 원래 자리에서 멀어져 "이 메시지가 언제 나가나"를 따라가기 어려워진다. 이 프로젝트는 리스너 없는 이벤트가 방치된 전례가 있다(KI-25). 지금 방식은 발행 코드가 원래 위치에 그대로 남고 실행 시점만 늦춰진다.
   - **페이로드 DTO는 커밋 전에 만든다**: 커밋 후에는 영속성 컨텍스트가 닫혀 `ChatMessageDto.fromEntity()`·`NotificationDto.fromEntity()`의 지연 로딩이 깨진다. 람다에는 완성된 DTO와 id 값만 담긴다.
-  - `docs/GROUP_CHAT.md` 8절의 "알려진 한계"와 9절 남은 작업 1번도 해소로 갱신했다.
+  - 채팅 도메인 문서의 알려진 한계도 해소로 갱신했다.
+
 - 회귀 방지: `ChatServiceTest.MarkAsRead.doesNotPublishBeforeCommit()`, `NotificationServiceTest.doesNotPushBeforeCommit()` — 예약된 작업을 **일부러 실행하지 않고** 발행이 일어나지 않았는지 본다. 발행을 다시 트랜잭션 안으로 옮기면 즉시 깨진다.
 
 ### KI-25. 리스너 없는 이벤트와 이벤트 페이로드 오류
@@ -261,7 +273,8 @@
 - 확인 방법: 각 파일의 `@Table`/`@Column` 애노테이션 확인.
 - → 갱신 (2026-08-11): **부분 해소** — `Token`은 `@Table(name="tokens")` 명시 + V5 마이그레이션으로 정리됐고 (부하 테스트에서 대소문자 불일치 장애로 실증된 뒤 수정 — [performance/bottlenecks/BTL-008](../performance/bottlenecks/BTL-008-token-table-case-mismatch.md)), `RecentHotPost`는 엔티티 자체가 삭제됐다. `Media`·`BaseEntity`·`SchoolMeal`·`Subject`의 이탈은 그대로 남아 있다.
 
-## 문서-코드 불일치 (Phase 2에서 확인분)
+## 문서-코드 불일치 (crosscutting·데이터 모델 문서 작성 중 확인분)
+
 
 ### KI-30. 급식 수집 주기가 README와 다름
 - 위치: `schedulers/SchoolMealScheduler.java` — `@Scheduled(cron = "0 0 0 1 * ?")`, 즉 **매월 1일 00:00**에 당월 데이터를 수집한다. `README.md`는 "급식 데이터는 매월 말일 스케줄러로 NEIS API에서 자동 수집"이라 서술한다.
@@ -273,30 +286,37 @@
 - 위치: `.gitignore`가 `k6/`와 `load-tests/`를 "Load test scripts (local only)" 주석과 함께 배제한다. 저장소에 해당 디렉터리가 없다.
 - 결과: `README.md` 성능 개선 절의 k6 기반 전후 수치(처리량·p95 등)를 제3자가 재현·검증할 수 없다. `controllers/testing/PostConsistencyController` 주석이 언급하는 "k6 teardown에서 호출" 스크립트도 저장소 밖이다.
 - 조치 필요: 스크립트를 저장소에 포함하거나 README에 재현 불가임을 명시.
-- → 갱신 (2026-08-11): **구조적으로 해소** — `performance/`에 k6 스크립트(`scripts/`, `scenarios/`), 전용 관측 환경(`environment/`), 실행 이력·회귀 판정 도구(`tools/`)가 저장소에 포함됐다. 단 README의 **과거** 수치를 만든 당시 스크립트는 복원되지 않았으므로, 그 수치들은 여전히 "당시 기록"으로 읽어야 한다 ([07-performance.md](07-performance.md)).
+- → 갱신 (2026-08-11): **구조적으로 해소** — `performance/`에 k6 스크립트(`scripts/`, `scenarios/`), 전용 관측 환경(`environment/`), 실행 이력·회귀 판정 도구(`tools/`)가 저장소에 포함됐다. 단 README의 **과거** 수치를 만든 당시 스크립트는 복원되지 않았으므로, 그 수치들은 여전히 "당시 기록"으로 읽어야 한다.
 
-## 인증·사용자 (Phase 3에서 확인분)
+## 인증·사용자 (도메인 문서 작성 중 확인분)
+
 
 ### KI-32. UserService.register()가 서블릿 응답 객체를 받는 레이어 역류
 - 위치: `services/domain/UserService.java · register()` — 도메인 서비스가 `HttpServletResponse`를 파라미터로 받아 직접 쿠키를 굽는다.
-- 결과: 웹 계층 관심사가 도메인 서비스로 역류해 재사용·테스트가 어렵다. [02-architecture.md](02-architecture.md)의 레이어 규칙과 충돌.
+- 결과: 웹 계층 관심사가 도메인 서비스로 역류해 재사용·테스트가 어렵다. 저장소 [README.md](../README.md) 의 레이어 규칙과 충돌.
+- → 갱신 (2026-09-05 확인): **해소** — `register(RegisterUserDto)`가 `Authentication`을 반환하고, 쿠키 발급은 `UserController.registerUser()`가 `JwtCookieService`를 불러 처리한다. 서비스는 서블릿 타입을 모른다.
 
-### KI-33. Role 체계가 사실상 사문화 + CLAUDE.md의 OAuth 콜백 경로 불일치
+
+### KI-33. Role 체계가 사실상 사문화 + 규약 문서의 OAuth 콜백 경로 불일치
 - 위치: `security/CustomUserPrincipal.java` — 3-인자 생성자가 `user.getRole()`을 무시하고 항상 ROLE_USER를 부여한다. `enums/Role`의 GUEST/ADMIN 분기(`security/TokenProvider`의 isGuest 체크 포함)는 도달 경로가 없다.
-- 부기: `CLAUDE.md`는 콜백을 `/login/oauth2/code/*`로 서술하나 실제는 `/oauth2/login/code/*`다 (`security/SecurityConfig · filterChain()`).
+- 부기: 규약 문서(`CLAUDE.md`)는 콜백을 `/login/oauth2/code/*`로 서술했으나 실제는 `/oauth2/login/code/*`다 (`security/SecurityConfig · filterChain()`).
 - 결과: 관리자 권한 기능을 붙이려는 순간 동작하지 않는 함정. 문서를 믿고 콜백 URL을 등록하면 실패.
+- → 갱신 (2026-09-05 확인): 부기의 규약 문서 콜백 경로와 "신규 유저 → ROLE_GUEST" 서술은 정정됐다. Role 분기가 죽은 코드인 본 항목은 **미해결**이다.
+
 
 ### KI-34. 회원 탈퇴가 물리 삭제라 FK 제약으로 실패할 수 있음
 - 위치: `services/domain/UserService.java · deleteAccount()` — soft delete 컨벤션과 달리 사용자 행을 물리 삭제한다.
 - 결과: 게시글·댓글 등 FK가 남은 사용자는 제약 위반으로 탈퇴가 실패하고, 성공하더라도 컨벤션(isValid) 위배.
-- → 갱신 (2026-08-28): **해소** — 사용자 결정에 따라 **이메일 무효화 + soft delete**. `User.withdraw()`가 `isValid=false`로 두면서 `USR_email`을 `deleted-{id}@deleted.invalid`로 치환한다. `UserService.deleteAccount()`는 이 메서드만 부른다.
+- → 갱신 (2026-08-28): **해소** — **이메일 무효화 + soft delete**.
+ `User.withdraw()`가 `isValid=false`로 두면서 `USR_email`을 `deleted-{id}@deleted.invalid`로 치환한다. `UserService.deleteAccount()`는 이 메서드만 부른다.
   - **이메일을 치환한 이유**: `users.USR_email`에 유니크 제약이 있어, 원래 이메일을 그대로 두면 **같은 이메일로 재가입할 수 없다.** 표식값으로 비켜 주면 스키마를 건드리지 않고 재가입이 가능해진다. 대가는 탈퇴 회원의 원래 이메일을 복구할 수 없다는 것이고, 그건 의도된 선택이다.
   - **표식 도메인을 `.invalid`로 한 이유**: RFC 2606이 "절대 실재하지 않는다"고 못박은 예약 TLD라 실수로 메일이 발송될 수 없다. 형식은 `Email` VO의 정규식을 통과해야 하므로 실제 이메일 모양을 지킨다(`+`는 그 정규식이 허용하지 않아 `-`를 쓴다).
   - **FK 위반·JPA 오류를 잡던 try/catch는 제거했다**: DELETE를 하지 않으므로 그 예외가 발생할 수 없다. 일어날 수 없는 경우를 위한 처리를 남겨 두면 읽는 사람을 오도한다.
   - `findByEmail`·`existsByEmail`에 `isValid = true`를 걸었다. 이메일이 이미 비켜 있어 원래 이메일로는 안 잡히지만, 인증·토큰 재발급이 전부 `findByEmail`을 지나므로 이중으로 막는다. 닉네임 쿼리는 건드리지 않았다 — 탈퇴자의 닉네임을 풀어 줄지는 별개의 제품 결정이다.
 - 회귀 방지: `UserServiceTest.DeleteAccount` — 행이 지워지지 않고 `isValid=false`가 되는지, 이메일이 표식값으로 바뀌어 재가입이 가능해지는지 확인한다. 물리 삭제를 전제하던 기존 테스트 3건(FK 위반·JPA 오류·기타 예외의 ErrorCode 변환)은 그 예외가 더 이상 발생할 수 없으므로 함께 제거했다.
 
-## 게시글·반응·댓글 (Phase 3에서 확인분)
+## 게시글·반응·댓글 (도메인 문서 작성 중 확인분)
+
 
 ### KI-35. 게시글 검색에 정렬이 적용되지 않음
 - 위치: `domain/posts/queryDsl/PostRepositoryCustomImpl.java · searchKeywordsAll()` — orderBy 절이 없고, `searchPagedPosts()`에 전달되는 Sort도 무시된다. 미구현 `searchKeywords()`는 `return null`.
@@ -324,17 +344,22 @@
 - 위치: `domain/comments/CommentRepository · findByPost()` — isValid 필터가 없다.
 - 결과: soft delete된 댓글이 목록 조회에 원문 그대로 내려간다.
 - 확인 방법: 댓글 삭제 후 해당 게시글 댓글 목록 조회.
+- → 갱신 (2026-09-07): **기록 정정 — 이 항목은 처음부터 사실이 아니었다.** `findByPost()` 의 JPQL 은 이 장부가 작성된 2026-07-30 이전부터 `where c.isValid=true and c.post=:post` 였다(`66af969`, 2025-07-22). 항목을 지우지 않고 남기는 이유는 **장부 자체의 오탐률이 장부의 신뢰도**이기 때문이다. 같은 계열의 기록 정정: KI-01.
 
 ### KI-40. 단건 댓글 조회가 익명화를 우회함
 - 위치: `controllers/CommentController.java · getCommentByIdTest()` — 익명 댓글에 `CommentAnonymizationService`를 적용하지 않고 반환한다 (메서드명에 Test가 남은 프로덕션 엔드포인트).
 - 결과: 익명 댓글 작성자의 닉네임·userId가 노출된다. 익명 보장 정책 위반.
+- → 갱신 (2026-08-28, 기록은 2026-09-07): **해소** — `94c4a45`. 핸들러를 `getCommentById()` 로 개명하고, 목록 엔드포인트와 **같은** `CommentAnonymizationService.anonymize()` 를 거치게 했다.
+  - **단건만 따로 익명화할 수 없는 이유**: 익명N 의 N 은 같은 게시글 안에서의 댓글 등장 순서로 매겨진다. 댓글 하나만 떼어 익명화하면 목록과 다른 번호가 나가고, **같은 작성자가 두 사람으로 보인다.** 그래서 게시글의 댓글 전체를 문맥으로 넣는다.
+  - soft delete 된 댓글은 그 목록에 없으므로 내용을 내려보내는 대신 `ErrorCode.COMMENT_NOT_FOUND` → 404 로 답한다. 없는 댓글과 삭제된 댓글을 구분하지 않는 것은 의도된 것이다 — 구분하면 삭제 사실 자체가 노출된다.
 
 ### KI-41. 댓글 수정 미디어 처리에서 NPE 가능
 - 위치: `services/domain/MediaProcessingService · processUpdateCommentMedia()` — 기존 s3Url이 null인 댓글을 수정할 때 null 역참조 경로가 있다.
 - 결과: 이미지 없던 댓글 수정 시 500 가능.
 - → 갱신 (2026-08-11): **해소** — null 가드 추가 (부하 테스트에서 실증 후 수정, [performance/bottlenecks/BTL-010](../performance/bottlenecks/BTL-010-comment-update-npe.md)). 단위 테스트 포함.
 
-## 친구·학교 (Phase 3에서 확인분)
+## 친구·학교 (도메인 문서 작성 중 확인분)
+
 
 ### KI-42. 친구 요청에 상태 검증이 없음
 - 위치: `services/domain/FriendService · sendFriendsRequest()` — 역방향 요청 존재·이미 친구·차단 상태를 검증하지 않는다. 또한 `respondToFriendRequest()`는 알 수 없는 status 값이 오면 요청 행을 조용히 삭제한다.
@@ -379,7 +404,8 @@
 ### KI-47. 학교 검색이 엔티티를 직접 반환
 - 위치: `controllers/SchoolController.java · searchSchools()` — DTO 변환 없이 `School` 엔티티를 응답으로 노출한다. "엔티티 직접 노출 금지" 컨벤션 위배.
 
-## 운영·테스트 (Phase 4에서 확인분)
+## 운영·테스트 (운영 문서 작성 중 확인분)
+
 
 ### KI-48. 배포 후 검증·자동 롤백이 없음
 - 위치: `.github/workflows/deploy.yml` — `docker compose up -d --force-recreate`로 끝난다. `/actuator/health` 확인 단계가 없다.
@@ -396,11 +422,15 @@
 - → 갱신 (2026-08-11): **해소** — README 캐싱 절에서 게시판 목록을 제외하고 실제 캐시 대상(게시글 목록·total count)만 서술하도록 정정.
 
 ### KI-50. 미사용 테스트 헬퍼와 미사용 의존성
-- 위치: `src/test/.../configs/TestFileStorageConfig`, `src/test/.../services/global/LocalFileStorageAdapter` — 참조 0건. `build.gradle`의 `it.ozimov:embedded-redis`도 코드 사용처가 없다 (CLAUDE.md의 "Embedded Redis 사용" 서술과 불일치).
+- 위치: `src/test/.../configs/TestFileStorageConfig`, `src/test/.../services/global/LocalFileStorageAdapter` — 참조 0건. `build.gradle`의 `it.ozimov:embedded-redis`도 코드 사용처가 없었다 (규약 문서의 "Embedded Redis 사용" 서술과 불일치).
+- → 갱신 (2026-09-05 확인): **해소** — `embedded-redis` 의존성은 `build.gradle`에서 제거됐고, 헬퍼 2개는 `test` 프로파일에서 S3 어댑터를 대체하는 구현으로 `HighteendayBackendApplicationTests`·`AuthorizationMatrixTest` 등이 실제로 쓴다 (`src/test/resources/application-test.properties` 주석 참고).
+
 
 ### KI-51. 단언 없는 테스트
 - 위치: `src/test/.../utils/HotScoreCalculatorTest` — 계산 결과를 출력만 하고 assert가 없어 항상 통과한다.
 - 결과: 핫스코어 산식 회귀를 잡지 못한다.
+- → 갱신 (2026-09-05 확인): **해소** — 같은 클래스가 가중합·로그 스케일·부호·시간 감쇠를 각각 단언하는 테스트 8건으로 교체됐다.
+
 
 ### KI-52. 웹 슬라이스·보안 테스트 기반 부재
 - 위치: `build.gradle` — `spring-security-test` 의존성이 없고, `@WebMvcTest` 사용이 0건이다.
@@ -503,7 +533,9 @@
 - 결과: 다른 사람이 클론하면 그대로는 실행되지 않는다. 공개 저장소에서는 로컬 디렉터리 구조와 Node 설치 방식도 함께 드러난다.
 - 조치 방향: 스크립트 위치 기준 상대 경로(`$PSScriptRoot`)와 PATH 의 `node` 로 바꾼다. 야간 실행기는 본인만 쓰는 도구라 우선순위는 낮다.
 
-마지막 검증일: 2026-08-11 (최초 작성 2026-07-30, 이후 해소분은 각 항목의 "→ 갱신" 줄 참고)
+마지막 검증일: 2026-09-07 (최초 작성 2026-07-30, 전면 재검증 2026-08-11, 이후 해소분은 각 항목의 "→ 갱신" 줄 참고)
 KI-53·54는 2026-08-14 추가 — 부하 테스트 중 발견분. KI-55는 같은 날 데이터셋 재생성 검증 중 발견.
 KI-56·57은 2026-08-18 추가 — "이미 아는 문제 말고 새 문제"를 찾는 코드 재독에서 발견. 부하 테스트가 밟지 않는 경로라 실행 결과로는 드러나지 않았다.
 KI-58·59는 2026-09-05 추가 — **저장소를 공개로 바꾼 뒤 외부인 시점에서 다시 훑다가 발견.** 둘 다 "비공개 저장소" 전제 위에서 내렸던 결정이 공개 전환으로 무효가 된 경우다.
+
+2026-09-07 정정 2건: **KI-39 는 처음부터 사실이 아니었고**(오탐), **KI-40 은 2026-08-28 에 해소됐는데 갱신 줄이 빠져 있었다**(지연). 각 항목의 "→ 갱신" 줄에 근거를 적었다. 항목을 지우지 않는 이유는 **이 장부의 오탐률과 갱신 지연이 곧 장부의 신뢰도**이고, 그것을 감추면 나머지 57건의 신뢰도까지 같이 잃기 때문이다.

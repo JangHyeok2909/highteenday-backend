@@ -7,7 +7,7 @@
 > 측정과 판정은 `performance/experiments/EXP-005` 에 있다. **여기에는 판단 과정만 남긴다** —
 > 어떤 지표를 어떻게 읽어 어떤 결론에 도달했고, 무엇이 그 결론을 무너뜨렸는가.
 > 짝 문서: [perf-request-cost-skew.md](perf-request-cost-skew.md)(E-51 커넥션 풀 스파이크),
-> [perf-report-redesign.md](../design/perf-report-redesign.md)(리포트 개선 과제),
+> `perf-report-redesign.md`(리포트 개선 과제 — 2026-09-07 저장소에서 뺐다),
 > [perf-trust-levels.md](../planning/perf-trust-levels.md)(이 수치로 무엇을 주장할 수 있는가)
 > 관련: `performance/bottlenecks/BTL-005-comment-nplus1.md`,
 > `performance/experiments/EXP-005-comment-nplus1/README.md`
