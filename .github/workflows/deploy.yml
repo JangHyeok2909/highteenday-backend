@@ -1,8 +1,25 @@
 name: Deploy to EC2
 
+# ============================================================
+# 자동 배포를 멈춰 둔 상태다 (2026-09-09).
+#
+# EC2 인스턴스를 내려 두었고 ECR 저장소도 남아 있지 않다. 그래서 main 에 푸시할
+# 때마다 build 잡이 `RepositoryNotFoundException` 으로 실패하고, 커밋마다 빨간 X 가
+# 붙었다. 파이프라인이 고장난 것이 아니라 배포 대상 인프라가 없는 것이므로,
+# 워크플로를 지우지 않고 스위치만 내렸다.
+#
+# 되살리는 방법: EC2 와 ECR 을 올린 뒤 저장소 변수를 켠다.
+#   gh variable set DEPLOY_ENABLED --body true
+# 한 번만 배포하려면 Actions 탭에서 Run workflow 로 수동 실행한다.
+#
+# test 잡에는 스위치를 걸지 않았다. 배포하지 않아도 main 푸시에서 테스트는
+# 계속 돌아야 한다.
+# ============================================================
+
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 env:
   AWS_REGION: ap-northeast-2
@@ -51,6 +68,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: test
+    # 배포 대상 인프라가 없는 동안 이미지 빌드와 배포를 건너뛴다(위 머리말).
+    # 이 잡이 건너뛰어지면 needs 로 매달린 deploy 잡도 함께 건너뛰어진다.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true' }}
     permissions:
       id-token: write   # required for OIDC
       contents: read
