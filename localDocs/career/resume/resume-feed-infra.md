@@ -27,7 +27,6 @@ p{margin-bottom:1.5mm} ul{margin-bottom:1.5mm} li{margin-bottom:0.65mm}
 <div class="kpi">
   <div><b>1,507 &rarr; 4</b><span>댓글 목록 단일 요청의 쿼리 수<br>데이터 크기에 비례하던 항 제거</span></div>
   <div><b>226.7 &rarr; 34.3ms</b><span>동일한 로컬 혼합 시나리오의 전체 p95<br>두 단계 개선, 단계별 5회 실행</span></div>
-  <div><b>4,046건 · 불일치 0</b><span>댓글 응답과 DB 전량 대조<br>익명 작성자 식별 정보 노출 0</span></div>
 </div>
 ```
 
@@ -44,6 +43,7 @@ p{margin-bottom:1.5mm} ul{margin-bottom:1.5mm} li{margin-bottom:0.65mm}
 2026.07 ~ 재직 중
 
 - 마이그레이션 후 Redis 누락 데이터 중 신규·변경분만 재캐싱하도록 배치 수정
+- 정부 주소 검색 API 장애가 다른 요청까지 멈추지 않도록 타임아웃과 서킷 브레이커 도입 (RestTemplate, Redis)
 - 로그인 실패 조건을 재현하고 Refresh Token 처리 흐름 재설계 (Spring Security, JWT)
 - 조회·등록 API와 Vue 화면 구현 후 코드 리뷰 반영 (MyBatis, PostgreSQL, Vue)
 
@@ -75,7 +75,6 @@ p{margin-bottom:1.5mm} ul{margin-bottom:1.5mm} li{margin-bottom:0.65mm}
 - 작성자 지연 로딩에 `ManyToOne` 페치 조인을 적용해 요청당 쿼리 112 → 4회
 - 혼합 시나리오 전체 p95 226.7 → 34.3ms 관측, 단계별 동일 조건 5회 실행
 - 영속성 컨텍스트를 비운 뒤 페치 조인 제거 시 실패하는 쿼리 수 테스트 추가
-- 댓글 4,046건을 DB와 전량 대조해 내용 불일치와 익명 작성자 정보 노출 0건 확인
 
 #### 부하 실험 비교 조건 검사
 

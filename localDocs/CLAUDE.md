@@ -130,3 +130,12 @@ smoke 로 충분한 이유: 도구 결함은 **데이터 규모와 무관**하�
 
 `README.md` 실행 순서의 "2. 스모크 확인"이 이미 이 단계인데, 도구를 고칠 때는 밟지 않고
 있었다.
+
+---
+
+## 문서 문장 규칙
+
+이 디렉터리의 문서도 루트 `CLAUDE.md`의 **Documentation Rules**와 `docs/WRITING.md`를 따른다.
+`career/resume/` 원고는 거기에 더해 `career/resume/README.md`의 두 약속(`[[...]]`, `<!-- CUT -->`)과
+`career/resume/GAPS.md` P-4·Q-7의 문장 규칙을 지킨다. 고친 뒤에는 `docs/WRITING.md` 6장의 스크립트로
+수치를 다시 재고, 결과를 GAPS.md에 남긴다.

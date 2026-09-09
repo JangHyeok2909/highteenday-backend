@@ -32,6 +32,7 @@
 | 문서 | 답하는 질문 | 언제 읽나 |
 |---|---|---|
 | [military-service-company-ranking.md](career/military-service-company-ranking.md) | **어느 회사에 지원할 것인가?** 보충역 4급 신규편입으로 지원 가능한 병역특례 백엔드 공고 전체를 성장 가능성 순으로 줄 세운 것. 지원 불가 회사와 그 이유 포함 | **지원 대상 회사를 정할 때 — `toss-target-role.md` 보다 먼저** |
+| [resume-with-claude-code.md](career/resume-with-claude-code.md) | **AI를 써서 만든 서류가 왜 사람에게 안 읽히고 어떻게 써야 읽히는가?** 읽는 방식·AI 티 신호·구조·문장 공식·클로드의 역할 분담·작업 절차·도구를 출처 22곳으로 정리 | 원고를 다시 쓰기 전, 클로드에게 무엇을 시킬지 정할 때 |
 | [resume-assets.md](career/resume-assets.md) | 공고의 각 줄에 이 프로젝트의 무엇으로 답하는가? 답할 것이 없는 줄은 어디이고 무엇을 만들어야 채워지는가? | 이력서를 쓰기 전, **프로젝트 고도화 항목을 고를 때** |
 | [career/references/README.md](career/references/README.md) | **이력서·포트폴리오의 뼈대를 무엇에 맞추는가?** 해외(미국·캐나다) 백엔드·인프라 모범 사례 14건의 원문 보존과 선정 근거, 뒤진 곳·막힌 곳 | 원고의 구조를 바꾸기 전 |
 | [career/references/rules-resume.md](career/references/rules-resume.md) · [rules-portfolio.md](career/references/rules-portfolio.md) | 그 뼈대를 어떻게 따르는가? 규칙별 출처, 현재 원고 대조표, 출처가 갈리는 곳의 판정 | 원고를 고칠 때, 제출 전 점검표 |

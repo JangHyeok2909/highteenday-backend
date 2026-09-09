@@ -7,11 +7,11 @@
  *       (실물 이력서 4편에서 0건인 항목이 "강한 위반"이다. 실물 계측값은 그 문서 0절)
  *
  * 사용:
- *   node lint.js                          # resume.md portfolio.md 둘 다
- *   node lint.js resume.md                # 하나만
- *   node lint.js resume.md --strict       # 강한 위반이 하나라도 있으면 exit 1
- *   node lint.js resume.md --extract out/resume-screen.md   # PDF에 들어가는 본문만 뽑아 저장(맹검 심사용)
- *   node lint.js resume.md --json         # 기계용 출력
+ *   node lint.js                          # resume-feed-infra.md portfolio-feed-infra.md 둘 다
+ *   node lint.js resume-feed-infra.md     # 하나만
+ *   node lint.js resume-feed-infra.md --strict     # 강한 위반이 하나라도 있으면 exit 1
+ *   node lint.js resume-feed-infra.md --extract out/resume-screen.md   # PDF에 들어가는 본문만 뽑아 저장(맹검 심사용)
+ *   node lint.js resume-feed-infra.md --json       # 기계용 출력
  *
  * 의존성 없음. python 이 없는 환경이라 node 로 쓴다.
  */
@@ -23,7 +23,7 @@ const argv = process.argv.slice(2);
 const ex = argv.indexOf('--extract');
 const opt = { strict: argv.includes('--strict'), json: argv.includes('--json'), extract: ex >= 0 ? argv[ex + 1] : null };
 const files = argv.filter((a, i) => !a.startsWith('--') && !(ex >= 0 && i === ex + 1));
-const targets = files.length ? files : ['resume.md', 'portfolio.md'];
+const targets = files.length ? files : ['resume-feed-infra.md', 'portfolio-feed-infra.md'];
 
 // 불릿 길이 문턱. 실물 4편의 불릿 평균은 23~49자, p90 은 34~70자, 90자를 넘는 불릿은 편당 0~1개다.
 const BULLET_MAX = 90;

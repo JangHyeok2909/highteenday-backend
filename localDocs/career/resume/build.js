@@ -2,9 +2,9 @@
 /**
  * 이력서·포트폴리오 빌드 — <원본>.md → out/<이름>.html → out/<이름>.pdf
  *
- *   node build.js                              # resume.md → out/resume.pdf
- *   node build.js resume.md resume-daangn      # 원본과 출력 이름을 따로 지정
- *   node build.js portfolio.md portfolio-daangn
+ *   node build.js                                          # resume-feed-infra.md → out/resume-feed-infra.pdf
+ *   node build.js resume-feed-infra.md resume-daangn        # 원본과 출력 이름을 따로 지정
+ *   node build.js portfolio-feed-infra.md portfolio-daangn
  *
  * 의존성 없음. 마크다운 변환기는 이 파일이 직접 갖고 있다(이력서에 필요한 문법만).
  * PDF 는 Chrome 헤드리스(--print-to-pdf)로 만든다. pandoc·wkhtmltopdf 불필요.
@@ -22,7 +22,7 @@ const { spawnSync } = require('child_process');
 const ROOT = __dirname;
 const SHORT = process.argv.includes('--short');
 const ARGS = process.argv.slice(2).filter((a) => !a.startsWith('--'));
-const SRC_ARG = ARGS[0] || 'resume.md';
+const SRC_ARG = ARGS[0] || 'resume-feed-infra.md';
 const SRC = path.isAbsolute(SRC_ARG) ? SRC_ARG : path.join(ROOT, SRC_ARG);
 const NAME = ARGS[1] || path.basename(SRC, '.md');
 const TPL = path.join(ROOT, 'template.html');
@@ -183,8 +183,20 @@ function markdownToHtml(md) {
         listDepth += 1;
       }
       closeLists(depth);
-      out.push(`<li>${inline(li[2])}</li>`);
+      // 들여쓴 다음 줄은 같은 항목의 이어지는 문장이다.
+      // (2026-09-05 수정: 줄바꿈된 항목의 둘째 줄부터가 목록 밖 문단으로 떨어져 나가고,
+      //  줄에 걸친 **굵게** 가 별표 그대로 찍히던 결함)
+      const text = [li[2]];
       i += 1;
+      while (
+        i < lines.length &&
+        /^\s+\S/.test(lines[i]) &&
+        !/^\s*([-*]\s|<!--|```|\|)/.test(lines[i])
+      ) {
+        text.push(lines[i].trim());
+        i += 1;
+      }
+      out.push(`<li>${inline(text.join(' '))}</li>`);
       continue;
     }
 
