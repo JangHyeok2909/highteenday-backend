@@ -3,14 +3,14 @@ package com.example.highteenday_backend.infrastructure.redis;
 import com.example.highteenday_backend.aop.ResilientRedis;
 import com.example.highteenday_backend.domain.port.ViewCountStorePort;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 조회수 버퍼의 Redis 구현 (ViewCountStorePort의 Adapter).
@@ -30,6 +30,7 @@ public class RedisViewCountStore implements ViewCountStorePort {
 
     private static final String VIEW_COUNT_PREFIX = "post:views:";
     private static final String DEDUP_PREFIX = "viewed:";
+    private static final int SCAN_BATCH_SIZE = 100;
 
     @ResilientRedis
     @Override
@@ -61,24 +62,36 @@ public class RedisViewCountStore implements ViewCountStorePort {
      * 실패하면 이미 사라진 증가분을 되돌릴 방법이 없었다. 이제 정리는 반영에 성공한
      * 뒤 {@link #settleCounts(Map)}가 한다.
      *
-     * 주의: KEYS는 전체 키스페이스를 훑는 블로킹 O(N) 명령이라 키가 많아지면 60초마다
-     * 같은 Redis를 쓰는 다른 캐시까지 멈칫하게 만든다. SCAN 전환이 남은 과제다 (KI-17).
+     * <h2>키 탐색은 SCAN이다 (KI-17)</h2>
+     *
+     * 예전에는 KEYS를 썼다. KEYS는 전체 키스페이스를 한 번에 훑는 블로킹 O(N) 명령이라,
+     * 키가 늘면 60초마다 같은 Redis를 쓰는 토큰 캐시·게시글 캐시까지 함께 지연된다.
+     * SCAN은 커서로 나눠 훑으므로 한 번의 호출이 짧고, 그 사이 다른 명령이 처리된다.
+     *
+     * SCAN은 순회 도중 생긴 키를 그 주기에 돌려주지 않을 수 있다. 놓친 증가분은 Redis에
+     * 그대로 남아 다음 주기에 반영되므로 유실되지 않는다. 같은 키를 두 번 돌려줄 수도
+     * 있으나, 결과를 게시글 ID로 키를 잡은 Map에 담아 같은 값으로 덮어쓴다.
      */
     @ResilientRedis
     @Override
     public Map<Long, Integer> peekPendingCounts() {
-        Set<String> keys = redisTemplate.keys(VIEW_COUNT_PREFIX + "*");
-        if (keys == null || keys.isEmpty()) return Collections.emptyMap();
+        ScanOptions options = ScanOptions.scanOptions()
+                .match(VIEW_COUNT_PREFIX + "*")
+                .count(SCAN_BATCH_SIZE)
+                .build();
 
         Map<Long, Integer> result = new HashMap<>();
-        for (String key : keys) {
-            String value = redisTemplate.opsForValue().get(key);
-            if (value == null) continue;
+        try (Cursor<String> cursor = redisTemplate.scan(options)) {
+            while (cursor.hasNext()) {
+                String key = cursor.next();
+                String value = redisTemplate.opsForValue().get(key);
+                if (value == null) continue;
 
-            Long postId = Long.parseLong(key.replace(VIEW_COUNT_PREFIX, ""));
-            Integer increment = Integer.parseInt(value);
-            if (increment <= 0) continue;
-            result.put(postId, increment);
+                Long postId = Long.parseLong(key.replace(VIEW_COUNT_PREFIX, ""));
+                Integer increment = Integer.parseInt(value);
+                if (increment <= 0) continue;
+                result.put(postId, increment);
+            }
         }
         return result;
     }
@@ -91,7 +104,7 @@ public class RedisViewCountStore implements ViewCountStorePort {
      * 빼면 남은 증가분이 다음 주기로 넘어간다.
      *
      * 차감 결과가 0 이하이면 키를 지운다 — 남겨 두면 값이 0인 키가 계속 쌓여
-     * KEYS가 훑어야 할 키스페이스가 단조 증가한다. 차감과 삭제 사이에 새 조회가
+     * SCAN이 훑어야 할 키스페이스가 단조 증가한다. 차감과 삭제 사이에 새 조회가
      * 끼어들면 그 1건은 유실되지만, 조회수는 정확성보다 가용성을 택한 데이터라
      * 허용 범위다 (adr-002).
      */
