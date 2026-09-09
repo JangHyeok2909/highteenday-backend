@@ -26,7 +26,7 @@ Redis를 쓰기 버퍼로 사용한다. 요청 경로: `viewed:{postId}:{userId}
   - **유실 허용**: Redis 장애 중 조회는 집계되지 않고, 미반영 버퍼는 Redis 데이터 유실 시 사라진다 — 유실 범위 상세는 [operations/runbook.md](../operations/runbook.md) 시나리오 1. DB 반영 실패로는 유실되지 않는다 — 처음에는 GETDEL로 먼저 지워 반영 실패분이 사라지는 구조였고, 2026-08-28에 읽기 → 반영 → 차감 순서로 바꿨다 ([KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실)).
 
   - **최대 60초 지연**: DB의 조회수는 항상 버퍼만큼 과거 값이다.
-  - **KEYS 명령 사용**: `peekPendingCounts()`가 `redisTemplate.keys("post:views:*")`를 쓴다. KEYS는 O(전체 키 수) 블로킹 명령이라 키가 많아지면 Redis 전체를 멈출 수 있다 — SCAN 미사용은 개선 여지다 ([KI-17](../KNOWN-ISSUES.md#ki-17-조회수-드레인이-블로킹-keys-명령-사용)) `[미확인: 실측 영향 없음 확인 못 함]`.
+  - **키 탐색은 SCAN**: `peekPendingCounts()`가 `redisTemplate.scan(...)`으로 커서 순회한다. 처음에는 KEYS를 썼고, KEYS는 전체 키 수에 비례하는 블로킹 명령이라 키가 늘면 Redis 전체를 멈출 수 있다. 2026-09-08에 SCAN으로 바꿨다 ([KI-17](../KNOWN-ISSUES.md#ki-17-조회수-드레인이-블로킹-keys-명령-사용)). SCAN은 순회 중 생긴 키를 그 주기에 빠뜨릴 수 있고, 빠진 증가분은 다음 주기에 반영된다.
   - 삭제된 게시글의 버퍼는 sync 시 `ResourceNotFoundException`으로 건너뛰고 반영된 것으로 쳐서 정리한다 (`syncViewsToDB()`의 catch) — 남겨 두면 매 주기 같은 실패를 반복한다.
 
 

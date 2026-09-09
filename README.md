@@ -277,7 +277,7 @@ HttpOnly; Secure; SameSite=None; Domain=.highteenday.org
            → Redis INCR post:views:{postId}
 
 ViewCountScheduler (60초 주기, fixedDelay)
-           → KEYS post:views:* 로 대기 중인 카운터 키 목록 조회
+           → SCAN MATCH post:views:* 로 대기 중인 카운터 키 목록 조회
            → 키마다 값을 읽기만 함 (삭제하지 않음)
            → 게시글별로 DB에 누적값 UPDATE + 핫스코어 갱신
            → DB 반영에 성공한 값만 DECRBY로 차감, 실패분은 남겨 다음 주기에 재시도

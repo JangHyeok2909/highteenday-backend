@@ -161,6 +161,12 @@
 - 위치: `infrastructure/redis/RedisViewCountStore.java · consumePendingCounts()` — `redisTemplate.keys(VIEW_COUNT_PREFIX + "*")`. `schedulers/ViewCountScheduler`가 60초마다 호출한다.
 - 결과: KEYS는 전체 키스페이스를 훑는 O(N) 블로킹 명령이다. 키가 많아지면 60초마다 Redis 전체가 멈칫하며, 같은 인스턴스를 쓰는 토큰 캐시·게시글 캐시까지 지연된다. SCAN 또는 별도 Set 인덱스로 대체 필요.
 - 확인 방법: 코드에서 `keys(` 호출 확인. redis-cli `MONITOR`로 60초마다 KEYS가 찍히는 것 관찰.
+- → 갱신 (2026-09-08): **해소**. `peekPendingCounts()`의 `redisTemplate.keys(...)`를 `redisTemplate.scan(ScanOptions)` 커서 순회로 바꿨다. MATCH는 기존 패턴 그대로 쓰고, 한 번에 가져올 키 수 힌트인 COUNT는 100으로 뒀다.
+  - **별도 Set 인덱스 대신 SCAN을 쓴 이유**: 인덱스 방식은 카운터를 올릴 때 SADD, 정산할 때 SREM을 같이 해야 한다. 두 연산은 원자적이지 않아 인덱스와 카운터가 어긋날 수 있고, 인덱스에서 빠진 게시글의 조회수는 영영 반영되지 않는다. 블로킹을 없애려다 조용한 유실을 새로 만드는 셈이라 택하지 않았다.
+  - **받아들인 조건**: SCAN은 순회 도중 생긴 키를 그 주기에 빠뜨릴 수 있다. 빠진 증가분은 Redis에 그대로 남아 다음 주기에 반영되므로 유실은 아니다. 같은 키를 두 번 돌려줄 수도 있으나, 결과를 게시글 ID로 키를 잡은 Map에 담아 같은 값으로 덮어쓴다.
+  - **남은 것**: 여러 인스턴스가 같은 배치를 동시에 돌 때의 중복 처리는 그대로다. 배포가 단일 인스턴스라 재현하고 확인할 환경이 없어 손대지 않았다. 스케줄러 단일 실행 보장은 조회수 배치만의 문제가 아니라 인기점수·토큰정리·급식 배치에도 같이 걸린다.
+  - **확인 방법(갱신)**: redis-cli `MONITOR`에 60초마다 `KEYS` 대신 `SCAN`이 찍힌다.
+- 회귀 방지: `infrastructure/redis/RedisViewCountStoreTest.PeekPendingCounts`(4건). SCAN 호출과 `keys()` 미호출, MATCH 패턴, 커서 close, 값 필터를 본다. **스케줄러·서비스 테스트로는 이 결함을 못 잡는다**. 두 테스트는 포트가 돌려준 Map만 보므로 탐색 명령을 KEYS로 되돌려도 통과한다. 그래서 어댑터에서 명령 자체를 단언한다.
 
 ### KI-18. ResilientRedisAspect가 민감 인자를 로그에 남김
 - 위치: `aop/ResilientRedisAspect.java · handle()` — 실패 시 `log.warn(..., joinPoint.getArgs(), e)`.
@@ -216,6 +222,7 @@
     - **DEL이 아니라 DECRBY인 이유**: peek 이후 반영까지 사이에 들어온 새 조회수가 이미 카운터에 더해져 있다. 키를 통째로 지우면 그 조회수까지 사라지지만, 반영한 값만 빼면 그 사이 증가분이 다음 주기로 넘어간다. 차감 결과가 0 이하면 키를 지운다 — 안 지우면 값이 0인 키가 쌓여 `KEYS`가 훑을 키스페이스가 단조 증가한다.
     - **삭제된 게시글은 예외**: 다시 시도해도 성공하지 않으므로 반영된 것으로 쳐서 차감한다. 안 그러면 매 주기 같은 실패를 반복한다.
   - `KEYS`는 그대로 두었다 — SCAN 전환은 KI-17의 범위다.
+    - → 갱신 (2026-09-08): 이 `KEYS`는 SCAN으로 바꿨다. KI-17을 본다.
 - 회귀 방지: `ViewCountSchedulerTest.DrainOrder`(4건) — `InOrder`로 DB 반영이 차감보다 먼저인지, 실패한 게시글이 차감 목록에서 빠지는지(ArgumentCaptor), 하나가 실패해도 나머지가 진행되는지, 삭제된 게시글은 정리되는지를 본다. `ViewCountServiceTest.PeekAndSettle`(5건)이 읽기와 정리가 실제로 분리됐는지 고정한다.
 
 ### KI-24. STOMP 발행이 트랜잭션 커밋 전에 일어남
