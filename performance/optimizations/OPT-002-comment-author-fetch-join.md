@@ -41,9 +41,17 @@ List<Comment> findByPost(Post post);
 
 ```java
 // dtos/CommentDto.java · fromEntity
-.userId(comment.getUser().getId())               // 프록시 초기화 → SELECT 1회
-.author(comment.getUser().getNicknameValue())    // 이미 초기화됨 → 추가 쿼리 없음
+.userId(comment.getUser().getId())               // 프록시가 이미 든 값이라 추가 쿼리 없음
+.author(comment.getUser().getNicknameValue())    // 프록시 초기화 → SELECT 1회
 ```
+
+> **정정 (2026-09-08).** 이 두 줄의 주석이 서로 바뀌어 있었다. `getId()` 는 프록시를
+> 초기화하지 않는다. LAZY `ManyToOne` 프록시는 외래키 값을 이미 들고 있어서 식별자
+> 게터를 부르는 것만으로는 SELECT 가 나가지 않고, 다른 속성을 처음 읽을 때 나간다.
+> `@DataJpaTest` 로 댓글 3건을 서로 다른 작성자로 만들고 `em.clear()` 뒤 Hibernate
+> 통계를 세어 확인했다. 목록 조회 직후 1건, 작성자 id 를 셋 다 읽은 뒤에도 1건,
+> 닉네임을 셋 다 읽은 뒤 4건이었다. id 를 읽은 시점의 `Hibernate.isInitialized` 도
+> false 였다. OPT-001 문서가 `r.getComment().getId()` 에 대해 적은 설명이 맞다.
 
 **작성자 한 명당 한 번**이지 댓글 한 건당 한 번은 아니다. 같은 사람이 댓글을 여러 개
 달았으면 두 번째부터는 영속성 컨텍스트의 1차 캐시에서 나온다. 그래서 비용이 `N` 이
