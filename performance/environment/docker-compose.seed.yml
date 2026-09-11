@@ -26,10 +26,9 @@
 services:
   app:
     environment:
-      # 측정 환경은 HikariCP 10을 유지한다 — Tomcat 400 대 10의 불균형은 결함이 아니라
-      # BTL-002 가설이고 EXP-002가 증명할 대상이다. 여기서 올리는 건 시드 처리량 때문이며,
+      # 측정 환경은 HikariCP 10을 유지한다. 여기서 올리는 건 시드 처리량 때문이며,
       # 실측 knee(동시성 20)를 풀이 막지 않게 하려는 목적이다. MySQL max_connections=200
-      # 이므로 50은 여유가 있다.
+      # 이므로 50은 여유가 있다. 측정 풀 분석은 cases/CASE-006을 참고한다.
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "50"
       # JFR과 GC 로그를 뺀다. 시드 구간은 분석 대상이 아니라 순수 오버헤드이고,
       # 힙도 시드 동안만 넉넉히 잡아 GC 빈도를 낮춘다.

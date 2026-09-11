@@ -35,7 +35,7 @@
  *              비포화 실행과의 증감률 비교는 성립하지 않는다
  *   UNKNOWN    판정에 필요한 지표가 없다
  *
- * 근거 문서: performance/docs/findings/perf-findings-scripts.md S-27 (2026-08-20 보정 곡선)
+ * 해석 계약: performance/reference/measurement-contract.md
  */
 
 /**
