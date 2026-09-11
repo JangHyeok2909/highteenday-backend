@@ -27,14 +27,15 @@
  * -----------------
  * 포화는 **판정(verdict)이 아니라 해석 조건**이다. 포화 자체가 실패는 아니다 —
  * `stress`·`breakpoint` 계열은 포화를 만드는 것이 목적이다. 그래서 게이트를 실패시키지
- * 않고, **"이 실행의 p95 를 애플리케이션 지연으로 읽으면 안 된다"** 를 표시한다.
+ * 않고, **"이 실행은 비포화 실행과 비교할 수 없다"** 를 표시한다.
  *
  *   HEADROOM   여유 있음 — p95 를 애플리케이션 지연으로 읽어도 된다
  *   NEAR_LIMIT 한계 근처 — 큐가 생기기 시작했다. 해석에 주의
- *   SATURATED  포화 — p95 는 대기 시간이다. 애플리케이션 지연으로 인용 금지
+ *   SATURATED  포화 — 응답 시간의 대부분이 큐 대기다. 이 상태의 편차로 계산한 MDE 는 신뢰할 수 없고,
+ *              비포화 실행과의 증감률 비교는 성립하지 않는다
  *   UNKNOWN    판정에 필요한 지표가 없다
  *
- * 근거 문서: performance/docs/findings/perf-findings-scripts.md S-27 (2026-08-20 보정 곡선)
+ * 해석 계약: performance/reference/measurement-contract.md
  */
 
 /**
@@ -164,8 +165,9 @@ function assess(record) {
 function banner(sat) {
   if (!sat) return null;
   if (sat.status === 'SATURATED') {
-    return '❌ 포화 상태 — 이 실행의 p95 는 **애플리케이션 지연이 아니라 큐 대기**입니다. '
-      + '애플리케이션 성능으로 인용하지 마십시오.';
+    return '❌ 포화 상태 — 응답 시간의 대부분이 큐 대기입니다. '
+      + '이 상태의 편차로 계산한 MDE 는 실제보다 너무 낮거나 높아 신뢰할 수 없습니다. '
+      + '비포화 실행과의 증감률 비교는 성립하지 않습니다.';
   }
   if (sat.status === 'NEAR_LIMIT') {
     return '⚠  한계 근처 — 큐가 생기기 시작했습니다. p95 에 대기 시간이 섞여 있습니다.';
@@ -177,16 +179,16 @@ function banner(sat) {
 /**
  * 두 실행의 포화 상태가 다르면 상대 비교가 성립하지 않는다.
  *
- * 포화 영역의 p95 는 `R = N/X` 로 결정되고 비포화 영역의 p95 는 서비스 시간이다.
- * **서로 다른 물리량**이므로 증감률을 계산해도 의미가 없다.
+ * 포화 실행의 p95 는 처리량(`R = N/X`)으로 정해지고 비포화 실행의 p95 는 처리 시간이다.
+ * 재는 대상이 다르므로 증감률을 계산해도 의미가 없다.
  */
 function regimeMismatch(current, baseline) {
   if (!current || !baseline) return null;
   const a = current.status;
   const b = baseline.status;
   if (a === 'UNKNOWN' || b === 'UNKNOWN' || a === b) return null;
-  return `현재 실행은 ${a}, 기준선은 ${b} 입니다 — 포화 영역과 비포화 영역의 p95 는 `
-    + '서로 다른 물리량이라 증감률에 의미가 없습니다.';
+  return `현재 실행은 ${a}, 기준선은 ${b} 입니다 — 포화 실행의 p95 는 처리량으로, `
+    + '비포화 실행의 p95 는 처리 시간으로 정해지므로 증감률에 의미가 없습니다.';
 }
 
 module.exports = { assess, banner, regimeMismatch, SIGNALS };

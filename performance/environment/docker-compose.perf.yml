@@ -33,7 +33,8 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --default-time-zone=+09:00
-      # Token 엔티티/마이그레이션 대소문자 불일치 우회 (BTL-008 참고).
+      # Token 테이블을 `tokens`로 통일하기 전 데이터 볼륨과도 호환하기 위한 설정이다.
+      # 현재 migration 상태는 docs/issues의 DB-001을 참고한다.
       # ⚠ 데이터 디렉터리 최초 초기화 시점에만 적용된다.
       - --lower-case-table-names=1
     environment:

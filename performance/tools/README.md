@@ -1,112 +1,31 @@
-# Tools — 도구 모음
+# Performance tools
 
-## Performance Management System
+## 실행 도구
 
-설계 배경과 전체 구조는 [`../PERFORMANCE-MANAGEMENT.md`](../PERFORMANCE-MANAGEMENT.md) 참고.
+| 명령 | 역할 |
+|---|---|
+| `node tools/preflight.js` | 환경과 데이터셋 사전 점검 |
+| `node tools/perf-run.js <script>` | k6 실행, 지표 수집, 회귀 판정, 리포트 생성 |
+| `node tools/repeatability.js <script>` | 같은 조건 반복 실행 |
+| `node tools/history.js` | 실행 이력 HTML 생성 |
+| `node tools/snapshot.js` | 데이터셋 스냅샷 생성·복원 |
+| `node tools/collect.js` | 실행 구간의 운영 지표 수집 |
+| `node resilience/fault-run.js <plan>` | 장애 주입 실행 |
+| `node resilience/render-report.js [runId]` | 저장된 장애 원자료 재렌더링 |
 
-| 도구 | 용도 | 사용법 |
-|------|------|--------|
-| **`perf-run.js`** | **표준 진입점** — k6 실행 → 지표 수집 → 회귀 판정 → 리포트 생성 | `node tools/perf-run.js scenarios/normal-day.js` |
-| `collect.js` | 2단계 수집기 (운영 지표 조회 + 회귀 분석 + 리포트) | `node tools/collect.js <runId> --force --no-wait` |
-| `history.js` | 이력/추세 대시보드 생성 | `node tools/history.js` · `--print` · `--rebuild` |
-| `repeatability.js` | 반복 정밀도 측정 — 같은 조건 N회 실행의 변동계수(CV)를 잰다. 회귀 임계값이 자연 편차보다 커야 의미가 있는지 검증할 때 사용 | `node tools/repeatability.js scripts/posts.js --runs 10` |
-| `migrate-raw.js` | 과거 `reports/raw/*.summary.json` 이관 | `node tools/migrate-raw.js --dry-run` |
+## 원칙
+
+- 일반 실행은 `perf-run.js`를 통과시킨다. k6를 직접 실행한 결과에는 비교에 필요한 실행
+  신원과 운영 지표가 빠질 수 있다.
+- 저장된 `run.json`은 수정하지 않는다.
+- 도구를 바꾸면 `npm test`로 측정 로직 자체를 검증한다.
+- 큰 로그와 `hostprobe.jsonl`은 필요한 구간만 읽는다.
+- Node.js 18 이상을 사용한다.
 
 ```bash
-# 대부분의 경우 이것만 쓰면 된다
-node tools/perf-run.js scenarios/normal-day.js --note "인덱스 추가 후"
-
-# 리포트만 다시 만들기 (k6 재실행 없이)
-node tools/collect.js <runId> --force --no-wait
-
-# 도구 자체의 단위 테스트 (판정을 내리는 코드는 스스로도 검증돼야 한다)
-npm test          # = node tools/test/all.js
+npm test
+node tools/perf-run.js scenarios/normal-day.js \
+  --dataset medium --loadgen docker --note "변경 설명"
 ```
 
-### `lib/` — 내부 모듈
-
-| 모듈 | 책임 |
-|------|------|
-| `promql.js` | Prometheus HTTP 클라이언트 (재시도·부분 실패 허용) |
-| `metrics-catalog.js` | **운영 지표 정의** — 지표 추가는 여기 한 줄이면 끝 |
-| `regression.js` | 회귀 판정 엔진 + 병목 가설 생성 |
-| `comparability.js` | **실행 조건(conditions) 비교 가능성 판정** — 데이터셋·부하 프로파일이 다른 실행을 기준선에서 제외하고 사유를 남긴다. 조건 추가는 이 파일의 `CONDITIONS` 표 한 줄 |
-| `repository.js` | 이력 저장/조회, 기준선 선택 (`findBaseline`) — 자격은 **측정 무결성**(`eligibilityOf`)과 comparability 로만 정해진다. threshold 통과 여부는 자격 조건이 아니다(S-10) |
-| `report.js` | HTML 보고서 생성 |
-| `grafana.js` | 테스트 구간이 박힌 딥링크 생성 |
-| `format.js` | 표시 포맷 (콘솔/HTML 공용) |
-
-### `test/` — 도구 단위 테스트
-
-`node:test` 기반. `tools/test/all.js`가 전체를 실행한다 (`comparability`, `regression`,
-`repository`, `summary-parsing`, `phases`, `collect-window`, `thresholds`,
-`scenario-thresholds`, `baseline-report`). 기준선 선택·회귀 판정처럼 "숫자를 판단으로
-바꾸는" 코드의 회귀를 막는 목적이다. `baseline-report`는 판정 결과가 콘솔과 HTML 리포트에
-**같은 문장으로** 나오는지까지 본다 — 사유를 못 대는 리포트는 조용한 통과와 구분되지 않는다.
-
-## 기타 자체 도구
-
-| 도구 | 용도 | 사용법 |
-|------|------|--------|
-| `chaos-redis-flap.sh` | Redis 순단 반복 주입 | `tools/chaos-redis-flap.sh 3 10 60` (3회, 10초 정지, 60초 간격) |
-| `chaos-cpu-squeeze.sh` | 앱 CPU 제한 주입 | `tools/chaos-cpu-squeeze.sh 1 300 2` |
-
-네트워크 지연 주입(tc netem)은 Linux 호스트 전용:
-```bash
-# perf-app 컨테이너에서 mysql로 가는 트래픽에 +50ms (호스트에서 실행, 컨테이너 veth 대상)
-docker exec perf-app sh -c "which tc" || echo "이미지에 iproute2 필요"
-# 대안: pumba (컨테이너 카오스 도구) — docker run gaiaadm/pumba netem --duration 5m delay --time 50 perf-mysql
-```
-
-## 외부 도구 카탈로그
-
-### 부하 발생
-
-| 도구 | 목적 | 이 프로젝트에서의 역할 |
-|------|------|------------------------|
-| **k6** | HTTP/WS 부하 발생 | 표준 도구. scripts/, scenarios/ 전부 k6 |
-| JMeter | GUI 기반 부하 | 사용 안 함 — k6로 통일 (코드 리뷰 가능한 시나리오가 원칙) |
-
-### 관측 (스택에 동봉)
-
-| 도구 | 목적 | 접근 |
-|------|------|------|
-| **Prometheus** | 시계열 수집 (앱/DB/Redis/컨테이너/k6) | http://localhost:9090 |
-| **Grafana** | 대시보드/비교/annotation | http://localhost:3001 (admin/perf) |
-| **Micrometer + Actuator** | 앱 메트릭 노출 | /actuator/prometheus (environment/README의 사전 준비 필요) |
-| **mysqld-exporter / redis-exporter / cAdvisor** | DB/캐시/컨테이너 메트릭 | 자동 스크레이프 |
-
-### JVM 심층 분석 (병목 원인 규명 단계에서)
-
-| 도구 | 목적 | 사용법 요약 |
-|------|------|-------------|
-| **JFR** | 상시 프로파일링 (컴포즈가 자동 기록 중) | `docker cp perf-app:/tmp/perf.jfr .` → JDK Mission Control로 열기. 핫 메서드/락 경합/할당 확인 |
-| **async-profiler** | CPU/alloc 플레임그래프 | `docker exec perf-app ./asprof -d 60 -f /tmp/flame.html 1` (이미지에 바이너리 추가 필요) |
-| **VisualVM** | 힙/스레드 실시간 관찰 | JMX 포트 노출 후 연결. 로컬 탐색용 — 수치 기록은 Prometheus 기준 |
-| **Arthas** | 운영 중 메서드 단위 진단 | `docker exec -it perf-app` 후 arthas attach → `trace`, `monitor` |
-| GC 로그 | GC 병목 확정 | `/tmp/gc.log` → GCeasy.io 또는 직접 분석. "Full GC 유무"가 1차 확인 |
-
-### DB / Redis 심층 분석
-
-| 도구 | 목적 | 사용법 요약 |
-|------|------|-------------|
-| **slow query log** | 100ms+ 쿼리 전수 기록 (perf.cnf 설정됨) | `docker exec perf-mysql sh -c "cat /var/lib/mysql/slow.log"` |
-| **performance_schema** | 쿼리 digest별 통계 | `SELECT DIGEST_TEXT, COUNT_STAR, SUM_TIMER_WAIT/1e12 sec, SUM_ROWS_EXAMINED FROM performance_schema.events_statements_summary_by_digest ORDER BY SUM_TIMER_WAIT DESC LIMIT 10;` |
-| **EXPLAIN / EXPLAIN ANALYZE** | 쿼리 플랜 확정 | 병목 쿼리마다 실험 문서에 플랜 첨부 |
-| **p6spy** | 요청당 쿼리 수 계측 (이미 앱 의존성) | 앱 로그에서 확인 — N+1 검증(EXP-005)의 핵심 |
-| **RedisInsight** | Redis 키/메모리 분석 | `docker run -p 5540:5540 redis/redisinsight` 후 perf-redis 연결 |
-| **redis-cli** | slowlog/latency | `SLOWLOG GET 10`, `LATENCY HISTORY event` |
-
-### 컨테이너/시스템
-
-| 도구 | 목적 |
-|------|------|
-| `docker stats` | 즉석 리소스 확인 (기록은 cAdvisor→Prometheus) |
-| `docker update` | 카오스 실험의 리소스 제한 주입 |
-
-## 도구 선택 원칙
-
-1. **기록되는 도구 우선** — 눈으로 본 수치는 증거가 아니다. Prometheus에 남는 경로를 기본으로.
-2. **심층 도구는 원인 규명 단계에만** — 프로파일러 오버헤드가 측정을 오염시키므로,
-   지표로 병목 범위를 좁힌 뒤 짧게 붙인다.
-3. 프로파일링 결과(플레임그래프, JFR 파일)는 해당 실험 디렉터리에 보관한다.
+옵션과 기본값은 각 도구의 인자 파서가 정본이다. 문서에 모든 플래그를 복제하지 않는다.

@@ -1,172 +1,89 @@
-# HighTeenDay Performance Engineering
+# Performance and resilience
 
-HighTeenDay 백엔드(Spring Boot 3.4.5 · MySQL 8 · Redis 7)의 **성능 엔지니어링 프로젝트**.
-단순 부하 테스트 모음이 아니라, 가설 수립 → 측정 → 원인 분석 → 개선 → 재측정의
-전 사이클을 재현 가능하게 운영하기 위한 체계다.
+이 디렉터리는 부하를 만드는 코드, 실행 원자료, 그리고 원자료에서 확인한 결론을 함께
+관리한다. 세 종류를 섞지 않는 것이 가장 중요한 규칙이다.
 
-## 1. 목적
+| 종류 | 위치 | 역할 |
+|---|---|---|
+| 실행 코드 | `tools/`, `scripts/`, `scenarios/`, `resilience/` | 부하 실행과 지표 수집 |
+| 실행 원자료 | `reports/`, `resilience/reports/` | 실행 당시의 수치와 조건 |
+| 해석 | `studies/`, `cases/`, `decisions/` | 질문, 원인, 결정, 검증 |
 
-1. **성능 개선** — 실제 병목을 계측으로 찾아내고, 수치로 증명된 개선만 적용한다.
-2. **역량 증명** — 성능을 감이 아니라 체계로 다루는 과정을 문서로 남긴다.
+## 어디서 시작하는가
 
-## 2. 철학
+- 성능 측정 결과를 찾는다면 [studies/](studies/)를 본다.
+- 확인된 성능·장애 문제를 찾는다면 [cases/](cases/)를 본다.
+- 지연 목표처럼 이미 채택한 기준은 [decisions/](decisions/)에 있다.
+- 실행 방법과 결과 형식은 [reference/](reference/)에서 찾는다.
+- 애플리케이션 결함 목록은 [docs/issues](../docs/issues/)가 정본이다.
+- 이전 `EXP/BTL/OPT/findings` 문서는 [archive/](archive/)에 보존되어 있다.
 
-| 원칙 | 실행 장치 |
-|------|-----------|
-| 모든 테스트는 가설 기반이다 | `experiments/TEMPLATE.md` — 가설·반증 조건 없이는 실행하지 않음 |
-| 모든 테스트는 재현 가능해야 한다 | 환경 고정(`environment/`), 결정론적 시드(`datasets/`), 명령 기록 |
-| 모든 결과는 Before/After 비교가 가능해야 한다 | 동일 환경·데이터셋·명령 원칙 + `tools/compare.js` |
-| 모든 개선은 수치로 증명한다 | `optimizations/` — 수치 없는 최적화는 기록 불가 |
-| 모든 병목은 원인까지 판다 | `bottlenecks/` — 증상이 아니라 코드/구조 수준 원인 명시 |
-| 측정 안 된 것은 존재하지 않는다 | `metrics/` — 지표 정의와 수집 경로 사전 확정 |
-| 한 번에 변수 하나 | 실험/최적화 규칙에 명문화 |
+## 기본 실행
 
-참고 기준: Google SRE(SLO 중심), AWS Well-Architected(성능 효율), Netflix(카오스),
-Microsoft Performance Testing Guidance(테스트 유형 분류).
-
-## 3. 테스트 종류
-
-| 유형 | 시나리오 | 질문 |
-|------|----------|------|
-| Baseline | normal-day | 지금 SLO를 지키는가? 기준 수치는? |
-| Load (현실 워크로드) | peak-hour, read/write/chat/notification-heavy, exam-week, registration-day | 각 트래픽 성격에서 어디가 약한가? |
-| Cache 대조 | cold-start ↔ cache-warm | 캐시가 실제로 얼마나 기여하는가? |
-| Spike | spike | 순간 폭증을 버티고 회복하는가? |
-| Stress / Breakpoint | stress, breakpoint | 한계 용량은? 무엇이 먼저 무너지는가? |
-| Soak (Endurance) | soak | 오래 돌리면 새는 것이 있는가? |
-| Failover / Chaos | failover, chaos | 의존성 장애 시 어떻게 무너지고 회복하는가? |
-| Regression | regression/ + CI | 어제보다 느려졌는가? |
-
-## 4. 실행 순서
-
-```mermaid
-flowchart TD
-    A[0. 환경 기동<br/>environment/docker-compose.perf.yml] --> B[1. 시드 생성<br/>datasets/seed.js --profile medium]
-    B --> C[2. 스모크 확인<br/>scripts/*.js 각 1분 실행]
-    C --> D[3. EXP-001 기준선<br/>normal-day + baseline 저장]
-    D --> E[4. EXP-002 한계 용량<br/>stress → breakpoint]
-    E --> F[5. 병목 실험<br/>EXP-003 락 경합 / EXP-004 캐시 / EXP-005 N+1]
-    F --> G[6. 개선 적용<br/>변수 하나씩 + 재측정]
-    G --> H[7. baseline 갱신 + 회귀 테스트 상시화]
-    H -.->|새 병목 후보| F
-    D --> I[병행: soak / spike / failover / chaos]
-```
+명령은 이 디렉터리에서 실행한다.
 
 ```bash
-# 0. 환경 (Docker)
-cp environment/.env.perf.example environment/.env.perf
-docker compose -f environment/docker-compose.perf.yml --env-file environment/.env.perf up -d --build
+# 환경 기동
+docker compose -f environment/docker-compose.perf.yml \
+  --env-file environment/.env.perf up -d --build
 
-# 1. 시드 → 검증 → 스냅샷
+# 데이터 생성과 사전 점검
 node datasets/seed.js --profile medium
-bash datasets/verify.sh medium          # 수량·카운터·참조 무결성·인기 분포 판정
-node tools/snapshot.js create medium    # 검증을 통과한 상태를 불변 사본으로 보존
-
-# 1-b. 판정용 측정을 시작하기 전 — 측정 가능한 상태인지 확인 (통과해야 다음으로 간다)
+bash datasets/verify.sh medium
 node tools/preflight.js --dataset medium --rate 4
 
-# 2~3. 스모크 → 기준선  (모든 명령은 performance/ 루트에서)
-node tools/perf-run.js scripts/posts.js --vus 5 --duration 1m --dataset medium
-# --warmup은 k6의 ramp-up 단계 자체를 그 길이로 만든다(300초). 수집기가 사후에 자르는
-# 옵션이 아니다 — k6 threshold와 Prometheus 조회 창이 둘 다 이 값으로 measure 구간을
-# 판정한다(T-03/S-08). 미지정 시 시나리오 기본값(normal-day는 5분)을 그대로 쓴다.
-node tools/perf-run.js scenarios/normal-day.js --dataset medium --warmup 300
+# 일반 성능 실행
+node tools/perf-run.js scenarios/normal-day.js \
+  --dataset medium --loadgen docker --warmup 300
 
-# 결과 확인
-node tools/history.js          # reports/history.html — 이력과 추세
-# 개별 보고서: reports/runs/<runId>/report.html
+# 장애 계획 검증과 실행
+node resilience/fault-run.js resilience/faults/redis-crash.json --dry-run
+node resilience/fault-run.js resilience/faults/redis-crash.json
+
+# 측정 도구 테스트
+npm test
+```
+세부 옵션은 각 명령의 `--help`와 가까운 디렉터리의 README를 따른다.
+
+## 기록 규칙
+
+1. `report.html`과 `run.json`은 실행 원자료다. 손으로 고치지 않는다.
+2. 수치는 한 곳에서만 소유한다. Case와 Study는 원자료를 링크하고 결론에 필요한 값만 인용한다.
+3. 관측과 원인을 구분한다. 함께 움직였다는 사실만으로 원인이라고 쓰지 않는다.
+4. 실행 이미지, 커밋, 데이터셋 또는 부하 조건이 다르면 Before/After라고 부르지 않는다.
+5. 실패한 실험도 남긴다. 다만 확인하지 못한 결론을 성공이나 실패로 꾸미지 않는다.
+6. 개선은 같은 질문과 같은 조건으로 다시 실행한 뒤에만 검증 완료로 바꾼다.
+7. 현재 코드로 재확인하지 않은 이전 문서는 근거가 아니라 조사 단서로만 사용한다.
+
+## 문서 생명주기
+
+```text
+질문 등록 → 실행 → 원자료 생성 → Study 작성
+                          ├─ 문제가 없으면 결론 보존
+                          └─ 문제가 있으면 Case 등록
+
+Case: 관측 → 진단 → 수정 → 같은 조건으로 재실행 → 검증 → 종료
 ```
 
-> `perf-run.js`가 k6 실행 → 운영 지표 수집 → 회귀 판정 → 보고서 생성까지 한 번에 처리한다.
-> 기준선을 손으로 저장할 필요가 없다 — 같은 시나리오·환경에서 **실행 조건(데이터셋·부하
-> 프로파일)까지 일치하고 정상적으로 측정된** 가장 최근 실행이 자동으로 기준이 된다.
-> 그 실행이 SLO를 넘겼는지는 따지지 않는다 — 개선 전후를 비교하려면 느린 Before가
-> 기준선이어야 한다(S-10). 조건이 다르거나 측정이 온전하지 않으면 상대 비교를 생략하고
-> 그 사유를 리포트에 남긴다 (`tools/lib/comparability.js`, `repository.js`의 `eligibilityOf()`).
-> 구조와 설계 근거: [`PERFORMANCE-MANAGEMENT.md`](PERFORMANCE-MANAGEMENT.md)
+Case 상태는 `candidate`, `observed`, `diagnosed`, `fixing`, `verified`, `closed`를 사용한다.
+`closed`는 수정했다는 뜻이 아니라 재실행으로 기대 효과와 부작용을 확인했다는 뜻이다.
 
-> **데이터셋 상태도 실행 조건이다.** 이름이 같은 `large`라도 앞선 쓰기 테스트가 데이터를
-> 바꿔 놓았으면 다른 데이터셋이다. 그래서 실행마다 시작 시점의 DB를 세어 **상태 지문**을
-> 남기고, 스냅샷과 다르면 되돌린 뒤 실행한다(이 저장소 기본값 `strict`).
-> 끄려면 `--guard off`. 설계·실측값: [`DATASET-STATE.md`](DATASET-STATE.md)
+## 디렉터리 지도
 
-## 5. 디렉터리 구조
-
-```
+```text
 performance/
-├── README.md          # 이 문서
-├── MANUAL.md          # 운영 매뉴얼 — 실행 절차와 전체 명령어 사용설명서
-├── docs/              # 측정 시스템 문서 — 발견 장부·조사 기록·안내서·로드맵
-├── scripts/           # 기능별 k6 스크립트 (독립 실행 + 시나리오에서 import)
-│   └── lib/           # 설정·세션·Zipf 샘플러·summary 공통 모듈
-├── scenarios/         # 워크로드 시나리오 16종 (가중치 프로파일 기반)
-├── datasets/          # Zipf 분포 시드 생성기 + 스케일 프로파일 (100~100,000명)
-│   ├── verify.sh      # 생성된 데이터셋을 DB와 대조해 판정
-│   └── snapshots/     # 검증 통과 상태의 볼륨 사본 (아카이브는 gitignore, snapshot.json만 커밋)
-├── environment/       # 컴포즈 스택 + MySQL/Redis/JVM 고정 설정 + 환경 명세
-├── metrics/           # 지표 정의(PromQL) + Grafana 대시보드
-├── experiments/       # 가설 기반 실험 대장 (EXP-001~) + 템플릿
-├── reports/           # runs/(실행별 저장소) + index.json + history.html + raw(구버전)
-├── bottlenecks/       # 병목 카탈로그 (BTL-001~012) — 원인/영향/재현/해결
-├── optimizations/     # 개선 기록 (Before/After 수치 필수)
-├── regression/        # rules.json(회귀 판정 규칙) + CI 워크플로
-├── perf.config.json   # 도구 기본 설정 (datasetGuard 등)
-└── tools/             # perf-run/collect/history/repeatability/snapshot + lib/(수집·분석·리포트 엔진) + test/(도구 단위 테스트)
+├── cases/          확인된 문제의 전체 생명주기
+├── studies/        기준선, 용량, 대조 실험처럼 질문 중심의 기록
+├── decisions/      채택한 성능 기준과 트레이드오프
+├── reference/      실행·비교·원자료 계약
+├── archive/        정본에서 제외한 이전 문서
+├── environment/    Docker 기반 측정 환경
+├── datasets/       시드, 검증, 스냅샷
+├── scripts/        기능별 k6 요청
+├── scenarios/      여러 요청을 조합한 워크로드
+├── resilience/     의존성 장애 주입기
+├── metrics/        수집 지표와 대시보드
+├── regression/     비교 가능한 실행의 회귀 판정
+├── tools/          실행·수집·리포트 도구
+└── reports/        일반 성능 실행 원자료
 ```
-
-실행 절차와 전체 명령어(옵션·환경변수·트러블슈팅 포함)는 사용설명서로 분리했다:
-**[`MANUAL.md`](MANUAL.md)** — 처음 돌려 보는 사람은 이 문서부터 본다.
-성능 관리 파이프라인의 구조와 설계 근거는 별도 문서로 분리했다:
-**[`PERFORMANCE-MANAGEMENT.md`](PERFORMANCE-MANAGEMENT.md)**
-데이터셋 상태 고정(스냅샷·상태 지문·`--guard`)은 **[`DATASET-STATE.md`](DATASET-STATE.md)**
-
-이 결과를 **어디까지 믿을 수 있는지**, 무엇이 아직 틀렸는지, 남은 개선 순서는
-**[`docs/`](docs/README.md)** 에 있다 — 발견 장부(T/S/E), 조사 기록, 안내서, 로드맵.
-
-## 6. 사용 도구
-
-부하: **k6** · 관측: **Prometheus + Grafana**(+ mysqld/redis-exporter, cAdvisor, node-exporter) ·
-JVM: **JFR, GC 로그**(상시 기록), async-profiler, Arthas ·
-DB: slow log(100ms), performance_schema, p6spy, EXPLAIN · 상세: `tools/README.md`
-
-> **부하 발생기를 계측하려면 컨테이너로 돌려야 한다.**
-> `node tools/perf-run.js <script> --loadgen docker` 로 실행하면 k6가 `perf-k6` 컨테이너로
-> 뜨고 cAdvisor가 그 CPU·메모리를 따로 잰다. 기본값 `local`(Windows 네이티브 `k6.exe`)은
-> **아무도 측정하지 못한다** — cAdvisor는 컨테이너만 보고, node-exporter가 보는 "호스트"는
-> WSL2 VM이라 그 밖의 프로세스가 잡히지 않는다.
->
-> 두 방식은 서버로 가는 경로가 달라(`localhost:18080` vs `app:8080`) **비교 조건이 다르다.**
-> 섞어서 비교하지 말 것. 자세한 내용: [`metrics/README.md`](metrics/README.md)의 6·7절
-
-## 7. 측정 지표 (요약)
-
-- **판정**: P95/P99 (평균 사용 금지), Error Rate, TPS
-- **SLO**: 읽기 P95 < 300ms · 쓰기 P95 < 500ms · 오류율 < 1% · WS RTT P95 < 500ms
-- **원인 추적**: heap/GC pause → Tomcat busy → HikariCP pending → MySQL lock/slow →
-  Redis hit ratio (Grafana 대시보드가 이 순서로 배치됨)
-- 전체 정의와 PromQL: `metrics/README.md`
-
-## 8. 테스트 환경 (요약)
-
-Docker 고정 스택 — app 2vCPU/2.5GB(힙 1G 고정, G1GC), MySQL 8.0.36 2vCPU/2GB(buffer pool 1G),
-Redis 7.2 384MB(allkeys-lru). 부하기와 서버 분리 원칙. 상세와 재현 체크리스트: `environment/README.md`.
-
-> **사전 준비 1회**: 앱에 `micrometer-registry-prometheus` 의존성 추가 필요 — `environment/README.md` 참고.
-
-## 9. 결과 보는 방법
-
-| 무엇을 | 어디서 |
-|--------|--------|
-| **실행 보고서** (성능+인프라+회귀 통합) | `reports/runs/<runId>/report.html` |
-| **이력 / 추세** | `reports/history.html` — `node tools/history.js` |
-| 실시간 그래프 | Grafana http://localhost:3001 (보고서의 딥링크가 구간까지 맞춰 준다) |
-| 회귀 여부 | 보고서 상단 판정 배지 / CI perf-regression |
-| 실험 결론 | `experiments/EXP-*/README.md` §7~12 (원자료 링크 포함) |
-| 병목 지식 | `bottlenecks/` — 상태(의심/확정/해소)와 재현 명령 |
-| 개선 증거 | `optimizations/OPT-*.md` Before/After 표 |
-
-## 부록: 트래픽 모델
-
-모든 시나리오는 `scenarios/lib/workload.js`의 **사용자 여정 12종**(눈팅·참여·작성·검색·
-채팅 REST/WS·알림·아침 루틴·소셜·마이페이지·토큰 갱신·재로그인)을 가중치로 조합한다.
-데이터와 접근 모두 **Zipf 분포**(핫 데이터 편중)를 따르며 이는 `datasets/README.md`에 근거를 명시했다.

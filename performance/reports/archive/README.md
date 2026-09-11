@@ -23,7 +23,7 @@
 closed model 에서 VU 가 고정이면 리틀의 법칙에 따라 `R = N / X` 가 기계적으로 성립한다.
 실측 상관 0.962 로, **p95 는 애플리케이션 지연이 아니라 처리량의 그림자**였다.
 
-배경과 전체 분석: [performance/docs/investigations/perf-session-drift.md](../../docs/investigations/perf-session-drift.md) 0절·8-h절
+이전 배경 분석: [legacy perf-session-drift.md](../../archive/legacy-docs/2026-09-11/docs/investigations/perf-session-drift.md)
 
 ## 선별 기준 — 날짜가 아니라 판정
 
