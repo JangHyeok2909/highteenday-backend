@@ -58,7 +58,7 @@ enums/            Shared enumerations (Role, Provider, Grade, etc.)
 | Concern | Solution |
 |---------|----------|
 | Auth tokens | JWT (JJWT 0.12.3) in HttpOnly cookies, SameSite=None |
-| OAuth2 | Google via Spring Security OAuth2 Client (Kakao/Naver: provider endpoints prepared, registrations commented out) |
+| OAuth2 | Google via Spring Security OAuth2 Client (Kakao/Naver: provider parsing and endpoints prepared; registrations are absent) |
 | Token revocation | Refresh token stored in `Token` entity (DB) |
 | Caching | Redis — view counts, board/post lists, hot rankings |
 | File storage | AWS S3 — tmp upload then promote pattern |
@@ -116,6 +116,51 @@ enums/            Shared enumerations (Role, Provider, Grade, etc.)
 - Convert entities to DTOs with a `fromEntity()` static factory method
 - Use `CustomException(ErrorCode)` for all domain errors — never throw raw exceptions
 - `@Value` fields must **not** be `final` (use alongside `@RequiredArgsConstructor`)
+
+### Comments
+- Apply these rules to source, tests, build scripts, and runtime configuration. The
+  Javadoc-specific rules apply only to Java. Never rewrite an applied Flyway migration just
+  to clean up its comments.
+- Make names, types, validation, and method boundaries express the behavior first. Add a
+  comment only when the contract, rationale, constraint, invariant, or trap is still not
+  clear from the code.
+- Existing repository comments are not a style precedent; apply the rules in this section
+  when creating or revising comments.
+- Use Java 17 Javadoc (`/** ... */`) selectively for caller-visible, non-obvious contracts:
+  shared interfaces or ports, reusable public APIs, and non-obvious types, methods, or
+  algorithms. Do not document trivial accessors, Lombok-generated members, boilerplate, or
+  obvious overrides.
+- Javadoc describes what a caller must know: purpose, input constraints, return semantics,
+  and caller-visible failures. When applicable, include `@param`, `@return`, `@throws`, and
+  `@deprecated`; use `{@code ...}` for identifiers and values and `{@link ...}` for symbols.
+- Implementation comments explain why the code exists, a non-obvious constraint or
+  trade-off, or the high-level stages of a complex algorithm. Do not narrate what the next
+  line already says.
+- Write comments in Korean by default. Preserve the exact spelling of code identifiers,
+  annotations, protocols, product names, and established technical terms such as HTTP, JWT,
+  SQL, JPA, and DTO.
+- Write full Korean sentences in present-tense declarative style (`~한다.`, `~이다.`) and
+  end them with a period. Short block labels may be noun phrases without a period. Do not
+  use polite endings (`~합니다`, `~하세요`) or nominal endings (`~함`, `~됨`).
+- Attach Korean particles to code terms (`JSON을`, `Redis에서`, `userId가`,
+  `{@code null}이면`). Use one term per concept and avoid vague or translated phrasing such
+  as `해당 로직`, `처리를 수행한다`, and `검증을 진행한다`.
+- Put an implementation comment on its own line immediately above the relevant code at the
+  same indentation. Avoid trailing comments and decorative separators. Keep Javadoc near
+  80 columns and wrap Korean earlier when needed for readability.
+- Explain intentional no-ops, ignored exceptions, suppressions, fall-through behavior, and
+  surprising boundary values when the reason cannot be encoded in the code itself.
+- A TODO must include a tracked issue URL and a concrete removal condition, for example:
+  `// TODO: https://github.com/org/repo/issues/123 - SDK 4.x 전환 후 이 우회를 삭제한다.`
+  Do not use untracked `FIXME`, `HACK`, or `XXX` markers.
+- Never keep commented-out code, author/date/change-log comments, secrets, tokens, real PII,
+  credentials, or sensitive internal endpoints in comments.
+- Treat comments as code: whenever behavior changes, update or delete adjacent comments in
+  the same change. An external link may supplement a comment, but the core reason must remain
+  understandable without opening it.
+- In tests, prefer descriptive method names and `@DisplayName` values. Comment only to
+  explain obscure setup, a boundary choice, or a regression reason; do not add decorative
+  Given/When/Then banners.
 
 ### Error Handling
 ```java
@@ -323,7 +368,8 @@ Rules for "simplify":
 
 - Do not add error handling for scenarios that cannot happen
 - Do not add speculative abstractions — implement only what is asked
-- Do not add docstrings or comments to code you did not change
+- Do not add or rewrite comments in untouched code unless the task explicitly includes
+  comment cleanup
 - Do not use `ddl-auto=update` or `ddl-auto=create` anywhere — schema changes go through Flyway migrations (`docs/MIGRATION.md`)
 - Do not add backwards-compatibility shims when the old code can simply be replaced
 - Do not design for hypothetical future requirements
