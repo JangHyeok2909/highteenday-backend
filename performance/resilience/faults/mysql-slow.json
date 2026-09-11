@@ -1,0 +1,21 @@
+{
+  "id": "mysql-slow",
+  "question": "DB 가 느려지면(+300ms) 어떻게 되나 — DB 를 안 쓰는 기능은 살아남나",
+  "requires": { "proxy": true },
+  "load": { "rate": 4, "preVus": 100, "maxVus": 1000 },
+  "phases": { "preSec": 300, "faultSec": 120, "postSec": 300 },
+  "inject": [
+    { "at": "fault.start", "tool": "toxiproxy", "action": "add", "proxy": "mysql",
+      "toxic": { "name": "slow", "type": "latency", "stream": "downstream", "toxicity": 1.0, "attributes": { "latency": 300, "jitter": 50 } } },
+    { "at": "fault.end",   "tool": "toxiproxy", "action": "remove", "proxy": "mysql", "toxicName": "slow" }
+  ],
+  "expect": [
+    "fault: 쿼리 하나당 +300ms. 요청당 쿼리 3~4개면 응답이 +1s 안팎. 커넥션 점유 시간이 늘어 HikariCP 10개가 부족해진다",
+    "fault: hikari pending > 0 이 지속되고 커넥션 획득 p95 가 오른다. 30초를 넘기면 커넥션 타임아웃으로 500",
+    "fault: 인기글(hot, Redis ZSET)처럼 DB 를 안 쓰는 경로도 tomcat 스레드가 모자라면 같이 느려진다 — 벌크헤드 없음의 증거",
+    "post: toxic 을 걷으면 곧 회복. 준안정 상태는 안 생길 것 같다 — 확인 대상",
+    "고친 뒤(hikari connection-timeout=3000): 실패 지연 상한이 30초 → 3초. 오류율은 오히려 오른다 — 그 교환을 적는다"
+  ],
+  "integrity": { "probes": ["counter-drift"] },
+  "watch": ["http.byFeature", "http.failedLatency", "pool.hikariPending", "pool.hikariAcquireP95Ms", "pool.hikariTimeouts", "pool.tomcatBusy"]
+}

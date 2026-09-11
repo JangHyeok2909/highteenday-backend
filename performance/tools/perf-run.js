@@ -729,6 +729,6 @@ function main() {
 
 // 지문 계산은 테스트가 직접 호출해 검증한다 — "sampling.js를 바꿨는데 지문이 그대로"인
 // 회귀는 실행해 봐야만 드러나는 종류라, 단위 테스트로 고정해 둔다.
-module.exports = { scriptVersion, datasetFingerprint, TRAFFIC_SHAPING_FILES };
+module.exports = { gitMeta, scriptVersion, datasetFingerprint, TRAFFIC_SHAPING_FILES };
 
 if (require.main === module) main();

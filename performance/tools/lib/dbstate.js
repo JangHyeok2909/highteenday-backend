@@ -101,7 +101,18 @@ function buildSql() {
   return parts.join(' UNION ALL ');
 }
 
-/** `docker exec ... mysql -N -B` 한 번으로 전부 읽는다. 왕복을 늘리면 그만큼 느려진다. */
+/**
+ * `docker exec ... mysql -N -B` 한 번으로 전부 읽는다. 왕복을 늘리면 그만큼 느려진다.
+ *
+ * `query` 라는 이름으로 밖에도 내보낸다. 장애 실험의 불변식 검사
+ * (`resilience/lib/integrity.js`)가 자기 집계를 따로 읽어야 하는데, 그 값을 지문의
+ * `core` 에 넣으면 **저장된 모든 실행의 지문이 바뀌어** 기존 스냅샷·성능 기록과의
+ * 비교 가능성이 통째로 깨진다. 그래서 항목은 그대로 두고 통로만 공유한다.
+ *
+ * @param {string} sql 탭 구분 두 열(`k`, `v`)을 내는 SELECT.
+ * @returns {Object<string,string>} 첫 열을 키로 한 문자열 값.
+ * @throws {Error} docker 실행 실패 또는 MySQL 이 0 이 아닌 코드로 끝난 경우.
+ */
 function runQuery(sql) {
   const r = spawnSync(
     'docker',
@@ -234,4 +245,5 @@ function describeDiff(d, limit = 3) {
 module.exports = {
   computeState, computeCacheState, fingerprintOf, diff, describeDiff,
   CORE_TABLES, CORE_SUMS, buildSql, CONTAINER, DATABASE,
+  query: runQuery,
 };
