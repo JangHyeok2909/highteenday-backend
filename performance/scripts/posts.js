@@ -9,6 +9,7 @@
  */
 import http from 'k6/http';
 import { sleep } from 'k6';
+import { Counter } from 'k6/metrics';
 import { BASE_URL, DEFAULT_THRESHOLDS, check, tags, thinkTime } from './lib/config.js';
 import { buildPhasePlan, toSeconds } from './lib/phases.js';
 import { ensureSession, withAuth } from './lib/session.js';
@@ -17,6 +18,27 @@ import { pageIndex } from './lib/sampling.js';
 import { makeHandleSummary } from './lib/summary.js';
 
 const JSON_HEADERS = { headers: { 'Content-Type': 'application/json' } };
+
+/**
+ * 조회수가 올랐어야 할 횟수를 부하 쪽에서 센다.
+ *
+ * 왜 필요한가: Redis 가 죽으면 `tryMarkViewed` 가 실패하고 `ResilientRedisAspect` 가 false 를
+ * 돌려줘서 조회수 증가가 **아예 시도되지 않는다.** 그 조회는 Redis 에도 DB 에도 남지 않으므로,
+ * 서버를 아무리 뒤져도 "몇 건 사라졌는지"를 알 수 없다. 부하 발생기만 안다.
+ *
+ * 세는 규칙: 서버는 `viewed:{postId}:{userId}` 키로 중복을 접고 TTL 이 1시간이다. 실행은 몇
+ * 분이므로 실행 안에서는 **(글, 사용자) 쌍마다 딱 한 번** 오른다. VU 는 `myUser()` 로 사용자
+ * 하나에 고정되므로, VU 마다 "이번 실행에서 읽은 글" 을 기억하면 그 규칙과 같아진다.
+ *
+ * 200 과 그 외를 나누는 이유: 조회수 증가는 응답을 만들기 전에 일어나고 Redis 실패는 삼켜지므로
+ * **200 을 받았다면 서버가 그 지점을 지났다.** 타임아웃(status 0)은 서버가 거기까지 갔는지
+ * 알 수 없어 따로 센다 — 이 건수가 유실 계산의 불확실 구간이다.
+ *
+ * 요청을 더 보내지 않으므로 성능 측정 기준선에는 영향이 없다.
+ */
+const seenPosts = {};
+const viewExpected = new Counter('view_expected');
+const viewUnknown = new Counter('view_unknown');
 
 const SEARCH_TERMS = ['시험', '급식', '수행평가', '내신', '동아리', '모의고사', '방학', '축제'];
 
@@ -39,8 +61,15 @@ export function listPosts(boardId, page = 0, sortType = 'RECENT') {
 }
 
 export function readPost(postId) {
+  const first = !seenPosts[postId];
   const res = http.get(`${BASE_URL}/api/posts/${postId}`, tags('post', 'read', 'post_detail'));
   check(res, { 'post detail 200': (r) => r.status === 200 });
+  // 첫 시도에서만 센다. 같은 글을 다시 읽어도 서버는 중복으로 접으므로 올리지 않는다.
+  if (first) {
+    seenPosts[postId] = true;
+    if (res.status === 200) viewExpected.add(1);
+    else viewUnknown.add(1);
+  }
   return res;
 }
 

@@ -1,0 +1,19 @@
+{
+  "id": "redis-crash",
+  "question": "Redis 프로세스가 죽었다 살아나면 어떻게 되나 — 폴백은 동작하나, 돌아온 뒤 빈 캐시는 어떤 비용을 내나",
+  "load": { "rate": 4, "preVus": 100, "maxVus": 1000 },
+  "phases": { "preSec": 300, "faultSec": 60, "postSec": 300 },
+  "inject": [
+    { "at": "fault.start", "tool": "docker", "action": "stop", "container": "perf-redis" },
+    { "at": "fault.end",   "tool": "docker", "action": "start", "container": "perf-redis" }
+  ],
+  "expect": [
+    "fault: 연결 거부라 @ResilientRedis 가 즉시 기본값을 반환한다. 오류율은 거의 0, p95 는 소폭 상승",
+    "fault: 인기글(hot)은 DailyHotPost DB 폴백, 목록(board)은 DB 재조회. 조회수는 증가하지 않는다",
+    "fault: /actuator/health 는 DOWN(503) — 앱은 응답 중인데 헬스가 죽음을 보고한다 (R-02)",
+    "post: 재시작한 Redis 는 비어 있다(save \"\", appendonly no). 동시 미스가 DB 로 가서 mysql threads_running 스파이크 (R-04)",
+    "post: p95 가 pre 수준으로 돌아오는 데 걸리는 시간 — 모른다. 이 실행이 첫 측정이다"
+  ],
+  "integrity": { "probes": ["counter-drift", "viewcount-conservation"], "drainWaitSec": 70 },
+  "watch": ["http.byFeature", "pool.tomcatBusy", "pool.hikariPending", "mysql.qps", "redis.hitRatioPct", "health"]
+}
