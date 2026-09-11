@@ -17,7 +17,7 @@ Stack: Java 17 · Spring Boot 3.4.5 · MySQL 8 · Redis · AWS S3 · JWT + OAuth
 # Build (skip tests)
 ./gradlew build -x test
 
-# Run locally — dev profile has localhost defaults built in (see docs/00-quickstart.md)
+# Run locally — dev profile has localhost defaults built in (see README.md)
 ./gradlew bootRun --args='--spring.profiles.active=dev'
 
 # Run tests
@@ -58,7 +58,7 @@ enums/            Shared enumerations (Role, Provider, Grade, etc.)
 | Concern | Solution |
 |---------|----------|
 | Auth tokens | JWT (JJWT 0.12.3) in HttpOnly cookies, SameSite=None |
-| OAuth2 | Google via Spring Security OAuth2 Client (Kakao/Naver: provider endpoints prepared, registrations commented out) |
+| OAuth2 | Google via Spring Security OAuth2 Client (Kakao/Naver: provider parsing and endpoints prepared; registrations are absent) |
 | Token revocation | Refresh token stored in `Token` entity (DB) |
 | Caching | Redis — view counts, board/post lists, hot rankings |
 | File storage | AWS S3 — tmp upload then promote pattern |
@@ -116,6 +116,51 @@ enums/            Shared enumerations (Role, Provider, Grade, etc.)
 - Convert entities to DTOs with a `fromEntity()` static factory method
 - Use `CustomException(ErrorCode)` for all domain errors — never throw raw exceptions
 - `@Value` fields must **not** be `final` (use alongside `@RequiredArgsConstructor`)
+
+### Comments
+- Apply these rules to source, tests, build scripts, and runtime configuration. The
+  Javadoc-specific rules apply only to Java. Never rewrite an applied Flyway migration just
+  to clean up its comments.
+- Make names, types, validation, and method boundaries express the behavior first. Add a
+  comment only when the contract, rationale, constraint, invariant, or trap is still not
+  clear from the code.
+- Existing repository comments are not a style precedent; apply the rules in this section
+  when creating or revising comments.
+- Use Java 17 Javadoc (`/** ... */`) selectively for caller-visible, non-obvious contracts:
+  shared interfaces or ports, reusable public APIs, and non-obvious types, methods, or
+  algorithms. Do not document trivial accessors, Lombok-generated members, boilerplate, or
+  obvious overrides.
+- Javadoc describes what a caller must know: purpose, input constraints, return semantics,
+  and caller-visible failures. When applicable, include `@param`, `@return`, `@throws`, and
+  `@deprecated`; use `{@code ...}` for identifiers and values and `{@link ...}` for symbols.
+- Implementation comments explain why the code exists, a non-obvious constraint or
+  trade-off, or the high-level stages of a complex algorithm. Do not narrate what the next
+  line already says.
+- Write comments in Korean by default. Preserve the exact spelling of code identifiers,
+  annotations, protocols, product names, and established technical terms such as HTTP, JWT,
+  SQL, JPA, and DTO.
+- Write full Korean sentences in present-tense declarative style (`~한다.`, `~이다.`) and
+  end them with a period. Short block labels may be noun phrases without a period. Do not
+  use polite endings (`~합니다`, `~하세요`) or nominal endings (`~함`, `~됨`).
+- Attach Korean particles to code terms (`JSON을`, `Redis에서`, `userId가`,
+  `{@code null}이면`). Use one term per concept and avoid vague or translated phrasing such
+  as `해당 로직`, `처리를 수행한다`, and `검증을 진행한다`.
+- Put an implementation comment on its own line immediately above the relevant code at the
+  same indentation. Avoid trailing comments and decorative separators. Keep Javadoc near
+  80 columns and wrap Korean earlier when needed for readability.
+- Explain intentional no-ops, ignored exceptions, suppressions, fall-through behavior, and
+  surprising boundary values when the reason cannot be encoded in the code itself.
+- A TODO must include a tracked issue URL and a concrete removal condition, for example:
+  `// TODO: https://github.com/org/repo/issues/123 - SDK 4.x 전환 후 이 우회를 삭제한다.`
+  Do not use untracked `FIXME`, `HACK`, or `XXX` markers.
+- Never keep commented-out code, author/date/change-log comments, secrets, tokens, real PII,
+  credentials, or sensitive internal endpoints in comments.
+- Treat comments as code: whenever behavior changes, update or delete adjacent comments in
+  the same change. An external link may supplement a comment, but the core reason must remain
+  understandable without opening it.
+- In tests, prefer descriptive method names and `@DisplayName` values. Comment only to
+  explain obscure setup, a boundary choice, or a regression reason; do not add decorative
+  Given/When/Then banners.
 
 ### Error Handling
 ```java
@@ -188,6 +233,27 @@ The same rule applies to command output, which also lands in context in full:
 
 ---
 
+## Documentation Rules
+
+사람이 읽는 모든 문서(`docs/`, `performance/docs/`, ADR, README, 외부 독자용 원고)에 적용한다.
+근거·예문·검사 스크립트는 `docs/WRITING.md`. 2026-09-05 문서 리뷰에서 실제로 겪은 문제를 규칙으로 옮겼다.
+
+- **주어는 사람, 결론은 첫 문단.** 프로젝트에 무슨 일이 있었나가 아니라 누가 무엇을 했고 무엇이 남았나를 쓴다.
+- **문장 70자 이내, 문단 3문장 이내.** 넷째 문장부터는 불릿이나 표. 괄호 안에 판단을 넣지 않는다.
+- **AI 문체 금지.** "X가 아니라 Y"는 문서당 3회 이하. 절 끝 교훈·경구 금지. 문서 자기 언급("이 문서는") 금지.
+  "라벨 — 경구", "라벨. 경구" 이중 제목 금지. 줄표(—) 금지. 조사·%는 앞말에 붙인다. 굵게는 수치·제목에만.
+- **용어는 첫 등장에 정의.** 프로젝트 안에서 만든 말과 내부 식별자(OPT-·KI-·BTL-·T-)는 외부 독자용 문서에 정의 없이 쓰지 않는다.
+- **숫자는 출처와 검산.** 같은 비교에 두 숫자를 쓰지 않는다. 백분율은 문서 안의 두 값으로 검산되어야 하고, 안 맞으면 두 값만 쓴다.
+- **날것 하나 이상.** 캡처·로그·날짜·링크. 손으로 그린 표와 SVG만 있는 문서는 생성물로 읽힌다.
+- **상호참조 대신 그 자리에 다시 쓴다.** "N장 참조"는 문서당 3개 이하.
+- **원고는 하나.** 길이가 다른 판은 한 원고의 구간 마커로 빌드한다. 원고가 둘이면 수치가 갈라진다.
+- **빌드 산출물을 열어 본다.** `- ` 뒤 공백이 없는 목록, 줄에 걸친 굵게, 제목 오타, 쪽수를 확인한다.
+- **표면을 고친 뒤 다시 잰다.** `docs/WRITING.md` 6장의 스크립트로 문장 길이·대비 구문·상호참조 수를 다시 센다.
+  수치가 줄지 않았으면 고친 것이 아니다.
+- **사용자가 쓴 문장은 어조를 바꾸지 않는다.** 오타와 길이만 고친다.
+
+---
+
 ## Environment Properties
 
 | Property | Purpose |
@@ -232,7 +298,7 @@ ALB
 
 **Profiles:**
 - `local` — default profile; requires a personal gitignored `application-local.properties` (not in the repo)
-- `dev` — recommended for local development; localhost defaults built in, actuator on port 8081 (`docs/00-quickstart.md`)
+- `dev` — recommended for local development; localhost defaults built in, actuator on port 8081 (`README.md`)
 - `prod` — all credentials from environment variables, actuator on port 8081
 - `perf` — layered on top of prod (`--spring.profiles.active=prod,perf`) for load testing; see `application-perf.properties` comments
 
@@ -268,10 +334,11 @@ work branches off `develop` and merges back into `develop`.
 
 ### Commits
 
-- **Commit messages must be written in English**
-- Follow Conventional Commits format: `type: short description`
+- **Commit subject and body are written in Korean** (rule changed on 2026-09-04; older commits are English and are left as they are)
+- Follow Conventional Commits format: `type: short description` — the type prefix stays in English
   - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`
-  - Example: `feat: add OAuth2 auto-registration for new users`
+  - Example: `feat: OAuth2 신규 사용자 자동 가입 추가`
+
 - Keep subject line under 72 characters
 - Commit description(body) must include:
   - What was changed 
@@ -301,7 +368,8 @@ Rules for "simplify":
 
 - Do not add error handling for scenarios that cannot happen
 - Do not add speculative abstractions — implement only what is asked
-- Do not add docstrings or comments to code you did not change
+- Do not add or rewrite comments in untouched code unless the task explicitly includes
+  comment cleanup
 - Do not use `ddl-auto=update` or `ddl-auto=create` anywhere — schema changes go through Flyway migrations (`docs/MIGRATION.md`)
 - Do not add backwards-compatibility shims when the old code can simply be replaced
 - Do not design for hypothetical future requirements
