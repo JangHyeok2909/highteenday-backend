@@ -11,14 +11,17 @@
 src/main/resources/db/migration/
   V1__baseline.sql                       Flyway 도입 이전 스키마 (빈 DB에만 실행)
   V2__friend_relation_indexes.sql        친구 관계 조회용 인덱스
-  V3__rename_notification_entity_id.sql  Notification 컬럼명 정정 (BTL-011)
+  V3__rename_notification_entity_id.sql  Notification 컬럼명 정정 (DB-003)
   V4__chat_room_category_group.sql       채팅방 category 확장
-  V5__rename_token_table.sql             token → tokens 개명 (BTL-008)
-  V6__create_daily_hot_post.sql          daily_hot_post 정식 생성 (BTL-009)
-  V7__scraps_unique_usr_pst.sql          스크랩 중복 방지 유니크 제약 (BTL-012)
+  V5__rename_token_table.sql             token → tokens 개명 (DB-001)
+  V6__create_daily_hot_post.sql          daily_hot_post 정식 생성 (DB-002)
+  V7__scraps_unique_usr_pst.sql          스크랩 중복 방지 유니크 제약 (DATA-002)
+  V8__normalize_column_names.sql         명명 규칙을 벗어난 컬럼 3개 정정
+  V9__drop_personal_schedule.sql         사용된 적 없는 personal_schedule 테이블 삭제
 ```
 
-(BTL-nnn은 부하 테스트에서 실증된 결함 기록 — `performance/bottlenecks/` 참고)
+
+(괄호의 ID는 [`docs/issues`](issues/)의 현재 이슈 식별자다.)
 
 - 이름은 `V{번호}__{설명}.sql`. **밑줄 두 개**다. 하나면 Flyway가 인식하지 못한다.
 - 번호는 이어서 붙인다. 같은 번호를 두 사람이 쓰면 배포 시 충돌한다. PR을 올리기 전에
@@ -138,7 +141,8 @@ mysqldump --no-data --skip-add-drop-table --skip-comments \
 
 ## 로컬에서 검증하기
 
-`docker-compose.yml` 에는 MySQL 서비스가 없어서(주석만 있다) 임시 컨테이너를 띄워 쓴다.
+로컬 개발용 MySQL(`docker compose up -d mysql`)에는 이미 데이터가 있으므로, 빈 DB 검증은 임시 컨테이너를 따로 띄워 쓴다.
+
 
 ```bash
 docker run -d --name htd-mysql-check \
@@ -165,5 +169,6 @@ docker rm -f htd-mysql-check
 - `ddl/V_daily_hot_post.sql` 과 `ddl/V_group_chat.sql` 은 Flyway로 옮기지 않았다. 이미
   적용되었는지가 환경마다 다를 수 있어서, 임의로 마이그레이션으로 만들면 "컬럼이 이미 있다"로
   배포가 실패한다. 각 환경의 적용 상태를 확인한 뒤 정리하는 것이 맞다.
-- 위에 적은 `DailyHotPost` / `daily_hot_post` 불일치는 손대지 않았다. 어느 쪽에 데이터가 있는지
-  모르는 상태에서 테이블명을 바꾸는 건 위험하다.
+- 위에 적은 `DailyHotPost` / `daily_hot_post` 불일치는 V6 가 `daily_hot_post` 를 정식으로 만들어
+  해소했다. V1 baseline 이 만드는 `DailyHotPost` 는 아무도 쿼리하지 않는 고아 테이블로 남아 있다
+  ([DB-002](issues/) 참고).
