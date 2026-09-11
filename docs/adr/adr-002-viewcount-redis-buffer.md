@@ -23,10 +23,11 @@ Redis를 쓰기 버퍼로 사용한다. 요청 경로: `viewed:{postId}:{userId}
 
 - 얻은 것: 조회 경로에서 DB 쓰기 제거, 핫 row 경합 해소, 사용자당 1시간 중복 방지.
 - 잃은 것 (코드로 확인되는 한계):
-  - **유실 허용**: Redis 장애 중 조회는 집계되지 않고, 미반영 버퍼는 Redis 데이터 유실 시 사라진다 — 유실 범위 상세는 [operations/runbook.md](../operations/runbook.md) 시나리오 1. DB 반영 실패로는 유실되지 않는다 — 처음에는 GETDEL로 먼저 지워 반영 실패분이 사라지는 구조였고, 2026-08-28에 읽기 → 반영 → 차감 순서로 바꿨다 ([KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실)).
+  - **유실 허용**: Redis 장애 중 조회는 집계되지 않고, 미반영 버퍼는 Redis 데이터 유실 시 사라진다 — 유실 범위 상세는 [operations/runbook.md](../operations/runbook.md) 시나리오 1과 [DATA-001](../issues/). DB 반영 실패분은 읽기 → 반영 → 성공분 차감 순서로 Redis에 남겨 재시도한다.
 
   - **최대 60초 지연**: DB의 조회수는 항상 버퍼만큼 과거 값이다.
-  - **키 탐색은 SCAN**: `peekPendingCounts()`가 `redisTemplate.scan(...)`으로 커서 순회한다. 처음에는 KEYS를 썼고, KEYS는 전체 키 수에 비례하는 블로킹 명령이라 키가 늘면 Redis 전체를 멈출 수 있다. 2026-09-08에 SCAN으로 바꿨다 ([KI-17](../KNOWN-ISSUES.md#ki-17-조회수-드레인이-블로킹-keys-명령-사용)). SCAN은 순회 중 생긴 키를 그 주기에 빠뜨릴 수 있고, 빠진 증가분은 다음 주기에 반영된다.
+
+  - **키 탐색은 SCAN**: `peekPendingCounts()`가 `redisTemplate.scan(...)`으로 커서 순회한다. 처음에는 KEYS를 썼고, KEYS는 전체 키 수에 비례하는 블로킹 명령이라 키가 늘면 Redis 전체를 멈출 수 있다. 2026-09-08에 SCAN으로 바꿨다 ([KI-17](../archive/legacy-docs/2026-09-11/KNOWN-ISSUES.md#ki-17-조회수-드레인이-블로킹-keys-명령-사용)). SCAN은 순회 중 생긴 키를 그 주기에 빠뜨릴 수 있고, 빠진 증가분은 다음 주기에 반영된다.
   - 삭제된 게시글의 버퍼는 sync 시 `ResourceNotFoundException`으로 건너뛰고 반영된 것으로 쳐서 정리한다 (`syncViewsToDB()`의 catch) — 남겨 두면 매 주기 같은 실패를 반복한다.
 
 

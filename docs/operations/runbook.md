@@ -34,7 +34,7 @@
 **조회수 유실 범위** (코드 근거):
 
 - 장애 지속 중: `tryMarkViewed()`가 `@ResilientRedis`로 false를 반환 → `ViewCountService.increaseViewCount()`가 증가를 건너뜀. 장애 동안의 조회는 **집계되지 않고 영구 유실**된다.
-- Redis 데이터가 날아간 경우(재시작 등): `post:views:*`에 버퍼링돼 있던 미반영 증분이 유실된다. `ViewCountScheduler.syncViewsToDB()`가 60초 주기(fixedDelay)로 반영하므로 유실 폭은 최대 직전 sync 이후 누적분이다. 반영에 실패한 증가분은 Redis에 남겨 다음 주기에 재시도하므로 DB 쪽 실패로는 유실되지 않는다 ([KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실) 갱신). 또한 `viewed:*` 중복 방지 키(1h TTL)도 사라지므로 복구 직후 같은 사용자의 조회가 한 번 더 집계될 수 있다.
+- Redis 데이터가 날아간 경우(재시작 등): `post:views:*`에 버퍼링돼 있던 미반영 증분이 유실된다. `ViewCountScheduler.syncViewsToDB()`가 60초 주기(fixedDelay)로 반영하므로 유실 폭은 최대 직전 sync 이후 누적분이다. 반영에 실패한 증가분은 Redis에 남겨 다음 주기에 재시도하므로 DB 쪽 실패로는 유실되지 않는다. 또한 `viewed:*` 중복 방지 키(1h TTL)도 사라지므로 복구 직후 같은 사용자의 조회가 한 번 더 집계될 수 있다 ([DATA-001](../issues/), [CASE-007](../../performance/cases/CASE-007-redis-failure-cascade/)).
 
 - 게시글 본문의 조회수 표시는 DB 누적값 + Redis 버퍼(`getCount`, 장애 시 0)로 조합되므로 장애 중에는 버퍼 몫만큼 낮게 보인다.
 
@@ -42,7 +42,7 @@
 
 ## 시나리오 2: 배포가 실패하면
 
-deploy job이 `docker compose up -d` 뒤 `http://localhost:8081/actuator/health`가 UP이 될 때까지 최대 120초 기다리고, 실패하면 컨테이너 상태와 로그 200줄을 출력한 뒤 **배포 직전 이미지로 되돌리고** 워크플로를 실패시킨다 (`.github/workflows/` 의 deploy job, [KI-48](../KNOWN-ISSUES.md) 갱신). 따라서 보통은 사람이 손댈 일이 없다.
+deploy job이 `docker compose up -d` 뒤 `http://localhost:8081/actuator/health`가 UP이 될 때까지 최대 120초 기다리고, 실패하면 컨테이너 상태와 로그 200줄을 출력한 뒤 **배포 직전 이미지로 되돌리고** 워크플로를 실패시킨다. 따라서 보통은 사람이 손댈 일이 없다.
 
 자동 롤백까지 실패했거나 정상 기동한 버전을 더 뒤로 돌려야 할 때의 수동 절차 `[미확인: 실제로 검증한 적 없는 절차다 — 아래는 파이프라인 구조에서 도출한 것]`:
 
@@ -60,7 +60,7 @@ deploy job이 `docker compose up -d` 뒤 `http://localhost:8081/actuator/health`
 - 엔티티를 고치고 `src/main/resources/db/migration/`에 `V{다음 번호}__{설명}.sql`을 추가한다. 이미 적용된 파일은 체크섬 때문에 수정할 수 없다 — 되돌리려면 새 번호로 되돌리는 마이그레이션을 추가한다. 절차·로컬 검증 명령·`baseline-on-migrate` 동작은 [MIGRATION.md](../MIGRATION.md).
 - 기존 행이 있는 컬럼 추가는 **컬럼 추가 → 값 백필 → NOT NULL/UNIQUE 제약** 순서로 나눠 쓴다. 백필 전에 제약을 걸면 기존 행 때문에 실패한다.
 - dev·prod 모두 `ddl-auto=none`이라 엔티티만 고치면 스키마가 바뀌지 않는다. dev DB에는 예전 `ddl-auto=update` 시절의 타입 드리프트(enum vs VARCHAR)가 남아 있어, 정리한 뒤 `validate`로 올리는 것이 목표다 (`application-dev.properties` 주석).
-- `src/main/resources/ddl/`의 수동 스크립트 2개는 Flyway 도입 이전 기록이다. `V_daily_hot_post.sql`은 존재하지 않는 `post` 테이블을 참조해 그대로 실행하면 실패하고, 필요한 테이블은 V6가 만든다 ([KI-28](../KNOWN-ISSUES.md#ki-28-수동-ddl과-실제-스키마의-불일치)).
+- `src/main/resources/ddl/`의 수동 스크립트 2개는 Flyway 도입 이전 기록이다. `V_daily_hot_post.sql`은 존재하지 않는 `post` 테이블을 참조해 그대로 실행하면 실패하고, 필요한 테이블은 V6가 만든다 ([DB-002](../issues/)).
 - 배포 후 확인: `SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank;`
 
 ## 시나리오 4: 로그를 보려면
@@ -86,10 +86,9 @@ deploy job이 `docker compose up -d` 뒤 `http://localhost:8081/actuator/health`
 
 ## 알려진 문제·미확인 사항
 
-- [KI-28](../KNOWN-ISSUES.md) `ddl/V_daily_hot_post.sql`의 FK가 존재하지 않는 `post` 테이블 참조 — 기록용 스크립트라 실행 대상이 아니며, 필요한 테이블은 V6가 만든다
-- [KI-48](../KNOWN-ISSUES.md) 배포 후 검증·자동 롤백 부재 — 해소
-- [KI-17](../KNOWN-ISSUES.md#ki-17-조회수-드레인이-블로킹-keys-명령-사용) 조회수 드레인의 `KEYS` 명령 — 키가 많아지면 60초마다 Redis 전체가 멈칫한다. 미해결
+- [DB-002](../issues/) `ddl/V_daily_hot_post.sql`의 잘못된 FK — 기록용이며 V6가 실제 테이블을 만든다.
+- 배포 후 검증·자동 롤백 — 해소. 현재 workflow가 기동 확인과 롤백을 수행한다.
+- [CACHE-001](../issues/) 조회수 드레인의 `KEYS` 명령 — 키가 많아지면 Redis 전체를 블로킹할 수 있다.
 - `[미확인]` 4건: 수동 롤백 절차의 실검증, ECR 이미지 보존 정책, prod DDL 적용 이력, EC2 도커 로깅 드라이버
 
 마지막 검증일: 2026-09-05
-

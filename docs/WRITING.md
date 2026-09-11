@@ -1,6 +1,6 @@
 # 문서 작성 규칙
 
-> 적용 범위: 사람이 읽는 모든 마크다운. `docs/`, `performance/docs/`, ADR, README, 그리고 외부 독자에게
+> 적용 범위: 사람이 읽는 모든 마크다운. `docs/`, `performance/`, ADR, README, 그리고 외부 독자에게
 > 제출하는 원고. 코드 주석과 커밋 메시지는 `CLAUDE.md`의 Git Rules를 따른다.
 > 요약은 `CLAUDE.md`의 **Documentation Rules**에 있다. 이 문서는 그 근거와 예문, 검사 방법이다.
 

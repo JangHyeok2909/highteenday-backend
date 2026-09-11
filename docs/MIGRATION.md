@@ -11,17 +11,17 @@
 src/main/resources/db/migration/
   V1__baseline.sql                       Flyway 도입 이전 스키마 (빈 DB에만 실행)
   V2__friend_relation_indexes.sql        친구 관계 조회용 인덱스
-  V3__rename_notification_entity_id.sql  Notification 컬럼명 정정 (BTL-011)
+  V3__rename_notification_entity_id.sql  Notification 컬럼명 정정 (DB-003)
   V4__chat_room_category_group.sql       채팅방 category 확장
-  V5__rename_token_table.sql             token → tokens 개명 (BTL-008)
-  V6__create_daily_hot_post.sql          daily_hot_post 정식 생성 (BTL-009)
-  V7__scraps_unique_usr_pst.sql          스크랩 중복 방지 유니크 제약 (BTL-012)
-  V8__normalize_column_names.sql         명명 규칙을 벗어난 컬럼 3개 정정 (KI-29)
+  V5__rename_token_table.sql             token → tokens 개명 (DB-001)
+  V6__create_daily_hot_post.sql          daily_hot_post 정식 생성 (DB-002)
+  V7__scraps_unique_usr_pst.sql          스크랩 중복 방지 유니크 제약 (DATA-002)
+  V8__normalize_column_names.sql         명명 규칙을 벗어난 컬럼 3개 정정
   V9__drop_personal_schedule.sql         사용된 적 없는 personal_schedule 테이블 삭제
 ```
 
 
-(BTL-nnn은 부하 테스트에서 실증된 결함 기록 — `performance/bottlenecks/` 참고)
+(괄호의 ID는 [`docs/issues`](issues/)의 현재 이슈 식별자다.)
 
 - 이름은 `V{번호}__{설명}.sql`. **밑줄 두 개**다. 하나면 Flyway가 인식하지 못한다.
 - 번호는 이어서 붙인다. 같은 번호를 두 사람이 쓰면 배포 시 충돌한다. PR을 올리기 전에
@@ -171,5 +171,4 @@ docker rm -f htd-mysql-check
   배포가 실패한다. 각 환경의 적용 상태를 확인한 뒤 정리하는 것이 맞다.
 - 위에 적은 `DailyHotPost` / `daily_hot_post` 불일치는 V6 가 `daily_hot_post` 를 정식으로 만들어
   해소했다. V1 baseline 이 만드는 `DailyHotPost` 는 아무도 쿼리하지 않는 고아 테이블로 남아 있다
-  (`performance/bottlenecks/BTL-009` 참고).
-
+  ([DB-002](issues/) 참고).
