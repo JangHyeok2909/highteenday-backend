@@ -1,10 +1,8 @@
 package com.example.highteenday_backend;
 
 
-import com.example.highteenday_backend.utils.MediaUtils;
 import com.example.highteenday_backend.dtos.PostDto;
 import com.example.highteenday_backend.dtos.RequestPostDto;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Disabled;
@@ -20,7 +18,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -105,15 +102,6 @@ public class PostMediaFlowTest {
         mvcResult = mockMvc.perform(get(location))
                 .andExpect(status().isOk())
                 .andReturn();
-
-        //json으로 전달받은 html형식의 content에서 url 파싱, 파싱한 url 과 s3url 동일한지 검사
-//        String contentAsString = mvcResult.getResponse().getContentAsString();
-//        Map<String,Object> map = mapper.readValue(contentAsString, new TypeReference<>() {});
-//        List<String> parsedUrls = MediaUtils.extractS3Urls((String) map.get("content"));
-//
-//        assertThat(parsedUrls).hasSize(urls.size());
-//        for(int i=0;i<urls.size();i++) assertThat(parsedUrls.get(i)).isEqualTo(urls.get(i));
-
 
     }
     @Test

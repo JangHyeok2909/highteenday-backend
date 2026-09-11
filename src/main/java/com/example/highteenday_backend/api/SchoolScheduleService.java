@@ -108,7 +108,6 @@ public class SchoolScheduleService {
                             .week(String.valueOf(date.getDayOfWeek().getValue()))
                             .day(day)
                             .build();
-//                    System.out.println("학교명="+schedule.getSchool().getName()+", 과목명="+schedule.getSubject());
                     scheduleList.add(schedule);
                 }
 

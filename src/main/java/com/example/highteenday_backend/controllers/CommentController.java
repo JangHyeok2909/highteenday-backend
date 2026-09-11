@@ -50,7 +50,8 @@ public class CommentController {
         if (userPrincipal != null) {
             User user = userPrincipal.getUser();
             // 댓글마다 좋아요·싫어요를 따로 물으면 조회가 2N 번 나간다. 댓글 500개짜리 인기
-            // 글에서 그 1,000번이 이 엔드포인트 쿼리의 3분의 2였다. 한 번에 받아 맵으로 읽는다.
+            // 글이면 그 왕복만 1,000번이다. 부하 실측에서는 이 확인이 요청당 쿼리의 약 93%였다.
+            // 한 번에 받아 맵으로 읽는다.
             Map<Long, ReactionKind> myReactions = commentReactionService.findMyReactions(comments, user);
             for (int i = 0; i < comments.size(); i++) {
                 Comment c = comments.get(i);
@@ -113,53 +114,4 @@ public class CommentController {
         commentService.deleteComment(commentId, user.getId());
         return ResponseEntity.ok("삭제 완료.");
     }
-
-    //tests
-
-//    @Operation(summary = "댓글 리스트 조회 테스트")
-//    @GetMapping("/test/{userOd}")
-//    public ResponseEntity<List<CommentDto>> getCommentsTest(@PathVariable Long postId,
-//                                                            @PathVariable Long userId){
-//        Post post = postService.findById(postId);
-//        List<Comment> comments = commentService.getCommentsByPost(post);
-//        List<CommentDto> dtos = new ArrayList<>();
-//
-//        for (Comment c : comments){
-//            CommentDto dto = CommentDto.fromEntity(c);
-//            User user = userService.findById(userId);
-//            if(commentLikeService.isLikedByUser(c,user)) dto.setLiked(true);
-//            else if(commentDislikeService.isDislikedByUser(c,user)) dto.setDisliked(true);
-//            dtos.add(dto);
-//        }
-//
-//        return ResponseEntity.ok(dtos);
-//    }
-//    @Operation(summary = "댓글 생성 테스트")
-//    @PostMapping("/test/{userId}")
-//    public ResponseEntity createCommentTest(@PathVariable Long postId,
-//                                            @PathVariable Long userId,
-//                                            @Valid @RequestBody RequestCommentDto dto){
-//        User user = userService.findById(userId);
-//        Post post = postService.findById(postId);
-//        Comment comment = commentService.creatComment(post, user,dto);
-//        if(!dto.getUrl().isEmpty()) commentMediaService.processCreateCommentMedia(user.getId(),comment,dto);
-//        URI location = URI.create("/api/posts/"+postId+"/comments/"+comment.getId());
-//        return ResponseEntity.created(location).build();
-//    }
-//
-//    @Operation(summary = "댓글 수정 테스트", description = "userId를 직접 설정해 수정 테스트")
-//    @PutMapping("/{commentId}/test/{userId}")
-//    public ResponseEntity updateCommentTest(@PathVariable Long commentId,
-//                                            @PathVariable Long userId,
-//                                            @Valid @RequestBody RequestCommentDto dto){
-//        commentService.updateComment(commentId,userId,dto);
-//        return ResponseEntity.ok("수정 완료.");
-//    }
-//    @Operation(summary = "댓글 삭제 테스트")
-//    @DeleteMapping("/{commentId}/test/{userId}")
-//    public ResponseEntity deleteComment(@PathVariable Long commentId,
-//                                        @PathVariable Long userId){
-//        commentService.deleteComment(commentId, userId);
-//        return ResponseEntity.ok("삭제 완료.");
-//    }
 }

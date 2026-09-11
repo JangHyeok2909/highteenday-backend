@@ -155,8 +155,8 @@ class TokenAuthenticationFilterTest {
         @Test
         @DisplayName("토큰이 없는 보호 URI도 그대로 통과한다 — 차단은 SecurityConfig 책임")
         void passesThroughProtectedUriWithoutToken() throws Exception {
-            // 필터 안의 TOKEN_NOT_FOUND 예외는 주석 처리되어 있다. 즉 토큰 없는 요청은
-            // 익명 상태로 체인을 통과하고, 최종 차단 여부는 SecurityConfig가 정한다.
+            // 인증 필터는 토큰 부재를 오류로 바꾸지 않는다. 익명 상태로 체인을 통과하고,
+            // 최종 차단 여부는 SecurityConfig가 정한다.
             request.setRequestURI("/api/mypage");
 
             filter.doFilter(request, response, filterChain);

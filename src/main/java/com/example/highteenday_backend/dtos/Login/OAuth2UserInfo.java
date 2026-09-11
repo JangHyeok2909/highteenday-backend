@@ -28,7 +28,6 @@ public record OAuth2UserInfo(
                 .name((String) attributes.get("name"))
                 .email((String) attributes.get("email"))
                 .provider(Provider.GOOGLE)
-//                .profile((String) attributes.get("picture"))
                 .build();
     }
     private static OAuth2UserInfo ofKakao(Map<String, Object> attributes){
@@ -41,7 +40,6 @@ public record OAuth2UserInfo(
                 .name((String) profile.get("nickname"))
                 .email((String) account.get("email"))
                 .provider(Provider.KAKAO)
-//                .profile((String) profile.get("profile_image_url"))
                 .build();
     }
     private static OAuth2UserInfo ofNaver(Map<String, Object> attributes){
@@ -53,7 +51,6 @@ public record OAuth2UserInfo(
                 .name((String) response.get("name"))
                 .email((String) response.get("email"))
                 .provider(Provider.NAVER)
-//                .profile((String) response.get("profile_image"))
                 .build();
     }
 }
