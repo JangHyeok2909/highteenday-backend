@@ -71,7 +71,6 @@ public class DataInitializer {
         User testUser = userService.findByEmail("test1@gmail.com");
         postDataInit(testUser);
         commentDataInit(testUser);
-//        likeAndDislikeDataInit(testUser);
         hotPostLikeDataInit();
         scrapDataInit(testUser);
         notificationDataInit(testUser);
