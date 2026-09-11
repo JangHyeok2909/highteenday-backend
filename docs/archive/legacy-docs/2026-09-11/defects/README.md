@@ -25,5 +25,6 @@
 
 | 문서 | 결함 | 상태 |
 |---|---|---|
-| [KI-53](KI-53-comment-counter-lost-update.md) | 댓글 수 카운터가 동시 쓰기에서 유실됨 | 미해결 |
+| [KI-53](KI-53-comment-counter-lost-update.md) | 댓글 수 카운터가 동시 쓰기에서 유실됨 | 해결 (2026-08-14, 원자 UPDATE) |
+
 | [KI-54](KI-54-toggle-non-idempotent.md) | 반응·스크랩 토글 API가 멱등하지 않음 | 미해결 |

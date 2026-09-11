@@ -9,13 +9,14 @@
 
 ## 3줄 요약
 
-- Redis 장애 시 서비스는 계속 동작한다 — `@ResilientRedis`가 기본값을 반환하고 캐시·랭킹·토큰은 DB로 fallback한다. 대가는 조회수 유실이다.
-- 배포 실패 시 자동 롤백이 없다 — ECR의 이전 커밋 SHA 태그로 수동 재기동해야 한다 (절차 자체는 `[미확인]`).
-- 스키마 변경은 dev에서는 `ddl-auto=update` 자동, prod에서는 수동 SQL이다 — `ddl/` 스크립트에 FK 오타가 있으니 그대로 실행하지 말 것 (아래 ⑤).
+- Redis 장애 시 서비스는 계속 동작한다 — `@ResilientRedis`가 기본값을 반환하고 캐시·랭킹·토큰은 DB로 fallback한다. 대가는 장애 중 조회수 유실이다.
+- 배포 실패 시 워크플로가 헬스체크 뒤 직전 이미지로 자동 롤백한다. 그래도 안 되면 ECR의 이전 커밋 SHA 태그로 수동 재기동한다 (수동 절차는 `[미확인]`).
+- 스키마 변경은 Flyway 마이그레이션을 새 번호로 추가하는 것이다 ([MIGRATION.md](../MIGRATION.md)). `ddl/`의 옛 수동 스크립트는 실행하지 않는다.
+
 
 ## 시나리오 1: Redis가 죽으면 무슨 일이 일어나는가
 
-애플리케이션은 죽지 않는다. 격리 장치는 두 겹이다 ([02-architecture.md](../02-architecture.md)의 Redis 장애 격리 규칙):
+애플리케이션은 죽지 않는다. 격리 장치는 두 겹이다 (키별 정책은 [crosscutting/redis.md](../crosscutting/redis.md)):
 
 1. **`@ResilientRedis` (단순 조작)** — `aop/ResilientRedisAspect.java · handle()`이 예외를 잡아 WARN 로그 후 반환 타입별 기본값을 돌려준다: void→null, boolean→false, 숫자→0, List/Set/Map→빈 컬렉션 (`defaultValue()`).
 2. **서비스 내 try/catch (복잡한 fallback)** — DB 재조회가 필요한 경로.
@@ -33,21 +34,22 @@
 **조회수 유실 범위** (코드 근거):
 
 - 장애 지속 중: `tryMarkViewed()`가 `@ResilientRedis`로 false를 반환 → `ViewCountService.increaseViewCount()`가 증가를 건너뜀. 장애 동안의 조회는 **집계되지 않고 영구 유실**된다.
-- Redis 데이터가 날아간 경우(재시작 등): `post:views:*`에 버퍼링돼 있던 미반영 증분이 유실된다. `ViewCountScheduler.syncViewsToDB()`가 60초 주기(fixedDelay)로 비우므로 유실 폭은 최대 직전 sync 이후 누적분이다. 또한 `viewed:*` 중복 방지 키(1h TTL)도 사라지므로 복구 직후 같은 사용자의 조회가 한 번 더 집계될 수 있다.
+- Redis 데이터가 날아간 경우(재시작 등): `post:views:*`에 버퍼링돼 있던 미반영 증분이 유실된다. `ViewCountScheduler.syncViewsToDB()`가 60초 주기(fixedDelay)로 반영하므로 유실 폭은 최대 직전 sync 이후 누적분이다. 반영에 실패한 증가분은 Redis에 남겨 다음 주기에 재시도하므로 DB 쪽 실패로는 유실되지 않는다. 또한 `viewed:*` 중복 방지 키(1h TTL)도 사라지므로 복구 직후 같은 사용자의 조회가 한 번 더 집계될 수 있다 ([DATA-001](../issues/), [CASE-007](../../performance/cases/CASE-007-redis-failure-cascade/)).
+
 - 게시글 본문의 조회수 표시는 DB 누적값 + Redis 버퍼(`getCount`, 장애 시 0)로 조합되므로 장애 중에는 버퍼 몫만큼 낮게 보인다.
 
 복구 후 별도 조치는 필요 없다 — 캐시는 미스 시 재적재되고, 핫 랭킹은 스케줄러가 재계산한다.
 
 ## 시나리오 2: 배포가 실패하면
 
-현재 자동 롤백이 없다 ([deploy.md](deploy.md) ⑤). deploy job은 `docker compose up -d --force-recreate`로 끝나며 기동 성공 여부를 확인하지 않는다.
+deploy job이 `docker compose up -d` 뒤 `http://localhost:8081/actuator/health`가 UP이 될 때까지 최대 120초 기다리고, 실패하면 컨테이너 상태와 로그 200줄을 출력한 뒤 **배포 직전 이미지로 되돌리고** 워크플로를 실패시킨다. 따라서 보통은 사람이 손댈 일이 없다.
 
-수동 롤백 절차 `[미확인: 실제로 검증한 적 없는 절차다 — 아래는 파이프라인 구조에서 도출한 것]`:
+자동 롤백까지 실패했거나 정상 기동한 버전을 더 뒤로 돌려야 할 때의 수동 절차 `[미확인: 실제로 검증한 적 없는 절차다 — 아래는 파이프라인 구조에서 도출한 것]`:
 
 1. build job이 이미지를 **커밋 SHA 태그**로 ECR에 push하므로(`.github/workflows/deploy.yml · build`), 이전 정상 커밋의 SHA 태그 이미지가 ECR에 남아 있다.
 2. EC2 접속 후 `~/app/.env`의 `ECR_IMAGE=` 값을 이전 SHA 태그 URI로 수정.
 3. `docker compose -f docker-compose.prod.yml --env-file .env pull && docker compose -f docker-compose.prod.yml --env-file .env up -d --force-recreate`.
-4. 확인: `curl http://localhost:8080/actuator/health` → `{"status":"UP"}`.
+4. 확인: `curl http://localhost:8081/actuator/health` → `{"status":"UP"}`.
 
 대안: 이전 정상 커밋을 `main`에 revert-push하면 파이프라인이 그 커밋으로 재배포한다 (이미지 재빌드 시간 소요).
 
@@ -55,14 +57,16 @@
 
 ## 시나리오 3: 스키마를 변경하려면
 
-- **dev**: `spring.jpa.hibernate.ddl-auto=update`(`application-dev.properties`) — 엔티티 수정 후 재기동하면 자동 반영된다. 컬럼 삭제·타입 변경은 update가 처리하지 않으므로 수동 확인 필요.
-- **prod**: `ddl-auto=none`(`application-prod.properties`) — **배포 전에 수동 SQL을 직접 실행**해야 한다. 관례는 `src/main/resources/ddl/`에 마이그레이션 스크립트를 남기는 것이다. `ddl/V_group_chat.sql` 상단 주석이 절차를 명시한다: "prod 는 ddl-auto=none 이므로 이 스크립트를 배포 전에 직접 실행해야 한다", 그리고 순서 규칙(컬럼 추가 → 백필 → NOT NULL/UNIQUE 제약)까지 담고 있어 새 스크립트 작성의 모범이다.
-- **주의**: `ddl/V_daily_hot_post.sql`의 FK가 존재하지 않는 `post` 테이블을 참조한다(실 테이블명은 `posts` — `domain/posts/Post.java · @Table(name="posts")`). 그대로 실행하면 실패하므로 수정 후 실행해야 한다 ([KI-28](../KNOWN-ISSUES.md)).
-- prod 스키마 변경 실행 이력·검증 기록은 저장소에 없다 `[미확인: 스크립트가 prod에 실제 적용되었는지 확인 불가]`.
+- 엔티티를 고치고 `src/main/resources/db/migration/`에 `V{다음 번호}__{설명}.sql`을 추가한다. 이미 적용된 파일은 체크섬 때문에 수정할 수 없다 — 되돌리려면 새 번호로 되돌리는 마이그레이션을 추가한다. 절차·로컬 검증 명령·`baseline-on-migrate` 동작은 [MIGRATION.md](../MIGRATION.md).
+- 기존 행이 있는 컬럼 추가는 **컬럼 추가 → 값 백필 → NOT NULL/UNIQUE 제약** 순서로 나눠 쓴다. 백필 전에 제약을 걸면 기존 행 때문에 실패한다.
+- dev·prod 모두 `ddl-auto=none`이라 엔티티만 고치면 스키마가 바뀌지 않는다. dev DB에는 예전 `ddl-auto=update` 시절의 타입 드리프트(enum vs VARCHAR)가 남아 있어, 정리한 뒤 `validate`로 올리는 것이 목표다 (`application-dev.properties` 주석).
+- `src/main/resources/ddl/`의 수동 스크립트 2개는 Flyway 도입 이전 기록이다. `V_daily_hot_post.sql`은 존재하지 않는 `post` 테이블을 참조해 그대로 실행하면 실패하고, 필요한 테이블은 V6가 만든다 ([DB-002](../issues/)).
+- 배포 후 확인: `SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank;`
 
 ## 시나리오 4: 로그를 보려면
 
-- **prod 컨테이너 로그**: EC2에서 `docker logs -f highteenday-app` (`docker-compose.prod.yml · container_name`). 로그 레벨은 INFO(`application-prod.properties`)라 정상 요청은 안 찍히고, 300ms 초과 요청이 `[API] Slow.` / `[Service] Slow.` WARN으로 찍힌다 (`aop/ExecutionLoggingAspect.java`). 파일 적재·수집 설정은 없다 — 컨테이너 재생성 시 이전 로그가 사라진다 `[미확인: EC2 도커 로깅 드라이버 설정에 따라 다를 수 있음]`.
+- **prod 컨테이너 로그**: EC2에서 `docker logs -f highteenday-app` (`docker-compose.prod.yml · container_name`). 로그 레벨은 INFO(`application-prod.properties`)라 정상 요청은 안 찍히고, 300ms 초과 요청이 `[API] Slow.` / `[Service] Slow.` WARN으로 찍힌다 (`aop/ExecutionLoggingAspect.java`). 요청당 쿼리가 20개를 넘으면 `metrics/QueryCountFilter`가 WARN을 남긴다. 파일 적재·수집 설정은 없다 — 컨테이너 재생성 시 이전 로그가 사라진다 `[미확인: EC2 도커 로깅 드라이버 설정에 따라 다를 수 있음]`.
+
 - **SQL 로그 (p6spy)**: dev는 `decorator.datasource.p6spy.enable-logging=false`로 꺼져 있다. 켜려면 dev 프로퍼티에서 `true`로 바꾸고 `logging.level.p6spy`를 `info`로 올린다. 포맷은 `src/main/resources/spy.properties`(SingleLineFormat) — 파일 주석대로 `excludecategories`가 주석 처리되어 있어 켜면 모든 SQL(N+1 관찰 포함)이 출력된다. prod는 `logging.level.p6spy=off`로 완전 차단.
 - **스케줄러 수명주기**: `@SchedulerJob` AOP(`aop/SchedulerJobAspect`)가 시작/종료를 로깅한다 — 조회수 sync는 `View count batch sync complete. synced=...` INFO 로그로 동작 여부를 확인할 수 있다 (`schedulers/ViewCountScheduler.java`).
 
@@ -75,14 +79,16 @@
 | 핫게시글 DB fallback | `services/domain/HotPostService.java · getLeaderboardDayHotPostsFromDb() / syncLeaderboardDayToDb()` |
 | 토큰 캐시 miss 시 DB 재조회 | `services/domain/TokenService.java · findByRefreshTokenOrThrow()` |
 | 조회수 버퍼·유실 지점 | `infrastructure/redis/RedisViewCountStore.java`, `schedulers/ViewCountScheduler.java · syncViewsToDB()` |
-| prod 수동 DDL 관례 | `src/main/resources/ddl/` (V_group_chat.sql 주석이 절차 명시) |
+| 스키마 마이그레이션 | `src/main/resources/db/migration/`, 절차는 [MIGRATION.md](../MIGRATION.md) |
+| 배포 헬스체크·롤백 | `.github/workflows/deploy.yml · deploy` 잡의 SSH 스크립트 |
+
 | p6spy 설정 | `src/main/resources/spy.properties`, `application-dev.properties`의 p6spy 키 |
 
 ## 알려진 문제·미확인 사항
 
-- [KI-28](../KNOWN-ISSUES.md) `ddl/V_daily_hot_post.sql`의 FK가 존재하지 않는 `post` 테이블 참조 (실 테이블명 `posts`) — 그대로 실행 시 실패
-- [KI-48](../KNOWN-ISSUES.md) 배포 후 검증·자동 롤백 부재 ([deploy.md](deploy.md)와 동일 항목)
-- [KI-01](../KNOWN-ISSUES.md#ki-01-docker-composeyml이-실행-불가) 로컬 compose 전체 기동 불가 — 로컬 장애 재현 시 참고
+- [DB-002](../issues/) `ddl/V_daily_hot_post.sql`의 잘못된 FK — 기록용이며 V6가 실제 테이블을 만든다.
+- 배포 후 검증·자동 롤백 — 해소. 현재 workflow가 기동 확인과 롤백을 수행한다.
+- [CACHE-001](../issues/) 조회수 드레인의 `KEYS` 명령 — 키가 많아지면 Redis 전체를 블로킹할 수 있다.
 - `[미확인]` 4건: 수동 롤백 절차의 실검증, ECR 이미지 보존 정책, prod DDL 적용 이력, EC2 도커 로깅 드라이버
 
-마지막 검증일: 2026-07-30
+마지막 검증일: 2026-09-05

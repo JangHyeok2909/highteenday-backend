@@ -1,6 +1,6 @@
 # ADR-003. 게시글 목록은 커서+오프셋 하이브리드 페이징을 쓴다
 
-상태: 소급 채록 (결정 당시 기록이 아니라 README·코드에서 재구성) — 마지막 검증일: 2026-07-30
+상태: 소급 채록 (결정 당시 기록이 아니라 README·코드에서 재구성) — 마지막 검증일: 2026-09-07
 
 ## 배경
 
@@ -20,14 +20,15 @@ OFFSET 페이징은 뒤 페이지로 갈수록 앞의 모든 행을 스캔 후 �
 - 오프셋 경로: 그 외 전부 — `page * size` offset.
 - 두 경로 모두 복합 인덱스(`idx_posts_brd_valid_id` 등, `domain/posts/Post.java · @Table(indexes)`)를 타도록 (BRD_id, is_valid, 정렬 컬럼) 순서로 설계됐다.
 
-앞쪽 페이지(0~4, 최신순)는 아예 이 쿼리에 오지 않고 Redis 캐시가 처리한다 (`services/domain/PostService.java · getPagedPosts()` — [07-performance.md](../07-performance.md)).
+앞쪽 페이지(0~4, 최신순)는 아예 이 쿼리에 오지 않고 Redis 캐시가 처리한다 (`services/domain/PostService.java · getPagedPosts()`).
 
 ## 결과·트레이드오프
 
 - 얻은 것: 이전/다음 탐색(대부분의 트래픽)은 커서로 상수 성능, UI의 페이지 점프도 유지.
 - 남은 한계 (README "한계" 서술 그대로 유효): 뒤쪽 페이지로의 OFFSET 요청은 여전히 수만~수십만 건을 스캔한다. 실제 사용자가 그런 요청을 할 가능성은 낮다고 보고 유지 중이지만, 악의적 트래픽이 큰 page 값을 반복 요청하면 심각한 성능 문제가 될 수 있다 — 코드에 page 상한 방어는 없다 (`findByBoard()`에 제한 없음) `[미확인: 컨트롤러·DTO 검증 계층의 상한 존재 여부는 전수 확인하지 않음]`.
 - 좋아요순/조회순 정렬은 항상 OFFSET이다 — 커서 조건이 RECENT에만 걸려 있다.
-- 페이지별 커서를 서버가 기억해 점프에도 커서를 쓰려던 흔적이 있으나 전체가 주석 처리돼 있다 (`services/domain/redisService/CursorCacheService.java` — 전 메서드 주석).
+- 페이지별 커서를 서버가 기억하는 방식은 구현하지 않았다. 실행 경로가 없던 미완성
+  `CursorCacheService` 자리표시자는 제거했다.
 
 ## 근거 좌표
 
@@ -38,4 +39,4 @@ OFFSET 페이징은 뒤 페이지로 갈수록 앞의 모든 행을 스캔 후 �
 | 분기 입력 (lastSeedId, randomPage) | `dtos/paged/PostListingDto.java` |
 | 인덱스 정의 | `domain/posts/Post.java · @Table(indexes)` |
 | 개선 서사·수치·한계 | `README.md · "3. 커서 기반 페이징"` |
-| 미완성 커서 캐시 | `services/domain/redisService/CursorCacheService.java` (전체 주석) |
+| 미완성 커서 캐시 | 구현하지 않음. 과거의 빈 자리표시자는 제거했다. |
