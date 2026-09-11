@@ -134,3 +134,48 @@ test('featureByPhase: 기능 × 구간의 요청·p95·오류율', () => {
   assert.equal(out.hot.pre.count, 0);
   assert.equal(out.school.fault.count, 0);
 });
+
+test('statusByPhase: 구간 × 상태 코드를 세고 없는 코드는 빼고 총합을 낸다', () => {
+  const raw = {
+    'http_reqs{phase:measure,status:500}': { values: { count: 12 } },
+    'http_req_duration{phase:measure,status:500}': { values: { 'p(95)': 30001, max: 30050 } },
+    'http_reqs{phase:measure,status:0}': { values: { count: 3 } },
+    'http_req_duration{phase:measure,status:0}': { values: { 'p(95)': 60000, max: 60001 } },
+    'http_reqs{phase:warmup,status:500}': { values: { count: 0 } },
+  };
+  const out = plan.statusByPhase(raw, ['0', '500', '503']);
+  assert.equal(out.fault.total, 15);
+  assert.equal(out.fault.byStatus['500'].count, 12);
+  assert.equal(out.fault.byStatus['500'].p95, 30001);
+  assert.equal(out.fault.byStatus['0'].count, 3);
+  assert.ok(!('503' in out.fault.byStatus), '한 건도 없는 코드는 행을 만들지 않는다');
+  assert.equal(out.pre.total, 0, 'count 0 은 세지 않는다');
+});
+
+test('healthByPhase: 무응답(폴러 상한)과 DOWN(앱이 보고)을 구분해 센다', () => {
+  const phases = { preSec: 30, faultSec: 20, postSec: 30 };
+  const samples = [
+    { tSec: null, status: 'UP', httpStatus: 200, latencyMs: 10 },   // t0 전 — 어느 구간에도 안 들어간다
+    { tSec: 5, status: 'UP', httpStatus: 200, latencyMs: 12 },
+    { tSec: 25, status: 'UNREACHABLE', httpStatus: null, error: 'timeout after 4000ms: GET /x', latencyMs: 4001 },
+    { tSec: 35, status: 'DOWN', httpStatus: 503, latencyMs: 40 },
+    { tSec: 45, status: 'UNREACHABLE', httpStatus: null, error: 'connect ECONNREFUSED', latencyMs: 3 },
+    { tSec: 60, status: 'UP', httpStatus: 200, latencyMs: 80 },
+  ];
+  const out = plan.healthByPhase(samples, phases);
+  assert.equal(out.pre.count, 2);
+  assert.equal(out.pre.up, 1);
+  assert.equal(out.pre.timeout, 1, '폴러 상한 초과는 timeout 으로 센다');
+  assert.equal(out.pre.unreachable, 0, '상한 초과를 연결 실패로 세면 안 된다');
+  assert.equal(out.fault.down, 1, '앱이 응답하며 DOWN 이라 한 것은 down');
+  assert.equal(out.fault.unreachable, 1, '접속 자체 실패는 unreachable');
+  assert.equal(out.post.up, 1);
+  assert.equal(out.pre.latency.max, 4001);
+});
+
+test('healthCause: 표본 하나의 원인을 네 갈래로 분류한다', () => {
+  assert.equal(plan.healthCause({ httpStatus: 200, status: 'UP' }), 'up');
+  assert.equal(plan.healthCause({ httpStatus: 503, status: 'DOWN' }), 'down');
+  assert.equal(plan.healthCause({ httpStatus: null, error: 'timeout after 4000ms: GET /x' }), 'timeout');
+  assert.equal(plan.healthCause({ httpStatus: null, error: 'connect ECONNREFUSED' }), 'unreachable');
+});

@@ -36,12 +36,28 @@ function state(container) {
   return r.stdout;
 }
 
+/**
+ * 컨테이너 환경변수 전체를 Map 으로 읽는다.
+ *
+ * 설정을 여러 개 읽을 때 `envOf` 를 반복 호출하면 그만큼 `docker inspect` 가 실행되고,
+ * 그 사이에 컨테이너가 재생성되면 서로 다른 대상의 값이 섞인다. 한 번에 읽어 둔다.
+ */
+function envAll(container) {
+  const out = new Map();
+  const r = docker(['inspect', '--format', '{{range .Config.Env}}{{println .}}{{end}}', container], { allowFail: true });
+  if (r.status !== 0) return out;
+  for (const line of r.stdout.split(/\r?\n/)) {
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    out.set(line.slice(0, eq), line.slice(eq + 1));
+  }
+  return out;
+}
+
 /** 컨테이너 환경변수 하나를 읽는다 — 앱이 프록시를 거치는지(DB_URL) 확인하는 용도. */
 function envOf(container, key) {
-  const r = docker(['inspect', '--format', '{{range .Config.Env}}{{println .}}{{end}}', container], { allowFail: true });
-  if (r.status !== 0) return null;
-  const line = r.stdout.split(/\r?\n/).find((l) => l.startsWith(`${key}=`));
-  return line ? line.slice(key.length + 1) : null;
+  const v = envAll(container).get(key);
+  return v == null ? null : v;
 }
 
 const ACTIONS = {
@@ -83,4 +99,4 @@ function pumba(args, log = () => {}) {
   return child;
 }
 
-module.exports = { docker, state, envOf, act, ensureRunning, pumba, ACTIONS };
+module.exports = { docker, state, envOf, envAll, act, ensureRunning, pumba, ACTIONS };

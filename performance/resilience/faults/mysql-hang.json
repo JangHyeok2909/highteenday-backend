@@ -10,10 +10,11 @@
     { "at": "fault.end",   "tool": "toxiproxy", "action": "remove", "proxy": "mysql", "toxicName": "hang" }
   ],
   "expect": [
-    "fault: 진행 중이던 쿼리는 MySQL 소켓 타임아웃(설정 없음 → 무한)까지 매달린다. 커넥션 10개가 전부 묶인다",
+    "fault: 진행 중이던 쿼리는 MySQL 소켓 타임아웃(설정 없음 → 무한)까지 매달린다 — 커넥션 10개가 전부 묶인다",
     "fault: 이후 요청은 커넥션을 30초 기다린 뒤 500. 실패 지연이 30,000ms 에 몰린다",
     "fault: tomcat busy 가 400 까지 오르며 전 엔드포인트가 실패한다",
     "post: toxic 을 걷어도 묶여 있던 커넥션의 쿼리가 재개돼야 풀린다. 회복이 redis-hang 보다 느릴 수 있다"
   ],
+  "integrity": { "probes": ["counter-drift"] },
   "watch": ["http.byFeature", "http.failedLatency", "pool.hikariPending", "pool.hikariTimeouts", "pool.tomcatBusy", "health"]
 }

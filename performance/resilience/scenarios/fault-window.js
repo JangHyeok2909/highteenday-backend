@@ -69,11 +69,31 @@ const FEATURES = [
 ];
 const PHASES = ['warmup', 'measure', 'rampdown'];
 
+/**
+ * 구간별로 세는 HTTP 상태 코드.
+ *
+ * 오류율 하나로는 실패의 **종류**를 못 가른다. 장애 실험에서 갈라야 하는 것은 이렇다.
+ *   0    k6 가 응답을 못 받음 — 연결 거부 또는 요청 타임아웃. 앱이 응답조차 못 한 경우다
+ *   500  서버가 예외를 던짐 — 커넥션 획득 실패 같은 내부 실패
+ *   502·503·504  앞단이 뺐거나 게이트웨이가 포기함 — 앱은 살아 있을 수 있다
+ *   429  스로틀
+ *   401  인증 만료 — 장애와 무관한 실패가 섞이는지 확인용
+ *
+ * k6 요약은 threshold 가 걸린 서브메트릭만 내보내므로, 여기 목록에 없는 코드는 표에 안 나온다.
+ * 목록은 resilience/lib/plan.js 의 statusByPhase 를 부르는 쪽(fault-run.js WATCH_STATUS)과
+ * 같아야 한다. 값은 전부 느슨하다 — 판정이 아니라 서브메트릭 생성이 목적이다.
+ */
+const WATCH_STATUS = ['0', '401', '429', '500', '502', '503', '504'];
+
 const FAULT_AXES = {};
 for (const phase of PHASES) {
   FAULT_AXES[buildSelector('http_req_duration', { expected_response: 'false', phase })] = ['p(99)<600000'];
   FAULT_AXES[buildSelector('http_req_duration', { expected_response: 'true', phase })] = ['p(99)<600000'];
   FAULT_AXES[buildSelector('http_reqs', { expected_response: 'false', phase })] = ['count>=0'];
+  for (const status of WATCH_STATUS) {
+    FAULT_AXES[buildSelector('http_reqs', { phase, status })] = ['count>=0'];
+    FAULT_AXES[buildSelector('http_req_duration', { phase, status })] = ['p(99)<600000'];
+  }
   for (const feature of FEATURES) {
     FAULT_AXES[buildSelector('http_req_duration', { feature, phase })] = ['p(99)<600000'];
     FAULT_AXES[buildSelector('http_reqs', { feature, phase })] = ['count>=0'];
