@@ -1,7 +1,6 @@
 
 package com.example.highteenday_backend.security;
 
-import com.example.highteenday_backend.enums.ErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -27,7 +26,7 @@ import java.io.IOException;
  *   넘어가고, 보호된 엔드포인트라면 뒤의 인가 단계에서 일괄 401이 난다.
  * - 그 결과 앞단의 TokenExceptionFilter(만료/서명오류를 코드별 401로 변환)는 이 필터가
  *   예외를 삼키기 때문에 사실상 도달하지 못한다. 클라이언트는 "만료"와 "무효"를 구분한
- *   에러 코드를 받지 못한다. 주석 처리된 throw가 그 설계의 흔적이다.
+ *   에러 코드를 받지 못한다.
  */
 @RequiredArgsConstructor
 @Component
@@ -44,13 +43,9 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
         String uri = request.getRequestURI();
         log.debug("Auth filter entered. uri={}, tokenPresent={}", uri, token != null);
 
-        if(token == null){
-            if(isPublicUri(uri)){
-                filterChain.doFilter(request, response);
-                return;
-            } else {
-//                throw new TokenException(ErrorCode.TOKEN_NOT_FOUND);
-            }
+        if(token == null && isPublicUri(uri)){
+            filterChain.doFilter(request, response);
+            return;
         }
 
         if (token != null) {
