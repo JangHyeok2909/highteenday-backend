@@ -519,7 +519,7 @@ function sectionTrust(record) {
   items.push(cell('포화 판정', st || '판정 없음', st === 'HEADROOM',
     st === 'HEADROOM' ? 'p95 를 앱 지연으로 읽어도 된다'
       : st === 'NEAR_LIMIT' ? '큐가 생기기 시작했다 — 해석 주의'
-        : st === 'SATURATED' ? 'p95 는 큐 대기다. 앱 지연으로 인용 금지'
+        : st === 'SATURATED' ? '응답 시간 대부분이 큐 대기. 비포화 실행과 비교 불가'
           : '이 실행에는 포화 판정이 없다(옛 실행)'));
 
   const rate = fmt.nz(k.achievedRatePct) ? k.achievedRatePct : null;
@@ -600,7 +600,7 @@ function saturationLine(sat) {
       return `<b>${show(s)}</b>${th}`;
     }).join(' · ');
     const tail = sat.status === 'SATURATED'
-      ? ' → p95 는 애플리케이션 지연이 아니라 큐 대기다. 앱 지연으로 인용하면 안 된다.'
+      ? ' → 응답 시간의 대부분이 큐 대기다. 이 상태의 편차로 계산한 MDE 는 신뢰할 수 없고 비포화 실행과 비교할 수 없다.'
       : ' → 아직 판정에 쓸 수 있지만, 이 값이 더 오르면 p95 에 대기가 섞이기 시작한다.';
     return `<div class="trust-sat bad">⚠ ${parts}${tail}</div>`;
   }

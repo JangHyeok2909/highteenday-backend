@@ -1,7 +1,7 @@
 /**
  * SCN-01 Normal Day — 평일 일과 시간의 평균 트래픽.
  *
- * 목적     : 일상 부하에서의 기준선(baseline) 확보. 모든 Before/After 비교의 기준.
+ * 목적     : 일상 요청 조합의 기준선 후보 확보. 실행 조건이 같은 결과끼리만 비교한다.
  * 사용자   : 200 VU (동시 접속 사용자)
  * Ramp-up  : 5분에 걸쳐 0→200 (JIT 워밍업 + 커넥션 풀 안정화) — -e WARMUP=<sec>로 재정의 가능
  * 유지     : 20분(-e HOLD)  |  Ramp-down: 2분 (고정)
@@ -35,7 +35,7 @@ const VUS = Number(__ENV.VUS || 200);
  * 느려지면 도착률까지 함께 줄어 "같은 부하"라는 전제가 깨진다. 도착률을 고정하면 p95 가
  * 처리량의 그림자에서 벗어나 독립적인 정보를 갖는다.
  *
- * 근거: performance/docs/findings/perf-findings-tools.md T-36
+ * 비교 원칙: performance/reference/measurement-contract.md
  */
 const RATE = __ENV.RATE ? Number(__ENV.RATE) : null;
 const OPEN_MODEL = Number.isFinite(RATE) && RATE > 0;
