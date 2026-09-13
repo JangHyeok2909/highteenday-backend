@@ -9,13 +9,17 @@
  * 오류율 하나로 뭉뚱그려져 있었다. 그리고 "스레드가 400개까지 찼다"는 보이지만 그 스레드가
  * 실행 중인지 무언가를 기다리는지도 구분되지 않았다.
  *
- * 두 가지를 채운다.
+ * 세 가지를 채운다.
  *   1. 앱이 실제로 내보낸 응답을 상태 코드·결과·예외별로 — `http_server_requests_seconds_count`
  *   2. JVM 스레드의 상태 분포        — `jvm_threads_states_threads{state}`
+ *   3. Redis 폴백이 돈 횟수를 메서드별로 — `redis_fallback_total{method}`
  *
- * 둘 다 **앱 코드를 고치지 않아도 이미 나오고 있는 값**이다. Spring Boot Actuator 의
+ * 앞의 둘은 **앱 코드를 고치지 않아도 이미 나오고 있는 값**이다. Spring Boot Actuator 의
  * Micrometer 계측이 `exception` 라벨을 붙여 주고, JVM 스레드 상태는 기본 바인더가 낸다.
  * 지금까지는 Prometheus 에 쌓이기만 하고 아무도 읽지 않았다.
+ *
+ * 셋째는 앱에 계측을 넣어야 나온다(`metrics/RedisFallbackMetrics`). 폴백은 예외를 삼키고
+ * 기본값을 돌려주므로 응답·오류율·지연 어디에도 흔적을 남기지 않기 때문이다.
  *
  * 왜 공용 카탈로그(tools/lib/metrics-catalog.js)에 넣지 않는가
  * -----------------------------------------------------------
@@ -117,6 +121,42 @@ async function collectServerOutcomes(prom, window) {
 }
 
 /**
+ * 한 구간에 **Redis 폴백이 몇 번 돌았는지**를 메서드별로 읽는다.
+ *
+ * 이 값 없이는 답할 수 없는 질문이 있다 — "폴백이 정상 동작했는가". 폴백은 예외를 삼키고
+ * 기본값을 돌려주므로 응답은 200 이고 오류율도 오르지 않는다. 즉 다른 표 어디에도 흔적이
+ * 없다. 앱의 `RedisFallbackMetrics` 가 이 카운터를 올리는 것이 유일한 흔적이다.
+ *
+ * Redis 쪽 지표로는 대신할 수 없다. Redis 컨테이너가 죽으면 redis_exporter 도 같이 못 읽어
+ * 그 구간 값이 통째로 비기 때문이다(redis.hitRatioPct 가 fault 구간에 null 로 남는 이유).
+ * 장애 중 앱이 무엇을 했는지는 앱이 직접 말해야 한다.
+ *
+ * 세는 것은 **Redis 접근 실패를 흡수한 횟수**다. Redis 가 성공적으로 빈 결과를 준 뒤 호출자가
+ * DB 를 다시 읽는 경로는 접근 실패가 아니므로 여기 안 잡힌다.
+ *
+ * @param {PromClient} prom
+ * @param {{to: Date, durationSec: number}} window 구간 창.
+ * @returns {Promise<{items: {method: string, count: number}[], total: number}>}
+ */
+async function collectRedisFallbacks(prom, window) {
+  const range = toRangeSelector(window.durationSec);
+  const query = `sum by (method) (increase(redis_fallback_total{job="${APP_JOB}"}[${range}]))`;
+  const rows = await prom.series(query, window.to);
+  const items = rows
+    .map((r) => ({ method: r.labels.method || '?', count: r.value }))
+    // increase() 는 소수를 낸다. 0.5 미만은 구간 경계의 보간 잔여물이라 세지 않는다 —
+    // 위의 응답 조합 표와 같은 규칙을 쓴다.
+    .filter((r) => Number.isFinite(r.count))
+    .sort((a, b) => b.count - a.count);
+  return {
+    items: items.filter((r) => r.count >= 0.5),
+    // 0 인 메서드도 "계측은 살아 있는데 폴백이 안 돌았다"는 정보다. 몇 개가 0 이었는지만 센다.
+    zeroMethods: items.filter((r) => r.count < 0.5).length,
+    total: items.reduce((s, r) => s + r.count, 0),
+  };
+}
+
+/**
  * 구간별 예외 분포와 스레드 상태를 모은다.
  *
  * 실패해도 실험 전체를 버리지 않는다 — 항목 하나가 안 나오는 것과 보고서가 없는 것은
@@ -129,6 +169,7 @@ async function collectServerOutcomes(prom, window) {
 async function collectFaultMetrics(prom, windows) {
   const outcomes = {};
   const threads = {};
+  const redisFallbacks = {};
   const errors = [];
   const specs = threadStateSpecs();
 
@@ -139,6 +180,11 @@ async function collectFaultMetrics(prom, windows) {
       outcomes[name] = await collectServerOutcomes(prom, w);
     } catch (e) {
       errors.push(`serverOutcomes/${name}: ${e.message.slice(0, 160)}`);
+    }
+    try {
+      redisFallbacks[name] = await collectRedisFallbacks(prom, w);
+    } catch (e) {
+      errors.push(`redisFallbacks/${name}: ${e.message.slice(0, 160)}`);
     }
     const row = {};
     for (const spec of specs) {
@@ -151,7 +197,7 @@ async function collectFaultMetrics(prom, windows) {
     }
     threads[name] = row;
   }
-  return { outcomes, threads, errors, specs: specs.map((s) => ({ key: s.key, label: s.label, desc: s.desc })) };
+  return { outcomes, threads, redisFallbacks, errors, specs: specs.map((s) => ({ key: s.key, label: s.label, desc: s.desc })) };
 }
 
-module.exports = { collectFaultMetrics, collectServerOutcomes, threadStateSpecs, THREAD_STATES, TOP_OUTCOME_ROWS };
+module.exports = { collectFaultMetrics, collectServerOutcomes, collectRedisFallbacks, threadStateSpecs, THREAD_STATES, TOP_OUTCOME_ROWS };

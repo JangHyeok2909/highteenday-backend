@@ -324,8 +324,54 @@ test('요약 그리드: 불변식을 안 고른 계획은 "안 쟀다" 로 남�
   assert.match(html, /안 쟀다/);
 });
 
+test('폴백 계측이 없는 옛 실행은 "0 번 돌았다"가 아니라 "모른다"로 남는다', () => {
+  const html = renderReport(sampleRecord(), { siblings: [] });
+  // sampleRecord 에는 redisFallbacks 도 contentChecks 도 없다 — 계측을 넣기 전 실행을 흉내낸다.
+  assert.match(html, /Redis 폴백 카운터를 읽지 못했다/);
+  assert.match(html, /"폴백이 0 번 돌았다"는 뜻이 아니다/);
+  assert.match(html, /응답 내용 검사 결과가 없다/);
+});
+
+test('폴백이 fault 구간에만 돌았으면 메서드별 건수가 표에 나온다', () => {
+  const rec = sampleRecord();
+  rec.faultMetrics.redisFallbacks = {
+    pre: { items: [], zeroMethods: 4, total: 0 },
+    fault: {
+      items: [
+        { method: 'RedisViewCountStore.incrementCount', count: 312 },
+        { method: 'RedisHotPostRanking.topPostIds', count: 98 },
+      ],
+      zeroMethods: 2,
+      total: 410,
+    },
+    post: { items: [], zeroMethods: 4, total: 0 },
+  };
+  const html = renderReport(rec, { siblings: [] });
+  assert.match(html, /RedisViewCountStore\.incrementCount/);
+  assert.match(html, /312/);
+  assert.match(html, /410/, '구간 합계가 보여야 "몇 번 삼켰나"에 답이 된다');
+});
+
+test('내용 검사가 깨진 구간은 오류율 0% 여도 빈 응답 건수를 드러낸다', () => {
+  const rec = sampleRecord();
+  rec.k6.contentChecks = {
+    hot_daily_nonempty: {
+      pre: { total: 120, passes: 120, fails: 0, rate: 1 },
+      fault: { total: 60, passes: 0, fails: 60, rate: 0 },
+      post: { total: 110, passes: 110, fails: 0, rate: 1 },
+    },
+  };
+  const html = renderReport(rec, { siblings: [] });
+  assert.match(html, /hot_daily_nonempty/);
+  assert.match(html, /60건 빈 응답/, '200 인데 본문이 빈 응답 수가 그대로 보여야 한다');
+  assert.match(html, /전부 채워짐/, 'pre 가 정상이어야 fault 의 실패를 폴백 탓으로 읽을 수 있다');
+});
+
 test('인프라 원자료는 전부 접혀 있다 — 펼쳐 두면 포화도가 아래로 밀린다', () => {
   const html = renderReport(sampleRecord(), { siblings: [] });
-  const infra = html.slice(html.indexOf('지표 원자료'), html.indexOf('<h2>11.'));
+  // 절 번호를 박지 않는다. 앞에 절이 하나 추가되면 번호가 전부 밀려, 검사하려던 내용과
+  // 무관한 이유로 이 테스트가 깨진다(실제로 7번 절을 넣었을 때 깨졌다).
+  const start = html.indexOf('지표 원자료');
+  const infra = html.slice(start, html.indexOf('<h2>', start));
   assert.match(infra, /<details><summary class="sub">Pool — 지표 1개<\/summary>/);
 });

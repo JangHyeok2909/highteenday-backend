@@ -1,23 +1,24 @@
-# Resilience runner
+# Resilience testing
 
-이 도구는 의존성이 죽거나 느려질 때 실패 범위와 회복 과정을 관측한다. 일반 성능 회귀와
-다르게 같은 실행의 `pre`, `fault`, `post`를 비교한다.
+장애 주입기는 Redis와 MySQL이 죽거나 느려질 때 실패 범위와 회복 시간을 측정한다. 실행 중
+의존성을 실제로 중단할 수 있으므로 로컬 성능 환경에서만 사용한다.
 
 ## 실행
 
+계획을 먼저 검증한다.
+
 ```bash
-# 계획만 검증
 node resilience/fault-run.js resilience/faults/redis-crash.json --dry-run
-
-# Redis 프로세스 정지·복구
-node resilience/fault-run.js resilience/faults/redis-crash.json \
-  --note "변경 전"
-
-# 저장된 원자료로 HTML만 다시 생성
-node resilience/render-report.js redis-crash-2026-09-11T00-47-40
 ```
 
-Toxiproxy 계획은 먼저 오버레이를 올린다.
+검증된 계획을 실행한다.
+
+```bash
+node resilience/fault-run.js resilience/faults/redis-crash.json \
+  --note "변경 전"
+```
+
+Toxiproxy 계획은 fault overlay를 함께 기동한다.
 
 ```bash
 docker compose \
@@ -26,42 +27,34 @@ docker compose \
   --env-file environment/.env.perf up -d
 ```
 
-## 계획 파일
+## 안전 조건
 
-`faults/*.json`에는 질문, 부하, 구간, 주입 동작, 예상 결과, 데이터 불변식을 기록한다.
-주입 도구는 `docker`, `toxiproxy`, `pumba`, 제한된 `shell` 동작을 지원한다.
-
-계획은 절차의 정본이다. 원인 설명이나 실험 후 판단은 계획 JSON에 넣지 않는다.
-
-## 안전 계약
-
-- 실행 전 주입 대상과 연결 경로를 확인한다.
-- 정상 종료, 오류, Ctrl+C에서 가능한 원상복구를 수행한다.
-- 실행 후에도 컨테이너와 toxic 상태를 직접 확인한다.
-- Redis 정합성 실험은 이전 캐시와 조회수 중복 키를 초기화한다.
-- 생성된 `run.json`은 수정하지 않는다.
+- 주입 대상이 성능 환경의 컨테이너인지 확인한다.
+- 앱이 실제로 프록시 또는 중단 대상 Redis에 연결됐는지 확인한다.
+- 계획 JSON의 pre, fault, post 시간과 복구 동작을 검토한다.
+- 정상 종료, 실패, Ctrl+C 뒤 컨테이너와 toxic 상태를 직접 확인한다.
+- Redis 데이터 불변식을 측정할 때는 이전 캐시와 중복 조회 키의 영향을 제거한다.
+- 실행 중 생성된 `run.json`, `k6.json`, `report.html`을 수정하지 않는다.
 
 ## 결과
 
-각 실행은 `resilience/reports/<runId>/`에 다음 파일을 남긴다.
+`resilience/reports/<runId>/`에 원자료와 HTML이 생성된다.
 
-- `run.json`: 계획, 주입 시각, k6 결과, 자원, health, 불변식
-- `k6.json`: k6 원본 출력
-- `report.html`: `run.json`의 시각화
+```text
+run.json      실행 신원, 구간, 주입 시각, 지표와 불변식
+k6.json       k6 원본 출력
+report.html   run.json을 렌더링한 화면
+```
 
-HTML은 관측값을 보여 주며 원인을 자동 판정하지 않는다. 사람이 내린 결론과 수정 검증은
-[cases](../cases/)에 기록한다. 현재 Redis 장애 해석은
-[CASE-007](../cases/CASE-007-redis-failure-cascade/)이 정본이다.
+저장된 원자료는 다시 렌더링할 수 있다.
 
-## 보고서에서 먼저 볼 항목
+```bash
+node resilience/render-report.js <runId>
+```
 
-1. 실행 이미지·커밋·데이터셋과 주입 성공 여부
-2. pre/fault/post 오류율과 p95
-3. 실패 지연이 어떤 timeout 상한에 몰렸는지
-4. 기능별 영향 범위
-5. HikariCP, Tomcat, JVM thread, MySQL, Redis의 시간축
-6. health 응답과 회복 시간
-7. 데이터 불변식과 불확실한 요청 수
+결과는 실행 신원, 주입 성공, pre/fault/post 오류와 지연, timeout 군집, 기능별 영향,
+HikariCP와 Tomcat 시계열, health, 데이터 불변식 순서로 읽는다. health poll timeout은 앱이
+DOWN을 응답했다는 뜻이 아니라 제한 시간 안에 응답하지 못했다는 관측이다.
 
-헬스 폴러 timeout은 앱이 DOWN을 응답했다는 뜻이 아니다. 해당 시간 안에 응답을 받지
-못했다는 관측으로만 해석한다.
+측정 해석은 [METHOD.md](../METHOD.md), 현재 Redis 장애 결론은
+[redis-failure-cascade.md](../cases/redis-failure-cascade.md)가 소유한다.

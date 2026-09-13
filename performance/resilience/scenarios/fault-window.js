@@ -85,8 +85,25 @@ const PHASES = ['warmup', 'measure', 'rampdown'];
  */
 const WATCH_STATUS = ['0', '401', '429', '500', '502', '503', '504'];
 
+/**
+ * 응답 **내용**을 보는 check 의 이름. `CONTENT_CHECKS=1` 일 때만 실행된다(config.js).
+ *
+ * 왜 오류율로는 부족한가. 폴백은 예외를 삼키고 빈 리스트를 돌려주므로 응답이 HTTP 200 이다.
+ * 그래서 "인기글이 하나도 안 나갔다"와 "인기글 10건이 정상으로 나갔다"가 오류율에서는 둘 다
+ * 0% 로 같다. 그 차이를 가르는 것이 이 축이다.
+ *
+ * 이름은 config.js 의 `contentCheck()` 호출부와, 읽는 쪽인 resilience/fault-run.js 의
+ * CONTENT_CHECK_NAMES 와 셋이 같아야 한다. 어긋나면 에러 없이 빈 축이 생긴다.
+ */
+const CONTENT_CHECK_NAMES = [
+  'board_list_nonempty', 'hot_daily_nonempty', 'post_list_nonempty', 'post_detail_has_id',
+];
+
 const FAULT_AXES = {};
 for (const phase of PHASES) {
+  for (const name of CONTENT_CHECK_NAMES) {
+    FAULT_AXES[buildSelector('checks', { check: name, phase })] = ['rate>=0'];
+  }
   FAULT_AXES[buildSelector('http_req_duration', { expected_response: 'false', phase })] = ['p(99)<600000'];
   FAULT_AXES[buildSelector('http_req_duration', { expected_response: 'true', phase })] = ['p(99)<600000'];
   FAULT_AXES[buildSelector('http_reqs', { expected_response: 'false', phase })] = ['count>=0'];
