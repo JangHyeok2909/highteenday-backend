@@ -376,7 +376,7 @@ class FriendServiceTest {
         }
 
         /**
-         * 미지의 status 로 요청이 소실되던 문제 (docs/KNOWN-ISSUES.md KI-42).
+         * 알 수 없는 status를 거부하는지 검증한다.
          *
          * 예전에는 세 분기(ACCEPTED/BLOCKED/DECLINED) 중 어디에도 걸리지 않는 값이 오면
          * 아무 처리 없이 아래에서 요청만 종결됐다. 오타 하나로 친구 요청이 소리 없이 사라지고,
@@ -431,7 +431,7 @@ class FriendServiceTest {
     class DeleteFriends {
 
         /**
-         * soft delete 회귀 방지 (docs/KNOWN-ISSUES.md KI-43).
+         * 친구 관계를 soft delete하는지 검증한다.
          * 예전에는 {@code deleteAll()} 로 행을 물리 삭제해 관계 이력이 사라졌다.
          */
         @Test

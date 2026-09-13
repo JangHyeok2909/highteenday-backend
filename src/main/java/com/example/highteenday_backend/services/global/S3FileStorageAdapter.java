@@ -50,7 +50,7 @@ public class S3FileStorageAdapter implements FileStoragePort {
     @Override
     public void deletePromotedTmpFiles(Collection<String> tmpUrls) {
         // 넘어온 URL 만 지운다. 예전에는 tmp/{userId}/ 접두어로 목록을 훑어 전부 지웠고,
-        // 그래서 같은 사용자가 동시에 작성 중이던 다른 글의 이미지까지 날아갔다 (KI-36).
+        // 그래서 같은 사용자가 동시에 작성 중이던 다른 글의 이미지까지 날아갔다.
         for (String url : tmpUrls) {
             if (url == null || url.isEmpty()) continue;
             s3Client.deleteObject(DeleteObjectRequest.builder()

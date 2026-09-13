@@ -218,7 +218,7 @@ public class SchoolMealService {
     /**
      * JSON 파일에서 모든 학교의 급식 데이터를 읽어 DB에 저장합니다.
      *
-     * <p>재적재는 <b>전부 아니면 전무</b>다 (docs/KNOWN-ISSUES.md KI-45).
+     * <p>재적재는 <b>전부 아니면 전무</b>다.
      * 새로 저장할 행을 다 만든 뒤에야 기존 데이터를 지우고, 만들어진 행이 하나도 없으면
      * 기존 데이터를 <b>건드리지 않고</b> 돌아간다. {@code @Transactional} 이 삭제와 저장을
      * 한 단위로 묶으므로 중간에 실패해도 옛 데이터가 남는다.
@@ -241,7 +241,7 @@ public class SchoolMealService {
 
             // 기존 데이터 삭제는 새 데이터를 다 만든 뒤에 한다. 예전에는 파싱 직후 곧바로
             // deleteAll() 을 불러서, 학교 코드가 하나도 매칭되지 않거나 중간에 실패하면
-            // 급식 데이터가 전량 사라진 채로 아무것도 채워지지 않았다 (KI-45).
+            // 급식 데이터가 전량 사라진 채로 아무것도 채워지지 않았다.
             List<SchoolMeal> meals = new ArrayList<>();
             for (MealRecord record : records) {
                 School school = schoolRepository.findByCode(Integer.parseInt(record.getSchoolCode())).orElse(null);

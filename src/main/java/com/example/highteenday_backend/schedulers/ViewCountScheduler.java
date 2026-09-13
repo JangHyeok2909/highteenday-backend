@@ -18,9 +18,9 @@ import java.util.Map;
  *
  * 왜 버퍼링하는가: 조회수를 조회 시점마다 DB UPDATE하면 인기 게시글 한 행에 쓰기가
  * 집중된다(hot row). 그래서 조회는 Redis INCR로만 기록하고, 이 배치가 게시글별
- * 누적분을 모아 한 번에 반영한다. 설계 배경: docs/adr/adr-002-viewcount-redis-buffer.md
+ * 누적분을 모아 한 번에 반영한다. 데이터 경계와 손실 정책은 docs/architecture.md에 있다.
  *
- * <h2>순서와 트랜잭션 경계 (docs/KNOWN-ISSUES.md KI-23)</h2>
+ * <h2>순서와 트랜잭션 경계</h2>
  *
  * 이 메서드에는 {@code @Transactional}이 없다. 게시글 단위 트랜잭션은
  * {@code postService.applyViewCount()}가 가지며, 그쪽은 별도 빈이라 프록시를 거친다.

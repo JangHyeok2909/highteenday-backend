@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
- * 커밋 이후 실행 장치 (docs/KNOWN-ISSUES.md KI-22, KI-24).
+ * 커밋 이후 실행 장치를 검증한다.
  *
  * 트랜잭션 매니저를 띄우지 않고 {@link TransactionSynchronizationManager} 를 직접
  * 조작한다. 검증 대상이 "동기화가 활성일 때 미루고, 아닐 때 바로 실행하는가"라서

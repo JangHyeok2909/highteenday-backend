@@ -23,7 +23,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * prod 최초 급식 수집 분기가 실제로 도달 가능한지 확인한다 (docs/KNOWN-ISSUES.md KI-45).
+ * prod 최초 급식 수집 분기가 실제로 도달 가능한지 확인한다.
  *
  * 예전 조건은 {@code count == 0 && file.exists()} 였다. 바깥에서 이미 파일 존재를
  * 요구했으므로 안쪽 else(= 파일이 없을 때 NEIS 에서 수집)는 절대 실행될 수 없었고,

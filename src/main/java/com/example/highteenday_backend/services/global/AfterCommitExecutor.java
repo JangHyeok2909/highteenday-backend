@@ -10,8 +10,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  *
  * <p>왜 필요한가: 캐시 갱신·메시지 발행처럼 <b>롤백해도 되돌릴 수 없는 부수 효과</b>를
  * 트랜잭션 안에서 실행하면, 이후 롤백 시 DB 에 없는 것이 캐시·클라이언트에는 남는다.
- * 게시글 생성 캐시(docs/KNOWN-ISSUES.md KI-22)와 STOMP 발행(KI-24)이 같은 모양의
- * 문제였다.
+ * 게시글 생성 캐시와 STOMP 발행이 같은 모양의 문제였다.
  *
  * <p>트랜잭션이 없으면 즉시 실행한다. 트랜잭션 밖에서 불렸다는 것은 되돌릴 커밋 자체가
  * 없다는 뜻이라, 미루면 영영 실행되지 않는다.

@@ -19,7 +19,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 요청 본문 검증이 모든 컨트롤러에 걸려 있는지 확인한다 (docs/KNOWN-ISSUES.md KI-16).
+ * 요청 본문 검증이 모든 컨트롤러에 걸려 있는지 확인한다.
  *
  * <p>결함은 "특정 요청이 잘못 처리된다"가 아니라 <b>"DTO 에 제약을 붙여도 조용히 무시된다"</b>
  * 였다. `@Valid` 가 전체에서 3곳뿐이라, 댓글·채팅·친구·회원가입 DTO 는 어떤 제약을 붙여도
@@ -87,7 +87,7 @@ class RequestBodyValidationTest {
         }
 
         assertThat(unvalidated)
-                .as("@Valid 가 없으면 그 DTO 는 어떤 제약을 붙여도 조용히 무시된다 (KI-16)")
+                .as("@Valid가 없으면 그 DTO는 어떤 제약을 붙여도 조용히 무시된다")
                 .isEmpty();
     }
 }

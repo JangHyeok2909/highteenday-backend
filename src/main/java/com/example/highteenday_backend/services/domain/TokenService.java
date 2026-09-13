@@ -22,7 +22,7 @@ import java.util.Optional;
  * <p>실패는 전부 {@link CustomException} 이다. 예전에는 raw {@code RuntimeException} 이라
  * {@code GlobalExceptionHandler} 의 500 경로로 떨어졌고, <b>리프레시 토큰 만료라는 정상
  * 시나리오가 500</b> 이 됐다. 클라이언트는 401 을 못 받으니 "재로그인시켜야 하는 상황"과
- * "서버가 고장난 상황"을 구분할 수 없었다 (docs/KNOWN-ISSUES.md KI-14).
+ * "서버가 고장난 상황"을 구분할 수 없었다.
  *
  * <p>만료({@code TOKEN_EXPIRED})와 무효({@code INVALID_TOKEN})를 나눈 이유: 둘 다 401 이지만
  * 클라이언트 동작이 다르다. 만료는 조용히 재로그인으로 보내면 되고, 무효는 토큰이 위조·

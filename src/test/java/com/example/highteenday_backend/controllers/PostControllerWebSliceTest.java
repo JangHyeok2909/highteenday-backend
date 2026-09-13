@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 웹 슬라이스 테스트 기반이 실제로 동작하는지 보여주는 첫 사용처 (KI-52).
+ * 웹 슬라이스 테스트 기반이 실제로 동작하는지 보여주는 첫 사용처다.
  *
  * 여기서 고정되는 것은 세 가지다: 인가 규칙(비로그인 쓰기 차단),
  * 요청 본문 검증(@Valid 가 실제로 걸리는지), 응답 직렬화(익명 글의 닉네임).

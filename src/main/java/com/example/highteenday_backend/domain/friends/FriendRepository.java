@@ -14,7 +14,7 @@ import java.util.Optional;
  * 친구 관계 조회.
  *
  * <p><b>모든 쿼리가 {@code is_valid = true} 를 건다.</b> 친구 삭제는 물리 삭제가 아니라
- * soft delete 이므로(docs/KNOWN-ISSUES.md KI-43, KI-34 와 같은 계열), 필터를 빠뜨리면
+ * soft delete이므로 필터를 빠뜨리면
  * 이미 끊은 친구가 목록·권한 판정에 계속 살아 있게 된다. 새 쿼리를 추가할 때도 반드시 넣을 것.
  */
 public interface FriendRepository extends JpaRepository<Friend, Long> {
