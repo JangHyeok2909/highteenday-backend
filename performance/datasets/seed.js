@@ -501,7 +501,7 @@ function isRetryable(err) {
 }
 
 /**
- * **적용 여부를 알 수 없는** 실패인가 (KI-54).
+ * **적용 여부를 알 수 없는** 실패인가.
  *
  * isRetryable 이 참인 실패는 두 종류가 섞여 있고, 멱등하지 않은 API에서는 그 차이가
  * 데이터 손실을 가른다.
@@ -522,7 +522,7 @@ function isAmbiguous(err) {
 }
 
 /**
- * 토글 API를 "목표 상태로 만든다"는 의미로 호출한다 (KI-54 대응).
+ * 토글 API를 "목표 상태로 만든다"는 의미로 호출한다.
  *
  * 반응·스크랩 엔드포인트는 "현재 상태를 뒤집어라"로 동작해서 멱등하지 않다. 응답을 못 받은
  * 요청을 그냥 재시도하면 서버가 이미 적용한 것을 취소해 버린다.
@@ -1100,7 +1100,7 @@ async function createEngagement(users, sessions, posts, cp) {
   };
 
   // 반응·스크랩은 토글이라 응답 유실 시 그냥 재시도하면 서버가 이미 만든 상태를
-  // 되돌린다(KI-54). ensureToggled 가 그 경우에만 상태를 조회해 판정한다.
+  // 되돌린다. ensureToggled가 그 경우에만 상태를 조회해 판정한다.
   // 데드락·커넥션 고갈은 확실히 롤백된 것이므로 예전처럼 pooled 가 재시도한다.
   if (alreadyDone(cp, 'reactions', P.reactions)) {
     results.push(skipped('reactions', P.reactions, cp));
@@ -1151,7 +1151,7 @@ async function createEngagement(users, sessions, posts, cp) {
    *
    * `uk_comments_reactions_cmt_usr (CMT_id, USR_id)` 유니크 제약이 있으므로 조합이
    * 유일해야 한다. 게시글 반응·스크랩과 같은 문제라 같은 방식으로 거른다. 그리고 반응은
-   * 토글 API 라 응답 유실 시 그냥 재시도하면 서버가 만든 상태를 되돌린다(KI-54).
+   * 토글 API라 응답 유실 시 그냥 재시도하면 서버가 만든 상태를 되돌린다.
    */
   const commentReactionTarget = P.commentReactions || 0;
   if (commentReactionTarget > 0) {

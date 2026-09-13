@@ -35,7 +35,7 @@
  *              비포화 실행과의 증감률 비교는 성립하지 않는다
  *   UNKNOWN    판정에 필요한 지표가 없다
  *
- * 해석 계약: performance/reference/measurement-contract.md
+ * 해석 계약: performance/METHOD.md
  */
 
 /**
