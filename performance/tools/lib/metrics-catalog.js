@@ -45,8 +45,31 @@ const APP_JOB = 'spring-app';
  * 이건 자원 문제가 아니라 측정 오류였다.
  *
  * 쿼리 단계에서 접어 두면 겹친 시계열이 몇 개든 결과가 항상 1개다.
+ *
+ * ⚠ 접기만 할 뿐 **어느 쪽이 살아있는지는 고르지 못한다.** 게이지에는 oneLive 를 쓴다.
  */
 const one = (expr) => `max(${expr})`;
+
+/**
+ * 겹친 시계열 중 **지금 살아있는 컨테이너**만 남긴다. 게이지 전용이다.
+ *
+ * one() 의 max() 는 카운터에서는 저절로 맞는 답을 준다. rate()/increase() 가 멈춘
+ * 시계열에 0 을 주므로 큰 쪽이 곧 살아있는 쪽이기 때문이다. 게이지는 그렇지 않다.
+ * 죽은 컨테이너의 마지막 값은 직전 실행이 끝난 시점의 값이라 갓 뜬 컨테이너보다 크고,
+ * max() 가 죽은 쪽을 고른다. 그러면 값이 구간 내내 한 바이트도 안 변한다.
+ *
+ * 실측(2026-09-11 06:37 redis-crash 실행): 앱 메모리가 pre/fault/post 세 구간 모두
+ * 1,475,891,200 바이트로 보고됐고 avg·max·p95 까지 같았다. 같은 시각 Prometheus 에는
+ * name="perf-app" 시계열이 두 개 있었고, 살아있던 쪽은 994MB 에서 1,362MB 로 오르는
+ * 중이었다. 보고된 값은 이미 사라진 컨테이너의 마지막 값이었다.
+ *
+ * container_last_seen 은 cAdvisor 가 그 컨테이너를 마지막으로 관측한 시각이다. 컨테이너가
+ * 사라지면 이 값이 그 시점에 멈추므로, 평가 시각과의 차이가 살아있는지를 가른다. 30초는
+ * Prometheus 스크레이프 간격 5초와 cAdvisor housekeeping 주기를 함께 덮는 값이다.
+ * 서브쿼리 안에서도 time() 은 각 스텝의 시각이라, 지난 구간을 되짚어 물어도 맞게 걸러진다.
+ */
+const oneLive = (expr, name) =>
+  `max((${expr}) and on(id) (time() - container_last_seen{name="${name}"} < 30))`;
 
 /**
  * 효율 지표의 공통 분모 — 측정 구간의 요청 수.
@@ -105,7 +128,7 @@ const GROUPS = [
       }),
       {
         key: 'cpu.limitCores', label: 'CPU 한계(코어)',
-        query: one(`container_spec_cpu_quota{name="${APP}"} / container_spec_cpu_period{name="${APP}"}`),
+        query: oneLive(`container_spec_cpu_quota{name="${APP}"} / container_spec_cpu_period{name="${APP}"}`, APP),
         reduce: 'max', unit: 'cores',
         desc: 'cgroup에 설정된 CPU 상한. 포화도 계산의 분모.',
       },
@@ -140,17 +163,17 @@ const GROUPS = [
     metrics: [
       // working_set 을 쓰는 이유: usage_bytes는 회수 가능한 page cache까지 포함해 과대평가된다.
       // OOM Killer가 실제로 보는 값이 working set이다.
-      ...gaugeStats('memory.workingSet', one(`container_memory_working_set_bytes{name="${APP}"}`), {
+      ...gaugeStats('memory.workingSet', oneLive(`container_memory_working_set_bytes{name="${APP}"}`, APP), {
         label: '컨테이너 메모리', unit: 'bytes', reduce: 'max',
         desc: 'OOM 판정 기준이 되는 실사용 메모리(page cache 제외).',
       }),
       {
         key: 'memory.limitBytes', label: '메모리 한계',
-        query: one(`container_spec_memory_limit_bytes{name="${APP}"}`),
+        query: oneLive(`container_spec_memory_limit_bytes{name="${APP}"}`, APP),
         reduce: 'max', unit: 'bytes',
         desc: 'cgroup 메모리 상한.',
       },
-      ...gaugeStats('memory.rss', one(`container_memory_rss{name="${APP}"}`), {
+      ...gaugeStats('memory.rss', oneLive(`container_memory_rss{name="${APP}"}`, APP), {
         label: 'RSS', unit: 'bytes', reduce: 'max',
         desc: '프로세스가 물리 메모리에 올린 양.',
       }),
@@ -410,7 +433,7 @@ const GROUPS = [
       },
       {
         key: 'mysql.cpuLimitCores', label: 'MySQL CPU 한계(코어)',
-        query: one(`container_spec_cpu_quota{name="${DB}"} / container_spec_cpu_period{name="${DB}"}`),
+        query: oneLive(`container_spec_cpu_quota{name="${DB}"} / container_spec_cpu_period{name="${DB}"}`, DB),
         reduce: 'max', unit: 'cores',
         desc: 'MySQL 에 걸린 cgroup CPU 상한. 여유가 있는데 느리면 CPU 부족이 아니다.',
       },
@@ -432,6 +455,38 @@ const GROUPS = [
         query: 'rate(redis_commands_processed_total[$RANGE])',
         reduce: 'sum', unit: 'per_sec',
         desc: '초당 처리 명령 수.',
+      },
+      // 아래 넷은 앱이 잰 값이고 위의 Redis 서버 지표와 다른 것을 말한다. 서버 지표는 서버가
+      // 명령을 처리한 시간만 담지만, 명령 타임아웃은 네트워크 왕복과 Lettuce 내부 대기까지
+      // 합친 시간에 걸린다. 타임아웃 값을 정할 때 근거가 되는 쪽은 앱이 잰 이 값이다.
+      // 출처는 RedisConfig.lettuceCommandLatencyMetrics 가 붙인 Micrometer 기록기다.
+      {
+        key: 'redis.cmdLatencyP95Ms', label: 'Redis 명령 지연 p95 (앱 기준)',
+        query: `1000 * histogram_quantile(0.95, sum by (le) (rate(lettuce_command_completion_seconds_bucket{job="${APP_JOB}"}[$RANGE])))`,
+        reduce: 'max', unit: 'ms',
+        desc: '앱이 Redis 명령을 보내고 응답을 다 받기까지 걸린 시간의 95분위.',
+      },
+      {
+        key: 'redis.cmdLatencyP99Ms', label: 'Redis 명령 지연 p99 (앱 기준)',
+        query: `1000 * histogram_quantile(0.99, sum by (le) (rate(lettuce_command_completion_seconds_bucket{job="${APP_JOB}"}[$RANGE])))`,
+        reduce: 'max', unit: 'ms',
+        desc: '같은 값의 99분위.',
+      },
+      {
+        // 타임아웃의 하한을 정하는 값이다. 이보다 낮게 잡으면 Redis 가 정상인데도 1000번에
+        // 한 번 이상 포기하게 되고, 이 앱은 그 실패를 삼키므로 조회수만 조용히 사라진다.
+        key: 'redis.cmdLatencyP999Ms', label: 'Redis 명령 지연 p99.9 (앱 기준)',
+        query: `1000 * histogram_quantile(0.999, sum by (le) (rate(lettuce_command_completion_seconds_bucket{job="${APP_JOB}"}[$RANGE])))`,
+        reduce: 'max', unit: 'ms',
+        desc: '같은 값의 99.9분위. 타임아웃 하한의 근거.',
+      },
+      {
+        // 요청 하나가 Redis 를 몇 번 부르는지 알아야 타임아웃의 상한을 계산할 수 있다.
+        // Redis 가 죽으면 호출마다 타임아웃만큼 기다리므로 그 횟수만큼 곱해진다.
+        key: 'redis.cmdsPerRequest', label: '요청당 Redis 명령 수',
+        query: `sum(increase(lettuce_command_completion_seconds_count{job="${APP_JOB}"}[$RANGE])) / sum(increase(http_server_requests_seconds_count{job="${APP_JOB}"}[$RANGE]))`,
+        reduce: 'max', unit: 'count',
+        desc: 'HTTP 요청 한 건이 평균 몇 번 Redis 를 부르는지. 엔드포인트별 편차는 이 평균에 가려진다.',
       },
       // MySQL 과 같은 이유로 붙인다(위 주석 참고). Redis 는 소비량이 작아 보통 결론을
       // 가르지 않지만, **셋 중 하나만 빠져 있으면 "스택 전체가 같이 느려졌나"를 못 묻는다.**
@@ -665,7 +720,7 @@ const GROUPS = [
         reduce: 'max', unit: 'percent',
         desc: '**0 이 아니면 그 실행의 지연은 서버가 아니라 부하 발생기가 만든 것일 수 있다.** 서버 포화와 발생기 포화를 가르는 값.',
       },
-      ...gaugeStats('loadgen.memBytes', one(`container_memory_working_set_bytes{name="${LOADGEN}"}`), {
+      ...gaugeStats('loadgen.memBytes', oneLive(`container_memory_working_set_bytes{name="${LOADGEN}"}`, LOADGEN), {
         label: '부하 발생기 메모리', unit: 'bytes', reduce: 'max',
         desc: 'k6 가 쓴 메모리. VU 가 많으면 여기가 먼저 터진다.',
       }),
