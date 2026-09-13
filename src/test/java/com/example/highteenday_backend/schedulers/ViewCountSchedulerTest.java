@@ -72,13 +72,13 @@ class ViewCountSchedulerTest {
     }
 
     /**
-     * 드레인 순서와 유실 방지 (docs/KNOWN-ISSUES.md KI-23).
+     * 드레인 순서와 DB 실패 시 증가분 보존을 검증한다.
      *
      * 예전에는 Redis 카운터를 GETDEL 로 먼저 지우고 DB 에 반영했다. 반영이 실패하면
      * 이미 지워진 증가분을 되돌릴 수 없어 통째로 유실됐다.
      */
     @Nested
-    @DisplayName("드레인 순서 (KI-23)")
+    @DisplayName("드레인 순서")
     class DrainOrder {
 
         @Test

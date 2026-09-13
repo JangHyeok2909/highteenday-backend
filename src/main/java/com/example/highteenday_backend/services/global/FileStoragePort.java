@@ -16,8 +16,8 @@ public interface FileStoragePort {
      *
      * <p>예전에는 {@code deleteUserTmp(userId)} 로 그 사용자의 {@code tmp/} 아래를
      * <b>통째로</b> 지웠다. 같은 사용자가 탭 두 개로 글을 동시에 쓰면, 먼저 확정한 글이
-     * 아직 확정되지 않은 다른 글의 임시 이미지까지 지워 버렸다
-     * (docs/KNOWN-ISSUES.md KI-36). 이제 이번 요청이 실제로 승격시킨 URL 만 넘겨
+     * 아직 확정되지 않은 다른 글의 임시 이미지까지 지워 버렸다. 이제 이번 요청이 실제로
+     * 승격시킨 URL만 넘겨
      * 그 범위만 정리한다.
      */
     void deletePromotedTmpFiles(Collection<String> tmpUrls);

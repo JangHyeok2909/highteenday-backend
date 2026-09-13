@@ -187,7 +187,7 @@ public class UserService {
     }
 
     /**
-     * 회원 탈퇴 (docs/KNOWN-ISSUES.md KI-34).
+     * 회원 탈퇴.
      *
      * <p>예전에는 사용자 행을 <b>물리 삭제</b>했다. 글·댓글이 그 사용자를 참조하고 있으면
      * 외래 키 제약에 걸려 탈퇴 자체가 실패했고, 성공하더라도 프로젝트의 soft delete
@@ -286,7 +286,6 @@ public class UserService {
     }
 
 }
-
 
 
 

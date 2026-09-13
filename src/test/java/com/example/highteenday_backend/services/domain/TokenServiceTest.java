@@ -291,14 +291,14 @@ class TokenServiceTest {
     }
 
     /**
-     * 실패가 어떤 HTTP 상태로 나가는지 고정한다 (docs/KNOWN-ISSUES.md KI-14).
+     * 실패가 어떤 HTTP 상태로 나가는지 고정한다.
      *
      * raw RuntimeException 으로 되돌아가면 GlobalExceptionHandler 의 500 경로로 떨어져
      * 아래 단언이 전부 깨진다. 상태 코드까지 보는 이유: 예외 타입만 보면
      * "던지긴 하는데 클라이언트는 여전히 500 을 받는" 상태를 못 잡는다.
      */
     @Nested
-    @DisplayName("실패의 HTTP 상태 (KI-14)")
+    @DisplayName("실패의 HTTP 상태")
     class FailureStatus {
 
         private CustomException thrownBy(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {

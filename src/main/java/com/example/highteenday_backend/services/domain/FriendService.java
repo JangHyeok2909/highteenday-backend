@@ -145,7 +145,7 @@ public class FriendService {
 
         // 응답 값을 먼저 검증한다. 예전에는 세 분기 중 어디에도 걸리지 않는 값이 오면
         // 아무 처리도 없이 아래에서 요청만 종결돼, 오타 하나로 친구 요청이 소리 없이
-        // 사라졌다 (docs/KNOWN-ISSUES.md KI-42).
+        // 사라졌다.
         FriendResponse response = FriendResponse.from(friendReqDto.status());
 
         switch (response) {
@@ -166,7 +166,7 @@ public class FriendService {
     }
 
     /**
-     * 친구 요청에 대해 <b>응답으로 허용되는</b> 값 (docs/KNOWN-ISSUES.md KI-42).
+     * 친구 요청에 대해 <b>응답으로 허용되는</b> 값.
      *
      * <p>{@link FriendRequestStatus} 를 그대로 쓰지 않는 이유: 그 enum 에는
      * {@code REQUESTED} 도 들어 있는데, "요청함"은 요청의 초기 상태이지 응답이 아니다.
@@ -197,7 +197,7 @@ public class FriendService {
         }
 
         // 물리 삭제 대신 soft delete. `is_valid=false` 로 두면 관계 이력이 남고,
-        // BaseEntity 를 쓰는 다른 엔티티와 규칙이 같아진다 (docs/KNOWN-ISSUES.md KI-43).
+        // BaseEntity를 쓰는 다른 엔티티와 규칙이 같아진다.
         // FriendRepository 의 모든 조회가 is_valid 를 걸러 주므로 끊긴 친구는 보이지 않는다.
         relations.forEach(Friend::delete);
     }

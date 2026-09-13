@@ -81,7 +81,7 @@ class ViewCountServiceTest {
     }
 
     /**
-     * 읽기와 정리를 나눈 뒤의 동작 (docs/KNOWN-ISSUES.md KI-23).
+     * 읽기와 정리를 나눈 뒤의 동작을 검증한다.
      * 예전 이름은 drainViewCounts 였고, 읽으면서 지우는 하나의 연산이었다.
      */
     @Nested

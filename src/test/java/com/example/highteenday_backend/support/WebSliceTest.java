@@ -13,7 +13,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 컨트롤러 한 개만 띄우는 웹 슬라이스 테스트 (docs/KNOWN-ISSUES.md KI-52).
+ * 컨트롤러 한 개만 띄우는 웹 슬라이스 테스트 기반 클래스다.
  *
  * 무엇을 고정하는가: 요청 매핑, 경로/쿼리 파라미터 바인딩, 요청 본문 검증,
  * 응답 직렬화, 그리고 그 엔드포인트에 걸린 인가 규칙. 서비스 계층은

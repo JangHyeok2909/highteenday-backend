@@ -21,7 +21,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 교차 출처 쓰기 차단 (docs/KNOWN-ISSUES.md KI-06).
+ * 교차 출처 쓰기 차단을 검증한다.
  *
  * <p>쿠키 인증 + {@code SameSite=None} + CSRF 비활성 조합이라, 공격자 페이지가 사용자의
  * 브라우저로 쓰기 요청을 대신 보낼 수 있었다. 브라우저가 교차 출처 쓰기에 반드시 붙이는
