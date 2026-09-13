@@ -259,9 +259,9 @@ function phaseTable(k6Phases, dropped, load, all) {
 /**
  * 실행 전체(세 구간 합)의 k6 요약 한 줄.
  *
- * `checks` 는 오류율과 다른 것을 잰다. HTTP 200 이 나와도 응답 본문이 비어 있거나 기대한
- * 필드가 없으면 check 는 실패한다 — 장애 중에는 "에러는 안 나는데 내용이 틀린" 응답이
- * 흔하므로, 오류율만 보면 그 구간을 정상으로 읽게 된다.
+ * `checks` 통과율은 **상태 코드 검사와 내용 검사를 합친 값**이다. 부하 스크립트의 check 는
+ * 대부분 `status === 200` 만 보므로, 이 한 줄이 낮아지지 않았다는 사실만으로 "내용도 정상"
+ * 이라고 읽으면 안 된다. 내용만 따로 본 결과는 7-2 절에 있다.
  */
 function allSummary(all) {
   if (!all) return '';
@@ -270,7 +270,7 @@ function allSummary(all) {
   const cls = failed ? 'warn' : '';
   return `<div class="sub">전체 — 요청 ${n(all.httpReqs, 0)} · iteration ${n(all.iterations, 0)} · 오류율 ${pct(all.errorRate)} ·
     <span class="${cls}">check 통과율 ${rate} (실패 ${n(failed, 0)}건)</span> · 서버 대기 p95 ${ms(all.waitingP95Ms)} · 최대 VU ${n(all.vusMax, 0)}.
-    check 는 상태 코드가 아니라 <b>응답 내용</b>이 기대와 맞는지를 본다 — 오류율 0% 인데 check 가 깨지면 장애 중 잘못된 응답이 나간 것이다.</div>`;
+    이 통과율은 상태 코드 검사와 내용 검사를 <b>합친</b> 값이고 대부분은 상태 코드 검사다 — 100% 라는 사실이 "내용도 정상"을 뜻하지는 않는다. 내용만 따로 본 결과는 <b>7-2 절</b>에 있다.</div>`;
 }
 
 /**
@@ -314,6 +314,77 @@ function featureTable(fb) {
   return `<table><thead><tr><th rowspan="2">기능</th><th colspan="3">pre</th><th colspan="3">fault</th><th colspan="3">post</th></tr>
   <tr><th>요청</th><th>p95</th><th>오류율</th><th>요청</th><th>p95</th><th>오류율</th><th>요청</th><th>p95</th><th>오류율</th></tr></thead><tbody>${rows}</tbody></table>
   <div class="sub">장애 의존성을 <b>쓰지 않는</b> 기능(예: Redis 장애 때 school·timetable·friend)의 fault 열이 나빠지면 폭발 반경이 의존성 경계를 넘은 것이다 — 스레드·커넥션 같은 공유 자원이 경로다.</div>`;
+}
+
+/**
+ * 구간 × Redis 폴백 발동 횟수 — "폴백이 돌긴 돌았나".
+ *
+ * 오류율·상태 코드·지연 어디에도 폴백의 흔적이 없다. 예외를 삼키고 기본값을 돌려주므로
+ * 응답이 HTTP 200 으로 나가기 때문이다. 앱의 `RedisFallbackMetrics` 가 올리는 이 카운터가
+ * 유일한 흔적이다.
+ *
+ * Redis 쪽 지표로 대신할 수 없는 이유: Redis 컨테이너가 죽으면 redis_exporter 도 같이 못
+ * 읽어 fault 구간 값이 통째로 빈다. 장애 중 앱의 행동은 앱이 직접 말해야 한다.
+ */
+function redisFallbackTable(fm) {
+  const rf = fm && fm.redisFallbacks;
+  const collected = PHASE_ORDER.filter((p) => rf && rf[p]);
+  if (!collected.length) {
+    return `<div class="sub warn">Redis 폴백 카운터를 읽지 못했다. 이 실행이 <code>redis.fallback</code> 계측을 넣기 전 앱 이미지로 돌았거나, 수집이 실패한 것이다 —
+    어느 쪽이든 <b>"폴백이 0 번 돌았다"는 뜻이 아니다</b>.</div>`;
+  }
+  const methods = [...new Set(PHASE_ORDER.flatMap((p) => ((rf[p] && rf[p].items) || []).map((i) => i.method)))];
+  if (!methods.length) {
+    return `<div class="sub">세 구간 모두 폴백이 한 번도 돌지 않았다(계측은 살아 있다 — 0 인 메서드 ${n((rf[collected[0]] || {}).zeroMethods, 0)}개를 읽었다).
+    Redis 를 죽인 실행에서 이 값이 0 이면 앱이 그 구간에 Redis 를 아예 부르지 않았다는 뜻이므로, 부하가 그 경로를 밟았는지부터 확인한다.</div>`;
+  }
+  const rows = methods.map((method) => {
+    const cells = PHASE_ORDER.map((p) => {
+      if (!rf[p]) return `<td class="${p}">모름</td>`;
+      const hit = (rf[p].items || []).find((i) => i.method === method);
+      const c = hit ? hit.count : 0;
+      return `<td class="${p} ${c > 0 ? 'warn' : ''}">${c > 0 ? `<b>${n(c, 0)}</b>` : '0'}</td>`;
+    }).join('');
+    return `<tr><td><code>${esc(method)}</code></td>${cells}</tr>`;
+  }).join('');
+  const totals = PHASE_ORDER.map((p) => `<td class="${p}">${rf[p] ? n(rf[p].total, 0) : '모름'}</td>`).join('');
+  return `<table><thead><tr><th>폴백을 건 메서드</th><th>pre</th><th>fault</th><th>post</th></tr></thead>
+  <tbody>${rows}<tr><td><b>합계</b></td>${totals}</tr></tbody></table>
+  <div class="sub">세는 것은 <b>Redis 접근 실패를 흡수한 횟수</b>다. Redis 가 성공적으로 빈 결과를 준 뒤 호출자가 DB 를 다시 읽는 경로는 접근 실패가 아니라서 여기 안 잡힌다.
+  pre 와 post 가 0 이고 fault 만 값이 있으면 폴백이 장애 구간에만 돌았다는 뜻이다. post 에 값이 남으면 Redis 가 살아난 뒤에도 앱이 계속 실패하고 있었던 것이다.</div>`;
+}
+
+/**
+ * 구간 × 응답 내용 check — "200 을 받았는데 본문이 비었나".
+ *
+ * 위의 폴백 표가 "폴백이 돌았나"에 답한다면 이 표는 <b>그 결과가 쓸 만했나</b>에 답한다.
+ * 둘은 다른 질문이다. 폴백이 정상적으로 돌고도 빈 배열을 돌려주면 사용자는 아무것도 못 본다.
+ *
+ * 판정 기준은 절대값이 아니라 <b>이 실행의 pre 구간</b>이다. 인기글은 Redis 가 멀쩡해도
+ * `likeCount >= 10` 조건 때문에 빌 수 있으므로, pre 에서 이미 실패하고 있으면 데이터셋
+ * 문제이지 폴백 문제가 아니다.
+ */
+function contentCheckTable(cc) {
+  const names = cc ? Object.keys(cc) : [];
+  if (!names.length) {
+    return `<div class="sub warn">응답 내용 검사 결과가 없다 — 이 실행은 검사를 넣기 전 부하 스크립트로 돌았다.
+    <b>"내용이 정상이었다"는 뜻이 아니다.</b></div>`;
+  }
+  const rows = names.map((name) => {
+    const cells = PHASE_ORDER.map((p) => {
+      const c = (cc[name] || {})[p] || {};
+      if (c.total == null) return `<td class="${p}">—</td><td class="${p}">축 없음</td>`;
+      if (c.total === 0) return `<td class="${p}">0</td><td class="${p}">표본 없음</td>`;
+      const bad = c.fails > 0;
+      return `<td class="${p}">${n(c.total, 0)}</td>`
+        + `<td class="${p} ${bad ? 'warn' : ''}">${bad ? `<b>${n(c.fails, 0)}건 빈 응답</b> (${pct(1 - c.rate)})` : '전부 채워짐'}</td>`;
+    }).join('');
+    return `<tr><td><code>${esc(name)}</code></td>${cells}</tr>`;
+  }).join('');
+  return `<table><thead><tr><th rowspan="2">검사</th><th colspan="2">pre</th><th colspan="2">fault</th><th colspan="2">post</th></tr>
+  <tr><th>검사 수</th><th>결과</th><th>검사 수</th><th>결과</th><th>검사 수</th><th>결과</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="sub">검사는 <b>HTTP 200 인 응답에만</b> 건다. 200 이 아닌 실패는 오류율과 <b>실패의 종류</b> 절의 상태 코드 표가 이미 세므로, 여기서 또 세면 같은 실패가 두 번 계상된다.
+  그래서 "검사 수"는 그 구간의 전체 요청 수가 아니라 <b>200 으로 돌아온 그 엔드포인트의 요청 수</b>다.</div>`;
 }
 
 /**
@@ -678,7 +749,7 @@ function integrityTable(rec) {
     ${ig.drainWaitSec ? `S3 앞에 <b>드레인 ${n(ig.drainWaitSec, 0)}초</b>를 기다렸다 — 비동기로 DB 에 내려가는 값의 마지막 주기가 돌아야 "결국 DB 까지 갔는가"에 답할 수 있다. 덜 기다리면 유실이 <b>과소</b> 보고된다(아직 버퍼에 남은 몫은 사라진 것으로 세지 않는다).` : '고른 프로브가 모두 동기 반영이라 드레인 대기가 없다.'}</div>
   </details>
   <div class="sub">증가분(Δ)으로 본다. 절대값으로 보면 지난 실행이 남긴 기존 드리프트가 섞여 이번 장애가 만든 몫을 가려낼 수 없다.
-  <b>불일치는 느린 것이 아니라 틀린 것이다</b> — 오류율·지연이 정상이어도 여기가 깨지면 <code>docs/issues/</code> 에 등록한다.
+  <b>불일치는 느린 것이 아니라 틀린 것이다</b> — 오류율·지연이 정상이어도 여기가 깨지면 <code>docs/issues.md</code>에 등록한다.
   <span class="assumed">확인 불가</span> 는 그 구간의 표본을 못 뜬 것이지 정합의 증거가 아니다.</div>
   <div class="sub">⚠ <b>유실</b> 은 조회수 검사에서만 나온다. 식은 <code>올랐어야 할 수 − 실제로 오른 수</code> 이고, 올랐어야 할 수는 <b>부하 발생기가 센다</b> —
   Redis 가 죽으면 조회수 증가가 아예 시도되지 않아 서버 어디에도 흔적이 없기 때문이다. 함께 적히는 <b>불확실</b> 건수는 타임아웃된 요청이다: 서버가 올렸는지 알 수 없다.
@@ -1016,43 +1087,50 @@ ${phaseTable(rec.k6.phases || {}, rec.k6.droppedIterations, plan.load, rec.k6.al
 
 <h2>6. 데이터 정확성 — 불변식 대조</h2>
 <div class="sub">오류율과 지연은 "얼마나 실패했나"에 답한다. 이 절은 <b>실패하지 않은 요청의 결과가 맞았나</b>에 답한다.
-Redis 호출 실패는 <code>ResilientRedisAspect</code> 가 삼키고 기본값을 돌려주므로, 데이터가 사라지는 동안에도 사용자는 HTTP 200 을 받고 오류율은 0 에 가깝다 — 위 표들만 보면 "폴백 정상 동작"으로 읽힌다.</div>
+Redis 호출 실패는 <code>ResilientRedisAspect</code> 가 삼키고 기본값을 돌려주므로, 데이터가 사라지는 동안에도 사용자는 HTTP 200 을 받고 오류율은 0 에 가깝다 — 이 표만으로는 폴백이 정상 동작했는지 알 수 없다 — 그 답은 바로 아래 7절에 있다.</div>
 ${integrityTable(rec)}
 
-<h2>7. 실패 응답의 지연 분포</h2>
+<h2>7. 폴백 — 돌긴 돌았나, 결과는 쓸 만했나</h2>
+<div class="sub">두 질문이 다르고, 답하는 표도 다르다. 위 표들은 <b>둘 다</b> 답하지 못한다 — 폴백은 예외를 삼키고 기본값을 돌려주므로 응답이 200 으로 나가서 오류율·상태 코드·지연 어디에도 흔적이 없다.</div>
+<h3 style="font-size:14px;margin:18px 0 4px">7-1. 폴백이 돌았나 — <code>redis_fallback_total</code></h3>
+${redisFallbackTable(rec.faultMetrics)}
+<h3 style="font-size:14px;margin:18px 0 4px">7-2. 그 결과가 쓸 만했나 — 응답 내용 검사</h3>
+${contentCheckTable(rec.k6.contentChecks)}
+
+<h2>8. 실패 응답의 지연 분포</h2>
 ${failedLatencyTable(rec.k6.failedLatency || {}, rec.config)}
 
-<h2>8. 실패의 종류 — 상태 코드·예외·스레드</h2>
+<h2>9. 실패의 종류 — 상태 코드·예외·스레드</h2>
 <div class="sub">오류율은 "얼마나"만 말한다. 무엇을 고칠지는 실패의 종류에서 나온다. 아래 표들은 같은 실패를 <b>클라이언트가 받은 응답</b>, <b>앱이 던진 예외</b>, <b>스레드가 놓인 상태</b> 세 방향에서 본 것이다.</div>
 ${statusTable(rec.k6.statusByPhase)}
 ${serverOutcomeTable(rec.faultMetrics, rec.k6.statusByPhase)}
 ${threadTable(rec.faultMetrics)}
 ${(rec.faultMetrics && rec.faultMetrics.errors && rec.faultMetrics.errors.length) ? `<details><summary class="warn">이 절의 수집 실패 ${rec.faultMetrics.errors.length}건 — 빈 칸은 "0" 이 아니라 "모름"이다</summary><pre style="font-size:11px">${esc(rec.faultMetrics.errors.join('\n'))}</pre></details>` : ''}
 
-<h2>9. 폭발 반경 — 기능 × 구간</h2>
+<h2>10. 폭발 반경 — 기능 × 구간</h2>
 ${featureTable(rec.k6.featureByPhase || {})}
 
-<h2>10. 자원 사용 — 구간별</h2>
+<h2>11. 자원 사용 — 구간별</h2>
 ${saturationTable(rec.infra || {})}
 <h3 style="font-size:14px;margin:18px 0 4px">지표 원자료</h3>
 ${infraTable(rec.infra || {}, ['pool', 'cpu', 'mysql', 'redis', 'k6ts'])}
 
-<h2>11. 헬스체크 전이 (${esc(rec.healthUrl || '')})</h2>
+<h2>12. 헬스체크 전이 (${esc(rec.healthUrl || '')})</h2>
 ${healthTable(rec.healthTransitions || [], rec.health || [], rec.healthByPhase, pollTimeoutMs)}
 
-<h2>12. 무엇을 쟀는가 — 코드 신원</h2>
+<h2>13. 무엇을 쟀는가 — 코드 신원</h2>
 ${provenanceTable(rec)}
 
-<h2>13. 어떤 조건에서 쟀는가</h2>
+<h2>14. 어떤 조건에서 쟀는가</h2>
 ${conditionsTable(rec)}
 
-<h2>14. 실패 지연을 만드는 설정 — 타임아웃·풀</h2>
+<h2>15. 실패 지연을 만드는 설정 — 타임아웃·풀</h2>
 ${configTable(rec.config)}
 
-<h2>15. 같은 계획의 다른 실행</h2>
+<h2>16. 같은 계획의 다른 실행</h2>
 ${sib}
 
-<h2>16. 원자료</h2>
+<h2>17. 원자료</h2>
 <ul class="sub"><li><code>run.json</code> — 이 보고서의 전부${rec.planFile ? ` · 계획 원본 <code>${esc(rec.planFile)}</code>` : ''}</li><li><code>k6.json</code> — k6 요약 원본 (phase 이름은 warmup/measure/rampdown 그대로)</li>${rec.grafana && rec.grafana.dashboard ? `<li><a href="${esc(rec.grafana.dashboard)}">Grafana 대시보드 (실행 구간)</a></li>` : ''}</ul>
 <script>${CHART_JS}</script>
 </body></html>`;

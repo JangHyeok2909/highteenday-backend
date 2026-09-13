@@ -74,6 +74,8 @@
  *   --fault <초>                  장애 구간 길이를 덮어쓴다.
  *   --post <초>                   복구 후 구간 길이를 덮어쓴다.
  *   --restore <스냅샷-id>         부하 실행 전에 데이터 스냅샷을 복원한다.
+ *   --latency <ms>                계획에 든 latency toxic 의 지연을 덮어쓴다. 같은 계획을
+ *                                 지연만 바꿔 여러 번 돌릴 때 쓴다.
  *   --no-flush-redis              Redis 초기화를 건너뛴다. 기본은 부하 실행 전에 FLUSHALL 이다
  *                                 — 남은 캐시와 조회 중복 마커가 pre 기준과 조회수 계산을
  *                                 흔들기 때문이다. 끄면 그 실행의 조회수 유실은 상한이 된다.
@@ -171,6 +173,13 @@ const WATCH_STATUS = ['0', '401', '429', '500', '502', '503', '504'];
 const FEATURES = ['auth', 'post', 'comment', 'board', 'reaction', 'scrap', 'notification', 'friend', 'mypage', 'school', 'timetable', 'chat', 'hot'];
 
 /**
+ * 응답 **내용**을 보는 check 의 이름. 세 곳이 같아야 한다 — 검사를 부르는
+ * `scripts/boards.js`·`scripts/posts.js`, 축을 선언하는 `scenarios/fault-window.js`,
+ * 그리고 읽는 여기. 어긋나면 에러 없이 빈 행이 생긴다.
+ */
+const CONTENT_CHECK_NAMES = ['board_list_nonempty', 'hot_daily_nonempty', 'post_list_nonempty', 'post_detail_has_id'];
+
+/**
  * 지정한 시간 뒤 이행하는 Promise를 만든다. 마지막 Prometheus 스크레이프 대기에 쓴다.
  *
  * @param {number} ms 기다릴 시간(밀리초).
@@ -200,7 +209,7 @@ const log = (s) => console.log(s);
  * @throws {Error} 계획 경로가 없거나, 알 수 없는 옵션이 있거나, 위치 인수가 둘 이상일 때.
  */
 function parseArgs(argv) {
-  const o = { plan: null, note: '', rate: null, pre: null, fault: null, post: null, restore: null, flushRedis: true, wait: 20, dryRun: false, remoteWrite: true };
+  const o = { plan: null, note: '', rate: null, pre: null, fault: null, post: null, restore: null, flushRedis: true, latency: null, wait: 20, dryRun: false, remoteWrite: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--note') o.note = argv[++i];
@@ -210,6 +219,7 @@ function parseArgs(argv) {
     else if (a === '--post') o.post = Number(argv[++i]);
     else if (a === '--restore') o.restore = argv[++i];
     else if (a === '--no-flush-redis') o.flushRedis = false;
+    else if (a === '--latency') o.latency = Number(argv[++i]);
     else if (a === '--wait') o.wait = Number(argv[++i]);
     else if (a === '--dry-run') o.dryRun = true;
     else if (a === '--no-remote-write') o.remoteWrite = false;
@@ -240,6 +250,17 @@ function loadPlan(file, o) {
   if (o.pre != null) plan.phases = { ...plan.phases, preSec: o.pre };
   if (o.fault != null) plan.phases = { ...plan.phases, faultSec: o.fault };
   if (o.post != null) plan.phases = { ...plan.phases, postSec: o.post };
+  // 주입 지연을 명령행에서 바꾼다. 타임아웃 값을 정하려면 같은 계획을 지연만 바꿔 여러 번
+  // 돌려 "어느 지연부터 타임아웃이 터지는가"를 찾아야 하는데, 그때마다 JSON 을 고치면
+  // 무슨 값으로 돌렸는지가 기록에 안 남는다. 여기서 덮어쓰면 바뀐 값이 run.json 의 plan 에
+  // 그대로 저장된다.
+  if (o.latency != null) {
+    plan.inject = (plan.inject || []).map((step) => (
+      step.toxic && step.toxic.type === 'latency'
+        ? { ...step, toxic: { ...step.toxic, attributes: { ...step.toxic.attributes, latency: o.latency } } }
+        : step
+    ));
+  }
   const errors = plans.validatePlan(plan);
   if (errors.length) throw new Error(`계획이 잘못됐다 (${file}):\n  - ${errors.join('\n  - ')}`);
   return plan;
@@ -494,6 +515,10 @@ function k6Args(plan, driverUrl, runsDir) {
     '-e', `RUNS_DIR=${runsDir}`,
     '-e', `DRIVER_URL=${driverUrl}`,
     '-e', `BASE_URL=${BASE_URL}`,
+    // 응답 내용 검사는 장애 실험에서만 켠다. 성능 회귀 쪽은 `checks: rate>0.99` 하나로
+    // 통과·실패를 가르므로, 거기에 내용 검사가 섞이면 그 게이트가 재는 대상이 바뀌어
+    // 과거 실행과 같은 기준으로 비교할 수 없게 된다(scripts/lib/config.js).
+    '-e', 'CONTENT_CHECKS=1',
     '--summary-trend-stats', 'avg,min,med,max,p(90),p(95),p(99)',
     '--no-color', '--quiet',
   ];
@@ -837,6 +862,8 @@ async function main() {
         failedLatency: plans.failedLatencyByPhase(raw),
         featureByPhase: plans.featureByPhase(raw, FEATURES),
         statusByPhase: plans.statusByPhase(raw, WATCH_STATUS),
+        // 200 을 받았는데 본문이 비어 있었는지. 폴백이 빈 기본값을 돌려준 경우가 여기만 걸린다.
+        contentChecks: plans.contentChecksByPhase(raw, CONTENT_CHECK_NAMES),
         // 도착률을 유지할 VU가 부족해 시작하지 못한 반복 수와 실제 k6 부하 계획 원본.
         droppedIterations: raw.dropped_iterations && raw.dropped_iterations.values ? raw.dropped_iterations.values.count : null,
         // 조회수가 올랐어야 할 횟수와, 서버가 거기까지 갔는지 모르는 횟수(scripts/posts.js).
