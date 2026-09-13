@@ -10,7 +10,7 @@
 import http from 'k6/http';
 import { sleep } from 'k6';
 import { Counter } from 'k6/metrics';
-import { BASE_URL, DEFAULT_THRESHOLDS, check, tags, thinkTime } from './lib/config.js';
+import { BASE_URL, DEFAULT_THRESHOLDS, bodyArrayLength, check, contentCheck, tags, thinkTime } from './lib/config.js';
 import { buildPhasePlan, toSeconds } from './lib/phases.js';
 import { ensureSession, withAuth } from './lib/session.js';
 import { myUser, hotPost, randomBoard } from './lib/data.js';
@@ -57,6 +57,9 @@ export function listPosts(boardId, page = 0, sortType = 'RECENT') {
     tags('post', 'read', 'post_list', { page: String(page) }),
   );
   check(res, { 'post list 200': (r) => r.status === 200 });
+  // 응답은 PageResponse — 목록이 `content` 배열에 들어 있다. Redis 가 죽으면
+  // RedisPostsCache.getPostPrevs 가 DB 로 폴백하므로, 그 폴백까지 실패해야 빈 배열이 된다.
+  contentCheck(res, 'post_list_nonempty', (r) => bodyArrayLength(r, 'content') > 0);
   return res;
 }
 
@@ -64,6 +67,14 @@ export function readPost(postId) {
   const first = !seenPosts[postId];
   const res = http.get(`${BASE_URL}/api/posts/${postId}`, tags('post', 'read', 'post_detail'));
   check(res, { 'post detail 200': (r) => r.status === 200 });
+  // 상세는 배열이 아니라 PostDto 하나다. id 가 있으면 본문이 채워졌다는 뜻이다.
+  contentCheck(res, 'post_detail_has_id', (r) => {
+    try {
+      return Number.isFinite(JSON.parse(r.body).id);
+    } catch (e) {
+      return false;
+    }
+  });
   // 첫 시도에서만 센다. 같은 글을 다시 읽어도 서버는 중복으로 접으므로 올리지 않는다.
   if (first) {
     seenPosts[postId] = true;

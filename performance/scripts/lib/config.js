@@ -104,6 +104,62 @@ export function check(val, sets, extraTags) {
   return k6check(val, sets, phase ? { phase, ...extraTags } : extraTags);
 }
 
+/**
+ * 응답 **내용** 검사를 켤지 여부. 장애 실행기(resilience/fault-run.js)가 `CONTENT_CHECKS=1`
+ * 을 넘길 때만 켠다.
+ *
+ * 왜 항상 켜지 않는가. 성능 회귀 쪽 게이트는 `checks: ['rate>0.99']` 하나로 통과/실패를
+ * 가른다(thresholds.js COMMON_SLO_THRESHOLDS). 여기에 내용 검사가 섞이면 그 게이트가
+ * 재는 대상이 "상태 코드가 200인가"에서 "내용까지 맞는가"로 바뀌어, 지금까지 쌓은 실행과
+ * 같은 기준으로 비교할 수 없게 된다(METHOD.md 의 Before/After 조건).
+ *
+ * 장애 실험은 게이트가 없고 세 구간을 서로 비교하므로(resilience/README.md) 이 검사가
+ * 판정을 흔들지 않는다. 그래서 그쪽에서만 켠다.
+ */
+export const CONTENT_CHECKS = __ENV.CONTENT_CHECKS === '1';
+
+/**
+ * 응답 본문에서 배열을 꺼내 길이를 센다. 못 꺼내면 -1.
+ *
+ * 장애 중에는 본문이 JSON 이 아닐 수 있다(프록시 오류 페이지 등). 그때 예외가 나면 VU 의
+ * iteration 이 통째로 중단돼 도착률이 무너지므로, 파싱 실패는 "길이를 셀 수 없음"으로
+ * 접어서 검사 실패로만 남긴다.
+ *
+ * @param {object} res k6 응답
+ * @param {string} [field] 배열이 객체 안에 있으면 그 필드 이름 (예: PageResponse 의 content)
+ * @returns {number} 배열 길이, 또는 배열을 못 찾았으면 -1
+ */
+export function bodyArrayLength(res, field) {
+  try {
+    const body = JSON.parse(res.body);
+    const arr = field ? body[field] : body;
+    return Array.isArray(arr) ? arr.length : -1;
+  } catch (e) {
+    return -1;
+  }
+}
+
+/**
+ * 상태 코드가 아니라 **응답 내용**을 보는 check.
+ *
+ * 폴백은 예외를 삼키고 기본값(빈 리스트 등)을 돌려주므로 HTTP 200 으로 나간다. 즉 "인기글이
+ * 하나도 안 나왔다"와 "인기글 10건이 정상으로 나왔다"가 오류율에서는 똑같이 0% 다. 그
+ * 차이를 보는 것이 이 검사다.
+ *
+ * 200 이 아닌 응답은 건너뛴다. 그런 실패는 오류율과 상태 코드 표가 이미 세고 있어서, 여기서
+ * 또 세면 같은 실패가 두 번 계상된다. 이 검사가 답해야 하는 질문은 "200 인데 내용이
+ * 비었나" 하나다.
+ *
+ * `name` 은 threshold selector(`checks{check:...}`)에 그대로 들어가므로 ASCII 로 짓는다.
+ * 선언한 selector 가 없으면 서브메트릭이 안 생겨 구간별로 분해되지 않는다 — 목록은
+ * resilience/scenarios/fault-window.js 의 CONTENT_CHECK_NAMES 와 같아야 한다.
+ */
+export function contentCheck(res, name, predicate) {
+  if (!CONTENT_CHECKS) return true;
+  if (!res || res.status !== 200) return true;
+  return check(res, { [name]: predicate });
+}
+
 /** min~max 초 사이 균등분포 think time (VU 단위 사용자 행동 모사) */
 export function thinkTime() {
   return THINK.min + Math.random() * (THINK.max - THINK.min);

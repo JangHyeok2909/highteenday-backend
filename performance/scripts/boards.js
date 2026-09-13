@@ -8,19 +8,24 @@
  */
 import http from 'k6/http';
 import { sleep } from 'k6';
-import { BASE_URL, DEFAULT_THRESHOLDS, check, tags, thinkTime } from './lib/config.js';
+import { BASE_URL, DEFAULT_THRESHOLDS, bodyArrayLength, check, contentCheck, tags, thinkTime } from './lib/config.js';
 import { buildPhasePlan, toSeconds } from './lib/phases.js';
 import { makeHandleSummary } from './lib/summary.js';
 
 export function listBoards() {
   const res = http.get(`${BASE_URL}/api/boards`, tags('board', 'read', 'board_list'));
   check(res, { 'board list 200': (r) => r.status === 200 });
+  // 응답은 BoardDto 배열. 게시판은 시드가 고정으로 넣으므로 정상이면 절대 비지 않는다.
+  contentCheck(res, 'board_list_nonempty', (r) => bodyArrayLength(r) > 0);
   return res;
 }
 
 export function dailyHotPosts() {
   const res = http.get(`${BASE_URL}/api/hotposts/daily`, tags('hot', 'read', 'hot_daily'));
   check(res, { 'hot daily 200': (r) => r.status === 200 });
+  // 응답은 PostPreviewDto 배열. Redis ZSET 이 비면 DailyHotPost 테이블로 폴백하므로
+  // (HotPostService.getLeaderboardDayHotPosts), 양쪽이 다 실패했을 때만 빈 배열이 된다.
+  contentCheck(res, 'hot_daily_nonempty', (r) => bodyArrayLength(r) > 0);
   return res;
 }
 
