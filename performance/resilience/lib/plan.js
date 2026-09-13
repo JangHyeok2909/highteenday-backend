@@ -284,6 +284,40 @@ function healthByPhase(samples, phases) {
   return out;
 }
 
+/**
+ * 구간 × 응답 내용 check — "200 이었는데 내용이 비어 있었나".
+ *
+ * 오류율과 상태 코드 표는 "요청이 실패했나"까지만 답한다. 폴백은 예외를 삼키고 빈 리스트를
+ * 돌려주므로 그 표들에서는 정상으로 보인다. 이 표만 그 경우를 잡는다.
+ *
+ * 값은 fault-window.js 가 `checks{check:...,phase:...}` 로 선언해 둔 서브메트릭에서 읽는다.
+ * 이름 목록이 그쪽과 다르면 에러 없이 빈 행이 생기므로 둘을 같이 고쳐야 한다.
+ *
+ * 표본이 없는 것(`total` 이 0)과 축 자체가 없는 것(`total` 이 null)을 구분한다. 앞은
+ * "그 구간에 그 요청이 안 갔다", 뒤는 "검사가 꺼져 있었거나 축 선언이 빠졌다"로 읽는다.
+ */
+function contentChecksByPhase(rawMetrics, names) {
+  const out = {};
+  for (const name of names) {
+    const row = {};
+    for (const [k6Name, label] of Object.entries(PHASE_LABELS)) {
+      const m = rawMetrics && rawMetrics[`checks{check:${name},phase:${k6Name}}`];
+      const v = m && m.values ? m.values : null;
+      if (!v) { row[label] = { total: null, passes: null, fails: null, rate: null }; continue; }
+      const passes = Number.isFinite(v.passes) ? v.passes : 0;
+      const fails = Number.isFinite(v.fails) ? v.fails : 0;
+      row[label] = {
+        total: passes + fails,
+        passes,
+        fails,
+        rate: Number.isFinite(v.rate) ? v.rate : null,
+      };
+    }
+    out[name] = row;
+  }
+  return out;
+}
+
 /** 헬스 표본 하나의 실패 원인 분류. 보고서의 전이 표와 구간 요약이 같은 규칙을 써야 한다. */
 function healthCause(s) {
   if (s.httpStatus != null) return s.status === 'UP' ? 'up' : 'down';
@@ -294,5 +328,5 @@ module.exports = {
   PHASE_LABELS, PHASE_ORDER, TOOLS,
   validatePlan, resolveAt, schedule, totalSec, phaseWindows,
   relabelPhases, relabelBreakdown, failedLatencyByPhase, featureByPhase,
-  statusByPhase, healthByPhase, healthCause,
+  statusByPhase, contentChecksByPhase, healthByPhase, healthCause,
 };

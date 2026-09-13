@@ -152,6 +152,53 @@ test('statusByPhase: 구간 × 상태 코드를 세고 없는 코드는 빼고 �
   assert.equal(out.pre.total, 0, 'count 0 은 세지 않는다');
 });
 
+test('contentChecksByPhase: 구간별 통과·실패 건수를 세고 축이 없으면 null 로 남긴다', () => {
+  const raw = {
+    'checks{check:hot_daily_nonempty,phase:warmup}': { values: { rate: 1, passes: 100, fails: 0 } },
+    'checks{check:hot_daily_nonempty,phase:measure}': { values: { rate: 0.5, passes: 20, fails: 20 } },
+    'checks{check:hot_daily_nonempty,phase:rampdown}': { values: { rate: 1, passes: 0, fails: 0 } },
+  };
+  const out = plan.contentChecksByPhase(raw, ['hot_daily_nonempty', 'post_list_nonempty']);
+
+  assert.deepEqual(out.hot_daily_nonempty.pre, { total: 100, passes: 100, fails: 0, rate: 1 });
+  assert.deepEqual(out.hot_daily_nonempty.fault, { total: 40, passes: 20, fails: 20, rate: 0.5 });
+  assert.equal(out.hot_daily_nonempty.post.total, 0, '축은 있는데 표본이 없으면 0 이다');
+
+  // 이 구분이 핵심이다. 축 자체가 없는 것을 0 으로 적으면 "검사가 꺼져 있었다"가
+  // "전부 통과했다"로 읽혀, 없는 근거로 안심하게 된다.
+  assert.deepEqual(out.post_list_nonempty.fault,
+    { total: null, passes: null, fails: null, rate: null },
+    '선언되지 않은 축은 0 이 아니라 모름이다');
+});
+
+/**
+ * 내용 검사 이름이 세 곳에 흩어져 있고, 어긋나도 아무것도 에러를 내지 않는다.
+ *
+ *   1. 검사를 부르는 곳       scripts/boards.js, scripts/posts.js 의 contentCheck(res, '<이름>', ...)
+ *   2. 집계 축을 선언하는 곳  resilience/scenarios/fault-window.js 의 CONTENT_CHECK_NAMES
+ *   3. 결과를 읽는 곳         resilience/fault-run.js 의 CONTENT_CHECK_NAMES
+ *
+ * 1 에만 있으면 k6 가 서브메트릭을 안 만들어 구간별 분해가 통째로 비고, 2·3 에만 있으면
+ * 표에 "표본 없음" 행이 영원히 남는다. 둘 다 12분짜리 실행이 끝난 뒤에야 눈치챈다.
+ */
+test('내용 검사 이름이 호출부·축 선언·읽는 쪽 세 곳에서 같다', () => {
+  const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
+  const namesIn = (src, constName) => {
+    const block = src.match(new RegExp(`${constName}\\s*=\\s*\\[([\\s\\S]*?)\\]`));
+    assert.ok(block, `${constName} 선언을 못 찾았다`);
+    return [...block[1].matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]).sort();
+  };
+
+  const declared = namesIn(read('scenarios', 'fault-window.js'), 'CONTENT_CHECK_NAMES');
+  const consumed = namesIn(read('fault-run.js'), 'CONTENT_CHECK_NAMES');
+  const scripts = read('..', 'scripts', 'boards.js') + read('..', 'scripts', 'posts.js');
+  const called = [...scripts.matchAll(/contentCheck\(\s*res\s*,\s*'([a-z0-9_]+)'/g)].map((m) => m[1]).sort();
+
+  assert.ok(declared.length > 0, '축 선언이 비어 있으면 이 테스트가 아무것도 지키지 않는다');
+  assert.deepEqual(consumed, declared, 'fault-run.js 와 fault-window.js 의 목록이 다르다');
+  assert.deepEqual(called, declared, '부하 스크립트가 부르는 이름과 선언한 축이 다르다');
+});
+
 test('healthByPhase: 무응답(폴러 상한)과 DOWN(앱이 보고)을 구분해 센다', () => {
   const phases = { preSec: 30, faultSec: 20, postSec: 30 };
   const samples = [
@@ -178,4 +225,16 @@ test('healthCause: 표본 하나의 원인을 네 갈래로 분류한다', () =>
   assert.equal(plan.healthCause({ httpStatus: 503, status: 'DOWN' }), 'down');
   assert.equal(plan.healthCause({ httpStatus: null, error: 'timeout after 4000ms: GET /x' }), 'timeout');
   assert.equal(plan.healthCause({ httpStatus: null, error: 'connect ECONNREFUSED' }), 'unreachable');
+});
+
+// ---------------------------------------------------------------------------
+// --latency 덮어쓰기 — 같은 계획을 지연만 바꿔 여러 번 돌릴 때 쓴다
+// ---------------------------------------------------------------------------
+
+test('faults/redis-slow.json 은 latency toxic 을 쓴다', () => {
+  const p = JSON.parse(fs.readFileSync(path.join(FAULTS, 'redis-slow.json'), 'utf8'));
+  assert.deepEqual(plan.validatePlan(p), []);
+  const add = p.inject.find((s) => s.action === 'add');
+  assert.equal(add.toxic.type, 'latency');
+  assert.equal(typeof add.toxic.attributes.latency, 'number');
 });
