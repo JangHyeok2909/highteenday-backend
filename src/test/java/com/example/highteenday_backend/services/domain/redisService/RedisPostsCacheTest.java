@@ -3,6 +3,9 @@ package com.example.highteenday_backend.services.domain.redisService;
 import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.dtos.paged.PostListingDto;
+import com.example.highteenday_backend.metrics.RedisFallbackMetrics;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,10 +47,19 @@ class RedisPostsCacheTest {
     private static final String BOARD_KEY = "board:1:posts";
 
     private RedisPostsCache redisPostsCache;
+    private SimpleMeterRegistry registry;
 
     @BeforeEach
     void setUp() {
-        redisPostsCache = new RedisPostsCache(longRedisTemplate, postTemplate, postRepository);
+        // 목이 아니라 실제 레지스트리를 쓴다 — 폴백 횟수가 실제로 기록되는지까지 확인한다.
+        registry = new SimpleMeterRegistry();
+        redisPostsCache = new RedisPostsCache(longRedisTemplate, postTemplate, postRepository,
+                new RedisFallbackMetrics(registry));
+    }
+
+    private double fallbackCount() {
+        Counter c = registry.find("redis.fallback").tag("method", "RedisPostsCache.getPostPrevs").counter();
+        return c == null ? -1 : c.count();
     }
 
     @Nested
@@ -67,9 +79,28 @@ class RedisPostsCacheTest {
 
             assertThat(result).hasSize(1);
             verify(postRepository).findByBoard(any(PostListingDto.class));
+            assertThat(fallbackCount())
+                    .as("이 경로는 AOP 를 안 쓰므로, 직접 세지 않으면 폴백이 지표에 안 남는다")
+                    .isEqualTo(1.0);
         }
 
-        // ── KI-57: 재적재 여부는 range 결과가 아니라 리스트 길이로 판정해야 한다 ──
+        @Test
+        @DisplayName("Redis 가 정상이면 폴백 횟수는 0 이지만 시계열은 존재한다")
+        void registersZeroSeriesWhenRedisHealthy() {
+            when(longRedisTemplate.opsForList()).thenReturn(boardListOps);
+            when(boardListOps.size(BOARD_KEY)).thenReturn(1L);
+            when(boardListOps.range(BOARD_KEY, 0, 9)).thenReturn(List.of(1L));
+            when(postTemplate.opsForValue()).thenReturn(postValueOps);
+            when(postValueOps.multiGet(any())).thenReturn(List.of(PostPreviewDto.builder().id(1L).build()));
+
+            redisPostsCache.getPostPrevs(1L, 0, 10);
+
+            assertThat(fallbackCount())
+                    .as("정상 구간에 0 이 찍혀 있어야 장애 구간 값과 비교할 기준이 생긴다")
+                    .isEqualTo(0.0);
+        }
+
+        // 재적재 여부는 range 결과가 아니라 리스트 길이로 판정해야 한다.
 
         @Test
         @DisplayName("리스트가 비어 있으면 DB 상위 50건으로 재적재한 뒤 요청 구간을 돌려준다")
@@ -141,13 +172,13 @@ class RedisPostsCacheTest {
     }
 
     /**
-     * 글 개수 캐시가 만료 후 첫 쓰기에서 1로 되살아나던 문제 (docs/KNOWN-ISSUES.md KI-56).
+     * 글 개수 캐시가 만료 후 첫 쓰기에서 1로 되살아나던 문제를 검증한다.
      *
      * Redis INCRBY 는 키가 없으면 0 을 만든 뒤 증가시키므로, 반환값이 delta 와 같다는 것은
      * "직전 값이 0", 즉 키가 없었다는 신호다. 그때는 증감분을 믿지 말고 DB 로 다시 세야 한다.
      */
     @Nested
-    @DisplayName("글 개수 증감 (KI-56)")
+    @DisplayName("글 개수 증감")
     class CountDelta {
 
         private static final String COUNT_KEY = "board:1:count";

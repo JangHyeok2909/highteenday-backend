@@ -1,5 +1,7 @@
 package com.example.highteenday_backend.aop;
 
+import com.example.highteenday_backend.metrics.RedisFallbackMetrics;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -13,7 +15,10 @@ import java.util.*;
 @Aspect
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class ResilientRedisAspect {
+
+    private final RedisFallbackMetrics fallbackMetrics;
 
     /**
      * {@link ResilientRedis}가 붙은 메서드에서 Redis 접근 오류가 발생하면
@@ -23,6 +28,10 @@ public class ResilientRedisAspect {
      * 남기지 않는다. Redis 오류로 변환된 {@link DataAccessException}만 처리하며,
      * NPE와 같은 코드 오류는 숨기지 않고 호출자에게 그대로 전달한다.</p>
      *
+     * <p>흡수한 실패는 {@link RedisFallbackMetrics}에 메서드 단위로 기록한다. 로그만
+     * 남기면 "폴백이 몇 번 돌았나"를 사후에 셀 수 없다 — 응답은 200 이고 오류율도 오르지
+     * 않으므로 다른 지표에 흔적이 남지 않는다.</p>
+     *
      * @param joinPoint 원래 메서드의 호출 정보
      * @param resilientRedis 호출된 메서드에 선언된 애너테이션
      * @return 원래 메서드의 반환값 또는 Redis 접근 실패 시 반환 타입의 기본값
@@ -30,13 +39,18 @@ public class ResilientRedisAspect {
      */
     @Around("@annotation(resilientRedis)")
     public Object handle(ProceedingJoinPoint joinPoint, ResilientRedis resilientRedis) throws Throwable {
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        String methodName = signature.getDeclaringType().getSimpleName() + "." + signature.getName();
+        // 실패하기 전에 시계열을 만들어 둔다. 실패했을 때만 만들면 폴백이 안 돈 구간에는
+        // 지표가 없어서, 읽는 쪽에서 "0 회"와 "계측 없음"을 구분할 수 없다.
+        fallbackMetrics.register(methodName);
         try {
             return joinPoint.proceed();
         } catch (DataAccessException e) {
-            String methodName = joinPoint.getSignature().toShortString();
+            fallbackMetrics.recordFallback(methodName);
             log.warn("Redis unavailable, skipping {}. cause={}: {}",
                     methodName, e.getClass().getSimpleName(), e.getMostSpecificCause().getMessage());
-            return defaultValue(((MethodSignature) joinPoint.getSignature()).getReturnType());
+            return defaultValue(signature.getReturnType());
         }
     }
 
