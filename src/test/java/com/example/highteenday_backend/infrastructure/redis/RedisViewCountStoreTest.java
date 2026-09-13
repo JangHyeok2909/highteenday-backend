@@ -23,7 +23,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 대기 카운터 탐색이 SCAN 으로 이뤄지는지 고정한다 (docs/KNOWN-ISSUES.md KI-17).
+ * 대기 카운터 탐색이 SCAN으로 이뤄지는지 고정한다.
  *
  * 왜 어댑터에서 보는가: 결함은 "KEYS 로 전체 키스페이스를 훑는다"였고 그 행위는
  * 이 클래스에만 있다. 스케줄러·서비스 테스트는 포트가 돌려준 Map 만 보므로,

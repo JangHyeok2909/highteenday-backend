@@ -212,7 +212,7 @@ class MediaProcessingServiceTest {
         }
 
         /**
-         * 동시 작성 이미지 유실 회귀 방지 (docs/KNOWN-ISSUES.md KI-36).
+         * 동시에 작성 중인 다른 글의 임시 이미지를 지우지 않는지 검증한다.
          *
          * 예전에는 사용자의 {@code tmp/{userId}/} 전체를 지웠기 때문에, 탭 두 개로
          * 동시에 글을 쓰면 먼저 확정한 쪽이 아직 확정하지 않은 다른 글의 임시 이미지까지

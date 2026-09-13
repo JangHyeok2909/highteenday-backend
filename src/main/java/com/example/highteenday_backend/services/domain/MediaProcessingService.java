@@ -41,7 +41,7 @@ public class MediaProcessingService {
         }
         post.editContent(replaceUrlContent);
         // 이 글이 실제로 승격시킨 임시 파일만 지운다. 사용자의 tmp/ 전체를 지우면
-        // 탭 두 개로 동시에 쓰던 다른 글의 이미지까지 날아간다 (KI-36).
+        // 탭 두 개로 동시에 쓰던 다른 글의 이미지까지 날아간다.
         fileStorage.deletePromotedTmpFiles(urls);
     }
 

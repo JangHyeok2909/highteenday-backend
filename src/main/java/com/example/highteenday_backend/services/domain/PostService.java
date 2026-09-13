@@ -77,7 +77,7 @@ public class PostService {
      *
      * 판정은 페이지 번호가 아니라 조회 끝 인덱스로 한다. 캐시는 최신 글
      * {@value PostPrevCache#MAX_CACHED_POSTS} 개만 담으므로 page 가 작아도 size 가 크면
-     * 구간이 캐시 밖으로 나가고, 그러면 캐시는 빈 목록밖에 줄 수 없다 (KI-57).
+     * 구간이 캐시 밖으로 나가고, 그러면 캐시는 빈 목록밖에 줄 수 없다.
      */
     public List<PostPreviewDto> getPagedPosts(PostListingDto dto) {
         long endIndexExclusive = (long) (dto.getPage() + 1) * dto.getSize();
@@ -101,7 +101,7 @@ public class PostService {
         post.setUpdatedDate(null);
 
         // 캐시 갱신은 커밋 이후로 미룬다. 커밋 전에 실으면 이후 롤백 시 존재하지 않는
-        // 게시글이 TTL 만료까지 목록 캐시에 남고 게시판 카운트도 어긋난다 (KI-22).
+        // 게시글이 TTL 만료까지 목록 캐시에 남고 게시판 카운트도 어긋난다.
         // DTO 는 여기서 만든다 — 커밋 후에는 영속성 컨텍스트가 닫혀 지연 로딩이 깨진다.
         Long boardId = post.getBoard().getId();
         PostPreviewDto preview = PostPreviewDto.fromEntity(post);
@@ -114,7 +114,7 @@ public class PostService {
         return savedPost;
     }
     // 예전에는 dto 에 @Valid 가 붙어 있었지만 이 클래스에 @Validated 가 없어 아무 일도
-    // 하지 않는 장식이었다 (docs/KNOWN-ISSUES.md KI-16). 검증은 웹 계층에서 한다 —
+    // 하지 않는 장식이었다. 검증은 웹 계층에서 한다.
     // 컨트롤러의 @RequestBody 에 @Valid 를 걸어 두었고, 그쪽이 실패를 400 으로
     // 내보내는 정식 통로다. 여기 남겨 두면 "검증되고 있다"는 착각만 준다.
     @Transactional
@@ -144,7 +144,7 @@ public class PostService {
         post.setUpdatedBy(userId);
 
         // 생성과 같은 이유로 커밋 이후에 처리한다. 삭제가 롤백되면 살아 있는 글이
-        // 목록에서 사라지고 카운트가 하나 모자란 채로 남는다 (KI-22).
+        // 목록에서 사라지고 카운트가 하나 모자란 채로 남는다.
         Long boardId = post.getBoard().getId();
         afterCommitExecutor.run(() -> {
             postPrevCache.evictBoard(boardId);
@@ -161,7 +161,7 @@ public class PostService {
      * <p>이 메서드가 스케줄러가 아니라 여기 있는 이유: 예전에는 스케줄러가
      * {@code this.applyViewCount()} 로 자기 자신을 직접 불러 {@code @Transactional} 이
      * 프록시를 거치지 않았고, 배치 전체가 바깥 트랜잭션 하나로 묶였다. 그러면 게시글
-     * 하나의 실패가 그 주기 전체를 되돌린다 (docs/KNOWN-ISSUES.md KI-23).
+     * 하나의 실패가 그 주기 전체를 되돌린다.
      * 별도 빈의 메서드로 옮기면 호출이 프록시를 타므로 <b>게시글 하나당 트랜잭션 하나</b>가
      * 실제로 성립한다.
      */
@@ -173,7 +173,7 @@ public class PostService {
     }
 
     /**
-     * 요청자가 글 작성자인지 확인한다 (docs/KNOWN-ISSUES.md KI-05).
+     * 요청자가 글 작성자인지 확인한다.
      *
      * 컨트롤러가 아니라 서비스에 두는 이유: 수정·삭제 경로가 컨트롤러 외에
      * 스케줄러나 다른 서비스에서도 불릴 수 있고, 그때 검증이 빠지면 같은 구멍이

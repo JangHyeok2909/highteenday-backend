@@ -87,7 +87,7 @@ class ChatServiceTest {
 
     @BeforeEach
     void setUp() {
-        // 커밋 이후 발행(KI-24)을 테스트에서는 즉시 실행으로 본다.
+        // 커밋 이후 발행을 테스트에서는 즉시 실행으로 본다.
         org.mockito.Mockito.doAnswer(inv -> {
             inv.getArgument(0, Runnable.class).run();
             return null;
@@ -831,7 +831,7 @@ class ChatServiceTest {
         }
 
         /**
-         * 유령 이벤트 회귀 방지 (docs/KNOWN-ISSUES.md KI-24).
+         * 롤백된 변경이 클라이언트에 발행되지 않는지 검증한다.
          * 예약된 작업을 일부러 실행하지 않아 "아직 커밋 전" 상태를 만든다.
          */
         @Test

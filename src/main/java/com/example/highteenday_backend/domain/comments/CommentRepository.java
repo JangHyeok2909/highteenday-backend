@@ -17,7 +17,7 @@ public interface CommentRepository extends JpaRepository<Comment,Long> {
      *
      * `join fetch c.user` 가 없으면 `Comment.user` 가 LAZY 라
      * `CommentDto.fromEntity` 가 닉네임을 읽는 순간 **서로 다른 작성자 수만큼** SELECT 가
-     * 따로 나간다. 이 문제와 검증 결과는 performance/cases/CASE-005에 기록되어 있다.
+     * 따로 나간다. 검증 결과는 performance/cases/comment-query-amplification.md에 있다.
      * 댓글 500개짜리 글에서는 요청당 쿼리 112개 중 108개가 작성자 조회였다.
      *
      * `@ManyToOne` 이라 fetch join 이 행을 부풀리지 않는다 — 댓글 한 건에 작성자는 한 명뿐이라

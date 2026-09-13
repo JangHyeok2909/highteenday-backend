@@ -16,7 +16,7 @@ public interface ViewCountStorePort {
      *
      * <p>예전에는 읽으면서 동시에 지웠고(GETDEL), 그 뒤 DB 반영이 실패하면 이미 사라진
      * 증가분이 복구되지 않았다 — 배치 트랜잭션 전체가 실패하면 그 주기 증가분이 통째로
-     * 날아갔다 (docs/KNOWN-ISSUES.md KI-23). 읽기와 정리를 나눠, 정리는 DB 반영이
+     * 날아갔다. 읽기와 정리를 나눠, 정리는 DB 반영이
      * 성공한 뒤 {@link #settleCounts(Map)} 로 한다.
      */
     Map<Long, Integer> peekPendingCounts();

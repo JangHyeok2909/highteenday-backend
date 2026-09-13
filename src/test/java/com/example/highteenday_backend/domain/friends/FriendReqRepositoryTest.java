@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 // JpaAuditingConfig 를 명시적으로 넣는다. @EnableJpaAuditing 은 애플리케이션 클래스가 아니라
-// 별도 설정 클래스에 있고(KI-52), @DataJpaTest 는 그런 @Configuration 을 자동으로 올리지 않는다.
+// 별도 설정 클래스에 있고, @DataJpaTest는 그런 @Configuration을 자동으로 올리지 않는다.
 // 빠뜨리면 BaseEntity.created 가 null 이라 NOT NULL 제약에 걸려 저장 자체가 실패한다.
 @Import({QueryDslConfig.class, JpaAuditingConfig.class})
 @TestPropertySource(properties = {
