@@ -30,6 +30,10 @@ function validatePlan(plan) {
     if (!Number.isFinite(ph[k]) || ph[k] < 0) errors.push(`phases.${k} 가 0 이상의 숫자가 아니다`);
   }
   if (Number.isFinite(ph.faultSec) && ph.faultSec === 0) errors.push('phases.faultSec 가 0 이면 장애 구간이 없다');
+  // 예열은 선택이다. 넣었다면 숫자여야 한다 — 오타로 문자열이 들어가면 예열이 조용히 꺼진다.
+  if (ph.warmupSec !== undefined && (!Number.isFinite(ph.warmupSec) || ph.warmupSec < 0)) {
+    errors.push('phases.warmupSec 가 0 이상의 숫자가 아니다');
+  }
   const load = plan.load || {};
   if (!Number.isFinite(load.rate) || load.rate <= 0) errors.push('load.rate 는 양수(초당 iteration)여야 한다');
   if (!Array.isArray(plan.inject) || plan.inject.length === 0) errors.push('inject 가 비어 있다');

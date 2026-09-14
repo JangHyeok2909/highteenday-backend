@@ -199,6 +199,22 @@ test('내용 검사 이름이 호출부·축 선언·읽는 쪽 세 곳에서 �
   assert.deepEqual(called, declared, '부하 스크립트가 부르는 이름과 선언한 축이 다르다');
 });
 
+test('validatePlan: warmupSec 은 선택이지만 숫자가 아니면 잡는다', () => {
+  // 예열이 조용히 꺼지는 것이 가장 나쁘다 — 캐시가 빈 채로 pre 를 재고도 그 사실이 안 남는다.
+  assert.deepEqual(plan.validatePlan(basePlan({ phases: { warmupSec: 180, preSec: 60, faultSec: 60, postSec: 60 } })), []);
+  assert.deepEqual(plan.validatePlan(basePlan({ phases: { preSec: 60, faultSec: 60, postSec: 60 } })), [],
+    'warmupSec 을 안 적은 계획은 그대로 통과해야 한다');
+
+  const bad = plan.validatePlan(basePlan({ phases: { warmupSec: '180', preSec: 60, faultSec: 60, postSec: 60 } }));
+  assert.ok(bad.some((e) => /warmupSec/.test(e)), `문자열 warmupSec 을 잡아야 한다: ${bad.join(', ')}`);
+  assert.ok(plan.validatePlan(basePlan({ phases: { warmupSec: -1, preSec: 60, faultSec: 60, postSec: 60 } })).some((e) => /warmupSec/.test(e)));
+});
+
+test('totalSec: 예열은 측정 구간이 아니므로 합계에 넣지 않는다', () => {
+  // 이 합계는 시계열 수집 창의 길이를 정한다. 예열을 더하면 측정 전 구간까지 긁어 온다.
+  assert.equal(plan.totalSec({ warmupSec: 180, preSec: 60, faultSec: 60, postSec: 180 }), 300);
+});
+
 test('healthByPhase: 무응답(폴러 상한)과 DOWN(앱이 보고)을 구분해 센다', () => {
   const phases = { preSec: 30, faultSec: 20, postSec: 30 };
   const samples = [

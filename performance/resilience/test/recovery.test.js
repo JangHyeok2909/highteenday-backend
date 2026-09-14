@@ -238,3 +238,15 @@ test('pre 의 튐을 대역에 담으면 그 크기의 post 스파이크를 미�
   assert.ok(r.recoverySec <= 5, `pre 와 같은 크기의 튐은 미회복이 아니다: ${r.recoverySec}초`);
 });
 
+test('예열 구간이 있으면 pre 앞부분을 자르지 않는다', () => {
+  // 자르는 목적은 JIT·풀·캐시가 데워지는 동안을 기준에서 빼는 것인데, 예열이 그 일을
+  // 이미 끝냈다. 그대로 자르면 pre 60초에서 표본이 12개에서 6개로 줄어 대역이 좁아진다.
+  const points = series([[300, 30], [100, 70], [5000, 60], [100, 100]]);
+  const withWarmup = recovery.recoveryOf(points, SPEC, { ...MARKS, hasWarmup: true }, OPTS);
+  const without = recovery.recoveryOf(points, SPEC, MARKS, OPTS);
+
+  assert.equal(withWarmup.preSamples, 20, 'pre 100초 ÷ 5초 = 20개를 다 쓴다');
+  assert.equal(without.preSamples, 14, '예열이 없으면 앞 30초(6개)를 잘라 14개만 쓴다');
+  assert.ok(withWarmup.limit > without.limit,
+    `앞 30초의 300ms 가 대역에 포함돼야 한다: ${withWarmup.limit} vs ${without.limit}`);
+});

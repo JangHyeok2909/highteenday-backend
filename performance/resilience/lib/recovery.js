@@ -145,7 +145,11 @@ function recoveryOf(points, spec, marks, opts) {
   if (!rel.length) return { ...head, status: 'no-data', reason: '시계열이 비어 있다 — 수집 실패' };
 
   const preAll = rel.filter((p) => p.sec >= 0 && p.sec < marks.faultStartSec);
-  const trimmed = preAll.filter((p) => p.sec >= opts.warmupSkipSec);
+  // 예열 구간이 따로 있으면 pre 앞부분을 자르지 않는다. 자르는 목적이 JIT·커넥션 풀·캐시가
+  // 데워지는 동안을 기준값에서 빼는 것인데, 예열이 그 일을 이미 끝냈기 때문이다. 그대로
+  // 자르면 pre 60초에서 표본이 12개에서 6개로 줄어, 대역이 그 지표의 변동 폭을 못 담는다.
+  const skipSec = marks.hasWarmup ? 0 : opts.warmupSkipSec;
+  const trimmed = preAll.filter((p) => p.sec >= skipSec);
   const preUsed = trimmed.length >= 3 ? trimmed : preAll;
   const base = median(preUsed.map((p) => p.v));
   if (base == null) return { ...head, status: 'no-data', reason: 'pre 구간 표본이 없어 기준을 만들 수 없다' };
@@ -289,6 +293,8 @@ function analyze(rec, options) {
     faultStartSec: phases.preSec,
     faultEndSec: phases.preSec + phases.faultSec,
     postSec: phases.postSec,
+    // 예열이 있으면 pre 는 처음부터 정상 상태다 — 기준값에서 앞부분을 자를 이유가 없다.
+    hasWarmup: Number.isFinite(phases.warmupSec) && phases.warmupSec > 0,
   };
   const series = rec.series || {};
   const metrics = METRIC_SPECS

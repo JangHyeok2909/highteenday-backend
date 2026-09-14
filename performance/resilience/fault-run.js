@@ -209,11 +209,12 @@ const log = (s) => console.log(s);
  * @throws {Error} 계획 경로가 없거나, 알 수 없는 옵션이 있거나, 위치 인수가 둘 이상일 때.
  */
 function parseArgs(argv) {
-  const o = { plan: null, note: '', rate: null, pre: null, fault: null, post: null, restore: null, flushRedis: true, latency: null, wait: 20, dryRun: false, remoteWrite: true };
+  const o = { plan: null, note: '', rate: null, warmup: null, pre: null, fault: null, post: null, restore: null, flushRedis: true, latency: null, wait: 20, dryRun: false, remoteWrite: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--note') o.note = argv[++i];
     else if (a === '--rate') o.rate = Number(argv[++i]);
+    else if (a === '--warmup') o.warmup = Number(argv[++i]);
     else if (a === '--pre') o.pre = Number(argv[++i]);
     else if (a === '--fault') o.fault = Number(argv[++i]);
     else if (a === '--post') o.post = Number(argv[++i]);
@@ -247,6 +248,7 @@ function parseArgs(argv) {
 function loadPlan(file, o) {
   const plan = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (o.rate) plan.load = { ...plan.load, rate: o.rate };
+  if (o.warmup != null) plan.phases = { ...plan.phases, warmupSec: o.warmup };
   if (o.pre != null) plan.phases = { ...plan.phases, preSec: o.pre };
   if (o.fault != null) plan.phases = { ...plan.phases, faultSec: o.fault };
   if (o.post != null) plan.phases = { ...plan.phases, postSec: o.post };
@@ -399,6 +401,9 @@ async function preflight(plan, o) {
       baseUrl: BASE_URL,
       restore: o.restore || null,
       flushRedis: o.flushRedis,
+      // 예열 길이는 실행 조건이다. 캐시가 찬 상태로 쟀는지 빈 상태로 쟀는지에 따라 pre 구간
+      // 수치가 통째로 달라지므로, 두 실행을 비교할 때 이 값이 같은지 먼저 봐야 한다.
+      warmupSec: Number.isFinite((plan.phases || {}).warmupSec) ? plan.phases.warmupSec : 0,
     },
   };
 }
@@ -453,6 +458,38 @@ function restoreSnapshot(id) {
 function flushRedis() {
   log(`  Redis FLUSHALL (${REDIS_CONTAINER})`);
   dockerLib.docker(['exec', REDIS_CONTAINER, 'redis-cli', 'FLUSHALL']);
+}
+
+/**
+ * 웜업이 남긴 조회수 관련 키만 지운다. 캐시는 남긴다.
+ *
+ * <h2>왜 이 둘만 지우는가</h2>
+ *
+ * 웜업의 목적은 캐시를 채우는 것이므로 `board:*`·`posts:*`·`hot:leaderboard:*`·`RT:*` 는
+ * 그대로 두어야 한다. 그런데 조회수 계열 키 둘은 남기면 불변식이 양방향으로 깨진다.
+ *
+ * `viewed:{postId}:{userId}` 는 조회 중복 마커이고 TTL 이 1시간이다
+ * (ViewCountService.DEDUP_TTL). 웜업이 읽은 (글, 사용자) 쌍이 남아 있으면 측정 구간의
+ * 같은 조회를 서버가 중복으로 접는데 부하 쪽은 새 조회로 세므로, **유실이 실제보다 크게**
+ * 나온다(invariants.js 의 viewcount-conservation 이 이 경우를 상한으로 표시한다).
+ *
+ * `post:views:{postId}` 는 DB 에 아직 반영되지 않은 조회수다. 기준선(S0)을 웜업 뒤에 뜨면
+ * 이 값은 `before.dbViews` 에 없는데, 측정 중 ViewCountScheduler(60초 주기)가 DB 로
+ * 옮기면서 `after.dbViews` 에는 들어간다. 측정 k6 의 view_expected 는 그 조회를 세지
+ * 않았으므로 **유실이 실제보다 작게**, 경우에 따라 음수로 나온다.
+ *
+ * 파이프를 컨테이너 안에서 돌린다. 호스트 셸에서 파이프를 걸면 `redis-cli` 가 호스트에
+ * 없어 실패한다. `xargs -r` 는 대상이 0건일 때 DEL 을 아예 부르지 않는다.
+ *
+ * @param {string[]} patterns 지울 키 패턴.
+ * @returns {void}
+ */
+function dropWarmupViewKeys(patterns = ['viewed:*', 'post:views:*']) {
+  for (const pattern of patterns) {
+    const r = dockerLib.docker(['exec', REDIS_CONTAINER, 'sh', '-c',
+      `redis-cli --scan --pattern '${pattern}' | xargs -r redis-cli DEL | awk '{s+=$1} END {print s+0}'`]);
+    log(`  웜업 키 정리 ${pattern} → ${(r.stdout || '0').trim()}개 삭제`);
+  }
 }
 
 /**
@@ -522,6 +559,67 @@ function k6Args(plan, driverUrl, runsDir) {
     '--summary-trend-stats', 'avg,min,med,max,p(90),p(95),p(99)',
     '--no-color', '--quiet',
   ];
+}
+
+/**
+ * 측정 전에 캐시를 채우는 예열 부하. 같은 스크립트를 **별도 k6 프로세스**로 돌린다.
+ *
+ * <h2>왜 phase 를 넷으로 늘리지 않는가</h2>
+ *
+ * phase 기계(scripts/lib/phases.js)는 warmup/measure/rampdown 세 칸 고정이고, 그 이름이
+ * threshold selector·서브메트릭·보고서·plan.js 의 PHASE_LABELS 까지 관통한다. 칸을 하나
+ * 늘리면 그 전부를 같이 고쳐야 한다. 별도 프로세스로 돌리면 예열 요청은 **다른 실행의
+ * 메트릭**이라 어느 측정 창에도 들어가지 않는다 — 기계를 한 줄도 안 건드린다.
+ *
+ * <h2>요약 파일이 섞이지 않게 하는 이유</h2>
+ *
+ * findLatestSummary() 는 staging 에서 `fault-<계획 id>-*.k6.json` 중 최신 파일을 고른다.
+ * 예열이 같은 이름으로 요약을 쓰면 측정 실행 대신 예열 요약을 집을 수 있다. 출력 디렉터리와
+ * FAULT_ID 를 둘 다 다르게 준다.
+ *
+ * 주입 드라이버에는 연결하지 않는다(DRIVER_URL 없음). 예열에는 장애 주입이 없고, t0 신호가
+ * 측정 실행의 시간 축을 흔들면 안 된다. 시계열도 Prometheus 로 보내지 않는다 — 측정 구간
+ * 밖의 부하가 대시보드에 섞이면 나중에 그 실행을 읽을 때 구간 경계가 흐려진다.
+ *
+ * @param {object} plan 검증이 끝난 계획.
+ * @param {number} sec 예열 길이(초).
+ * @param {object} env k6 에 넘길 환경 변수.
+ * @returns {Promise<void>} k6 가 끝나면 이행한다.
+ */
+function warmupArgs(plan, sec, runsDir) {
+  return [
+    'run', path.join('resilience', 'scenarios', 'fault-window.js'),
+    // 측정 실행과 **다른** id 다. findLatestSummary() 가 `fault-<계획 id>-*.k6.json` 을
+    // 이름으로 고르므로, 같은 id 를 쓰면 예열 요약을 측정 요약으로 착각할 수 있다.
+    '-e', `FAULT_ID=warmup-${plan.id}`,
+    // 구간을 pre 하나로 몰아 준다. 예열에는 장애가 없으므로 fault/post 를 나눌 이유가 없다.
+    '-e', `PRE=${sec}`, '-e', 'FAULT=0', '-e', 'POST=0',
+    '-e', `RATE=${plan.load.rate}`,
+    '-e', `PRE_VUS=${plan.load.preVus || 100}`, '-e', `MAX_VUS=${plan.load.maxVus || 1000}`,
+    '-e', `DATASET=${resolveDataset(plan)}`,
+    // 출력 디렉터리도 분리한다. 이름과 위치 둘 중 하나만 달라도 막히지만, 한쪽이 바뀌어도
+    // 나머지가 남도록 둘 다 건다.
+    '-e', `RUNS_DIR=${runsDir}`,
+    '-e', `BASE_URL=${BASE_URL}`,
+    '--no-color', '--quiet',
+  ];
+}
+
+function runWarmup(plan, sec, env) {
+  const dir = path.join(STAGING, 'warmup');
+  fs.mkdirSync(dir, { recursive: true });
+  const args = warmupArgs(plan, sec, path.relative(PERF_ROOT, dir).replace(/\\/g, '/'));
+  log(`  예열 ${sec}s (별도 k6, 측정에서 제외)`);
+  return new Promise((resolve, reject) => {
+    const child = spawn(K6_BIN, args, { stdio: 'ignore', env, cwd: PERF_ROOT });
+    child.on('error', (e) => reject(new Error(`예열 k6 실행 실패: ${e.message}`)));
+    // 예열이 threshold 로 실패해도 실험을 막지 않는다. 예열은 판정 대상이 아니고, 여기서
+    // 중단하면 캐시만 반쯤 찬 상태로 실행이 끝난다.
+    child.on('exit', (code) => {
+      if (code !== 0) log(`  ⚠ 예열 k6 종료 코드 ${code} — 예열은 판정 대상이 아니므로 계속한다`);
+      resolve();
+    });
+  });
 }
 
 /**
@@ -628,10 +726,19 @@ async function main() {
   const planFile = path.resolve(process.cwd(), o.plan);
   const plan = loadPlan(planFile, o);
   const total = plans.totalSec(plan.phases);
+  // 예열은 측정 구간이 아니므로 total 에 넣지 않는다 — total 은 시계열 수집 창을 정하는 값이다.
+  const warmupSec = Number.isFinite(plan.phases.warmupSec) ? plan.phases.warmupSec : 0;
 
   // 실제 자원을 건드리기 전에 실행 질문, 세 구간, 도착률과 모든 주입 시각을 먼저 공개한다.
   log(`▶ 장애 관측: ${plan.id} — ${plan.question}`);
-  log(`  구간 pre ${plan.phases.preSec}s / fault ${plan.phases.faultSec}s / post ${plan.phases.postSec}s (총 ${total}s) · 도착률 ${plan.load.rate}/s`);
+  log(`  ${warmupSec > 0 ? `예열 ${warmupSec}s (측정 제외) · ` : ''}구간 pre ${plan.phases.preSec}s / fault ${plan.phases.faultSec}s / post ${plan.phases.postSec}s (총 ${total}s) · 도착률 ${plan.load.rate}/s`);
+  // pre 는 fault 의 대조군이다. 길이가 다르면 두 구간의 표본 수가 달라 비교의 정밀도가
+  // 한쪽으로 치우치고, 주기 작업(ViewCountScheduler 60초, HotScoreScheduler 300초)을
+  // 겪는 횟수도 달라진다. 막지는 않는다 — 기준선을 정밀하게 잡으려고 일부러 pre 를 길게
+  // 두는 실행이 있을 수 있다.
+  if (plan.phases.preSec !== plan.phases.faultSec) {
+    log(`  ⚠ pre(${plan.phases.preSec}s)와 fault(${plan.phases.faultSec}s)의 길이가 다르다 — 두 구간의 표본 수와 주기 작업 횟수가 달라진다`);
+  }
   const sched = plans.schedule(plan);
   for (const s of sched) log(`  주입 @${s.plannedAtSec}s  ${s.tool} ${s.action || ''} ${s.proxy || s.container || (s.args || s.argv || []).join(' ')}${s.toxic ? ` ${JSON.stringify(s.toxic)}` : ''}`);
 
@@ -699,11 +806,26 @@ async function main() {
     if (o.restore) restoreSnapshot(o.restore);
     if (o.flushRedis) flushRedis();
     else log('  ⚠ Redis 초기화를 건너뛴다(--no-flush-redis) — pre 기준이 캐시 상태에 따라 흔들리고, 남은 조회 중복 마커 때문에 조회수 유실이 상한이 된다');
+
+    // 4-b. 예열. FLUSHALL 뒤이고 기준선(S0) 앞이어야 한다.
+    //
+    // 앞에 두면 FLUSHALL 이 예열 결과를 지운다. S0 뒤에 두면 예열이 만든 DB 변화가 기준선에
+    // 안 잡혀 불변식이 그만큼 어긋난다. 그래서 이 사이 한 자리뿐이다.
+    //
+    // 예열 뒤 조회수 키 둘을 지우는 이유는 dropWarmupViewKeys() 주석에 있다 — 남기면
+    // 유실이 한쪽은 크게, 한쪽은 작게 나온다. 캐시 키는 남겨야 예열한 보람이 있다.
+    fs.mkdirSync(STAGING, { recursive: true });
+    if (warmupSec > 0) {
+      await runWarmup(plan, warmupSec, { ...process.env, PERF_ENV: 'perf-fault-warmup' });
+      dropWarmupViewKeys();
+    }
+
+    // 캐시 상태는 예열이 끝난 뒤에 읽는다. 예열 전에 읽으면 언제나 cold 로 기록되어,
+    // 보고서가 "이 실행이 어떤 캐시 상태에서 돌았나"에 거짓으로 답한다.
     const cacheBefore = dbstate.computeCacheState();
     log(`  캐시 ${cacheBefore.state}${cacheBefore.cacheKeys != null ? ` (키 ${cacheBefore.cacheKeys.toLocaleString()}개)` : ''}`);
 
-    // 5. k6 요약 임시 위치, 주입 시각 동기화 서버, 5초 간격 헬스 폴러를 준비한다.
-    fs.mkdirSync(STAGING, { recursive: true });
+    // 5. 주입 시각 동기화 서버와 5초 간격 헬스 폴러를 준비한다.
     driver = new Driver(plan, { log });
     const driverUrl = await driver.listen();
     health = new HealthPoller(`${BASE_URL}/actuator/health`, HEALTH_POLL);
@@ -971,4 +1093,4 @@ if (require.main === module) {
 
 // 테스트와 다른 도구가 부작용 없이 검증할 수 있는 순수 또는 조회 함수를 공개한다.
 // main(), 복원, Redis 삭제, 보고서 생성 함수는 외부 호출 대상으로 내보내지 않는다.
-module.exports = { parseArgs, loadPlan, k6Args, proxyRouting, siblingsOf };
+module.exports = { parseArgs, loadPlan, k6Args, warmupArgs, proxyRouting, siblingsOf };
