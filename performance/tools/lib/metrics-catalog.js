@@ -338,10 +338,20 @@ const GROUPS = [
         desc: 'long_query_time(0.1s) 초과 쿼리 수. 인덱스 회귀의 1차 신호.',
       },
       {
-        key: 'mysql.qps', label: 'Queries/sec',
+        key: 'mysql.selectPerSec', label: 'SELECT/sec',
+        query: 'rate(mysql_global_status_commands_total{command="select"}[$RANGE])',
+        reduce: 'sum', unit: 'per_sec',
+        desc: '초당 SELECT 수. mysql.qps 와 달리 SET·COMMIT 을 빼서 실제 조회 작업량만 센다.',
+      },
+      {
+        key: 'mysql.qps', label: 'Statements/sec',
         query: 'rate(mysql_global_status_queries[$RANGE])',
         reduce: 'sum', unit: 'per_sec',
-        desc: '초당 쿼리 수. RPS 대비 비율이 곧 요청당 쿼리 수 = N+1 탐지기.',
+        // 예전 설명은 "RPS 대비 비율이 곧 요청당 쿼리 수 = N+1 탐지기"였다. 그렇게 못 읽는다.
+        // 2026-09-11 redis-crash 실행 pre 구간의 문장 구성이 set_option 42.0% / select 40.5%
+        // / commit 12.0% 였다. 트랜잭션 관리 문장이 SELECT 보다 많아서, 이 값이 떨어져도
+        // SELECT 는 오를 수 있다(그 실행이 실제로 그랬다: 문장 -22%, SELECT +9.4%).
+        desc: '초당 **문장** 수. SET·COMMIT 이 포함되므로 SQL 작업량이 아니다 — 조회 작업량은 mysql.selectPerSec, N+1 은 efficiency.selectPerReq 로 본다.',
       },
       {
         key: 'mysql.qpsMax', label: 'Queries/sec max',
@@ -898,13 +908,54 @@ const GROUPS = [
         key: 'efficiency.dbCpuUsPerQuery', label: '쿼리당 MySQL CPU',
         query: `1e6 * ${one(`increase(container_cpu_usage_seconds_total{name="${DB}"}[$RANGE])`)} / clamp_min(${one('increase(mysql_global_status_queries[$RANGE])')}, 1)`,
         reduce: 'max', unit: 'us',
-        desc: '쿼리 1건에 든 CPU(마이크로초). 요청당 쿼리 수는 그대로인데 이 값만 오르면 DB 자체가 비효율해진 것이다.',
+        desc: '쿼리 1건에 든 CPU(마이크로초). 분모가 SET·COMMIT 을 포함한 문장 수라 트랜잭션 수가 바뀌어도 움직인다 — SQL 작업만 보려면 efficiency.rowsPerSelect 를 같이 본다.',
       },
       {
-        key: 'efficiency.queriesPerReq', label: '요청당 쿼리 수',
+        key: 'efficiency.queriesPerReq', label: '요청당 문장 수',
         query: `${one('increase(mysql_global_status_queries[$RANGE])')} / ${REQS}`,
         reduce: 'max', unit: 'count',
-        desc: '요청 1건이 만든 쿼리 수. 급증하면 N+1 이다. 위 두 지표를 해석할 때의 기준선.',
+        // 예전 설명은 "급증하면 N+1"이었다. 그렇게 못 읽는다. 2026-09-11 redis-crash 실행에서
+        // pre 구간 문장 구성이 set_option 42.0% / select 40.5% / commit 12.0% 였다.
+        // 트랜잭션 관리 문장이 SELECT 보다 많아서, 이 값의 변화가 SQL 작업량 변화와 무관할 수 있다.
+        desc: '요청 1건이 만든 **문장** 수. SET·COMMIT 이 포함되므로 SQL 작업량이 아니다 — N+1 판단은 efficiency.selectPerReq 로 한다.',
+      },
+      {
+        // 요청이 SQL 실행을 기다린 **벽시계 시간**. CPU 도 행 수도 아닌, 사용자가 실제로
+        // 손해 본 시간이다. 캐시를 잃어 같은 행을 디스크에서 읽게 되면 CPU 와 행 수는
+        // 그대로인데 이 값만 오른다 — 그 경우를 잡는 유일한 지표다.
+        key: 'efficiency.dbTimeMsPerReq', label: '요청당 DB 시간',
+        query: `1000 * ${one(`sum(increase(http_server_query_time_seconds_sum{job="${APP_JOB}"}[$RANGE]))`)}`
+          + ` / clamp_min(${one(`sum(increase(http_server_query_time_seconds_count{job="${APP_JOB}"}[$RANGE]))`)}, 1)`,
+        reduce: 'max', unit: 'ms',
+        desc: '요청 1건이 SQL 실행에 쓴 벽시계 시간(ms). "DB 때문에 얼마나 손해 봤나"에 가장 직접 답한다. 앱이 요청 단위로 직접 잰 값이다(QueryCountFilter).',
+      },
+      {
+        key: 'efficiency.selectPerReq', label: '요청당 SELECT 수',
+        query: `${one('increase(mysql_global_status_commands_total{command="select"}[$RANGE])')} / ${REQS}`,
+        reduce: 'max', unit: 'count',
+        desc: '요청 1건이 만든 SELECT 수. 트랜잭션 관리 문장을 뺀 값이라 이것이 N+1 탐지기다.',
+      },
+      {
+        key: 'efficiency.rowsPerReq', label: '요청당 읽은 행',
+        query: `${one('increase(mysql_global_status_innodb_row_ops_total{operation="read"}[$RANGE])')} / ${REQS}`,
+        reduce: 'max', unit: 'count',
+        desc: '요청 1건에 InnoDB 가 읽은 행 수. 쿼리를 어떻게 쪼갰든 무관한 "일의 총량"이다.',
+      },
+      {
+        key: 'efficiency.rowsPerSelect', label: 'SELECT당 읽은 행',
+        query: `${one('increase(mysql_global_status_innodb_row_ops_total{operation="read"}[$RANGE])')}`
+          + ` / clamp_min(${one('increase(mysql_global_status_commands_total{command="select"}[$RANGE])')}, 1)`,
+        reduce: 'max', unit: 'count',
+        desc: 'SELECT 1건이 읽은 행 수. 요청당 SELECT 는 그대로인데 이 값만 오르면 쿼리가 풀스캔으로 바뀐 것이다.',
+      },
+      {
+        // 캐시를 잃었을 때의 진짜 대가. 버퍼풀에 다 들어가는 데이터셋에서는 0 이 나오는데,
+        // 그건 "미스가 없다"가 아니라 "미스가 메모리에서 끝난다"는 뜻이다. 그 상태에서는
+        // 캐시 상실 실험이 실제 비용을 재지 못한다(mysql.bufferPoolHitPct 와 같이 본다).
+        key: 'efficiency.diskReadPerReq', label: '요청당 디스크 읽기',
+        query: `${onePerContainer(`increase(container_fs_reads_bytes_total{name="${DB}"}[$RANGE])`)} / ${REQS}`,
+        reduce: 'max', unit: 'bytes',
+        desc: '요청 1건이 DB 디스크에서 읽은 바이트. 버퍼풀 미스가 실제로 디스크까지 내려갔는지를 본다.',
       },
       {
         key: 'efficiency.ctxSwitchPerReq', label: '요청당 컨텍스트 스위치',
