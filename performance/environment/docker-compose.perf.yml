@@ -19,8 +19,23 @@ services:
     # 기본값으로 기동한다 — buffer pool 128MB, slow log OFF, max_connections 151 등
     # 전부 의도한 값이 아니게 된다(경고만 뜨고 실패하지 않아 눈치채기 어렵다).
     # CLI 플래그는 이 검사 대상이 아니므로 호스트 OS와 무관하게 항상 적용된다.
+    # ── 버퍼풀을 데이터셋보다 작게 잡는다 ──────────────────────────────────────
+    # 예전 값은 1G 였다. medium 데이터셋의 데이터+인덱스가 85.2MB(데이터 48.4 + 인덱스 36.8)
+    # 이므로 12.0배였고, DB 전체가 메모리에 들어가 버퍼풀 적중률이 정확히 100.00%, DB 컨테이너
+    # 디스크 읽기가 0 B/s 였다. 그 상태에서는 캐시(Redis) 상실 실험이 **가장 비싼 부분을 아예
+    # 재지 못한다** — 운영에서 캐시 미스가 비싼 이유는 디스크 I/O 인데 여기서는 그 값이 0 이다.
+    #
+    # 64M 은 85.2MB 의 75% 다. pre 구간 적중률이 98~99.5% 로 내려오는지를 보고 판정하며,
+    # 99.9% 위로 남으면 32M(38%)까지 내린다. 24M(28%) 아래로는 가지 않는다 — 모든 쿼리가
+    # 디스크로 가면 기준선 자체가 느려져 캐시 유무의 차이가 실행 간 변동폭에 묻힌다.
+    #
+    # chunk-size 를 같이 내리는 이유: MySQL 은 버퍼풀을 chunk_size × instances 의 배수로만
+    # 받는다. 기본값이 128M × 8 = 1024M 라, chunk 를 안 내리면 64M 을 줘도 1G 로 올림된다
+    # (예전 값이 정확히 1G 였던 것이 우연이 아니다). 버퍼풀이 1G 미만이면 instances 는
+    # MySQL 이 자동으로 1 로 맞추므로 64 ÷ 16 = 4 청크가 된다.
     command:
-      - --innodb-buffer-pool-size=1G
+      - --innodb-buffer-pool-size=64M
+      - --innodb-buffer-pool-chunk-size=16M
       - --innodb-log-buffer-size=32M
       - --max-connections=200
       - --innodb-flush-log-at-trx-commit=1
@@ -48,9 +63,22 @@ services:
       - "127.0.0.1:${MYSQL_HOST_PORT:-13316}:3306"   # 로컬 MySQL(3306)과 충돌 방지용 기본 포트
     volumes:
       - perf-mysql-data:/var/lib/mysql
+    # ── 메모리를 낮춰 페이지 캐시를 압박한다 ──────────────────────────────────
+    # 예전 값은 2g 였다. 그 상태에서는 버퍼풀을 1G 에서 64M 로 줄여 적중률이 100.00% 에서
+    # 99.6% 로 내려왔는데도 **요청당 디스크 읽기가 세 구간 모두 0 B** 였다. 버퍼풀 미스가
+    # 호스트 페이지 캐시에서 끝나 블록 읽기까지 가지 않았기 때문이다. 그러면 캐시(Redis)를
+    # 잃었을 때의 가장 비싼 부분(디스크 I/O)을 구조적으로 못 잰다.
+    #
+    # 512m 인 근거: 실측으로 이 컨테이너가 538MiB 를 쓰고 있었고 그중 버퍼풀이 64MB 다.
+    # 나머지 약 474MB 가 mysqld 프로세스와 페이지 캐시이며, medium 데이터셋의
+    # 데이터+인덱스 85.2MB 가 거기에 통째로 들어간다. 512m 로 낮추면 프로세스 약 250MB 와
+    # 버퍼풀 64MB 를 뺀 페이지 캐시 여유가 약 200MB 라 아직 다 담길 수 있다 — 그때는
+    # 384m 로 한 단계 더 내린다. 그 아래로는 mysqld 가 OOM kill 될 위험이 있다.
+    #
+    # 판정: efficiency.diskReadPerReq 가 0 을 벗어나야 이 변경이 목적을 달성한 것이다.
     deploy:
       resources:
-        limits: { cpus: "2.0", memory: 2g }
+        limits: { cpus: "2.0", memory: 512m }
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-perfroot}"]
       interval: 10s
@@ -129,11 +157,39 @@ services:
         -Xlog:gc*:file=/tmp/gc.log:time,uptime:filecount=5,filesize=20m
         -XX:StartFlightRecording=disk=true,maxsize=200m,dumponexit=true,filename=/tmp/perf.jfr
         -Djava.rmi.server.hostname=localhost
-      # HikariCP 풀 크기 — 실험용 노브(EXP-006). 기본값 10 은 HikariCP 자체 기본값과
-      # 같으므로, 이 변수를 지정하지 않으면 지금까지의 모든 실행과 동일하게 돈다.
+      # HikariCP 풀 크기 — 실험용 노브(EXP-006).
       # minimumIdle 은 지정하지 않는다 — HikariCP 기본값이 maximumPoolSize 와 같아
       # 고정 크기 풀이 되고, 그래야 "실행 중 풀이 자라는" 변수가 생기지 않는다.
-      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: ${HIKARI_MAX:-10}
+      #
+      # 기본값을 10 에서 40 으로 올렸다. 10 은 HikariCP 자체 기본값이라 지금까지의 실행이
+      # 전부 그 값으로 돌았는데, DB 를 실제로 힘들게 하는 도착률에서는 그 전에 풀이 막힌다.
+      # 근거: redis-crash-2026-09-11T06-37-20 에서 도착률 4/s 일 때 MySQL CPU 가
+      # 0.0904코어 / 한계 2.00코어 = 4.5% 였고 활성 커넥션은 최대 2개였다. 활성이 선형으로
+      # 는다면 풀 10 에 닿는 도착률은 4 × (10 ÷ 2) = 20/s 이고, MySQL CPU 50% 에 필요한
+      # 도착률 4 × (50 ÷ 4.5) = 44/s 에는 활성 2 × 11 = 22개가 필요하다. 즉 풀이 먼저 막혀
+      # 병목이 DB 가 아니라 풀이 되고, 캐시 유무의 차이가 커넥션 대기에 가려진다.
+      #
+      # 40 인 근거: MySQL max-connections 가 200 이고 앱 인스턴스가 하나이므로 20% 다.
+      # 남은 160 은 exporter·헬스체크·수동 접속용이다.
+      #
+      # 이 값을 바꾸면 tools/preflight.js 의 DEFAULT_HIKARI_MAX 도 같이 바꿔야 한다.
+      # preflight 가 그 값으로 "컨테이너가 기대한 설정으로 떠 있나"를 검사한다.
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: ${HIKARI_MAX:-40}
+      # Tomcat 워커 스레드 상한 — 실험용 노브. application.properties 의 400 을 덮는다.
+      # 그 파일은 dev·prod 에도 걸리므로 여기서 perf 에만 건다.
+      #
+      # 400 으로는 연쇄 실패가 원리상 안 나온다. 실측으로 Redis 장애 중 요청당 추가 대기가
+      # 평균 0.2초이고 도착률이 15.4 req/s 이므로, 대기로 붙잡히는 스레드는
+      # 15.4 × 0.2 = 3.1개다(상한의 0.8%, 실측 tomcatBusy.max 도 2~3). 400개를 채우려면
+      # 도착률이 400 ÷ 0.2 = 2,000 req/s 여야 하는데 현재의 130배다.
+      #
+      # 50 인 근거: 앱 CPU 를 8코어로 올려 도달 가능해지는 약 169 req/s 에서
+      # 169 × 0.2 = 34개, 상한의 68% 다. 여기에 캐시 미스가 겹치면 고갈까지 간다.
+      # 2코어급 인스턴스의 운영 값으로도 400 보다 50~100 이 현실에 가깝다.
+      #
+      # min-spare 가 50 이므로 max 도 50 이면 고정 크기 풀이 된다 — Hikari 와 같은 이유로,
+      # "실행 중 풀이 자라는" 변수를 없애려는 것이다.
+      SERVER_TOMCAT_THREADS_MAX: ${TOMCAT_MAX:-50}
       # Micrometer Prometheus 노출 (environment/README.md 사전 준비 참고)
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,prometheus,metrics
       MANAGEMENT_PROMETHEUS_METRICS_EXPORT_ENABLED: "true"
@@ -148,7 +204,20 @@ services:
         # 그 결과 실행 71건 중 43건이 메모리 포화 100% 로 기록돼, 포화도 지표가 항상
         # 빨간색이라 신호로서 죽어 있었다. 힙을 줄이지 않고 한계를 올린 이유는
         # "힙 고정으로 측정 노이즈를 없앤다"는 이 환경의 원칙을 유지하기 위해서다.
-        limits: { cpus: "2.0", memory: 2560m }
+        # ── CPU 를 8코어로 올린다 ────────────────────────────────────────────
+        # 예전 값은 2.0 이었고, 그 상태에서는 **앱이 먼저 막혀 DB 가 바빠질 기회가 없다.**
+        # 실측: 도착률 4 it/s 에서 앱이 0.72코어(한계의 35.9%), MySQL 은 0.089코어(한계
+        # 2.0 의 4.4%) 였다. 앱이 MySQL 보다 CPU 를 8배 쓴다. preflight.js 의 2026-08-20
+        # 보정도 5 it/s 에서 앱 CPU 97% · 대기 65 · 도달률 77% 로 절벽을 기록했다.
+        #
+        # 8 인 근거: 8 ÷ 0.72 × 4 = 약 44 it/s 까지 열린다. 그 도착률에서 MySQL 은
+        # 0.089 × 11 = 0.98코어, 한계 2.0 대비 49% 다 — 캐시 상실이 DB 를 실제로 밀어붙이는
+        # 지점이 그 근처에 있다. 호스트가 20코어이므로 앱 8 + MySQL 2 + Redis 1 + k6 를
+        # 합쳐도 여유가 있다.
+        #
+        # 메모리는 그대로 둔다. 힙을 -Xmx1g 로 고정해 측정 노이즈를 없앤다는 이 환경의
+        # 원칙과 그 한계 산정 근거(위 주석)가 CPU 변경과 무관하기 때문이다.
+        limits: { cpus: "8.0", memory: 2560m }
 
   prometheus:
     image: prom/prometheus:v2.51.0

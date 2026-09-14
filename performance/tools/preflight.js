@@ -75,13 +75,22 @@ const MEASURE_SPEC = {
     slow_query_log: 1,
     performance_schema: 1,
   },
-  appNanoCpus: 2e9,                // cpus: "2.0"
+  // docker-compose.perf.yml 의 deploy.resources.limits 와 같은 값이어야 한다. 어긋나면
+  // 정상 기동을 설정 불일치로 보고한다.
+  appNanoCpus: 8e9,                // cpus: "8.0" — 앱이 먼저 막혀 DB 가 바빠질 기회가 없었다
   appMemBytes: 2560 * 1024 * 1024, // memory: 2560m
   mysqlNanoCpus: 2e9,              // cpus: "2.0"
+  mysqlMemBytes: 512 * 1024 * 1024, // memory: 512m — 페이지 캐시를 압박해 미스가 디스크까지 가게 한다
 };
 
-/** HikariCP 최대 커넥션. 풀 크기는 EXP-006 의 실험 변수라 `.env.perf` 로 조절한다. */
-const DEFAULT_HIKARI_MAX = 10;
+/**
+ * HikariCP 최대 커넥션. 풀 크기는 EXP-006 의 실험 변수라 `.env.perf` 로 조절한다.
+ *
+ * `docker-compose.perf.yml` 의 `${HIKARI_MAX:-40}` 과 같은 값이어야 한다 — 이 상수는
+ * "컨테이너가 기대한 설정으로 떠 있나"를 검사하는 기준값이라, 둘이 어긋나면 정상 기동을
+ * 설정 불일치로 보고한다.
+ */
+const DEFAULT_HIKARI_MAX = 40;
 
 /**
  * 판정용 측정의 안전 운용점. 2026-08-20 보정 곡선(S-27)에서 4/s 는 CPU 52%·대기 0·
@@ -307,6 +316,10 @@ const GATES = [
       limit('앱 CPU', f.appLimits && f.appLimits.nanoCpus, MEASURE_SPEC.appNanoCpus, cores);
       limit('앱 메모리', f.appLimits && f.appLimits.memBytes, MEASURE_SPEC.appMemBytes, mib);
       limit('MySQL CPU', f.mysqlLimits && f.mysqlLimits.nanoCpus, MEASURE_SPEC.mysqlNanoCpus, cores);
+      // MySQL 메모리는 이 환경의 실험 변수다. 이 값이 데이터셋보다 크면 버퍼풀 미스가
+      // 페이지 캐시에서 끝나 디스크까지 가지 않고, 그러면 캐시 상실 실험이 가장 비싼
+      // 부분을 못 잰다(실측: 2g 일 때 요청당 디스크 읽기가 세 구간 모두 0 B).
+      limit('MySQL 메모리', f.mysqlLimits && f.mysqlLimits.memBytes, MEASURE_SPEC.mysqlMemBytes, mib);
 
       const pool = f.live.hikariMax;
       lines.push(`HikariCP 최대 ${num(pool)}`);
