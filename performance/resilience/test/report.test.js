@@ -327,29 +327,74 @@ test('요약 그리드: 불변식을 안 고른 계획은 "안 쟀다" 로 남�
 test('폴백 계측이 없는 옛 실행은 "0 번 돌았다"가 아니라 "모른다"로 남는다', () => {
   const html = renderReport(sampleRecord(), { siblings: [] });
   // sampleRecord 에는 redisFallbacks 도 contentChecks 도 없다 — 계측을 넣기 전 실행을 흉내낸다.
-  assert.match(html, /Redis 폴백 카운터를 읽지 못했다/);
-  assert.match(html, /"폴백이 0 번 돌았다"는 뜻이 아니다/);
-  assert.match(html, /응답 내용 검사 결과가 없다/);
+  assert.match(html, /Redis 폴백 카운터 미수집/);
+  assert.match(html, /폴백 0 회를 뜻하지 않는다/);
+  assert.match(html, /응답 내용 검사 미실시/);
 });
 
-test('폴백이 fault 구간에만 돌았으면 메서드별 건수가 표에 나온다', () => {
-  const rec = sampleRecord();
+/** 폴백이 돈 실행을 흉내낸다. 세 구간 모두 같은 메서드 목록을 갖되 fault 만 값이 있다. */
+function withFallbacks(rec) {
+  const methods = (fault) => Object.entries(fault).map(([method, count]) => ({ method, count }));
+  const zero = {
+    'RedisHotPostRanking.topPostIds': 0,
+    'RedisPostsCache.getPostPrevs': 0,
+    'RedisViewCountStore.tryMarkViewed': 0,
+    'RedisViewCountStore.incrementCount': 0,
+  };
   rec.faultMetrics.redisFallbacks = {
-    pre: { items: [], zeroMethods: 4, total: 0 },
+    pre: { items: methods(zero), fired: 0, total: 0 },
     fault: {
-      items: [
-        { method: 'RedisViewCountStore.incrementCount', count: 312 },
-        { method: 'RedisHotPostRanking.topPostIds', count: 98 },
-      ],
-      zeroMethods: 2,
+      items: methods({
+        'RedisHotPostRanking.topPostIds': 98,
+        'RedisPostsCache.getPostPrevs': 0,
+        'RedisViewCountStore.tryMarkViewed': 312,
+        'RedisViewCountStore.incrementCount': 0,
+      }),
+      fired: 2,
       total: 410,
     },
-    post: { items: [], zeroMethods: 4, total: 0 },
+    post: { items: methods(zero), fired: 0, total: 0 },
   };
-  const html = renderReport(rec, { siblings: [] });
-  assert.match(html, /RedisViewCountStore\.incrementCount/);
+  return rec;
+}
+
+test('폴백 발동 표는 0 인 메서드도 행으로 남긴다 — 안 돈 폴백이 사라지면 대조할 것이 없다', () => {
+  const html = renderReport(withFallbacks(sampleRecord()), { siblings: [] });
+  assert.match(html, /RedisViewCountStore\.tryMarkViewed/);
   assert.match(html, /312/);
   assert.match(html, /410/, '구간 합계가 보여야 "몇 번 삼켰나"에 답이 된다');
+  assert.match(html, /RedisPostsCache\.getPostPrevs/,
+    'fault 구간에 한 번도 안 돈 메서드가 행에서 사라지면 "경로를 안 밟았나"와 "예외가 안 잡혔나"를 못 가른다');
+  assert.match(html, /발동한 메서드 수/);
+  assert.match(html, /<b>2<\/b> \/ 4개/,
+    '메서드가 십수 개면 행을 세지 않는다 — 몇 개가 돌았는지를 표가 직접 적어야 한다');
+});
+
+test('경로 표는 메서드 이름과 검사 이름을 한 줄로 잇는다 — 독자가 코드로 연결하지 않아도 된다', () => {
+  const rec = withFallbacks(sampleRecord());
+  rec.k6.contentChecks = {
+    hot_daily_nonempty: {
+      pre: { total: 120, passes: 120, fails: 0, rate: 1 },
+      fault: { total: 60, passes: 60, fails: 0, rate: 1 },
+      post: { total: 110, passes: 110, fails: 0, rate: 1 },
+    },
+  };
+  const html = renderReport(rec, { siblings: [] });
+  const start = html.indexOf('<h2>7.');
+  const sec = html.slice(start, html.indexOf('7-2.', start));
+
+  assert.match(sec, /인기글/);
+  assert.match(sec, /98회/, '그 경로의 메서드 발동 합이 경로 행에 나와야 한다');
+  assert.match(sec, /60건 전부 채워짐/, '같은 행에서 응답 내용까지 읽혀야 한다');
+  // 게시글 상세는 메서드 둘 중 tryMarkViewed 만 돌고 incrementCount 는 0 이다. 합계만
+  // 내면 그 0 이 묻히는데, 그 0 이 바로 조회수가 사라진 자리다.
+  assert.match(sec, /메서드 2개 중 <b>1개 발동<\/b>, 1개 안 돎/,
+    '경로 안에서 몇 개가 돌고 몇 개가 안 돌았는지 적혀야 한다');
+  assert.match(sec, /incrementCount <b>0<\/b>/, '안 돈 메서드의 이름과 0 이 같이 보여야 한다');
+  // 폴백이 동작한 것과 손실이 없는 것은 다르다. 그 차이를 어디서 보는지까지 적혀야 한다.
+  assert.match(sec, /viewcount-conservation/,
+    '조회수 유실은 이 절 표로는 안 보이므로, 어느 절을 봐야 하는지 적혀 있어야 한다');
+  assert.match(sec, /대조군/, 'Redis 를 안 쓰는 경로가 있어야 폭발 반경이 경계를 넘었는지 읽힌다');
 });
 
 test('내용 검사가 깨진 구간은 오류율 0% 여도 빈 응답 건수를 드러낸다', () => {
@@ -365,6 +410,132 @@ test('내용 검사가 깨진 구간은 오류율 0% 여도 빈 응답 건수를
   assert.match(html, /hot_daily_nonempty/);
   assert.match(html, /60건 빈 응답/, '200 인데 본문이 빈 응답 수가 그대로 보여야 한다');
   assert.match(html, /전부 채워짐/, 'pre 가 정상이어야 fault 의 실패를 폴백 탓으로 읽을 수 있다');
+});
+
+/**
+ * DB 부담 표에 값을 넣는다. 실제 수집 구조와 같은 모양이어야 한다 —
+ * infra[phase].groups[].metrics[] 의 각 항목이 {key, label, value, unit}.
+ */
+function withDbBurden(rec, over = {}) {
+  const base = {
+    'efficiency.dbTimeMsPerReq': [3.42, 4.20, 4.78],
+    'efficiency.dbCpuMsPerReq': [5.54, 5.95, 7.70],
+    'efficiency.rowsPerReq': [603.8, 716.4, 944.2],
+    'efficiency.selectPerReq': [6.16, 7.02, 7.41],
+    'efficiency.rowsPerSelect': [98.1, 102.0, 127.4],
+    // 실측(redis-crash-2026-09-14T04-11-01)과 같은 모양이다. 버퍼풀을 64MB 로 줄여
+    // 적중률이 99.6% 로 내려왔는데도 요청당 디스크 읽기는 세 구간 모두 0 이었다 —
+    // 미스는 나지만 호스트 페이지 캐시가 받아내 블록 읽기까지 가지 않는다.
+    'efficiency.diskReadPerReq': [0, 0, 0],
+    'mysql.bufferPoolHitPct': [99.6, 99.6, 99.6],
+    ...over,
+  };
+  const unit = (k) => (k.endsWith('MsPerReq') ? 'ms' : (k === 'mysql.bufferPoolHitPct' ? 'percent' : (k.endsWith('diskReadPerReq') ? 'bytes' : 'count')));
+  ['pre', 'fault', 'post'].forEach((p, i) => {
+    rec.infra = rec.infra || {};
+    rec.infra[p] = {
+      groups: [{
+        id: 'efficiency',
+        label: '효율',
+        metrics: Object.entries(base).map(([k, v]) => ({ key: k, label: k, value: v[i], unit: unit(k) })),
+      }],
+    };
+  });
+  return rec;
+}
+
+test('DB 부담 표는 요청당 값으로 pre 대비 변화율을 낸다', () => {
+  const html = renderReport(withDbBurden(sampleRecord()), { siblings: [] });
+  assert.match(html, /요청당 MySQL CPU/);
+  // 5.54 → 5.95 = (5.95-5.54)/5.54 = +7.4%
+  assert.match(html, /\+7\.4%/, 'pre 대비 변화율이 있어야 "얼마나 더 힘들어졌나"가 읽힌다');
+  assert.match(html, /SELECT당 읽은 행/);
+});
+
+test('요청당 DB 시간은 구성을 표준화한 값을 기준으로 보이고, 단순 평균과 다르면 경고한다', () => {
+  const rec = withDbBurden(sampleRecord());
+  // 두 엔드포인트 모두 느려졌지만 비싼 쪽(search)의 비중이 줄어 단순 평균은 내려간 상태.
+  rec.faultMetrics.dbTime = {
+    pre: {
+      requests: 1000, rawMsPerReq: 16.4, standardizedMsPerReq: 16.4, mixWeightCovered: 1,
+      byUri: { '/cheap': { count: 800, msPerReq: 2 }, '/search': { count: 200, msPerReq: 74 } },
+    },
+    fault: {
+      requests: 1000, rawMsPerReq: 5.46, standardizedMsPerReq: 18.6, mixWeightCovered: 1,
+      byUri: { '/cheap': { count: 980, msPerReq: 4 }, '/search': { count: 20, msPerReq: 77 } },
+    },
+  };
+  const html = renderReport(rec, { siblings: [] });
+
+  assert.match(html, /pre 구성으로 표준화/);
+  assert.match(html, /18\.60ms/, '표준화한 값이 기준이므로 그대로 보여야 한다');
+  assert.match(html, /5\.46ms/, '단순 평균도 같이 보여야 둘이 다르다는 사실이 드러난다');
+  assert.match(html, /구간 간 요청 구성이 다르므로/,
+    '두 값이 벌어지면 어느 쪽으로 읽어야 하는지 표가 직접 말해야 한다');
+  // 16.4 → 18.6 = +13.4%
+  assert.match(html, /\+13\.4%/);
+  assert.match(html, /\/search/, '어느 엔드포인트가 얼마나 느려졌는지도 같이 보여야 한다');
+});
+
+test('지연 증가를 DB 몫과 DB 밖 몫으로 가르고, DB 밖이 지배하면 그렇게 말한다', () => {
+  const rec = withDbBurden(sampleRecord());
+  // 2026-09-14 실행의 /api/posts/{postId}: 서버 7.1 → 108.5ms 인데 DB 는 2.7 → 2.6ms.
+  rec.faultMetrics.dbTime = {
+    pre: {
+      requests: 1000, rawMsPerReq: 3.61, standardizedMsPerReq: 3.61, mixWeightCovered: 1,
+      byUri: { '/api/posts/{postId}': { count: 900, msPerReq: 2.7, srvMsPerReq: 7.1 } },
+    },
+    fault: {
+      requests: 250, rawMsPerReq: 4.30, standardizedMsPerReq: 4.17, mixWeightCovered: 1,
+      byUri: { '/api/posts/{postId}': { count: 225, msPerReq: 2.6, srvMsPerReq: 108.5 } },
+    },
+  };
+  const html = renderReport(rec, { siblings: [] });
+
+  assert.match(html, /지연 증가의 출처/);
+  // 108.5 - 7.1 = +101.4ms, 그중 DB 는 2.6 - 2.7 = -0.10ms, 나머지 101.5ms 가 DB 밖
+  assert.match(html, /\+101\.4ms/);
+  assert.match(html, /\+101\.5ms/, 'DB 밖 몫이 뺄셈으로 그대로 나와야 한다');
+  assert.match(html, /지연 증가의 대부분이 DB 밖에서 발생했다/,
+    'DB 몫이 1% 도 안 되는데 "DB 에 무리가 갔다"로 읽히면 안 된다');
+});
+
+test('지연 증가가 DB 때문이면 DB 밖 경고를 띄우지 않는다', () => {
+  const rec = withDbBurden(sampleRecord());
+  rec.faultMetrics.dbTime = {
+    pre: {
+      requests: 1000, rawMsPerReq: 3.6, standardizedMsPerReq: 3.6, mixWeightCovered: 1,
+      byUri: { '/api/posts/{postId}': { count: 900, msPerReq: 3.0, srvMsPerReq: 7.0 } },
+    },
+    fault: {
+      requests: 250, rawMsPerReq: 50, standardizedMsPerReq: 50, mixWeightCovered: 1,
+      byUri: { '/api/posts/{postId}': { count: 225, msPerReq: 48.0, srvMsPerReq: 53.0 } },
+    },
+  };
+  const html = renderReport(rec, { siblings: [] });
+  // 53.0 - 7.0 = +46.0ms, 그중 DB 가 48.0 - 3.0 = +45.0ms (97.8%)
+  assert.match(html, /\+45\.00ms/);
+  assert.ok(!/지연 증가의 대부분이 DB 밖에서 발생했다/.test(html),
+    'DB 가 원인인 실행에까지 경고를 띄우면 진짜 경고가 무시된다');
+});
+
+test('버퍼풀에 데이터가 다 들어가면 "영향이 작다"가 아니라 "잴 수 없었다"로 경고한다', () => {
+  const html = renderReport(withDbBurden(sampleRecord()), { siblings: [] });
+  assert.match(html, /캐시 상실 비용을 측정하지 못한다/);
+  assert.match(html, /영향이 작다는 뜻이 아니라 <b>측정되지 않았다<\/b>/,
+    '적중률 100% · 디스크 읽기 0 이면 실험 조건이 결론을 못 내게 만든 것이다');
+});
+
+test('버퍼풀 미스가 디스크까지 내려가면 그 경고를 띄우지 않는다', () => {
+  const rec = withDbBurden(sampleRecord(), {
+    'mysql.bufferPoolHitPct': [98.7, 96.2, 98.1],
+    'efficiency.diskReadPerReq': [1200, 4800, 2100],
+  });
+  const html = renderReport(rec, { siblings: [] });
+  assert.ok(!/캐시 상실 비용을 측정하지 못한다/.test(html),
+    '디스크까지 내려간 실행에까지 경고를 띄우면 진짜 경고가 무시된다');
+  // 1200 → 4800 = +300%
+  assert.match(html, /\+300\.0%/);
 });
 
 test('인프라 원자료는 전부 접혀 있다 — 펼쳐 두면 포화도가 아래로 밀린다', () => {

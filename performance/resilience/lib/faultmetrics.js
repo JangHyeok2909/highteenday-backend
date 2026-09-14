@@ -134,9 +134,19 @@ async function collectServerOutcomes(prom, window) {
  * 세는 것은 **Redis 접근 실패를 흡수한 횟수**다. Redis 가 성공적으로 빈 결과를 준 뒤 호출자가
  * DB 를 다시 읽는 경로는 접근 실패가 아니므로 여기 안 잡힌다.
  *
+ * <h2>0 인 메서드도 행으로 남긴다</h2>
+ *
+ * 처음에는 0.5 미만을 버리고 개수만 셌다. 그러면 보고서에서 **폴백이 걸려 있는데 이 구간에
+ * 한 번도 안 돈 메서드**가 사라진다. 그 둘은 전혀 다른 상태다 — 부하가 그 경로를 아예 안
+ * 밟은 것일 수도 있고, 예외가 `DataAccessException` 이 아니라서 aspect 가 못 잡고 그대로
+ * 올라간 것일 수도 있다. 뒤쪽이면 HTTP 500 이 나갔을 것이므로 상태 코드 표와 대조해야 하는데,
+ * 행 자체가 없으면 대조할 것이 없다.
+ *
+ * `fired` 는 값이 0.5 이상인 행만 센다. `increase()` 가 구간 경계에서 소수를 내기 때문이다.
+ *
  * @param {PromClient} prom
  * @param {{to: Date, durationSec: number}} window 구간 창.
- * @returns {Promise<{items: {method: string, count: number}[], total: number}>}
+ * @returns {Promise<{items: {method: string, count: number}[], fired: number, total: number}>}
  */
 async function collectRedisFallbacks(prom, window) {
   const range = toRangeSelector(window.durationSec);
@@ -144,16 +154,111 @@ async function collectRedisFallbacks(prom, window) {
   const rows = await prom.series(query, window.to);
   const items = rows
     .map((r) => ({ method: r.labels.method || '?', count: r.value }))
-    // increase() 는 소수를 낸다. 0.5 미만은 구간 경계의 보간 잔여물이라 세지 않는다 —
-    // 위의 응답 조합 표와 같은 규칙을 쓴다.
     .filter((r) => Number.isFinite(r.count))
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => b.count - a.count || a.method.localeCompare(b.method));
   return {
-    items: items.filter((r) => r.count >= 0.5),
-    // 0 인 메서드도 "계측은 살아 있는데 폴백이 안 돌았다"는 정보다. 몇 개가 0 이었는지만 센다.
-    zeroMethods: items.filter((r) => r.count < 0.5).length,
+    items,
+    fired: items.filter((r) => r.count >= 0.5).length,
     total: items.reduce((s, r) => s + r.count, 0),
   };
+}
+
+/**
+ * 요청이 SQL 실행에 쓴 시간을, **요청 구성 변화를 뺀 값**으로 읽는다.
+ *
+ * <h2>왜 단순 평균으로는 못 읽는가 — 실측</h2>
+ *
+ * 2026-09-14 redis-crash 실행에서 요청당 DB 시간의 단순 평균이 pre 3.72ms → fault 3.49ms
+ * 로 <b>내려갔다</b>. 그런데 엔드포인트별로는 전부 올랐다 — `/api/hotposts/daily` 3.79 →
+ * 6.32ms, `/api/boards/{boardId}/posts` 0.89 → 2.55ms.
+ *
+ * 원인은 요청 구성이다. `/api/posts/search` 가 요청의 1.25% 에서 0.23% 로 줄었는데 이
+ * 엔드포인트는 요청당 DB 시간이 74.2ms 로 평균의 20배다. 1.02%p × 74.2ms = 0.76ms 가
+ * 평균에서 빠져, 실제 증가분 +0.49ms 를 덮고 부호를 뒤집었다. fault 구간이 60초뿐이라
+ * 검색 여정(전체의 4%)이 10건 남짓이어서 생기는 흔들림이다.
+ *
+ * <h2>표준화</h2>
+ *
+ * pre 구간의 요청 구성을 fault 의 엔드포인트별 시간에 적용한다. "구성이 pre 와 같았다면
+ * 요청당 DB 시간이 얼마였을까"를 계산하는 것이라, 남는 변화는 구성이 아니라 <b>엔드포인트가
+ * 실제로 느려진 몫</b>이다. 위 실행에서 이 값이 4.21ms 로 +13.2% 였다.
+ *
+ * 그 구간에 요청이 한 건도 없는 엔드포인트는 시간을 알 수 없으므로 가중치에서 빼고
+ * 나머지 비중으로 다시 정규화한다. 0 으로 채우면 없는 엔드포인트가 평균을 끌어내린다.
+ *
+ * @param {PromClient} prom
+ * @param {object} windows plans.phaseWindows() 의 결과.
+ * @returns {Promise<object>} 구간별 {rawMsPerReq, standardizedMsPerReq, requests, byUri}
+ */
+async function collectDbTime(prom, windows) {
+  const read = async (w) => {
+    const range = toRangeSelector(w.durationSec);
+    const job = `job="${APP_JOB}"`;
+    const sums = await prom.series(`sum by (uri) (increase(http_server_query_time_seconds_sum{${job}}[${range}]))`, w.to);
+    const cnts = await prom.series(`sum by (uri) (increase(http_server_query_time_seconds_count{${job}}[${range}]))`, w.to);
+    // 요청 전체가 걸린 시간. DB 시간을 빼면 DB **밖**에서 쓴 시간이 남는다 — 의존성이 멈췄을
+    // 때 그 차이가 곧 "실패를 확인하는 데 기다린 시간"이다. 헬스 폴러의 /actuator 는 뺀다.
+    const srvSums = await prom.series(`sum by (uri) (increase(http_server_requests_seconds_sum{${job},uri!~"/actuator.*"}[${range}]))`, w.to);
+    const srvCnts = await prom.series(`sum by (uri) (increase(http_server_requests_seconds_count{${job},uri!~"/actuator.*"}[${range}]))`, w.to);
+
+    const byUri = {};
+    for (const r of cnts) {
+      const uri = r.labels.uri || '?';
+      byUri[uri] = { count: r.value, sum: 0 };
+    }
+    for (const r of sums) {
+      const uri = r.labels.uri || '?';
+      if (byUri[uri]) byUri[uri].sum = r.value;
+    }
+    const srv = {};
+    for (const r of srvCnts) srv[r.labels.uri || '?'] = { count: r.value, sum: 0 };
+    for (const r of srvSums) if (srv[r.labels.uri || '?']) srv[r.labels.uri || '?'].sum = r.value;
+
+    let totalSum = 0;
+    let totalCount = 0;
+    for (const [uri, v] of Object.entries(byUri)) {
+      // increase() 의 구간 경계 보간 잔여물. 1건 미만은 평균을 흔들기만 한다.
+      if (!(v.count >= 1)) continue;
+      v.msPerReq = v.sum * 1000 / v.count;
+      const s = srv[uri];
+      if (s && s.count >= 1) {
+        v.srvMsPerReq = s.sum * 1000 / s.count;
+        // 음수가 나오는 경우가 있다 — 두 지표의 표본 수가 조금 다르고(필터를 지나는 요청과
+        // 쿼리를 실행한 요청), 구간 경계에서 한쪽만 잘리기 때문이다. 0 으로 접지 않고 그대로
+        // 둔다. 접으면 "DB 밖 시간이 거의 없다"가 계산 오차인지 사실인지 구분되지 않는다.
+        v.outsideDbMsPerReq = v.srvMsPerReq - v.msPerReq;
+      }
+      totalSum += v.sum;
+      totalCount += v.count;
+    }
+    return { byUri, requests: totalCount, rawMsPerReq: totalCount > 0 ? totalSum * 1000 / totalCount : null };
+  };
+
+  const out = {};
+  for (const name of PHASE_ORDER) {
+    if (!windows[name]) continue;
+    out[name] = await read(windows[name]);
+  }
+
+  const base = out.pre;
+  if (base && base.requests > 0) {
+    for (const name of PHASE_ORDER) {
+      const ph = out[name];
+      if (!ph) continue;
+      let weighted = 0;
+      let weight = 0;
+      for (const [uri, b] of Object.entries(base.byUri)) {
+        const here = ph.byUri[uri];
+        if (!(b.count >= 1) || !here || !(here.count >= 1)) continue;
+        const share = b.count / base.requests;
+        weighted += share * here.msPerReq;
+        weight += share;
+      }
+      ph.standardizedMsPerReq = weight > 0 ? weighted / weight : null;
+      ph.mixWeightCovered = weight;
+    }
+  }
+  return out;
 }
 
 /**
@@ -197,7 +302,13 @@ async function collectFaultMetrics(prom, windows) {
     }
     threads[name] = row;
   }
-  return { outcomes, threads, redisFallbacks, errors, specs: specs.map((s) => ({ key: s.key, label: s.label, desc: s.desc })) };
+  let dbTime = null;
+  try {
+    dbTime = await collectDbTime(prom, windows);
+  } catch (e) {
+    errors.push(`dbTime: ${e.message.slice(0, 160)}`);
+  }
+  return { outcomes, threads, redisFallbacks, dbTime, errors, specs: specs.map((s) => ({ key: s.key, label: s.label, desc: s.desc })) };
 }
 
-module.exports = { collectFaultMetrics, collectServerOutcomes, collectRedisFallbacks, threadStateSpecs, THREAD_STATES, TOP_OUTCOME_ROWS };
+module.exports = { collectFaultMetrics, collectServerOutcomes, collectRedisFallbacks, collectDbTime, threadStateSpecs, THREAD_STATES, TOP_OUTCOME_ROWS };
