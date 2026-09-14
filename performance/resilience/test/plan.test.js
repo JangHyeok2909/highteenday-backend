@@ -199,6 +199,55 @@ test('내용 검사 이름이 호출부·축 선언·읽는 쪽 세 곳에서 �
   assert.deepEqual(called, declared, '부하 스크립트가 부르는 이름과 선언한 축이 다르다');
 });
 
+/**
+ * 경로 카탈로그가 틀리면 보고서가 **조용히 거짓말을 한다** — 없는 검사 이름을 가리키면 그
+ * 경로가 영원히 "모름"으로 찍히고, 없는 메서드 이름을 가리키면 폴백이 돌았는데도 0 회로
+ * 보인다. 둘 다 에러를 안 내므로 실행을 끝내고 표를 봐야 알게 된다.
+ */
+test('폴백 경로 카탈로그의 검사 이름이 실제 선언된 축과 같다', () => {
+  const { PATHS } = require('../lib/fallback-paths');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scenarios', 'fault-window.js'), 'utf8');
+  const block = src.match(/CONTENT_CHECK_NAMES\s*=\s*\[([\s\S]*?)\]/);
+  const declared = new Set([...block[1].matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]));
+
+  for (const p of PATHS) {
+    assert.ok(declared.has(p.check), `경로 '${p.id}' 의 check '${p.check}' 가 선언된 축에 없다`);
+  }
+  assert.equal(PATHS.length, declared.size, '선언한 축마다 경로가 하나씩 있어야 표가 축을 빠뜨리지 않는다');
+});
+
+test('폴백 경로 카탈로그의 Redis 메서드가 실제 @ResilientRedis 메서드와 같다', () => {
+  const { PATHS } = require('../lib/fallback-paths');
+  const javaRoot = path.join(__dirname, '..', '..', '..', 'src', 'main', 'java');
+
+  // 앱이 내는 태그 값은 "<선언 클래스>.<메서드>" 다(ResilientRedisAspect). 소스에서 같은
+  // 규칙으로 뽑아 대조한다 — 리팩터링으로 클래스나 메서드 이름이 바뀌면 여기서 걸린다.
+  const declared = new Set();
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(full); continue; }
+      if (!e.name.endsWith('.java')) continue;
+      const src = fs.readFileSync(full, 'utf8');
+      const cls = e.name.replace(/\.java$/, '');
+      for (const m of src.matchAll(/@ResilientRedis[\s\S]{0,200}?\b(\w+)\s*\(/g)) {
+        if (m[1] !== 'Override') declared.add(`${cls}.${m[1]}`);
+      }
+      // AOP 를 안 쓰고 직접 세는 경로. 상수로 이름을 박아 두므로 그 문자열을 읽는다.
+      for (const m of src.matchAll(/"(\w+\.\w+)"/g)) {
+        if (src.includes('fallbackMetrics') && m[1].startsWith(cls + '.')) declared.add(m[1]);
+      }
+    }
+  };
+  walk(javaRoot);
+
+  const used = PATHS.flatMap((p) => p.redisMethods);
+  assert.ok(used.length > 0, '메서드를 하나도 안 가리키면 이 테스트가 아무것도 지키지 않는다');
+  for (const m of used) {
+    assert.ok(declared.has(m), `카탈로그가 가리키는 '${m}' 에 폴백이 걸려 있지 않다 (실제: ${[...declared].sort().join(', ')})`);
+  }
+});
+
 test('validatePlan: warmupSec 은 선택이지만 숫자가 아니면 잡는다', () => {
   // 예열이 조용히 꺼지는 것이 가장 나쁘다 — 캐시가 빈 채로 pre 를 재고도 그 사실이 안 남는다.
   assert.deepEqual(plan.validatePlan(basePlan({ phases: { warmupSec: 180, preSec: 60, faultSec: 60, postSec: 60 } })), []);

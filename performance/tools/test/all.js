@@ -43,4 +43,5 @@ require('../../resilience/test/report.test.js');
 require('../../resilience/test/appconfig.test.js');
 require('../../resilience/test/recovery.test.js');
 require('../../resilience/test/integrity.test.js');
+require('../../resilience/test/faultmetrics.test.js');
 require('../../resilience/test/faultrun.test.js');

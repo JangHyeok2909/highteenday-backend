@@ -38,6 +38,7 @@ const fmt = require('../../tools/lib/format');
 const { PHASE_ORDER, healthCause } = require('./plan');
 const recovery = require('./recovery');
 const invariants = require('./invariants');
+const { PATHS: FALLBACK_PATHS } = require('./fallback-paths');
 
 const esc = fmt.escapeHtml;
 const n = (v, d = 1) => (v == null || Number.isNaN(v) ? '—' : fmt.num(v, d));
@@ -270,7 +271,7 @@ function allSummary(all) {
   const cls = failed ? 'warn' : '';
   return `<div class="sub">전체 — 요청 ${n(all.httpReqs, 0)} · iteration ${n(all.iterations, 0)} · 오류율 ${pct(all.errorRate)} ·
     <span class="${cls}">check 통과율 ${rate} (실패 ${n(failed, 0)}건)</span> · 서버 대기 p95 ${ms(all.waitingP95Ms)} · 최대 VU ${n(all.vusMax, 0)}.
-    이 통과율은 상태 코드 검사와 내용 검사를 <b>합친</b> 값이고 대부분은 상태 코드 검사다 — 100% 라는 사실이 "내용도 정상"을 뜻하지는 않는다. 내용만 따로 본 결과는 <b>7-2 절</b>에 있다.</div>`;
+    이 통과율은 상태 코드 검사와 내용 검사를 <b>합친</b> 값이며 대부분이 상태 코드 검사다. 100% 가 내용의 정상을 뜻하지 않는다 — 내용만 본 결과는 <b>7-3 절</b>에 있다.</div>`;
 }
 
 /**
@@ -330,28 +331,130 @@ function redisFallbackTable(fm) {
   const rf = fm && fm.redisFallbacks;
   const collected = PHASE_ORDER.filter((p) => rf && rf[p]);
   if (!collected.length) {
-    return `<div class="sub warn">Redis 폴백 카운터를 읽지 못했다. 이 실행이 <code>redis.fallback</code> 계측을 넣기 전 앱 이미지로 돌았거나, 수집이 실패한 것이다 —
-    어느 쪽이든 <b>"폴백이 0 번 돌았다"는 뜻이 아니다</b>.</div>`;
+    return '<div class="sub warn">Redis 폴백 카운터 미수집. <b>폴백 0 회를 뜻하지 않는다.</b></div>';
   }
-  const methods = [...new Set(PHASE_ORDER.flatMap((p) => ((rf[p] && rf[p].items) || []).map((i) => i.method)))];
+  const methods = [...new Set(PHASE_ORDER.flatMap((p) => ((rf[p] && rf[p].items) || []).map((i) => i.method)))].sort();
   if (!methods.length) {
-    return `<div class="sub">세 구간 모두 폴백이 한 번도 돌지 않았다(계측은 살아 있다 — 0 인 메서드 ${n((rf[collected[0]] || {}).zeroMethods, 0)}개를 읽었다).
-    Redis 를 죽인 실행에서 이 값이 0 이면 앱이 그 구간에 Redis 를 아예 부르지 않았다는 뜻이므로, 부하가 그 경로를 밟았는지부터 확인한다.</div>`;
+    return '<div class="sub warn"><code>redis_fallback_total</code> 시계열 없음. 폴백 대상 메서드가 호출되지 않았거나 계측이 붙지 않은 것이다.</div>';
   }
   const rows = methods.map((method) => {
     const cells = PHASE_ORDER.map((p) => {
       if (!rf[p]) return `<td class="${p}">모름</td>`;
       const hit = (rf[p].items || []).find((i) => i.method === method);
       const c = hit ? hit.count : 0;
-      return `<td class="${p} ${c > 0 ? 'warn' : ''}">${c > 0 ? `<b>${n(c, 0)}</b>` : '0'}</td>`;
+      return `<td class="${p} ${c >= 0.5 ? 'warn' : ''}">${c >= 0.5 ? `<b>${n(c, 0)}</b>` : '0'}</td>`;
     }).join('');
     return `<tr><td><code>${esc(method)}</code></td>${cells}</tr>`;
   }).join('');
   const totals = PHASE_ORDER.map((p) => `<td class="${p}">${rf[p] ? n(rf[p].total, 0) : '모름'}</td>`).join('');
+  // "몇 개가 돌고 몇 개가 안 돌았나" 는 행을 세어 보면 나오지만, 메서드가 십수 개면 세지
+  // 않는다. 그 구간에 대한 답이므로 표가 직접 적는다.
+  const firedCounts = PHASE_ORDER.map((p) => {
+    if (!rf[p]) return `<td class="${p}">모름</td>`;
+    const all = (rf[p].items || []).length;
+    const fired = Number.isFinite(rf[p].fired)
+      ? rf[p].fired
+      : (rf[p].items || []).filter((i) => i.count >= 0.5).length;
+    return `<td class="${p} ${fired > 0 ? 'warn' : ''}"><b>${fired}</b> / ${all}개</td>`;
+  }).join('');
   return `<table><thead><tr><th>폴백을 건 메서드</th><th>pre</th><th>fault</th><th>post</th></tr></thead>
-  <tbody>${rows}<tr><td><b>합계</b></td>${totals}</tr></tbody></table>
-  <div class="sub">세는 것은 <b>Redis 접근 실패를 흡수한 횟수</b>다. Redis 가 성공적으로 빈 결과를 준 뒤 호출자가 DB 를 다시 읽는 경로는 접근 실패가 아니라서 여기 안 잡힌다.
-  pre 와 post 가 0 이고 fault 만 값이 있으면 폴백이 장애 구간에만 돌았다는 뜻이다. post 에 값이 남으면 Redis 가 살아난 뒤에도 앱이 계속 실패하고 있었던 것이다.</div>`;
+  <tbody>${rows}
+  <tr><td><b>발동한 메서드 수</b> <span class="sub">(계측된 메서드 중)</span></td>${firedCounts}</tr>
+  <tr><td><b>발동 횟수 합계</b></td>${totals}</tr></tbody></table>
+  <div class="sub">세는 값은 <b>Redis 접근 실패를 흡수한 횟수</b>다. Redis 가 빈 결과를 정상 반환한 뒤 호출자가 DB 를 다시 읽는 경로는 접근 실패가 아니므로 제외된다.
+  장애 구간의 0 은 두 경우다 — 부하가 그 경로를 밟지 않았거나, 예외가 <code>DataAccessException</code> 이 아니어서 aspect 가 잡지 못하고 전파된 것이다. 뒤쪽이면 <b>실패의 종류</b> 절에 5xx 가 나타난다.
+  분모는 계측된 메서드 수이며, 앱이 메서드 최초 호출 시점에 시계열을 만들므로 구간마다 다를 수 있다.</div>`;
+}
+
+/**
+ * 경로별로 본 폴백 — 이 절의 답이 되는 표.
+ *
+ * 아래 두 표는 서로 다른 이름을 쓴다. 발동 횟수 표는 자바 메서드 이름(`RedisHotPostRanking.
+ * topPostIds`)이고 내용 검사 표는 검사 이름(`hot_daily_nonempty`)이다. 둘이 같은 사용자
+ * 경로라는 것을 독자가 코드를 읽어 연결해야 했다. 그 연결을 `lib/fallback-paths.js` 에 적어
+ * 두고 여기서 한 줄로 편다.
+ *
+ * `costs` 열이 핵심이다. **폴백이 동작한 것과 손실이 없는 것은 다르다.** 게시글 상세가 그
+ * 예다 — 응답 본문은 DB 에서 다 채워져 나가 내용 검사를 통과하는데 조회수 증가는 사라진다.
+ * 그 손실은 이 절이 아니라 불변식 절이 잡으므로 어디를 봐야 하는지 같이 적는다.
+ */
+function fallbackPathTable(rec) {
+  const rf = (rec.faultMetrics && rec.faultMetrics.redisFallbacks) || {};
+  const cc = (rec.k6 && rec.k6.contentChecks) || {};
+  const fb = (rec.k6 && rec.k6.featureByPhase) || {};
+
+  /**
+   * 한 경로의 메서드들이 그 구간에 각각 몇 번 돌았는지.
+   *
+   * 합계만 내면 "메서드 둘 중 하나만 돌았다"가 보이지 않는다. 게시글 상세가 정확히 그
+   * 경우다 — `tryMarkViewed` 가 폴백으로 false 를 돌려주면 `incrementCount` 는 호출 자체가
+   * 안 되므로 0 으로 남는다. 그 0 이 조회수가 사라진 자리다.
+   */
+  const perMethod = (phase, methods) => {
+    if (!rf[phase]) return null;
+    const items = rf[phase].items || [];
+    const seen = methods.map((m) => {
+      const hit = items.find((i) => i.method === m);
+      return { method: m, count: hit ? hit.count : (items.length ? 0 : null) };
+    });
+    if (seen.every((s) => s.count == null)) return null;
+    return seen;
+  };
+
+  const rows = FALLBACK_PATHS.map((p) => {
+    const detail = p.redisMethods.length ? perMethod('fault', p.redisMethods) : null;
+    const fired = detail ? detail.filter((d) => d.count >= 0.5).length : 0;
+    const sum = detail ? detail.reduce((s, d) => s + (d.count || 0), 0) : 0;
+    const chk = (cc[p.check] || {}).fault;
+    const feat = (fb[p.feature] || {}).fault || {};
+
+    let firedCell;
+    if (!p.redisMethods.length) {
+      firedCell = '<span class="sub">Redis 미사용</span>';
+    } else if (!detail) {
+      firedCell = '모름';
+    } else {
+      const breakdown = detail
+        .map((d) => `${esc(d.method.split('.').pop())} <b>${n(d.count, 0)}</b>`)
+        .join(' · ');
+      firedCell = `${sum >= 0.5 ? `<b class="warn">${n(sum, 0)}회</b>` : '0회'}
+        <br><span class="sub">메서드 ${detail.length}개 중 <b>${fired}개 발동</b>, ${detail.length - fired}개 안 돎<br>${breakdown}</span>`;
+    }
+
+    let chkCell;
+    if (!chk || chk.total == null) chkCell = '모름';
+    else if (chk.total === 0) chkCell = '<span class="sub">표본 없음</span>';
+    else if (chk.fails > 0) chkCell = `<b class="warn">${n(chk.fails, 0)}/${n(chk.total, 0)}건 빈 응답</b>`;
+    else chkCell = `${n(chk.total, 0)}건 전부 채워짐`;
+
+    const errCell = feat.errorRate == null
+      ? '모름'
+      : `<span class="${feat.errorRate > 0.01 ? 'warn' : ''}">${pct(feat.errorRate)}</span>`;
+
+    // 손실이 이 절의 표에 안 나타나는 경로는 어디를 봐야 하는지까지 적는다. 그 문장이
+    // 없으면 "내용 전부 채워짐" 을 읽고 손실이 없다고 결론내게 된다.
+    const loss = p.lossShownBy
+      ? `<b class="warn">${esc(p.costs)}</b> — 응답은 채워져 나가므로 이 절의 표로는 안 보인다.
+         <b>데이터 정확성</b> 절의 <code>${esc(p.lossShownBy)}</code> 항목이 그 손실을 잡는다.`
+      : esc(p.costs);
+
+    return `<tr>
+      <td><b>${esc(p.label)}</b><br><span class="sub"><code>${esc(p.endpoint)}</code></span></td>
+      <td>${firedCell}</td><td>${chkCell}</td><td>${errCell}</td>
+      <td><span class="sub">${esc(p.fallback)}</span></td>
+      <td><span class="sub">${loss}</span></td>
+    </tr>`;
+  }).join('');
+
+  return `<table><thead><tr>
+    <th>사용자 경로</th><th>fault 구간 폴백 발동</th><th>fault 구간 응답 내용</th><th>fault 구간 오류율</th>
+    <th>폴백이 대신 하는 일</th><th>폴백이 포기하는 것</th>
+  </tr></thead><tbody>${rows}</tbody></table>
+  <div class="sub"><b>세 열을 조합해 읽는다.</b>
+  발동&gt;0 · 내용 채움 · 오류율 0 = 설계대로 동작. 오른쪽 끝 열의 대가는 별도로 치른다.
+  발동&gt;0 · 빈 응답 = 대체 경로가 값을 만들지 못함.
+  발동 0 · 오류율 상승 = 예외가 잡히지 않고 전파됨.
+  발동 0 · 오류율 0 = 그 구간에 Redis 를 호출하지 않음.</div>`;
 }
 
 /**
@@ -367,8 +470,7 @@ function redisFallbackTable(fm) {
 function contentCheckTable(cc) {
   const names = cc ? Object.keys(cc) : [];
   if (!names.length) {
-    return `<div class="sub warn">응답 내용 검사 결과가 없다 — 이 실행은 검사를 넣기 전 부하 스크립트로 돌았다.
-    <b>"내용이 정상이었다"는 뜻이 아니다.</b></div>`;
+    return '<div class="sub warn">응답 내용 검사 미실시. <b>내용이 정상이었음을 뜻하지 않는다.</b></div>';
   }
   const rows = names.map((name) => {
     const cells = PHASE_ORDER.map((p) => {
@@ -383,8 +485,195 @@ function contentCheckTable(cc) {
   }).join('');
   return `<table><thead><tr><th rowspan="2">검사</th><th colspan="2">pre</th><th colspan="2">fault</th><th colspan="2">post</th></tr>
   <tr><th>검사 수</th><th>결과</th><th>검사 수</th><th>결과</th><th>검사 수</th><th>결과</th></tr></thead><tbody>${rows}</tbody></table>
-  <div class="sub">검사는 <b>HTTP 200 인 응답에만</b> 건다. 200 이 아닌 실패는 오류율과 <b>실패의 종류</b> 절의 상태 코드 표가 이미 세므로, 여기서 또 세면 같은 실패가 두 번 계상된다.
-  그래서 "검사 수"는 그 구간의 전체 요청 수가 아니라 <b>200 으로 돌아온 그 엔드포인트의 요청 수</b>다.</div>`;
+  <div class="sub">검사 대상은 <b>HTTP 200 응답뿐</b>이다. 200 이 아닌 실패는 오류율과 <b>실패의 종류</b> 절이 센다.
+  따라서 "검사 수"는 그 엔드포인트가 200 으로 응답한 요청 수다.</div>`;
+}
+
+/**
+ * 폴백의 대가 — 캐시를 잃고 DB 가 더 한 일.
+ *
+ * 왜 따로 표를 만드는가. 자원 사용 절의 원자료에는 이 값들이 그룹별로 흩어져 있고, 그중
+ * `mysql.qps` 는 `SET autocommit` 과 `COMMIT` 을 포함한 **문장 수**라 SQL 작업량과 반대로
+ * 움직일 수 있다. 2026-09-11 redis-crash 실행이 그랬다 — 문장 수는 22% 줄었는데 SELECT 는
+ * 9.4% 늘었다. 그 표만 보면 "DB 가 덜 일했다"로 읽힌다.
+ *
+ * 여기 모은 값은 전부 **요청당**이다. 구간마다 요청 수가 다르면(그 실행은 pre 16.33 rps,
+ * fault 15.67 rps) 초당 값은 그대로 비교할 수 없다.
+ *
+ * 맨 아래 경고가 이 표의 절반이다. 버퍼풀이 데이터셋보다 크면 캐시 미스가 디스크까지 안
+ * 내려가고 메모리에서 끝난다. 그 상태에서는 캐시 상실의 가장 비싼 부분을 아예 못 재므로,
+ * 숫자가 작게 나온 것이 "영향이 작다"가 아니라 "잴 수 없었다"가 된다. 둘을 구분하지 않으면
+ * 실험 설계의 한계를 결론으로 착각한다.
+ */
+// 요청당 DB 시간은 여기 넣지 않는다. 단순 평균이라 요청 구성이 바뀌면 부호가 뒤집히므로,
+// 구성을 표준화한 dbTimeTable() 이 그 값을 소유한다. 같은 이름의 숫자가 두 표에 서로
+// 다르게 찍히면 읽는 사람이 어느 쪽을 믿어야 할지 알 수 없다.
+const DB_BURDEN_ROWS = [
+  { key: 'efficiency.dbCpuMsPerReq', label: '요청당 MySQL CPU', note: 'MySQL 이 태운 계산량' },
+  { key: 'efficiency.rowsPerReq', label: '요청당 읽은 행', note: '쿼리를 어떻게 쪼갰든 무관한 일의 총량' },
+  // 값이 한 자릿수라 정수로 반올림하면 "7 → 7 인데 +7.7%" 처럼 표와 변화율이 어긋나 보인다.
+  { key: 'efficiency.selectPerReq', label: '요청당 SELECT', note: '몇 조각으로 나눠 했나. N+1 은 여기서 보인다', decimals: 2 },
+  { key: 'efficiency.rowsPerSelect', label: 'SELECT당 읽은 행', note: '한 조각의 무게. 이것만 오르면 쿼리가 풀스캔으로 바뀐 것이다' },
+  { key: 'efficiency.diskReadPerReq', label: '요청당 디스크 읽기', note: '버퍼풀 미스가 디스크까지 내려간 양' },
+  { key: 'mysql.bufferPoolHitPct', label: '버퍼풀 적중률', note: '100.00% 면 데이터가 전부 메모리에 있다는 뜻이다' },
+];
+
+/**
+ * 요청당 DB 시간 — 요청 구성 변화를 뺀 값으로 읽는다.
+ *
+ * 단순 평균은 부호가 뒤집힐 수 있다. 2026-09-14 redis-crash 실행에서 평균이 3.72 → 3.49ms
+ * 로 내려갔는데 엔드포인트별로는 전부 올랐다. `/api/posts/search` 의 요청 비중이 1.25% 에서
+ * 0.23% 로 줄었고 그 엔드포인트가 요청당 74.2ms(평균의 20배)라, 1.02%p × 74.2ms = 0.76ms
+ * 가 평균에서 빠져 실제 증가분 +0.49ms 를 덮었다.
+ *
+ * 그래서 표준화한 값을 기준으로 삼고, 단순 평균은 옆에 둔다 — 둘이 다르면 그 차이 자체가
+ * "구성이 바뀌었다"는 정보다.
+ */
+function dbTimeTable(dbTime) {
+  if (!dbTime || !dbTime.pre) return '';
+  const phases = PHASE_ORDER.filter((p) => dbTime[p]);
+  const ms1 = (v) => (v == null ? '—' : `${v.toFixed(2)}ms`);
+  const rel = (v) => {
+    const base = dbTime.pre.standardizedMsPerReq != null ? dbTime.pre.standardizedMsPerReq : dbTime.pre.rawMsPerReq;
+    if (v == null || base == null || base <= 0) return '';
+    const d = (v - base) / base * 100;
+    return ` <span class="${Math.abs(d) >= 10 ? 'warn' : 'sub'}">${d >= 0 ? '+' : ''}${d.toFixed(1)}%</span>`;
+  };
+
+  const movers = Object.entries(dbTime.pre.byUri)
+    .filter(([uri, b]) => b.count >= 5 && dbTime.fault && dbTime.fault.byUri[uri] && dbTime.fault.byUri[uri].count >= 5)
+    .map(([uri, b]) => ({ uri, pre: b.msPerReq, fault: dbTime.fault.byUri[uri].msPerReq }))
+    .map((r) => ({ ...r, delta: r.fault - r.pre }))
+    .sort((a, b) => b.delta - a.delta)
+    .slice(0, 6);
+
+  const moverRows = movers.map((m) => `<tr><td><code>${esc(m.uri)}</code></td><td>${ms1(m.pre)}</td><td class="fault">${ms1(m.fault)}</td>`
+    + `<td class="${m.delta > 0 ? 'warn' : ''}">${m.delta >= 0 ? '+' : ''}${m.delta.toFixed(2)}ms</td></tr>`).join('');
+
+  const split = latencySplit(dbTime);
+
+  const mixGap = dbTime.fault && dbTime.fault.rawMsPerReq != null && dbTime.fault.standardizedMsPerReq != null
+    && Math.abs(dbTime.fault.rawMsPerReq - dbTime.fault.standardizedMsPerReq) / Math.max(dbTime.fault.standardizedMsPerReq, 0.01) >= 0.05;
+
+  return `<table><thead><tr><th>요청당 DB 시간</th>${phases.map((p) => `<th>${p}</th>`).join('')}</tr></thead><tbody>
+  <tr><td><b>pre 구성으로 표준화</b><br><span class="sub">요청 구성 차이를 제거한 값. <b>기준</b></span></td>
+    ${phases.map((p) => `<td class="${p}">${ms1(dbTime[p].standardizedMsPerReq)}${p === 'pre' ? '' : rel(dbTime[p].standardizedMsPerReq)}</td>`).join('')}</tr>
+  <tr><td>단순 평균<br><span class="sub">그 구간의 실제 요청 구성 기준</span></td>
+    ${phases.map((p) => `<td class="${p}">${ms1(dbTime[p].rawMsPerReq)}</td>`).join('')}</tr>
+  <tr><td>요청 수</td>${phases.map((p) => `<td class="${p}">${n(dbTime[p].requests, 0)}</td>`).join('')}</tr>
+  </tbody></table>
+  ${mixGap ? `<div class="sub warn">두 줄의 차이가 5% 를 넘는다. 구간 간 요청 구성이 다르므로 <b>표준화한 줄을 기준으로 읽는다.</b></div>` : ''}
+  ${moverRows ? `<div class="sub" style="margin-top:10px">엔드포인트별 요청당 DB 시간 (양쪽 구간에 5건 이상인 것만, 증가 순)</div>
+  <table><thead><tr><th>엔드포인트</th><th>pre</th><th>fault</th><th>차이</th></tr></thead><tbody>${moverRows}</tbody></table>` : ''}
+  ${split}`;
+}
+
+/**
+ * 지연 증가의 출처 — DB 몫과 DB 밖 몫으로 가른다.
+ *
+ * 이 절에서 가장 먼저 봐야 하는 표다. "의존성이 죽으면 DB 에 무리가 간다"는 흔한 전제인데,
+ * 그게 사실인지 아닌지를 숫자 하나로 가른다.
+ *
+ * 계산은 뺄셈 하나다. 요청이 걸린 서버 시간에서 그 요청이 SQL 실행에 쓴 시간을 뺀다.
+ * 남는 것이 DB 밖에서 쓴 시간이고, 의존성이 멈춘 구간에서 그 값이 커지면 원인은 DB 부하가
+ * 아니라 **실패를 확인하는 데 기다린 시간**이다.
+ *
+ * 2026-09-14 redis-crash 실행의 실측: `GET /api/posts/{postId}` 의 서버 시간이 7.1 →
+ * 108.5ms 로 +101.4ms 늘었는데 그중 DB 몫은 -0.11ms 였다. 같은 구간에 그 경로의 Redis
+ * 폴백이 요청 225건에 233회(요청당 1.04회) 돌았고 `redis.commandTimeout` 이 100ms 다.
+ * 즉 늘어난 101ms 는 Redis 호출 한 번이 실패를 확인하는 데 기다린 시간이다.
+ */
+function latencySplit(dbTime) {
+  if (!dbTime || !dbTime.pre || !dbTime.fault) return '';
+  const rows = Object.entries(dbTime.pre.byUri)
+    .filter(([uri, b]) => {
+      const f = dbTime.fault.byUri[uri];
+      return b.count >= 5 && b.srvMsPerReq != null && f && f.count >= 5 && f.srvMsPerReq != null;
+    })
+    .map(([uri, b]) => {
+      const f = dbTime.fault.byUri[uri];
+      const dSrv = f.srvMsPerReq - b.srvMsPerReq;
+      const dDb = f.msPerReq - b.msPerReq;
+      return { uri, preSrv: b.srvMsPerReq, faultSrv: f.srvMsPerReq, dSrv, dDb, dOut: dSrv - dDb };
+    })
+    .sort((a, b) => b.dSrv - a.dSrv)
+    .slice(0, 8);
+  if (!rows.length) return '';
+
+  // 비율을 정수로 반올림하면 0.1% 도 -0.4% 도 "0%"·"-0%" 로 찍혀, 값이 작다는 사실만 남고
+  // 부호가 뜻을 잃는다. 1% 미만은 숫자 대신 "1% 미만" 으로 적는다.
+  const shareText = (dDb, dSrv) => {
+    if (!(dSrv > 0.5)) return '';
+    const s = dDb / dSrv * 100;
+    return ` <span class="sub">(${Math.abs(s) < 1 ? '1% 미만' : `${s.toFixed(0)}%`})</span>`;
+  };
+
+  const body = rows.map((r) => `<tr><td><code>${esc(r.uri)}</code></td>
+      <td>${r.preSrv.toFixed(1)}ms</td><td class="fault">${r.faultSrv.toFixed(1)}ms</td>
+      <td class="${r.dSrv > 0 ? 'warn' : ''}">${r.dSrv >= 0 ? '+' : ''}${r.dSrv.toFixed(1)}ms</td>
+      <td>${r.dDb >= 0 ? '+' : ''}${r.dDb.toFixed(2)}ms${shareText(r.dDb, r.dSrv)}</td>
+      <td class="${r.dOut > 10 ? 'warn' : ''}">${r.dOut >= 0 ? '+' : ''}${r.dOut.toFixed(1)}ms</td></tr>`).join('');
+
+  const top = rows[0];
+  const dominatedByOutside = top.dSrv > 10 && top.dOut / top.dSrv > 0.8;
+
+  return `<div class="sub" style="margin-top:16px"><b>지연 증가의 출처 — DB 몫과 DB 밖 몫</b> (양쪽 구간에 5건 이상, 증가 순)</div>
+  <table><thead><tr><th>엔드포인트</th><th>pre 서버시간</th><th>fault 서버시간</th><th>증가분</th><th>그중 DB</th><th>DB 밖</th></tr></thead><tbody>${body}</tbody></table>
+  <div class="sub">"DB 밖" = 서버 시간 − SQL 실행 시간. 두 지표의 표본 수가 달라 작은 음수가 나올 수 있으며, 0 으로 접지 않는다.</div>
+  ${dominatedByOutside ? `<div class="warn" style="margin-top:10px"><b>지연 증가의 대부분이 DB 밖에서 발생했다.</b>
+  <code>${esc(top.uri)}</code> 의 증가분 ${top.dSrv.toFixed(1)}ms 중 DB 몫은 ${top.dDb.toFixed(2)}ms (${Math.abs(top.dDb / top.dSrv * 100) < 1 ? '1% 미만' : `${(top.dDb / top.dSrv * 100).toFixed(0)}%`}) 다.
+  원인은 <b>설정</b> 절의 타임아웃 값과 7-2 의 요청당 폴백 횟수를 곱해 대조한다.</div>` : ''}`;
+}
+
+function dbBurdenTable(infra) {
+  const phases = PHASE_ORDER.filter((p) => infra && infra[p]);
+  if (!phases.length) return '<p class="muted">인프라 지표 없음</p>';
+
+  const val = (phase, key) => {
+    for (const g of infra[phase].groups || []) {
+      for (const m of g.metrics || []) if (m.key === key) return m;
+    }
+    return null;
+  };
+
+  const rows = DB_BURDEN_ROWS.map((r) => {
+    const cells = phases.map((p) => {
+      const m = val(p, r.key);
+      if (!m || m.value == null) return `<td class="${p}">—</td>`;
+      const shown = r.decimals != null ? fmt.num(m.value, r.decimals) : fmt.byUnit(m.value, m.unit);
+      return `<td class="${p}">${esc(shown)}</td>`;
+    }).join('');
+    // 변화율은 이 실행의 pre 를 기준으로 낸다. 다른 실행이 기준이 아니다(README.md).
+    const pre = val('pre', r.key);
+    const fault = val('fault', r.key);
+    let delta = '—';
+    if (pre && fault && pre.value > 0 && fault.value != null) {
+      const pctChange = (fault.value - pre.value) / pre.value * 100;
+      delta = `<span class="${Math.abs(pctChange) >= 10 ? 'warn' : ''}">${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(1)}%</span>`;
+    } else if (pre && fault && pre.value === 0 && fault.value === 0) {
+      delta = '<span class="sub">둘 다 0</span>';
+    }
+    return `<tr><td>${esc(r.label)}<br><span class="sub">${esc(r.note)}</span></td>${cells}<td>${delta}</td></tr>`;
+  }).join('');
+
+  // 실험이 캐시 상실의 비용을 잴 수 있는 조건이었는지 판정한다.
+  // 판정 기준은 적중률이 아니라 **디스크 읽기가 0인가**다.
+  // 예전 조건은 `적중률 >= 99.99 && 디스크 읽기 == 0` 이었는데, 버퍼풀을 줄여 적중률이
+  // 99.6% 로 내려온 실행에서 경고가 꺼졌다. 그 실행도 요청당 디스크 읽기가 0 이었다 —
+  // 미스는 나지만 호스트 페이지 캐시가 받아내서 블록 읽기까지 가지 않은 것이다. 적중률로
+  // 재면 "미스가 생겼으니 측정됐다"로 읽히지만, 미스의 비용이 0 이면 여전히 못 잰 것이다.
+  const hit = val('pre', 'mysql.bufferPoolHitPct');
+  const diskPre = val('pre', 'efficiency.diskReadPerReq');
+  const diskFault = val('fault', 'efficiency.diskReadPerReq');
+  const blind = diskPre && diskFault && diskPre.value === 0 && diskFault.value === 0;
+
+  return `<table><thead><tr><th>요청당 지표</th>${phases.map((p) => `<th>${p}</th>`).join('')}<th>fault − pre</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="sub">전부 <b>요청당</b> 값이다 — 구간마다 요청 수가 다르면 초당 값은 비교할 수 없다.
+  <code>mysql.qps</code>(자원 사용 절)는 <code>SET autocommit</code>·<code>COMMIT</code> 을 포함한 문장 수라 SQL 작업량과 반대로 움직일 수 있어 제외한다.</div>
+  ${blind ? `<div class="warn" style="margin-top:10px"><b>이 실행은 캐시 상실 비용을 측정하지 못한다.</b>
+  요청당 디스크 읽기가 pre·fault 모두 0 B 다${hit && hit.value != null ? ` (pre 버퍼풀 적중률 ${esc(fmt.byUnit(hit.value, hit.unit))})` : ''} — 버퍼풀 미스가 블록 읽기까지 내려가지 않는다.
+  위 수치가 작은 것은 영향이 작다는 뜻이 아니라 <b>측정되지 않았다</b>는 뜻이다.
+  데이터가 호스트 메모리에 다 올라가 있으므로, 측정하려면 데이터셋을 키우거나 DB 컨테이너 메모리를 낮춘다.</div>` : ''}`;
 }
 
 /**
@@ -1087,15 +1376,21 @@ ${phaseTable(rec.k6.phases || {}, rec.k6.droppedIterations, plan.load, rec.k6.al
 
 <h2>6. 데이터 정확성 — 불변식 대조</h2>
 <div class="sub">오류율과 지연은 "얼마나 실패했나"에 답한다. 이 절은 <b>실패하지 않은 요청의 결과가 맞았나</b>에 답한다.
-Redis 호출 실패는 <code>ResilientRedisAspect</code> 가 삼키고 기본값을 돌려주므로, 데이터가 사라지는 동안에도 사용자는 HTTP 200 을 받고 오류율은 0 에 가깝다 — 이 표만으로는 폴백이 정상 동작했는지 알 수 없다 — 그 답은 바로 아래 7절에 있다.</div>
+Redis 호출 실패는 <code>ResilientRedisAspect</code> 가 삼키고 기본값을 반환하므로, 데이터가 사라지는 동안에도 응답은 HTTP 200 이고 오류율은 0 에 가깝다. 폴백 자체의 동작 여부는 7절이 답한다.</div>
 ${integrityTable(rec)}
 
-<h2>7. 폴백 — 돌긴 돌았나, 결과는 쓸 만했나</h2>
-<div class="sub">두 질문이 다르고, 답하는 표도 다르다. 위 표들은 <b>둘 다</b> 답하지 못한다 — 폴백은 예외를 삼키고 기본값을 돌려주므로 응답이 200 으로 나가서 오류율·상태 코드·지연 어디에도 흔적이 없다.</div>
-<h3 style="font-size:14px;margin:18px 0 4px">7-1. 폴백이 돌았나 — <code>redis_fallback_total</code></h3>
+<h2>7. 폴백 — 제대로 동작했나</h2>
+<div class="sub">폴백은 예외를 삼키고 기본값을 반환하므로 응답이 HTTP 200 으로 나간다. 오류율·상태 코드·지연 어디에도 흔적이 남지 않으므로 앞 절들로는 답할 수 없다.
+7-1 이 경로 단위 결론, 7-2·7-3 이 근거, 7-4 가 DB 가 추가로 한 일이다.</div>
+<h3 style="font-size:14px;margin:18px 0 4px">7-1. 경로별로 본 폴백</h3>
+${fallbackPathTable(rec)}
+<h3 style="font-size:14px;margin:18px 0 4px">7-2. 근거 ① 폴백 발동 횟수 — <code>redis_fallback_total</code></h3>
 ${redisFallbackTable(rec.faultMetrics)}
-<h3 style="font-size:14px;margin:18px 0 4px">7-2. 그 결과가 쓸 만했나 — 응답 내용 검사</h3>
+<h3 style="font-size:14px;margin:18px 0 4px">7-3. 근거 ② 응답 내용 검사</h3>
 ${contentCheckTable(rec.k6.contentChecks)}
+<h3 style="font-size:14px;margin:18px 0 4px">7-4. 폴백의 대가 — DB 가 더 한 일</h3>
+${dbTimeTable(rec.faultMetrics && rec.faultMetrics.dbTime)}
+${dbBurdenTable(rec.infra || {})}
 
 <h2>8. 실패 응답의 지연 분포</h2>
 ${failedLatencyTable(rec.k6.failedLatency || {}, rec.config)}
