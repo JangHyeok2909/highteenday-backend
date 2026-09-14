@@ -206,3 +206,35 @@ test('analyze: t0 나 구간 정보가 없으면 null 을 준다', () => {
   assert.equal(recovery.analyze({ series: {} }), null);
   assert.equal(recovery.analyze(rec({ plan: { phases: {} }, series: {} })), null);
 });
+
+// ---------------------------------------------------------------------------
+// 대역이 pre 의 변동 폭을 담는가 — 2026-09-14 redis-crash 에서 드러난 두 결함
+// ---------------------------------------------------------------------------
+
+test('대역은 pre 가 실제로 도달한 최악값까지 넓어진다', () => {
+  // 평시에 한 번이라도 찍힌 값은 정상이다. 중앙값 규칙만 쓰면 변동이 큰 지표에서
+  // 회복 시각이 실제보다 한참 뒤로 밀린다.
+  // 중앙값 100 · tolerance 1.2 · floor 50 이면 규칙상 상한은 150 이다.
+  assert.equal(recovery.bandLimit(100, SPEC), 150);
+  assert.equal(recovery.bandLimit(100, SPEC, 120), 150, 'pre 최악값이 규칙보다 낮으면 규칙을 쓴다');
+  assert.equal(recovery.bandLimit(100, SPEC, 180), 180, 'pre 가 180 까지 갔으면 180 도 정상이다');
+  // 일회성 튐 하나가 대역을 무한정 넓히면 장애의 영향이 대역에 묻힌다.
+  assert.equal(recovery.bandLimit(100, SPEC, 533), 200, '기준값의 2배까지만 인정한다');
+
+  const low = { ...SPEC, direction: 'lower', tolerance: 0.9, floor: 0.5 };
+  assert.equal(recovery.bandLimit(100, low), 90, '하한 지표는 작은 쪽이 대역 밖이다');
+  assert.equal(recovery.bandLimit(100, low, 60), 60, 'pre 가 60 까지 떨어졌으면 60 도 정상이다');
+  assert.equal(recovery.bandLimit(100, low, 10), 50, '하한 지표도 기준값의 1/2 까지만 인정한다');
+});
+
+test('pre 의 튐을 대역에 담으면 그 크기의 post 스파이크를 미회복으로 읽지 않는다', () => {
+  // pre 중간에 200ms 를 한 번 찍고 나머지는 100ms, fault 5000ms, post 는 정상인데 200ms 가 한 번.
+  // pre 최악값을 안 쓰면 그 200ms 가 대역(150) 밖이라 회복 시각이 뒤로 밀린다.
+  // 튐을 50초에 둔다 — warmupSkipSec(30초) 안에 두면 기준 표본에서 잘려 나가 이 검사가 무의미해진다.
+  const points = series([[100, 50], [200, 5], [100, 45], [5000, 60], [200, 5], [100, 100]]);
+  const r = recovery.recoveryOf(points, SPEC, MARKS, OPTS);
+  assert.equal(r.status, 'recovered');
+  assert.equal(r.limit, 200, 'pre 가 도달한 200 까지가 정상 대역이다');
+  assert.ok(r.recoverySec <= 5, `pre 와 같은 크기의 튐은 미회복이 아니다: ${r.recoverySec}초`);
+});
+
