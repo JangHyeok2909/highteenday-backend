@@ -1,21 +1,63 @@
 {
   "id": "redis-slow",
   "question": "Redis 가 살아 있는데 느려지면, 지금 걸린 명령 타임아웃이 정상 요청을 죽이기 시작하는 지점은 어디인가",
-  "requires": { "proxy": true },
-  "load": { "rate": 4, "preVus": 100, "maxVus": 1000 },
-  "phases": { "preSec": 300, "faultSec": 120, "postSec": 300 },
+  "requires": {
+    "proxy": true
+  },
+  "load": {
+    "rate": 4,
+    "preVus": 100,
+    "maxVus": 1000
+  },
+  "phases": {
+    "warmupSec": 180,
+    "preSec": 120,
+    "faultSec": 120,
+    "postSec": 120
+  },
   "inject": [
-    { "at": "fault.start", "tool": "toxiproxy", "action": "add", "proxy": "redis",
-      "toxic": { "name": "slow", "type": "latency", "stream": "downstream", "toxicity": 1.0, "attributes": { "latency": 50, "jitter": 10 } } },
-    { "at": "fault.end",   "tool": "toxiproxy", "action": "remove", "proxy": "redis", "toxicName": "slow" }
+    {
+      "at": "fault.start",
+      "tool": "toxiproxy",
+      "action": "add",
+      "proxy": "redis",
+      "toxic": {
+        "name": "slow",
+        "type": "latency",
+        "stream": "downstream",
+        "toxicity": 1,
+        "attributes": {
+          "latency": 50,
+          "jitter": 10
+        }
+      }
+    },
+    {
+      "at": "fault.end",
+      "tool": "toxiproxy",
+      "action": "remove",
+      "proxy": "redis",
+      "toxicName": "slow"
+    }
   ],
   "expect": [
-    "fault: 명령 지연이 평시 p99.9 0.79ms 에서 주입값 +50ms 근처로 올라간다. 주입값이 명령 타임아웃보다 작으므로 호출은 전부 성공해야 한다",
-    "fault: 조회수 유실 0. 유실이 나오면 그 주입값에서 이미 타임아웃이 터진 것이고, 그 값이 타임아웃 하한이다",
-    "fault: 오류율은 안 오른다. ResilientRedisAspect 가 실패를 삼키므로 타임아웃이 터져도 HTTP 오류로 안 나온다 — 유실 건수로만 드러난다",
-    "fault: 게시판 목록의 캐시 미스 경로는 요청 하나에 Redis 호출 100회(게시글 50개 x RPUSH+SET)라 주입값 x 100 만큼 느려진다. p95 가 다른 엔드포인트보다 크게 튈 것",
+    "fault: 명령 지연이 평시 p99.9 1ms 미만에서 주입값 + jitter 근처로 올라간다",
+    "fault: 주입값이 명령 타임아웃 100ms 보다 작으면 호출이 전부 성공한다. 폴백 0 회, 조회수 유실 0 건",
+    "fault: 요청 지연 증가분은 그 요청이 호출한 Redis 메서드 수 x 주입값이다. 타임아웃 때와 달리 호출은 성공한 채 느려진다",
+    "fault: 헬스체크는 UP 을 유지한다. 느려지는 장애는 /actuator/health 로 알아챌 수 없다",
     "post: toxic 을 걷으면 명령 지연이 바로 평시로 돌아온다. 안 돌아오면 Lettuce 연결이 상한 상태라는 뜻"
   ],
-  "integrity": { "probes": ["viewcount-conservation", "counter-drift"], "drainWaitSec": 90 },
-  "watch": ["redis.cmdLatencyP999Ms", "redis.cmdsPerRequest", "http.byFeature", "pool.tomcatBusy"]
+  "integrity": {
+    "probes": [
+      "viewcount-conservation",
+      "counter-drift"
+    ],
+    "drainWaitSec": 90
+  },
+  "watch": [
+    "redis.cmdLatencyP999Ms",
+    "redis.cmdsPerRequest",
+    "http.byFeature",
+    "pool.tomcatBusy"
+  ]
 }
