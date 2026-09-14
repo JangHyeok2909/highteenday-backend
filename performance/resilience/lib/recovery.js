@@ -72,11 +72,40 @@ function median(values) {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-/** 정상 대역의 경계값. 방향에 따라 상한이거나 하한이다. */
-function bandLimit(base, spec) {
-  return spec.direction === 'lower'
+/**
+ * pre 최악값을 대역으로 인정하는 상한 — 기준값의 몇 배까지인가.
+ *
+ * 2 인 근거: pre 의 자연스러운 변동은 기준값의 배수 안에 들어간다(실측 tomcatBusy 기준값
+ * 4.5 · 최악 8, mysqlThreadsRunning 기준값 6 · 최악 15). 그보다 큰 값은 변동이 아니라
+ * 램프업 같은 일회성 사건이고, 그걸 정상 대역으로 인정하면 장애의 영향이 대역에 묻힌다.
+ */
+const WORST_CAP = 2;
+
+/**
+ * 정상 대역의 경계값. 방향에 따라 상한이거나 하한이다.
+ *
+ * `preWorst` 는 pre 구간이 실제로 도달한 가장 나쁜 값이다. 대역은 그 값까지 넓힌다 —
+ * **평시에 한 번이라도 찍힌 값은 정상이다.** 이걸 안 쓰면 변동이 큰 지표에서 회복 시각이
+ * 실제보다 한참 뒤로 밀린다.
+ *
+ * 실측(redis-crash-2026-09-14T05-22-34): `tomcatBusy` 의 pre 표본이 `3,2,3,4,4,4` 라
+ * 중앙값 3.5, 대역 상한 5.5 였다. post 표본 43개 중 23개(53%)가 그 대역을 넘어
+ * 회복이 169.5초로 보고됐는데, 같은 구간의 응답 p95 는 35초에 이미 돌아와 있었다.
+ * post 의 초과값은 60초 주기 `ViewCountSync` 배치가 만든 것이고, pre 가 60초뿐이라
+ * 그 배치를 한 번밖에 못 겪어 대역이 그 변동을 담지 못했다.
+ */
+function bandLimit(base, spec, preWorst) {
+  const byRule = spec.direction === 'lower'
     ? Math.min(base * spec.tolerance, base - spec.floor)
     : Math.max(base * spec.tolerance, base + spec.floor);
+  if (!Number.isFinite(preWorst)) return byRule;
+  // pre 최악값을 그대로 쓰면 일회성 튐 하나가 대역을 무한정 넓힌다. 실측: p95 의 pre 기준값이
+  // 100ms 인데 첫 표본이 533ms 라(측정 k6 가 VU 700개를 새로 붙이는 램프업) 대역이 533ms 가
+  // 됐고, fault 의 239ms 가 "영향 없음" 으로 읽혔다. 기준값의 WORST_CAP 배까지만 인정한다.
+  const capped = spec.direction === 'lower'
+    ? Math.max(preWorst, base / WORST_CAP)
+    : Math.min(preWorst, base * WORST_CAP);
+  return spec.direction === 'lower' ? Math.min(byRule, capped) : Math.max(byRule, capped);
 }
 
 function inBand(v, limit, spec) {
@@ -121,7 +150,7 @@ function recoveryOf(points, spec, marks, opts) {
   const base = median(preUsed.map((p) => p.v));
   if (base == null) return { ...head, status: 'no-data', reason: 'pre 구간 표본이 없어 기준을 만들 수 없다' };
 
-  const limit = bandLimit(base, spec);
+  const limit = bandLimit(base, spec, worstOf(preUsed, spec));
   const after = rel.filter((p) => p.sec >= marks.faultStartSec);
   if (!after.length) return { ...head, status: 'no-data', base, limit, reason: '장애 시작 이후 표본이 없다' };
 
