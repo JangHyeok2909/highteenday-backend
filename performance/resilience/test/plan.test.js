@@ -303,3 +303,40 @@ test('faults/redis-slow.json 은 latency toxic 을 쓴다', () => {
   assert.equal(add.toxic.type, 'latency');
   assert.equal(typeof add.toxic.attributes.latency, 'number');
 });
+
+// ---------------------------------------------------------------------------
+// load.steps — 계단 총합과 faultSec 의 일치
+// ---------------------------------------------------------------------------
+
+test('load.steps: 계단 총합이 faultSec 과 같으면 통과한다', () => {
+  const p = basePlan({
+    load: { rate: 40, steps: [40, 55, 70], stepRampSec: 30, stepHoldSec: 90 },
+    phases: { preSec: 120, faultSec: 360, postSec: 180 },
+  });
+  assert.deepEqual(plan.validatePlan(p), []);
+});
+
+test('load.steps: 계단 총합이 faultSec 과 다르면 막는다', () => {
+  // 어긋나면 램프 도중에 장애가 걷히고 그 뒤 계단은 무장애 값이 된다. k6 도 실행기도
+  // 오류로 보지 않아 리포트가 정상으로 나오므로, 계획 단계에서 잡아야 한다.
+  const p = basePlan({
+    load: { rate: 40, steps: [40, 55, 70], stepRampSec: 30, stepHoldSec: 90 },
+    phases: { preSec: 120, faultSec: 300, postSec: 180 },
+  });
+  const errors = plan.validatePlan(p);
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /계단 총합/);
+});
+
+test('load.steps: 전환·유지 길이를 안 주면 30·90 을 기본으로 센다', () => {
+  const p = basePlan({
+    load: { rate: 40, steps: [40, 55] },
+    phases: { preSec: 120, faultSec: 240, postSec: 180 },
+  });
+  assert.deepEqual(plan.validatePlan(p), []);
+});
+
+test('load.steps: 빈 배열이나 음수 계단을 막는다', () => {
+  assert.match(plan.validatePlan(basePlan({ load: { rate: 4, steps: [] } })).join(), /비어 있지 않은 배열/);
+  assert.match(plan.validatePlan(basePlan({ load: { rate: 4, steps: [40, -1] } })).join(), /양수/);
+});
