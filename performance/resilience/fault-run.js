@@ -526,7 +526,22 @@ function countDatasetUsers(dataset) {
 }
 
 /**
- * 검증된 계획을 resilience/scenarios/fault-window.js에 전달할 k6 인수 배열로 변환한다.
+ * 이 계획을 실행할 부하 시나리오 파일을 고른다.
+ *
+ * `load.steps` 가 있으면 장애 구간 안에서 도착률을 계단식으로 올리는 fault-breakpoint 다.
+ * 없으면 도착률을 고정하고 장애만 변수로 두는 fault-window 다. 둘은 답하는 질문이 다르다 —
+ * 앞은 "장애 중에는 어디까지 버티나", 뒤는 "같은 부하에서 장애가 무엇을 바꾸나".
+ *
+ * @param {object} plan 검증이 끝난 계획.
+ * @returns {string} PERF_ROOT 기준 상대 경로.
+ */
+function scenarioFor(plan) {
+  const stepped = Array.isArray(plan.load && plan.load.steps) && plan.load.steps.length > 0;
+  return path.join('resilience', 'scenarios', stepped ? 'fault-breakpoint.js' : 'fault-window.js');
+}
+
+/**
+ * 검증된 계획을 위 시나리오에 전달할 k6 인수 배열로 변환한다.
  *
  * 세 구간 길이, 도착률, 사전 할당·최대 VU 수, 데이터셋, 드라이버 주소, 앱 주소와 요약
  * 출력 경로를 k6 환경 변수(-e)로 전달한다. 데이터셋 우선순위는 현재 프로세스의 DATASET,
@@ -542,11 +557,16 @@ function countDatasetUsers(dataset) {
 function k6Args(plan, driverUrl, runsDir) {
   const p = plan.phases;
   return [
-    'run', path.join('resilience', 'scenarios', 'fault-window.js'),
+    'run', scenarioFor(plan),
     '-e', `FAULT_ID=${plan.id}`,
     '-e', `PRE=${p.preSec}`, '-e', `FAULT=${p.faultSec}`, '-e', `POST=${p.postSec}`,
     '-e', `RATE=${plan.load.rate}`,
     '-e', `PRE_VUS=${plan.load.preVus || 100}`, '-e', `MAX_VUS=${plan.load.maxVus || 1000}`,
+    ...(Array.isArray(plan.load.steps) && plan.load.steps.length
+      ? ['-e', `STEPS=${plan.load.steps.join(',')}`,
+        '-e', `STEP_RAMP=${plan.load.stepRampSec || 30}`,
+        '-e', `STEP_HOLD=${plan.load.stepHoldSec || 90}`]
+      : []),
     '-e', `DATASET=${resolveDataset(plan)}`,
     '-e', `RUNS_DIR=${runsDir}`,
     '-e', `DRIVER_URL=${driverUrl}`,
@@ -587,6 +607,8 @@ function k6Args(plan, driverUrl, runsDir) {
  */
 function warmupArgs(plan, sec, runsDir) {
   return [
+    // 계단식 계획이라도 예열은 fault-window 로 돈다. 예열의 목적은 캐시를 채우는 것이고,
+    // 계단을 한 번 더 밟으면 그만큼 시간을 쓰면서 캐시 상태만 달라진다.
     'run', path.join('resilience', 'scenarios', 'fault-window.js'),
     // 측정 실행과 **다른** id 다. findLatestSummary() 가 `fault-<계획 id>-*.k6.json` 을
     // 이름으로 고르므로, 같은 id 를 쓰면 예열 요약을 측정 요약으로 착각할 수 있다.
@@ -757,7 +779,7 @@ async function main() {
     // 성능 측정기와 같은 함수를 쓴다. 규칙이 갈라지면 두 도구의 기록을 나란히 놓을 수 없다.
     const git = gitMeta();
     const dataset = resolveDataset(plan);
-    const scriptFingerprint = scriptVersion(path.join('resilience', 'scenarios', 'fault-window.js'));
+    const scriptFingerprint = scriptVersion(scenarioFor(plan));
     const dsFingerprint = datasetFingerprint(dataset);
     // 사용자 풀 크기. VU 가 이 수를 넘으면 두 VU 가 같은 계정을 쓰는데
     // (data.js 의 myUser 가 나머지 연산을 쓴다), 서버는 그 둘을 한 사용자로 보고 조회수
@@ -1067,4 +1089,4 @@ if (require.main === module) {
 
 // 테스트와 다른 도구가 부작용 없이 검증할 수 있는 순수 또는 조회 함수를 공개한다.
 // main(), 복원, Redis 삭제, 보고서 생성 함수는 외부 호출 대상으로 내보내지 않는다.
-module.exports = { parseArgs, loadPlan, k6Args, warmupArgs, proxyRouting, siblingsOf };
+module.exports = { parseArgs, loadPlan, k6Args, warmupArgs, scenarioFor, proxyRouting, siblingsOf };

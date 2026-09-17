@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseArgs, k6Args, warmupArgs } = require('../fault-run');
+const { parseArgs, k6Args, warmupArgs, scenarioFor } = require('../fault-run');
 
 /** `-e KEY=VALUE` 쌍에서 값을 꺼낸다. 없으면 undefined. */
 function envOf(args, key) {
@@ -63,4 +63,44 @@ test('예열은 응답 내용 검사를 켜지 않는다', () => {
   // 검사 결과가 측정 요약에 섞일 일은 없지만(별도 실행), 예열에 검사를 거는 것은 비용만
   // 든다. 예열은 판정 대상이 아니다.
   assert.equal(envOf(warmupArgs(PLAN, 180, 'x'), 'CONTENT_CHECKS'), undefined);
+});
+
+// ---------------------------------------------------------------------------
+// 계단식 장애 계획 — load.steps 가 시나리오와 k6 인수를 가른다
+// ---------------------------------------------------------------------------
+
+const STEPPED = {
+  id: 'redis-crash-breakpoint',
+  load: { rate: 40, steps: [40, 55, 70], stepRampSec: 30, stepHoldSec: 90, preVus: 700, maxVus: 2500 },
+  phases: { warmupSec: 180, preSec: 120, faultSec: 360, postSec: 180 },
+  dataset: 'medium',
+};
+
+test('scenarioFor: load.steps 가 있으면 계단식 시나리오를 고른다', () => {
+  assert.match(scenarioFor(STEPPED), /fault-breakpoint.js$/);
+  assert.match(scenarioFor(PLAN), /fault-window.js$/);
+});
+
+test('k6Args: 계단 목록과 전환·유지 길이를 넘긴다', () => {
+  const args = k6Args(STEPPED, 'http://127.0.0.1:1/', 'resilience/reports/staging');
+  assert.equal(envOf(args, 'STEPS'), '40,55,70');
+  assert.equal(envOf(args, 'STEP_RAMP'), '30');
+  assert.equal(envOf(args, 'STEP_HOLD'), '90');
+  assert.match(args[1], /fault-breakpoint.js$/);
+});
+
+test('k6Args: 고정 부하 계획에는 계단 변수를 넣지 않는다', () => {
+  // fault-window 는 STEPS 를 읽지 않는다. 넘기면 "이 실행이 계단식인가"가 인수만 보고는
+  // 판단되지 않는다.
+  const args = k6Args(PLAN, 'http://127.0.0.1:1/', 'resilience/reports/staging');
+  assert.equal(envOf(args, 'STEPS'), undefined);
+  assert.equal(envOf(args, 'STEP_RAMP'), undefined);
+});
+
+test('warmupArgs: 계단식 계획이라도 예열은 고정 부하 시나리오로 돈다', () => {
+  // 예열의 목적은 캐시를 채우는 것이다. 계단을 한 번 더 밟으면 시간만 쓰고 캐시 상태가
+  // 측정 실행과 달라진다.
+  const args = warmupArgs(STEPPED, 180, 'resilience/reports/staging/warmup');
+  assert.match(args[1], /fault-window.js$/);
+  assert.equal(envOf(args, 'STEPS'), undefined);
 });
