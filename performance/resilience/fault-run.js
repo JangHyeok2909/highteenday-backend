@@ -114,8 +114,8 @@ const STAGING = path.join(REPORTS, 'staging'); // k6가 먼저 요약을 쓰는 
  *   run-lock       성능 스택을 공유하는 다른 측정 실행과의 동시 실행 방지
  *   PromClient     Prometheus 즉시·범위 쿼리
  *   collectInfra   지표 카탈로그 전체를 주어진 구간으로 집계
+ *   collectSeries  시계열 카탈로그를 주어진 구간에 범위 질의로 실행
  *   grafana        관측 시간 범위가 적용된 Grafana 링크 생성
- *   APP_JOB        앱 지표만 고르는 Prometheus job 라벨 값
  *   appimage       부하를 받은 컨테이너 이미지의 신원과 소스 대비 최신 여부
  *   gitMeta        브랜치·커밋·작업 트리 오염 여부(성능 측정기와 같은 규칙)
  *   scriptVersion  부하의 성격을 결정하는 스크립트 묶음의 지문
@@ -132,9 +132,8 @@ const STAGING = path.join(REPORTS, 'staging'); // k6가 먼저 요약을 쓰는 
  */
 const { acquireRunLock } = require('../tools/lib/run-lock');
 const { PromClient } = require('../tools/lib/promql');
-const { collectInfra } = require('../tools/collect');
+const { collectInfra, collectSeries } = require('../tools/collect');
 const grafana = require('../tools/lib/grafana');
-const { APP_JOB } = require('../tools/lib/metrics-catalog');
 const appimage = require('../tools/lib/appimage');
 const { gitMeta, scriptVersion, datasetFingerprint } = require('../tools/perf-run');
 const appconfig = require('./lib/appconfig');
@@ -644,48 +643,23 @@ function newestStaged(id, since) {
 /**
  * 보고서의 시간축 그래프에 사용할 Prometheus 범위 시계열을 수집한다.
  *
- * k6 시작 기준 시각(t0)의 30초 전부터 계획 종료 30초 후까지를 5초 간격으로 조회한다.
- * 조회 항목은 초당 요청 수, 실패 응답 비율(%), 응답 시간 p95(ms), 사용 중인 Tomcat
- * 스레드 수, 대기·사용 중인 HikariCP 연결 수, 실행 중인 MySQL 스레드 수다. k6 지표는
- * 30초 rate 창을 사용해 짧은 순간 변동을 완화한다.
+ * 이 함수는 **조회 구간만** 정한다. 무엇을 뽑을지는 지표 카탈로그의 SERIES 가 정하고
+ * `collectSeries` 가 실행한다. 예전에는 여기에 PromQL 을 직접 적었는데, 그러면 같은
+ * 메트릭이 장애 쪽에서는 `tomcatBusy`, 성능 쪽 카탈로그에서는 `pool.tomcatBusy.max` 라는
+ * 두 이름으로 존재하게 된다. 이름이 갈라지면 두 리포트가 같은 값을 다르게 부른다.
  *
- * 각 쿼리는 독립적으로 실행한다. 하나가 실패해도 나머지 시계열은 보존하며, 실패한 축은
- * 빈 배열로 두고 오류 메시지를 별도로 모은다. 따라서 일부 exporter가 없어도 보고서
- * 전체를 버리지 않는다.
+ * 구간은 k6 시작 기준 시각(t0)의 30초 전부터 계획 종료 30초 후까지다. 앞뒤 여유 30초는
+ * 주입 직전의 기준선과 수집이 끝난 뒤의 잔여 변화를 같은 그래프에서 보기 위한 것이다.
  *
  * @param {PromClient} prom preflight()에서 연결을 확인한 Prometheus 클라이언트.
  * @param {Date} t0 k6 setup 신호로 정한 부하 시작 기준 시각.
  * @param {number} totalSec pre+fault+post를 합한 계획 실행 시간(초).
- * @returns {Promise<{series: object, errors: string[]}>} 그래프별 시계열과 축별 수집 오류.
+ * @returns {Promise<{series: object, errors: Array<{key:string, error:string}>}>}
  */
-async function collectSeries(prom, t0, totalSec) {
+function collectRunSeries(prom, t0, totalSec) {
   const from = new Date(t0.getTime() - 30000);
   const to = new Date(t0.getTime() + (totalSec + 30) * 1000);
-  const step = 5;
-  const q = {
-    rps: 'sum(rate(k6_http_reqs_total[30s]))',
-    errorPct: '100 * (sum(rate(k6_http_reqs_total{expected_response="false"}[30s])) or vector(0)) / clamp_min(sum(rate(k6_http_reqs_total[30s])), 0.0001)',
-    p95: '1000 * histogram_quantile(0.95, sum(rate(k6_http_req_duration_seconds[30s])))',
-    tomcatBusy: `sum(tomcat_threads_busy_threads{job="${APP_JOB}"})`,
-    hikariPending: `sum(hikaricp_connections_pending{job="${APP_JOB}"})`,
-    hikariActive: `sum(hikaricp_connections_active{job="${APP_JOB}"})`,
-    mysqlThreadsRunning: 'max(mysql_global_status_threads_running)',
-    // 실패의 종류를 시간축에서 가른다. k6 remote-write 는 status 라벨을 보존한다(실측 확인).
-    // 5xx 는 앱이 살아서 에러를 응답한 것이고, status="0" 은 응답 자체를 못 받은 것이다.
-    status5xx: 'sum(rate(k6_http_reqs_total{status=~"5.."}[30s])) or vector(0)',
-    statusNoResponse: 'sum(rate(k6_http_reqs_total{status="0"}[30s])) or vector(0)',
-    // 스레드가 늘어난 것과 스레드가 막힌 것은 다르다. 무한 소켓 대기는 runnable 로 잡힌다.
-    threadsBlocked: `sum(jvm_threads_states_threads{job="${APP_JOB}",state="blocked"})`,
-    threadsWaiting: `sum(jvm_threads_states_threads{job="${APP_JOB}",state=~"waiting|timed-waiting"})`,
-    // 헬스 엔드포인트가 느려지는 것 자체가 관측 대상이다 — 로드밸런서 상한을 넘기면
-    // 앱이 살아 있어도 인스턴스가 빠진다. 폴러 표본에서 만들며 Prometheus 를 쓰지 않는다.
-  };
-  const out = {};
-  const errors = [];
-  for (const [k, query] of Object.entries(q)) {
-    try { out[k] = await prom.range(query, from, to, step); } catch (e) { out[k] = []; errors.push(`${k}: ${e.message}`); }
-  }
-  return { series: out, errors };
+  return collectSeries(prom, { from, to }, 5);
 }
 
 /**
@@ -926,7 +900,7 @@ async function main() {
       sampler.take('S3');
     }
     // 구간별 단일 값과 별도로, 그래프에 그릴 5초 간격 전체 시계열을 수집한다.
-    const { series, errors: seriesErrors } = await collectSeries(pf.prom, driver.t0, total);
+    const { series, errors: seriesErrors } = await collectRunSeries(pf.prom, driver.t0, total);
 
     // 9. k6 원본 집계를 장애 실험 용어와 보고서 구조로 정규화한다.
     const raw = k6Rec.k6.rawMetrics || {};

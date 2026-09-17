@@ -194,12 +194,27 @@ test('폴링 간격을 표본에서 읽어 남긴다 — 측정 오차의 폭이
 test('analyze: 수집된 시계열만 골라 계산한다', () => {
   const a = recovery.analyze(rec({
     health: health(60, [20, 21]),
-    series: { p95: series([[100, 100], [5000, 60], [100, 100]]), errorPct: [], notAMetric: series([[1, 260]]) },
+    series: {
+      'k6ts.p95': series([[100, 100], [5000, 60], [100, 100]]),
+      'k6ts.errorPct': [],
+      notAMetric: series([[1, 260]]),
+    },
   }));
-  assert.deepEqual(a.metrics.map((m) => m.key), ['errorPct', 'p95']);
-  assert.equal(a.metrics.find((m) => m.key === 'p95').status, 'recovered');
-  assert.equal(a.metrics.find((m) => m.key === 'errorPct').status, 'no-data');
+  assert.deepEqual(a.metrics.map((m) => m.key), ['k6ts.errorPct', 'k6ts.p95']);
+  assert.equal(a.metrics.find((m) => m.key === 'k6ts.p95').status, 'recovered');
+  assert.equal(a.metrics.find((m) => m.key === 'k6ts.errorPct').status, 'no-data');
   assert.equal(a.marks.faultEndSec, 160);
+});
+
+test('analyze: 시계열을 카탈로그 이름으로 옮기기 전에 저장된 실행도 읽는다', () => {
+  // 저장된 run.json 은 고치지 않는다. 옛 실행의 `p95` 를 못 읽으면 지난 장애 실행의
+  // 회복 시간이 리포트에서 통째로 사라진다.
+  const a = recovery.analyze(rec({
+    health: health(60, [20, 21]),
+    series: { p95: series([[100, 100], [5000, 60], [100, 100]]) },
+  }));
+  assert.deepEqual(a.metrics.map((m) => m.key), ['k6ts.p95']);
+  assert.equal(a.metrics[0].status, 'recovered');
 });
 
 test('analyze: t0 나 구간 정보가 없으면 null 을 준다', () => {
