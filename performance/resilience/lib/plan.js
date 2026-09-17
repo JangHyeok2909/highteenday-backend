@@ -36,6 +36,26 @@ function validatePlan(plan) {
   }
   const load = plan.load || {};
   if (!Number.isFinite(load.rate) || load.rate <= 0) errors.push('load.rate 는 양수(초당 iteration)여야 한다');
+  // load.steps 가 있으면 장애 구간 안에서 도착률을 계단식으로 올리는 계획이다
+  // (resilience/scenarios/fault-breakpoint.js). 계단 총합이 faultSec 과 다르면 램프 도중에
+  // 장애가 걷히고, 그 뒤 계단은 무장애 상태에서 잰 값이 된다. k6 도 실행기도 이걸 오류로
+  // 보지 않아 리포트는 정상으로 나오므로 여기서 막는다.
+  if (load.steps !== undefined) {
+    if (!Array.isArray(load.steps) || load.steps.length === 0) {
+      errors.push('load.steps 는 비어 있지 않은 배열이어야 한다');
+    } else if (!load.steps.every((n) => Number.isFinite(n) && n > 0)) {
+      errors.push('load.steps 의 각 계단은 양수(초당 iteration)여야 한다');
+    } else {
+      const ramp = load.stepRampSec === undefined ? 30 : load.stepRampSec;
+      const hold = load.stepHoldSec === undefined ? 90 : load.stepHoldSec;
+      if (!Number.isFinite(ramp) || ramp < 0) errors.push('load.stepRampSec 가 0 이상의 숫자가 아니다');
+      if (!Number.isFinite(hold) || hold <= 0) errors.push('load.stepHoldSec 는 양수여야 한다');
+      const total = load.steps.length * (ramp + hold);
+      if (Number.isFinite(ph.faultSec) && total !== ph.faultSec) {
+        errors.push(`phases.faultSec(${ph.faultSec}s) 와 계단 총합(${load.steps.length}단 × (${ramp}+${hold})s = ${total}s) 이 다르다`);
+      }
+    }
+  }
   if (!Array.isArray(plan.inject) || plan.inject.length === 0) errors.push('inject 가 비어 있다');
   (plan.inject || []).forEach((step, i) => {
     const where = `inject[${i}]`;
