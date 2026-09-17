@@ -44,13 +44,15 @@ const { healthCause } = require('./plan');
  *
  * `direction` 이 `lower` 인 지표는 값이 큰 쪽이 정상이다(처리량). 나머지는 작은 쪽이 정상이다.
  */
+// key 는 지표 카탈로그 이름이고 legacyKey 는 시계열을 카탈로그로 옮기기 전에 저장된
+// 실행이 쓰던 이름이다. 저장된 run.json 은 고치지 않으므로 둘 다 찾는다.
 const METRIC_SPECS = [
-  { key: 'errorPct', label: '오류율', unit: '%', digits: 2, tolerance: 1.2, floor: 1, smoothedSec: 30, direction: 'upper' },
-  { key: 'p95', label: '응답 p95', unit: 'ms', digits: 0, tolerance: 1.2, floor: 50, smoothedSec: 30, direction: 'upper' },
-  { key: 'rps', label: '처리량 RPS', unit: '/s', digits: 2, tolerance: 0.9, floor: 0.5, smoothedSec: 30, direction: 'lower' },
-  { key: 'tomcatBusy', label: 'Tomcat busy', unit: '개', digits: 1, tolerance: 1.2, floor: 2, smoothedSec: 0, direction: 'upper' },
-  { key: 'hikariPending', label: 'Hikari pending', unit: '개', digits: 1, tolerance: 1.2, floor: 1, smoothedSec: 0, direction: 'upper' },
-  { key: 'mysqlThreadsRunning', label: 'MySQL threads_running', unit: '개', digits: 1, tolerance: 1.2, floor: 2, smoothedSec: 0, direction: 'upper' },
+  { key: 'k6ts.errorPct', legacyKey: 'errorPct', label: '오류율', unit: '%', digits: 2, tolerance: 1.2, floor: 1, smoothedSec: 30, direction: 'upper' },
+  { key: 'k6ts.p95', legacyKey: 'p95', label: '응답 p95', unit: 'ms', digits: 0, tolerance: 1.2, floor: 50, smoothedSec: 30, direction: 'upper' },
+  { key: 'k6ts.rps', legacyKey: 'rps', label: '처리량 RPS', unit: '/s', digits: 2, tolerance: 0.9, floor: 0.5, smoothedSec: 30, direction: 'lower' },
+  { key: 'pool.tomcatBusy', legacyKey: 'tomcatBusy', label: 'Tomcat busy', unit: '개', digits: 1, tolerance: 1.2, floor: 2, smoothedSec: 0, direction: 'upper' },
+  { key: 'pool.hikariPending', legacyKey: 'hikariPending', label: 'Hikari pending', unit: '개', digits: 1, tolerance: 1.2, floor: 1, smoothedSec: 0, direction: 'upper' },
+  { key: 'mysql.threadsRunning', legacyKey: 'mysqlThreadsRunning', label: 'MySQL threads_running', unit: '개', digits: 1, tolerance: 1.2, floor: 2, smoothedSec: 0, direction: 'upper' },
 ];
 
 const DEFAULTS = {
@@ -297,9 +299,11 @@ function analyze(rec, options) {
     hasWarmup: Number.isFinite(phases.warmupSec) && phases.warmupSec > 0,
   };
   const series = rec.series || {};
+  const pick = (spec) => (Array.isArray(series[spec.key]) ? series[spec.key]
+    : Array.isArray(series[spec.legacyKey]) ? series[spec.legacyKey] : null);
   const metrics = METRIC_SPECS
-    .filter((spec) => Array.isArray(series[spec.key]))
-    .map((spec) => recoveryOf(series[spec.key], spec, marks, opts));
+    .filter((spec) => pick(spec))
+    .map((spec) => recoveryOf(pick(spec), spec, marks, opts));
   return { rules: opts, marks, metrics, detection: detectionLag(rec) };
 }
 

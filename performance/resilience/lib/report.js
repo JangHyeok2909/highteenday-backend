@@ -1278,12 +1278,22 @@ function renderReport(rec, { siblings = [] } = {}) {
   const s = rec.series || {};
   const ev = rec.events || [];
   const run = rec.run || {};
-  // 시계열 수집 오류는 `"<축 이름>: <메시지>"` 형태로 모여 온다. 축별로 갈라 그래프 옆에 붙인다.
+  // 시계열 키는 지표 카탈로그 이름(`pool.tomcatBusy`)이다. 카탈로그로 옮기기 전에 저장된
+  // 실행은 `tomcatBusy` 로 적혀 있고 그 run.json 은 고치지 않으므로, 둘 다 찾는다.
+  const axis = (key, legacyKey) => s[key] || s[legacyKey] || [];
+  // 수집 오류는 지금은 {key, error} 객체로 오고, 옛 실행에는 `"<축 이름>: <메시지>"`
+  // 문자열로 저장돼 있다. 축별로 갈라 그래프 옆에 붙인다.
   const seriesError = {};
-  for (const line of rec.seriesErrors || []) {
-    const i = String(line).indexOf(':');
-    if (i > 0) seriesError[String(line).slice(0, i).trim()] = String(line).slice(i + 1).trim();
+  for (const item of rec.seriesErrors || []) {
+    if (item && typeof item === 'object' && item.key) {
+      seriesError[item.key] = String(item.error == null ? '' : item.error);
+      continue;
+    }
+    const line = String(item);
+    const i = line.indexOf(':');
+    if (i > 0) seriesError[line.slice(0, i).trim()] = line.slice(i + 1).trim();
   }
+  const axisError = (key, legacyKey) => seriesError[key] || seriesError[legacyKey];
   const base = { t0, phases: plan.phases, events: ev };
   // 폴러 표본을 시계열 그래프가 받는 모양({t: 초, v: 값})으로 바꾼다. 무응답 표본은
   // latencyMs 가 상한값이라 그리면 오해를 부르므로 뺀다 — 그 사건은 아래 전이 표가 말한다.
@@ -1294,17 +1304,17 @@ function renderReport(rec, { siblings = [] } = {}) {
   const pollItem = ((rec.config && rec.config.items) || []).find((i) => i.key === 'health.pollTimeoutMs');
   const pollTimeoutMs = pollItem ? parseInt(String(pollItem.value), 10) : null;
   const charts = [
-    chart('k6 RPS', s.rps || [], { ...base, unit: '/s', error: seriesError.rps }),
-    chart('k6 오류율 (%)', s.errorPct || [], { ...base, unit: '%', yMax: 100, error: seriesError.errorPct }),
-    chart('k6 p95 (ms)', s.p95 || [], { ...base, unit: 'ms', logScale: true, error: seriesError.p95 }),
-    chart('Tomcat busy threads', s.tomcatBusy || [], { ...base, unit: '', yMax: rec.env && rec.env.tomcatMax ? rec.env.tomcatMax : null, error: seriesError.tomcatBusy }),
-    chart('HikariCP pending (커넥션 대기 스레드)', s.hikariPending || [], { ...base, unit: '', error: seriesError.hikariPending }),
-    chart('HikariCP active', s.hikariActive || [], { ...base, unit: '', yMax: rec.env && rec.env.hikariMax ? rec.env.hikariMax : null, error: seriesError.hikariActive }),
-    chart('MySQL threads_running', s.mysqlThreadsRunning || [], { ...base, unit: '', error: seriesError.mysqlThreadsRunning }),
-    chart('5xx 응답 (건/s)', s.status5xx || [], { ...base, unit: '/s', error: seriesError.status5xx }),
-    chart('응답 없음 status=0 (건/s) — 연결 거부·요청 타임아웃', s.statusNoResponse || [], { ...base, unit: '/s', error: seriesError.statusNoResponse }),
-    chart('JVM 스레드 waiting + timed-waiting', s.threadsWaiting || [], { ...base, unit: '', error: seriesError.threadsWaiting }),
-    chart('JVM 스레드 blocked', s.threadsBlocked || [], { ...base, unit: '', error: seriesError.threadsBlocked }),
+    chart('k6 RPS', axis('k6ts.rps', 'rps'), { ...base, unit: '/s', error: axisError('k6ts.rps', 'rps') }),
+    chart('k6 오류율 (%)', axis('k6ts.errorPct', 'errorPct'), { ...base, unit: '%', yMax: 100, error: axisError('k6ts.errorPct', 'errorPct') }),
+    chart('k6 p95 (ms)', axis('k6ts.p95', 'p95'), { ...base, unit: 'ms', logScale: true, error: axisError('k6ts.p95', 'p95') }),
+    chart('Tomcat busy threads', axis('pool.tomcatBusy', 'tomcatBusy'), { ...base, unit: '', yMax: rec.env && rec.env.tomcatMax ? rec.env.tomcatMax : null, error: axisError('pool.tomcatBusy', 'tomcatBusy') }),
+    chart('HikariCP pending (커넥션 대기 스레드)', axis('pool.hikariPending', 'hikariPending'), { ...base, unit: '', error: axisError('pool.hikariPending', 'hikariPending') }),
+    chart('HikariCP active', axis('pool.hikariActive', 'hikariActive'), { ...base, unit: '', yMax: rec.env && rec.env.hikariMax ? rec.env.hikariMax : null, error: axisError('pool.hikariActive', 'hikariActive') }),
+    chart('MySQL threads_running', axis('mysql.threadsRunning', 'mysqlThreadsRunning'), { ...base, unit: '', error: axisError('mysql.threadsRunning', 'mysqlThreadsRunning') }),
+    chart('5xx 응답 (건/s)', axis('k6ts.status5xx', 'status5xx'), { ...base, unit: '/s', error: axisError('k6ts.status5xx', 'status5xx') }),
+    chart('응답 없음 status=0 (건/s) — 연결 거부·요청 타임아웃', axis('k6ts.statusNoResponse', 'statusNoResponse'), { ...base, unit: '/s', error: axisError('k6ts.statusNoResponse', 'statusNoResponse') }),
+    chart('JVM 스레드 waiting + timed-waiting', axis('jvm.threadsWaiting', 'threadsWaiting'), { ...base, unit: '', error: axisError('jvm.threadsWaiting', 'threadsWaiting') }),
+    chart('JVM 스레드 blocked', axis('jvm.threadsBlocked', 'threadsBlocked'), { ...base, unit: '', error: axisError('jvm.threadsBlocked', 'threadsBlocked') }),
     // 헬스 지연은 Prometheus 가 아니라 폴러 표본에서 만든다. 폴러가 잰 값이라야 "무응답"
     // 판정과 같은 자를 쓴다 — 다른 출처로 그리면 표와 그래프가 서로 다른 것을 말한다.
     chart('헬스 응답 지연 (ms) — 폴러 표본', healthPoints, { ...base, unit: 'ms', logScale: true }),
