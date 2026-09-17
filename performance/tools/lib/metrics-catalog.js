@@ -106,6 +106,22 @@ function gaugeStats(base, expr, opts = {}) {
 }
 
 /**
+ * 시계열로도 뽑는 지표의 기저 식.
+ *
+ * 창 집계(GROUPS)와 시계열(SERIES)이 같은 메트릭을 가리키면서 식이 갈라지면, 리포트의
+ * 표와 그래프가 서로 다른 값을 보여준다. 식은 여기 한 번만 쓰고 양쪽이 참조한다.
+ */
+const EXPR = {
+  cpuCores: one(`rate(container_cpu_usage_seconds_total{name="${APP}"}[1m])`),
+  heapUsed: `sum(jvm_memory_used_bytes{job="${APP_JOB}",area="heap"})`,
+  hikariActive: `hikaricp_connections_active{job="${APP_JOB}"}`,
+  hikariPending: `hikaricp_connections_pending{job="${APP_JOB}"}`,
+  tomcatBusy: `tomcat_threads_busy_threads{job="${APP_JOB}"}`,
+  threadsBlocked: `jvm_threads_states_threads{job="${APP_JOB}",state="blocked"}`,
+  mysqlThreadsRunning: 'mysql_global_status_threads_running',
+};
+
+/**
  * 그룹별 지표 정의.
  * 각 항목: { key, label, query, reduce, scale, unit, desc }
  *   reduce — 다중 시계열이 나올 때 축약 방식 (sum: 힙 영역 합산, max: 인스턴스 중 최대)
@@ -122,7 +138,7 @@ const GROUPS = [
         desc: 'JVM이 사용한 CPU 비율. 호스트 전체 코어 기준.',
       }),
       // 컨테이너 관점 (코어 수). cgroup 한계와 직접 비교 가능한 값.
-      ...gaugeStats('cpu.cores', one(`rate(container_cpu_usage_seconds_total{name="${APP}"}[1m])`), {
+      ...gaugeStats('cpu.cores', EXPR.cpuCores, {
         label: '컨테이너 CPU', unit: 'cores', reduce: 'max',
         desc: '컨테이너가 소비한 CPU 코어 수. cgroup 한계와 직접 비교한다.',
       }),
@@ -184,7 +200,7 @@ const GROUPS = [
     id: 'heap',
     label: 'JVM Heap',
     metrics: [
-      ...gaugeStats('heap.used', `sum(jvm_memory_used_bytes{job="${APP_JOB}",area="heap"})`, {
+      ...gaugeStats('heap.used', EXPR.heapUsed, {
         label: 'Heap 사용', unit: 'bytes', reduce: 'max',
         desc: '힙 영역 합계 사용량.',
       }),
@@ -302,7 +318,7 @@ const GROUPS = [
         label: '살아있는 스레드', unit: 'count', reduce: 'sum',
         desc: '전체 스레드 수. 누수가 있으면 실행마다 증가한다.',
       }),
-      ...gaugeStats('jvm.threadsBlocked', `jvm_threads_states_threads{job="${APP_JOB}",state="blocked"}`, {
+      ...gaugeStats('jvm.threadsBlocked', EXPR.threadsBlocked, {
         label: 'BLOCKED 스레드', unit: 'count', reduce: 'max',
         desc: 'synchronized 락을 기다리는 스레드. >0 이 지속되면 앱 레벨 경합이다.',
       }),
@@ -317,7 +333,7 @@ const GROUPS = [
     id: 'mysql',
     label: 'MySQL',
     metrics: [
-      ...gaugeStats('mysql.threadsRunning', 'mysql_global_status_threads_running', {
+      ...gaugeStats('mysql.threadsRunning', EXPR.mysqlThreadsRunning, {
         label: 'Threads running', unit: 'count', reduce: 'max',
         desc: '실제로 쿼리를 실행 중인 스레드. DB 동시성의 직접 지표.',
       }),
@@ -562,11 +578,11 @@ const GROUPS = [
     id: 'pool',
     label: 'Connection Pool / Threads',
     metrics: [
-      ...gaugeStats('pool.hikariActive', `hikaricp_connections_active{job="${APP_JOB}"}`, {
+      ...gaugeStats('pool.hikariActive', EXPR.hikariActive, {
         label: 'HikariCP active', unit: 'count', reduce: 'sum',
         desc: '사용 중인 DB 커넥션.',
       }),
-      ...gaugeStats('pool.hikariPending', `hikaricp_connections_pending{job="${APP_JOB}"}`, {
+      ...gaugeStats('pool.hikariPending', EXPR.hikariPending, {
         label: 'HikariCP pending', unit: 'count', reduce: 'sum',
         desc: '커넥션을 기다리는 스레드. >0 이 지속되면 풀이 병목이다.',
       }),
@@ -588,7 +604,7 @@ const GROUPS = [
         reduce: 'sum', unit: 'count',
         desc: '커넥션을 못 받고 실패한 횟수. 0이어야 정상.',
       },
-      ...gaugeStats('pool.tomcatBusy', `tomcat_threads_busy_threads{job="${APP_JOB}"}`, {
+      ...gaugeStats('pool.tomcatBusy', EXPR.tomcatBusy, {
         label: 'Tomcat busy threads', unit: 'count', reduce: 'sum',
         desc: '요청 처리 중인 워커 스레드.',
       }),
@@ -968,6 +984,59 @@ const GROUPS = [
 ];
 
 /**
+ * 시계열 카탈로그 — "언제 무엇이 변했는가"를 묻는 지표.
+ *
+ * GROUPS 와 나누는 이유
+ * ---------------------
+ * GROUPS 의 게이지 항목은 `avg_over_time((...)[$RANGE:])` 처럼 **구간 전체에서 값 하나**를
+ * 내는 식이다. 같은 식을 범위 질의에 넣으면 각 시점마다 그 앞 구간 전체의 통계가 나와,
+ * 값이 한 번 오르면 계단처럼 유지된다. 무릎이 어느 도착률에서 왔는지 보려면 그 시점의
+ * 실제 값이 필요하므로 집계 래퍼를 벗긴 기저 식을 쓴다.
+ *
+ * k6 지표는 `$RANGE` 대신 고정 30초 rate 창을 쓴다. 구간 길이에 맞춰 창을 늘리면 램프
+ * 도중의 변화가 창 안에서 평균되어 사라진다. 30초는 짧은 순간 변동을 지우면서 계단
+ * 하나(유지 90초)에 온전한 표본이 두 개 이상 들어가는 길이다.
+ *
+ * 키는 GROUPS 와 같은 이름을 쓴다. `series['pool.tomcatBusy']` 와
+ * `infra.flat['pool.tomcatBusy.max']` 가 같은 메트릭을 가리킨다는 것이 이름으로 드러나야
+ * 한다. 이름이 갈라졌던 탓에 장애 리포트와 성능 리포트가 같은 값을 다르게 불렀다.
+ */
+const SERIES = [
+  { key: 'k6ts.rps', label: '초당 요청 수', unit: 'per second', query: 'sum(rate(k6_http_reqs_total[30s]))' },
+  {
+    key: 'k6ts.errorPct', label: '실패 응답 비율', unit: 'percent',
+    query: '100 * (sum(rate(k6_http_reqs_total{expected_response="false"}[30s])) or vector(0)) / clamp_min(sum(rate(k6_http_reqs_total[30s])), 0.0001)',
+  },
+  { key: 'k6ts.p95', label: '응답 p95', unit: 'ms', query: '1000 * histogram_quantile(0.95, sum(rate(k6_http_req_duration_seconds[30s])))' },
+  // 실패의 종류를 시간축에서 가른다. 5xx 는 앱이 살아서 에러를 응답한 것이고,
+  // status="0" 은 응답 자체를 못 받은 것이다. k6 remote-write 가 status 라벨을 보존한다.
+  { key: 'k6ts.status5xx', label: '5xx', unit: 'per second', query: 'sum(rate(k6_http_reqs_total{status=~"5.."}[30s])) or vector(0)' },
+  // 계단별 도달률을 재려면 처리율이 아니라 **반복 수**가 필요하다. 계획 도착률의 단위가
+  // iterations/s 이기 때문이다. 아래 셋은 k6 remote-write 가 보내는 이름이며, remote-write 를
+  // 끈 실행에서는 빈 축으로 남는다 — 그 경우 계단 표가 "미수집"으로 표시한다.
+  { key: 'k6ts.iterations', label: '초당 반복 수', unit: 'per second', query: 'sum(rate(k6_iterations_total[30s]))' },
+  { key: 'k6ts.droppedIterations', label: '못 보낸 반복', unit: 'per second', query: 'sum(rate(k6_dropped_iterations_total[30s])) or vector(0)' },
+  { key: 'k6ts.vus', label: '사용 중인 VU', unit: 'count', query: 'max(k6_vus)' },
+  { key: 'k6ts.statusNoResponse', label: '무응답', unit: 'per second', query: 'sum(rate(k6_http_reqs_total{status="0"}[30s])) or vector(0)' },
+  { key: 'pool.tomcatBusy', label: 'Tomcat busy threads', unit: 'count', query: `sum(${EXPR.tomcatBusy})` },
+  { key: 'pool.hikariPending', label: 'HikariCP pending', unit: 'count', query: `sum(${EXPR.hikariPending})` },
+  { key: 'pool.hikariActive', label: 'HikariCP active', unit: 'count', query: `sum(${EXPR.hikariActive})` },
+  { key: 'mysql.threadsRunning', label: 'MySQL threads running', unit: 'count', query: `max(${EXPR.mysqlThreadsRunning})` },
+  // 스레드가 늘어난 것과 스레드가 막힌 것은 다르다. 무한 소켓 대기는 runnable 로 잡힌다.
+  { key: 'jvm.threadsBlocked', label: 'BLOCKED 스레드', unit: 'count', query: `sum(${EXPR.threadsBlocked})` },
+  {
+    key: 'jvm.threadsWaiting', label: 'WAITING 스레드', unit: 'count',
+    // GROUPS 의 jvm.threadsWaiting 은 state="waiting" 만 센다. 여기서 timed-waiting 을
+    // 함께 세는 것은 상한이 있는 대기(커넥션 획득 타임아웃 등)가 그쪽에 잡히기 때문이다.
+    query: `sum(jvm_threads_states_threads{job="${APP_JOB}",state=~"waiting|timed-waiting"})`,
+  },
+  // 계단식 용량 측정에서 병목 후보를 가르는 두 축. CPU 는 cgroup 한계와, 힙은 GC 일시정지와
+  // 함께 읽는다 — 힙 사용량은 도착률이 아니라 동시에 살아 있는 객체 수를 따라간다.
+  { key: 'cpu.cores', label: '컨테이너 CPU', unit: 'cores', query: EXPR.cpuCores },
+  { key: 'heap.used', label: 'Heap 사용', unit: 'bytes', query: EXPR.heapUsed },
+];
+
+/**
  * 파생 지표 — 원시 값들로부터 계산되는 "포화도".
  *
  * 왜 따로 두는가: 절대값(CPU 1.4코어)은 환경이 바뀌면 의미가 없지만,
@@ -1021,4 +1090,4 @@ function computeDerived(flat) {
   return { derived, issues };
 }
 
-module.exports = { GROUPS, computeDerived, APP, DB, APP_JOB, LOADGEN };
+module.exports = { GROUPS, SERIES, computeDerived, APP, DB, APP_JOB, LOADGEN };
