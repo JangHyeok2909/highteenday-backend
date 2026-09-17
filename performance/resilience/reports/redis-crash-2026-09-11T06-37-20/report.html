@@ -249,11 +249,11 @@
   <div class="sub">dropped_iterations (도착률을 못 지킨 횟수, 전체): <b>—</b> — 0 이 아니면 장애 중 VU 가 모자라 부하가 계획보다 적게 걸렸다는 뜻이다. maxVUs 를 올리거나 그 자체를 관측으로 기록한다. 이 실행의 maxVUs 는 <b>1,000</b>, preVUs 는 <b>100</b> 다.</div>
   <div class="sub">전체 — 요청 3,437 · iteration 839 · 오류율 0.0% ·
     <span class="">check 통과율 100.0% (실패 0건)</span> · 서버 대기 p95 134ms · 최대 VU 100.
-    이 통과율은 상태 코드 검사와 내용 검사를 <b>합친</b> 값이고 대부분은 상태 코드 검사다 — 100% 라는 사실이 "내용도 정상"을 뜻하지는 않는다. 내용만 따로 본 결과는 <b>7-2 절</b>에 있다.</div>
+    이 통과율은 상태 코드 검사와 내용 검사를 <b>합친</b> 값이며 대부분이 상태 코드 검사다. 100% 가 내용의 정상을 뜻하지 않는다 — 내용만 본 결과는 <b>7-3 절</b>에 있다.</div>
 
 <h2>6. 데이터 정확성 — 불변식 대조</h2>
 <div class="sub">오류율과 지연은 "얼마나 실패했나"에 답한다. 이 절은 <b>실패하지 않은 요청의 결과가 맞았나</b>에 답한다.
-Redis 호출 실패는 <code>ResilientRedisAspect</code> 가 삼키고 기본값을 돌려주므로, 데이터가 사라지는 동안에도 사용자는 HTTP 200 을 받고 오류율은 0 에 가깝다 — 이 표만으로는 폴백이 정상 동작했는지 알 수 없다 — 그 답은 바로 아래 7절에 있다.</div>
+Redis 호출 실패는 <code>ResilientRedisAspect</code> 가 삼키고 기본값을 반환하므로, 데이터가 사라지는 동안에도 응답은 HTTP 200 이고 오류율은 0 에 가깝다. 폴백 자체의 동작 여부는 7절이 답한다.</div>
 <div class="sub" style="margin-top:10px"><b>counter-drift</b> — 비정규화된 반응 카운터가 실제 반응 행 수와 함께 움직였는가</div>
       <table><thead><tr><th>구간</th><th>판정</th><th class="l">실제 / 기대 (증가분)</th></tr></thead><tbody><tr><td><span class="band pre">pre</span></td>
         <td class="ok">정합</td><td class="l">좋아요 <b>3</b> / 3건<br>싫어요 <b>7</b> / 7건</td></tr><tr><td><span class="band fault">fault</span></td>
@@ -282,14 +282,50 @@ Redis 호출 실패는 <code>ResilientRedisAspect</code> 가 삼키고 기본값
   Redis 가 죽으면 조회수 증가가 아예 시도되지 않아 서버 어디에도 흔적이 없기 때문이다. 함께 적히는 <b>불확실</b> 건수는 타임아웃된 요청이다: 서버가 올렸는지 알 수 없다.
   Redis 버퍼는 이 식에 안 들어간다. 끝에 버퍼가 비었는지 <b>확인</b>하는 용도이고, 안 비었으면 숫자를 내지 않는다 — 아직 안 간 것과 사라진 것을 구분할 수 없어서다.</div>
 
-<h2>7. 폴백 — 돌긴 돌았나, 결과는 쓸 만했나</h2>
-<div class="sub">두 질문이 다르고, 답하는 표도 다르다. 위 표들은 <b>둘 다</b> 답하지 못한다 — 폴백은 예외를 삼키고 기본값을 돌려주므로 응답이 200 으로 나가서 오류율·상태 코드·지연 어디에도 흔적이 없다.</div>
-<h3 style="font-size:14px;margin:18px 0 4px">7-1. 폴백이 돌았나 — <code>redis_fallback_total</code></h3>
-<div class="sub warn">Redis 폴백 카운터를 읽지 못했다. 이 실행이 <code>redis.fallback</code> 계측을 넣기 전 앱 이미지로 돌았거나, 수집이 실패한 것이다 —
-    어느 쪽이든 <b>"폴백이 0 번 돌았다"는 뜻이 아니다</b>.</div>
-<h3 style="font-size:14px;margin:18px 0 4px">7-2. 그 결과가 쓸 만했나 — 응답 내용 검사</h3>
-<div class="sub warn">응답 내용 검사 결과가 없다 — 이 실행은 검사를 넣기 전 부하 스크립트로 돌았다.
-    <b>"내용이 정상이었다"는 뜻이 아니다.</b></div>
+<h2>7. 폴백 — 제대로 동작했나</h2>
+<div class="sub">폴백은 예외를 삼키고 기본값을 반환하므로 응답이 HTTP 200 으로 나간다. 오류율·상태 코드·지연 어디에도 흔적이 남지 않으므로 앞 절들로는 답할 수 없다.
+7-1 이 경로 단위 결론, 7-2·7-3 이 근거, 7-4 가 DB 가 추가로 한 일이다.</div>
+<h3 style="font-size:14px;margin:18px 0 4px">7-1. 경로별로 본 폴백</h3>
+<table><thead><tr>
+    <th>사용자 경로</th><th>fault 구간 폴백 발동</th><th>fault 구간 응답 내용</th><th>fault 구간 오류율</th>
+    <th>폴백이 대신 하는 일</th><th>폴백이 포기하는 것</th>
+  </tr></thead><tbody><tr>
+      <td><b>인기글</b><br><span class="sub"><code>GET /api/hotposts/daily</code></span></td>
+      <td>모름</td><td>모름</td><td><span class="">0.0%</span></td>
+      <td><span class="sub">ZSET 조회가 실패하면 빈 Set 이 되고, 호출자가 DailyHotPost 테이블을 대신 읽는다</span></td>
+      <td><span class="sub">랭킹이 스케줄러가 마지막으로 DB 에 동기화한 시점의 것이 된다 — 그 뒤의 조회수·반응은 순위에 안 들어간다</span></td>
+    </tr><tr>
+      <td><b>게시글 목록</b><br><span class="sub"><code>GET /api/boards/{id}/posts</code></span></td>
+      <td>모름</td><td>모름</td><td><span class="">0.0%</span></td>
+      <td><span class="sub">예외를 잡아 postRepository.findByBoard 로 같은 목록을 DB 에서 직접 읽는다</span></td>
+      <td><span class="sub">데이터는 같다. 캐시가 흡수하던 쿼리가 전부 DB 로 가므로 MySQL 부하가 오른다</span></td>
+    </tr><tr>
+      <td><b>게시글 상세</b><br><span class="sub"><code>GET /api/posts/{id}</code></span></td>
+      <td>모름</td><td>모름</td><td><span class="">0.0%</span></td>
+      <td><span class="sub">tryMarkViewed 가 false 를 돌려주고, 그러면 incrementCount 를 부르지 않는다. 본문은 DB 에서 채워 내보낸다</span></td>
+      <td><span class="sub"><b class="warn">조회수 증가가 사라진다</b> — 응답은 채워져 나가므로 이 절의 표로는 안 보인다.
+         <b>데이터 정확성</b> 절의 <code>viewcount-conservation</code> 항목이 그 손실을 잡는다.</span></td>
+    </tr><tr>
+      <td><b>게시판 목록 (대조군)</b><br><span class="sub"><code>GET /api/boards</code></span></td>
+      <td><span class="sub">Redis 미사용</span></td><td>모름</td><td><span class="">0.0%</span></td>
+      <td><span class="sub">Redis 를 쓰지 않는다 — BoardService.findAll 이 DB 를 바로 읽는다</span></td>
+      <td><span class="sub">없다. 이 행이 나빠지면 폭발 반경이 Redis 경계를 넘은 것이고, 경로는 공유 자원(스레드·커넥션)이다</span></td>
+    </tr></tbody></table>
+  <div class="sub"><b>세 열을 조합해 읽는다.</b>
+  발동&gt;0 · 내용 채움 · 오류율 0 = 설계대로 동작. 오른쪽 끝 열의 대가는 별도로 치른다.
+  발동&gt;0 · 빈 응답 = 대체 경로가 값을 만들지 못함.
+  발동 0 · 오류율 상승 = 예외가 잡히지 않고 전파됨.
+  발동 0 · 오류율 0 = 그 구간에 Redis 를 호출하지 않음.</div>
+<h3 style="font-size:14px;margin:18px 0 4px">7-2. 근거 ① 폴백 발동 횟수 — <code>redis_fallback_total</code></h3>
+<div class="sub warn">Redis 폴백 카운터 미수집. <b>폴백 0 회를 뜻하지 않는다.</b></div>
+<h3 style="font-size:14px;margin:18px 0 4px">7-3. 근거 ② 응답 내용 검사</h3>
+<div class="sub warn">응답 내용 검사 미실시. <b>내용이 정상이었음을 뜻하지 않는다.</b></div>
+<h3 style="font-size:14px;margin:18px 0 4px">7-4. 폴백의 대가 — DB 가 더 한 일</h3>
+
+<table><thead><tr><th>요청당 지표</th><th>pre</th><th>fault</th><th>post</th><th>fault − pre</th></tr></thead><tbody><tr><td>요청당 MySQL CPU<br><span class="sub">MySQL 이 태운 계산량</span></td><td class="pre">5.5ms</td><td class="fault">6.0ms</td><td class="post">7.7ms</td><td><span class="">+7.5%</span></td></tr><tr><td>요청당 읽은 행<br><span class="sub">쿼리를 어떻게 쪼갰든 무관한 일의 총량</span></td><td class="pre">—</td><td class="fault">—</td><td class="post">—</td><td>—</td></tr><tr><td>요청당 SELECT<br><span class="sub">몇 조각으로 나눠 했나. N+1 은 여기서 보인다</span></td><td class="pre">—</td><td class="fault">—</td><td class="post">—</td><td>—</td></tr><tr><td>SELECT당 읽은 행<br><span class="sub">한 조각의 무게. 이것만 오르면 쿼리가 풀스캔으로 바뀐 것이다</span></td><td class="pre">—</td><td class="fault">—</td><td class="post">—</td><td>—</td></tr><tr><td>요청당 디스크 읽기<br><span class="sub">버퍼풀 미스가 디스크까지 내려간 양</span></td><td class="pre">—</td><td class="fault">—</td><td class="post">—</td><td>—</td></tr><tr><td>버퍼풀 적중률<br><span class="sub">100.00% 면 데이터가 전부 메모리에 있다는 뜻이다</span></td><td class="pre">100.0%</td><td class="fault">100.0%</td><td class="post">100.0%</td><td><span class="">+0.0%</span></td></tr></tbody></table>
+  <div class="sub">전부 <b>요청당</b> 값이다 — 구간마다 요청 수가 다르면 초당 값은 비교할 수 없다.
+  <code>mysql.qps</code>(자원 사용 절)는 <code>SET autocommit</code>·<code>COMMIT</code> 을 포함한 문장 수라 SQL 작업량과 반대로 움직일 수 있어 제외한다.</div>
+  
 
 <h2>8. 실패 응답의 지연 분포</h2>
 <table><thead><tr><th>구간</th><th>실패 응답 수</th><th>p50</th><th>p90</th><th>p95</th><th>max</th></tr></thead><tbody><tr><td><span class="band pre">pre</span></td><td>0</td><td>—</td><td>—</td><td>—</td><td>—</td></tr><tr><td><span class="band fault">fault</span></td><td>0</td><td>—</td><td>—</td><td>—</td><td>—</td></tr><tr><td><span class="band post">post</span></td><td>0</td><td>—</td><td>—</td><td>—</td><td>—</td></tr></tbody></table>
@@ -423,7 +459,7 @@ Redis 호출 실패는 <code>ResilientRedisAspect</code> 가 삼키고 기본값
   <div class="sub">⚠ 출처가 "저장소 파일"인 값은 <b>작업 트리</b>의 파일에서 읽은 것이다. 앱 이미지가 소스보다 낡았다면(위 9번) 실제 적용된 값과 다를 수 있다.</div>
 
 <h2>16. 같은 계획의 다른 실행</h2>
-<ul><li><a href="../redis-crash-2026-09-11T06-15-49/report.html">redis-crash-2026-09-11T06-15-49</a> <span class="sub">2026-09-11T06:15:48.871Z · 커밋 c658d315 · After: Redis timeout 200ms, 인프라 실패 503 분리</span></li><li><a href="../redis-crash-2026-09-11T06-06-22/report.html">redis-crash-2026-09-11T06-06-22</a> <span class="sub">2026-09-11T06:06:21.643Z · 커밋 c658d315 · Before: Redis timeout 미설정, 인프라 실패 미분리</span></li><li><a href="../redis-crash-2026-09-11T00-47-40/report.html">redis-crash-2026-09-11T00-47-40</a> <span class="sub">2026-09-11T00:47:39.365Z · 커밋 d3bde00d · 조회수 유실 정확 계측</span></li><li><a href="../redis-crash-2026-09-10T09-09-13/report.html">redis-crash-2026-09-10T09-09-13</a> <span class="sub">2026-09-10T09:09:12.850Z · 커밋 d3bde00d · 조회수 유실 계측 첫 실행 (구간 단축)</span></li><li><a href="../redis-crash-2026-09-09T01-54-40/report.html">redis-crash-2026-09-09T01-54-40</a> <span class="sub">2026-09-09T01:54:40.596Z · 커밋 d3bde00d · 1-3순위 최종 검증</span></li><li><a href="../redis-crash-2026-09-09T01-44-30/report.html">redis-crash-2026-09-09T01-44-30</a> <span class="sub">2026-09-09T01:44:30.414Z · 커밋 d3bde00d · 3순위까지 반영 검증</span></li></ul><div class="sub">링크만 둔다. 두 실행의 수치를 나란히 놓는 것은 사람이 한다 — 자동 비교·판정은 이 도구의 범위 밖이다. 다만 커밋이 같은지는 여기서 먼저 확인할 수 있다.</div>
+<ul><li><a href="../redis-crash-2026-09-14T05-22-34/report.html">redis-crash-2026-09-14T05-22-34</a> <span class="sub">2026-09-14T05:22:33.634Z · 커밋 94d1664d · 도착률 60/s · MySQL 512m · 앱 8코어 · Tomcat 50 — 증상 관측 조건</span></li><li><a href="../redis-crash-2026-09-14T04-11-01/report.html">redis-crash-2026-09-14T04-11-01</a> <span class="sub">2026-09-14T04:11:00.773Z · 커밋 94d1664d · 예열 180s 도입 후 첫 기준선</span></li><li><a href="../redis-crash-2026-09-14T01-50-22/report.html">redis-crash-2026-09-14T01-50-22</a> <span class="sub">2026-09-14T01:50:22.063Z · 커밋 94d1664d · 지연 출처 분해 확인</span></li><li><a href="../redis-crash-2026-09-14T01-37-55/report.html">redis-crash-2026-09-14T01-37-55</a> <span class="sub">2026-09-14T01:37:55.080Z · 커밋 94d1664d · 요청 구성 표준화 DB 시간 확인</span></li><li><a href="../redis-crash-2026-09-14T01-20-34/report.html">redis-crash-2026-09-14T01-20-34</a> <span class="sub">2026-09-14T01:20:34.307Z · 커밋 94d1664d · 버퍼풀 64M + Hikari 40 — DB 부담 재측정</span></li><li><a href="../redis-crash-2026-09-11T06-15-49/report.html">redis-crash-2026-09-11T06-15-49</a> <span class="sub">2026-09-11T06:15:48.871Z · 커밋 c658d315 · After: Redis timeout 200ms, 인프라 실패 503 분리</span></li><li><a href="../redis-crash-2026-09-11T06-06-22/report.html">redis-crash-2026-09-11T06-06-22</a> <span class="sub">2026-09-11T06:06:21.643Z · 커밋 c658d315 · Before: Redis timeout 미설정, 인프라 실패 미분리</span></li><li><a href="../redis-crash-2026-09-11T00-47-40/report.html">redis-crash-2026-09-11T00-47-40</a> <span class="sub">2026-09-11T00:47:39.365Z · 커밋 d3bde00d · 조회수 유실 정확 계측</span></li><li><a href="../redis-crash-2026-09-10T09-09-13/report.html">redis-crash-2026-09-10T09-09-13</a> <span class="sub">2026-09-10T09:09:12.850Z · 커밋 d3bde00d · 조회수 유실 계측 첫 실행 (구간 단축)</span></li><li><a href="../redis-crash-2026-09-09T01-54-40/report.html">redis-crash-2026-09-09T01-54-40</a> <span class="sub">2026-09-09T01:54:40.596Z · 커밋 d3bde00d · 1-3순위 최종 검증</span></li><li><a href="../redis-crash-2026-09-09T01-44-30/report.html">redis-crash-2026-09-09T01-44-30</a> <span class="sub">2026-09-09T01:44:30.414Z · 커밋 d3bde00d · 3순위까지 반영 검증</span></li></ul><div class="sub">링크만 둔다. 두 실행의 수치를 나란히 놓는 것은 사람이 한다 — 자동 비교·판정은 이 도구의 범위 밖이다. 다만 커밋이 같은지는 여기서 먼저 확인할 수 있다.</div>
 
 <h2>17. 원자료</h2>
 <ul class="sub"><li><code>run.json</code> — 이 보고서의 전부 · 계획 원본 <code>resilience/faults/redis-crash.json</code></li><li><code>k6.json</code> — k6 요약 원본 (phase 이름은 warmup/measure/rampdown 그대로)</li><li><a href="http://localhost:3001/d/htd-perf-overview/highteenday-performance-overview?from=1789108520338&amp;to=1789108993014">Grafana 대시보드 (실행 구간)</a></li></ul>
