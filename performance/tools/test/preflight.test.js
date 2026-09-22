@@ -35,9 +35,9 @@ function baseFacts() {
       slow_query_log: '1',
       performance_schema: '1',
     },
-    appLimits: { nanoCpus: 2e9, memBytes: 2560 * 1024 * 1024 },
-    mysqlLimits: { nanoCpus: 2e9, memBytes: 2 * 1024 * 1024 * 1024 },
-    expectedHikariMax: 10,
+    appLimits: { nanoCpus: 8e9, memBytes: 2560 * 1024 * 1024 },
+    mysqlLimits: { nanoCpus: 2e9, memBytes: 512 * 1024 * 1024 },
+    expectedHikariMax: 40,
     image: {
       available: true,
       imageId: 'sha256:abcdef0123456789',
@@ -57,7 +57,7 @@ function baseFacts() {
       ],
       error: null,
     },
-    live: { hikariMax: 10, pending: 0, active: 0, appCores: 0.02 },
+    live: { hikariMax: 40, pending: 0, active: 0, appCores: 0.02 },
     rate: 4,
   };
 }
@@ -135,8 +135,8 @@ test('G3 — 시드 오버라이드가 켜진 채면 전부 잡아낸다', () =>
   for (const key of Object.keys(preflight.MEASURE_SPEC.mysql)) {
     assert.ok(text.includes(key), `${key} 가 보고되지 않았다`);
   }
-  assert.ok(text.includes('HikariCP 기대 10'), text);
-  assert.ok(text.includes('앱 CPU 기대 2.0코어'), text);
+  assert.ok(text.includes('HikariCP 기대 40'), text);
+  assert.ok(text.includes('앱 CPU 기대 8.0코어'), text);
 });
 
 test('G3 — 풀 크기 기대값은 .env.perf 를 따른다', () => {

@@ -47,7 +47,7 @@ const fs = require('fs');
 
 const repo = require('./lib/repository');
 const { PromClient } = require('./lib/promql');
-const { GROUPS, computeDerived } = require('./lib/metrics-catalog');
+const { GROUPS, SERIES, computeDerived } = require('./lib/metrics-catalog');
 const { analyze, bottleneckHints } = require('./lib/regression');
 const cmp = require('./lib/comparability');
 const hostprobe = require('./lib/hostprobe');
@@ -210,6 +210,36 @@ async function collectInfra(prom, window) {
     errors,
     available: Object.values(flat).some((v) => v != null),
   };
+}
+
+/**
+ * 시계열 카탈로그를 실행해 그래프용 시계열을 채운다.
+ *
+ * `collectInfra` 가 "이 구간의 조건이 어땠나"를 값 하나로 답한다면, 이 함수는 "언제 무엇이
+ * 변했나"를 모양으로 답한다. 계단식 용량 측정에서 무릎이 어느 도착률에서 왔는지, 장애
+ * 주입 뒤 몇 초에 지표가 움직였는지는 창 집계로는 알 수 없다.
+ *
+ * 부분 실패를 허용하는 이유는 `collectInfra` 와 같다. exporter 하나가 없다고 나머지 축을
+ * 버리지 않는다. 실패한 축은 빈 배열로 두고 사유를 따로 모은다.
+ *
+ * @param {PromClient} prom 연결이 확인된 Prometheus 클라이언트.
+ * @param {{from:Date, to:Date}} window 조회 구간. 창 집계 구간보다 넓게 잡아도 된다.
+ * @param {number} [stepSec=5] 표본 간격. Prometheus 스크레이프 간격보다 짧게 잡으면
+ *   같은 값이 반복될 뿐 해상도가 올라가지 않는다.
+ * @returns {Promise<{series:object, errors:Array<{key:string,error:string}>}>}
+ */
+async function collectSeries(prom, window, stepSec = 5) {
+  const series = {};
+  const errors = [];
+  for (const spec of SERIES) {
+    try {
+      series[spec.key] = await prom.rangeSpec(spec, window, stepSec);
+    } catch (e) {
+      series[spec.key] = [];
+      errors.push({ key: spec.key, error: e.message.slice(0, 200) });
+    }
+  }
+  return { series, errors };
 }
 
 /** 콘솔 요약 — CI 로그에서 이것만 봐도 상황이 판단되어야 한다. */
@@ -446,6 +476,27 @@ async function processRun(runId, opts) {
         errors: [{ key: '*', error: 'Prometheus 미응답' }], available: false,
       };
 
+  /*
+   * 실행 전체 시계열 — 창 집계와 묻는 것이 다르다.
+   *
+   * `collectInfra` 는 measure 창 하나를 값 하나로 접는다. 계단식 용량 측정은 "어느 계단에서
+   * 무엇이 한계에 닿았나"를 묻는데, 그 답은 창 하나로 접는 순간 사라진다. 20분 램프를 접으면
+   * "이 실행에서 CPU 최대 98%" 만 남고 그게 몇 iterations/s 였는지는 없다.
+   *
+   * 구간은 measure 창이 아니라 실행 전체다. 계단마다 창을 따로 만드는 대신 전체를 5초 간격으로
+   * 남기고 읽는 쪽에서 자른다 — 계단 경계가 바뀌어도 저장된 원자료를 다시 쓸 수 있다.
+   */
+  const runFromMs = Date.parse(record.run.startedAt);
+  const runToMs = Date.parse(record.run.endedAt);
+  if (alive && Number.isFinite(runFromMs) && Number.isFinite(runToMs)) {
+    const collected = await collectSeries(prom, {
+      from: new Date(runFromMs - 30000),
+      to: new Date(runToMs + 30000),
+    }, 5);
+    record.series = collected.series;
+    record.seriesErrors = collected.errors;
+  }
+
   // ---- 회귀 분석 --------------------------------------------------------
   // 기준선은 "직전 실행"이 아니라 "비교 가능한 가장 최근 실행"이다. 탈락 사유도 함께
   // 받아 리포트에 싣는다 — 비교하지 않았다면 왜 안 했는지 말할 수 있어야 한다.
@@ -665,4 +716,4 @@ if (require.main === module) {
 }
 
 // printConsole 은 콘솔 리포트와 HTML 리포트가 같은 사실을 말하는지 검증하기 위해 노출한다.
-module.exports = { processRun, renderOnly, trendUpTo, collectInfra, measureWindow, printConsole };
+module.exports = { processRun, renderOnly, trendUpTo, collectInfra, collectSeries, measureWindow, printConsole };

@@ -196,6 +196,29 @@ class PromClient {
     const scaled = spec.scale ? raw * spec.scale : raw;
     return Number.isFinite(scaled) ? scaled : null;
   }
+
+  /**
+   * 시계열 카탈로그 한 항목을 실행한다. `evalSpec` 의 시계열 짝이다.
+   *
+   * `evalSpec` 은 구간 전체를 값 하나로 접지만 이 함수는 모양을 그대로 돌려준다. 계단식
+   * 용량 측정에서 "무릎이 어느 도착률에서 왔나"를 읽으려면 그 시점의 값이 필요하다.
+   *
+   * `$RANGE` 는 받지 않는다. 그 토큰은 구간 길이로 치환되는데, 시계열 항목이 구간 길이에
+   * 의존하면 같은 지표가 실행마다 다른 창으로 계산되어 두 실행의 그래프를 겹쳐 볼 수 없다.
+   * 시계열용 rate 창은 카탈로그에 고정 값으로 적는다.
+   *
+   * @param {{key:string, query:string, scale?:number}} spec 시계열 카탈로그 항목.
+   * @param {{from:Date, to:Date}} window 조회 구간.
+   * @param {number} stepSec 표본 간격(초).
+   * @returns {Promise<Array<{t:number, v:number}>>} 초 단위 타임스탬프 + 값.
+   */
+  async rangeSpec(spec, window, stepSec) {
+    if (spec.query.includes('$RANGE')) {
+      throw new Error(`시계열 항목 ${spec.key} 에 $RANGE 가 있다 — 고정 창으로 바꾼다`);
+    }
+    const points = await this.range(spec.query, window.from, window.to, stepSec);
+    return spec.scale ? points.map((p) => ({ t: p.t, v: p.v * spec.scale })) : points;
+  }
 }
 
 module.exports = { PromClient, toRangeSelector };

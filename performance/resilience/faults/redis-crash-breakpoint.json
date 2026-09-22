@@ -1,0 +1,54 @@
+{
+  "id": "redis-crash-breakpoint",
+  "question": "Redis 가 죽어 있는 동안 도착률을 올리면 어디까지 버티나 — 무장애 상한 대비 얼마나 깎이고, 그때 먼저 차는 자원은 무엇인가",
+  "load": {
+    "rate": 40,
+    "steps": [40, 55, 70, 85, 100],
+    "stepRampSec": 30,
+    "stepHoldSec": 90,
+    "preVus": 700,
+    "maxVus": 2500
+  },
+  "phases": {
+    "warmupSec": 180,
+    "preSec": 120,
+    "faultSec": 600,
+    "postSec": 180
+  },
+  "inject": [
+    {
+      "at": "fault.start",
+      "tool": "docker",
+      "action": "stop",
+      "container": "perf-redis"
+    },
+    {
+      "at": "fault.end",
+      "tool": "docker",
+      "action": "start",
+      "container": "perf-redis"
+    }
+  ],
+  "expect": [
+    "pre: 도착률 40/s 는 무장애 상한(R_slo 80~85/s)의 약 절반이라 여유가 있어야 한다. p95 100ms 아래, Tomcat·Hikari 포화 없음",
+    "fault: 계단이 오를수록 Tomcat 워커와 HikariCP 가 먼저 찬다 — 무장애 실행에서 CPU 는 최대 31%였고 두 풀이 100% 였다",
+    "fault: 무장애 R_slo 가 80~85/s 였으므로 장애 중 상한은 그보다 낮아야 한다. 어느 계단에서 p95 500ms 를 넘는지가 이 실행의 답이다",
+    "fault: 워커가 다 차면 /actuator 스크레이프가 끊긴다 — 무장애 실행에서 140/s 이상 계단의 앱 지표가 통째로 비었다. 그 계단은 판정에서 빠진다",
+    "post: 재시작한 Redis 는 비어 있다(save \"\", appendonly no). 도착률을 40/s 로 되돌린 뒤 캐시가 다시 차는 데 걸리는 시간 — 모른다"
+  ],
+  "integrity": {
+    "probes": [
+      "counter-drift",
+      "viewcount-conservation"
+    ],
+    "drainWaitSec": 70
+  },
+  "watch": [
+    "http.byFeature",
+    "pool.tomcatBusy",
+    "pool.hikariPending",
+    "mysql.qps",
+    "redis.hitRatioPct",
+    "health"
+  ]
+}

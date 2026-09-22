@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 상태를 바꾸는 요청의 출처(Origin)를 검사하는 CSRF 최소 방어 (docs/KNOWN-ISSUES.md KI-06).
+ * 상태를 바꾸는 요청의 출처(Origin)를 검사하는 CSRF 최소 방어다.
  *
  * <h2>왜 필요한가</h2>
  * 이 서비스는 HttpOnly 쿠키로 인증하고 쿠키가 {@code SameSite=None} 이다. 즉 브라우저가

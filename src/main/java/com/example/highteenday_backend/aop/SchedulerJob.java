@@ -6,7 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @Scheduled 메서드에 선언하면 {@link SchedulerJobAspect}가
+ * {@code @Scheduled} 메서드에 선언하면 {@link SchedulerJobAspect}가
  * 실행 시작/종료/소요시간을 로깅하고, 미처리 예외를 ERROR로 기록한 뒤 rethrow 한다.
  *
  *

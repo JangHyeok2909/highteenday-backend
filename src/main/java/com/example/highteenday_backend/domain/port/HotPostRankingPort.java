@@ -15,7 +15,7 @@ public interface HotPostRankingPort {
      * 고쳐야 하므로, 수명을 아는 쪽이 직접 말하게 한다.
      *
      * <p>TTL이 없으면 지나간 날짜·시각의 ZSET이 영원히 남아 Redis 메모리가 단조
-     * 증가한다 (docs/KNOWN-ISSUES.md KI-20).
+     * 증가한다.
      */
     void addScore(String key, Long postId, double score, Duration ttl);
 

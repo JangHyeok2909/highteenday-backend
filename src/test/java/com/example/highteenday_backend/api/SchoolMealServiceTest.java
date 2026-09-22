@@ -31,7 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 급식 재적재의 원자성 (docs/KNOWN-ISSUES.md KI-45).
+ * 급식 재적재의 원자성을 검증한다.
  *
  * 예전에는 JSON 을 읽자마자 {@code deleteAll()} 을 불러서, 학교 코드가 하나도 매칭되지
  * 않으면 기존 급식 데이터가 전량 사라진 채 아무것도 채워지지 않았다.

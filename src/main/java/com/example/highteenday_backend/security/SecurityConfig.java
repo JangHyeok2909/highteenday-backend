@@ -26,8 +26,8 @@ import java.util.List;
  *
  * 예전에는 GET 만 블랙리스트였다 — 마지막에 {@code GET /**} 가 permitAll 이라
  * 새 GET 이 기본 공개가 됐고, 그런 핸들러가 {@code @AuthenticationPrincipal} 을
- * null 체크 없이 쓰면 비인증 요청이 401 이 아니라 NPE 500 으로 터졌다
- * (docs/KNOWN-ISSUES.md KI-04). 인가 매트릭스는 {@code AuthorizationMatrixTest} 가 고정한다.
+ * null 체크 없이 쓰면 비인증 요청이 401이 아니라 NPE 500으로 터졌다. 인가 매트릭스는
+ * {@code AuthorizationMatrixTest}가 고정한다.
  */
 @Configuration
 public class SecurityConfig {
@@ -63,20 +63,13 @@ public class SecurityConfig {
         http
                 // 스프링의 CSRF 토큰 방식은 끈 채로 둔다 — 토큰을 켜면 프론트엔드가
                 // XSRF 토큰을 되돌려 보내도록 함께 고쳐야 하는데 프론트는 별도 저장소다.
-                // 대신 쓰기 요청의 출처를 검사하는 최소 방어를 아래 필터로 넣었다 (KI-06).
+                // 대신 쓰기 요청의 출처를 검사하는 최소 방어를 아래 필터로 넣었다.
                 .csrf(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-//                .exceptionHandling(eh -> eh
-//                        .authenticationEntryPoint((request, response, authException) -> {
-//                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-//                            response.setContentType("application/json");
-//                            response.getWriter().write("{\"error\": \"global error.\"}");
-//                        })
-//                )
                 .cors(cors -> cors
                         .configurationSource(request -> {
                             CorsConfiguration config = new CorsConfiguration();
@@ -135,7 +128,7 @@ public class SecurityConfig {
 
                         // ── 그 외 전부 인증 필요 ──
                         // 화이트리스트다. 새 엔드포인트는 GET 이든 아니든 기본값이 "차단"이므로,
-                        // 공개해야 하면 위 목록에 명시적으로 추가해야 한다 (KI-04).
+                        // 공개해야 하면 위 목록에 명시적으로 추가해야 한다.
                         .anyRequest().authenticated()
                 )
 
@@ -155,7 +148,7 @@ public class SecurityConfig {
 
                 .addFilterBefore(tokenAuthenticationFilter(), ExceptionTranslationFilter.class)
                 .addFilterBefore(new TokenExceptionFilter(), TokenAuthenticationFilter.class)
-                // 인증 작업을 하기 전에 출처부터 끊는다 (KI-06).
+                // 인증 작업을 하기 전에 출처부터 끊는다.
                 .addFilterBefore(new CsrfOriginValidationFilter(ALLOWED_ORIGINS), TokenExceptionFilter.class);
         return http.build();
     }

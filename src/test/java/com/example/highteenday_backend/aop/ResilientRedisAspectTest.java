@@ -4,6 +4,12 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.example.highteenday_backend.metrics.RedisFallbackMetrics;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -15,10 +21,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,7 +43,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 반환 타입에 맞는 기본값을 반환하는지 확인한다.</p>
  *
  * <p>장애 시뮬레이션에 {@link RedisConnectionFailureException} 을 쓰는 이유:
- * aspect 는 {@code DataAccessException} 계열만 잡는다(KI-18). 예전 테스트는
+ * aspect는 {@code DataAccessException} 계열만 잡는다. 예전 테스트는
  * 평범한 {@code RuntimeException} 을 던져 "Redis 장애"라고 불렀는데, 그건 실제
  * 스프링 데이터 Redis 가 내는 타입이 아니라 코드 버그와 구분되지 않는 타입이었다.</p>
  */
@@ -53,8 +61,45 @@ class ResilientRedisAspectTest {
     @EnableAspectJAutoProxy
     static class TestConfig {
         @Bean
-        ResilientRedisAspect resilientRedisAspect() {
-            return new ResilientRedisAspect();
+        MeterRegistry meterRegistry() {
+            return new SimpleMeterRegistry();
+        }
+
+        @Bean
+        RedisFallbackMetrics redisFallbackMetrics(MeterRegistry registry) {
+            return new RedisFallbackMetrics(registry);
+        }
+
+        /**
+         * 절대 열리지 않는 서킷. 이 클래스는 <b>폴백 계약</b>만 검증한다.
+         *
+         * <p>운영 설정을 그대로 쓰면 컨텍스트를 공유하는 테스트들이 서로를 망가뜨린다. 실패를
+         * 주입하는 테스트가 11건이 넘어서 클래스 중간에 서킷이 열리고, 그 뒤 {@code bugOp}
+         * 은 NPE 를 던지기도 전에 거절되어 "코드 버그는 삼키지 않는다" 검증이 무너진다.
+         * 어느 테스트가 깨지는지는 실행 순서에 달려 있어 무작위 실패처럼 보인다.</p>
+         *
+         * <p>서킷이 여는 동작은 {@code ResilientRedisExecutorTest} 가 따로 검증한다.</p>
+         */
+        @Bean
+        CircuitBreakerRegistry circuitBreakerRegistry() {
+            CircuitBreakerRegistry registry = CircuitBreakerRegistry.of(
+                    CircuitBreakerConfig.custom()
+                            .minimumNumberOfCalls(Integer.MAX_VALUE)
+                            .recordExceptions(DataAccessException.class)
+                            .build());
+            registry.circuitBreaker("redis");
+            return registry;
+        }
+
+        @Bean
+        ResilientRedisExecutor resilientRedisExecutor(CircuitBreakerRegistry registry,
+                                                      RedisFallbackMetrics metrics) {
+            return new ResilientRedisExecutor(registry, metrics);
+        }
+
+        @Bean
+        ResilientRedisAspect resilientRedisAspect(ResilientRedisExecutor executor) {
+            return new ResilientRedisAspect(executor);
         }
 
         @Bean
@@ -110,10 +155,53 @@ class ResilientRedisAspectTest {
         public void bugOp() {
             throw new NullPointerException("this is a code bug, not Redis");
         }
+
+        /** 정상 동작. 폴백이 안 돌아도 시계열이 생기는지 확인하는 데 쓴다. */
+        @ResilientRedis
+        public int okOp() {
+            return 7;
+        }
+
+        /**
+         * 카운터 증가 검증 전용.
+         *
+         * <p>Spring 테스트 컨텍스트는 클래스 안에서 재사용되므로 카운터 값이 테스트 사이에
+         * 누적된다. 다른 테스트가 부르는 메서드를 쓰면 기대값이 실행 순서에 따라 달라지므로
+         * 이 메서드는 카운터 테스트만 부른다.</p>
+         */
+        @ResilientRedis
+        public List<String> countedOp() {
+            throw redisDown();
+        }
     }
 
     @Autowired
     SampleRedisClient client;
+
+    @Autowired
+    MeterRegistry registry;
+
+    @Autowired
+    CircuitBreakerRegistry circuitBreakerRegistry;
+
+    @BeforeEach
+    void resetCircuit() {
+        // 설정상 열리지 않지만, 실패 표본이 테스트 사이에 쌓이는 것 자체를 막는다.
+        circuitBreakerRegistry.circuitBreaker("redis").reset();
+    }
+
+    /**
+     * 한 메서드의 폴백 횟수. {@code reason} 두 계열을 합친다.
+     *
+     * <p>태그를 지정하지 않고 {@code counter()} 를 부르면 {@code error} 와 {@code open} 중
+     * 아무거나 하나가 돌아온다. Micrometer 의 검색이 여러 개가 맞을 때 하나를 임의로 고르기
+     * 때문이다. 그러면 기대값이 실행마다 달라진다.</p>
+     */
+    private double fallbackCount(String method) {
+        Collection<Counter> counters = registry.find("redis.fallback").tag("method", method).counters();
+        if (counters.isEmpty()) return -1;
+        return counters.stream().mapToDouble(Counter::count).sum();
+    }
 
     @Nested
     @DisplayName("void 메서드")
@@ -173,26 +261,31 @@ class ResilientRedisAspectTest {
         }
     }
 
-    /** KI-18 회귀 방지. */
+    /** Redis 예외 범위의 회귀를 방지한다. */
     @Nested
-    @DisplayName("장애 로그와 예외 범위 (KI-18)")
+    @DisplayName("장애 로그와 예외 범위")
     class FailureHandling {
 
         private ListAppender<ILoggingEvent> appender;
-        private Logger aspectLogger;
+        private Logger executorLogger;
 
+        /**
+         * 장애 로그는 {@link ResilientRedisExecutor} 가 남긴다. 로그가 다른 클래스로 옮겨
+         * 가면 이 appender 가 빈 채로 남고, 아래 {@code doesNotContain} 검증은 아무것도
+         * 안 지키면서 통과한다. 그래서 각 테스트가 "이벤트를 받았다"를 먼저 확인한다.
+         */
         @BeforeEach
         void attachAppender() {
-            aspectLogger = (Logger) LoggerFactory.getLogger(ResilientRedisAspect.class);
+            executorLogger = (Logger) LoggerFactory.getLogger(ResilientRedisExecutor.class);
             appender = new ListAppender<>();
             appender.start();
-            aspectLogger.addAppender(appender);
-            aspectLogger.setLevel(Level.WARN);
+            executorLogger.addAppender(appender);
+            executorLogger.setLevel(Level.WARN);
         }
 
         @AfterEach
         void detachAppender() {
-            aspectLogger.detachAppender(appender);
+            executorLogger.detachAppender(appender);
         }
 
         private String loggedText() {
@@ -207,6 +300,10 @@ class ResilientRedisAspectTest {
             String refreshToken = "super-secret-refresh-token-value";
 
             client.putToken(refreshToken, "victim@example.com");
+
+            assertThat(appender.list)
+                    .as("로그를 한 줄도 못 받았으면 아래 검증이 빈 문자열을 검사하게 된다")
+                    .isNotEmpty();
 
             String logged = loggedText();
             assertThat(logged)
@@ -226,6 +323,45 @@ class ResilientRedisAspectTest {
                     .isInstanceOf(NullPointerException.class);
 
             assertThat(loggedText()).doesNotContain("Redis unavailable");
+        }
+    }
+
+    /**
+     * 폴백은 예외를 삼키고 200 을 내보내므로 오류율에 흔적이 없다. 카운터가 유일한 흔적이다.
+     */
+    @Nested
+    @DisplayName("폴백 계측")
+    class FallbackMetrics {
+
+        @Test
+        @DisplayName("폴백이 돌면 그 메서드의 카운터가 오른다")
+        void countsFallback() {
+            client.countedOp();
+            client.countedOp();
+
+            assertThat(fallbackCount("SampleRedisClient.countedOp"))
+                    .as("흡수한 실패 2건이 세어져야 한다")
+                    .isEqualTo(2.0);
+        }
+
+        @Test
+        @DisplayName("폴백이 안 돌아도 시계열은 0 으로 존재한다")
+        void registersZeroSeriesOnSuccess() {
+            client.okOp();
+
+            assertThat(fallbackCount("SampleRedisClient.okOp"))
+                    .as("시계열이 없으면 읽는 쪽에서 '0 회'와 '계측 없음'을 구분할 수 없다")
+                    .isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("코드 버그는 폴백이 아니므로 세지 않는다")
+        void doesNotCountCodeBugs() {
+            assertThatThrownBy(() -> client.bugOp()).isInstanceOf(NullPointerException.class);
+
+            assertThat(fallbackCount("SampleRedisClient.bugOp"))
+                    .as("버그를 폴백으로 세면 Redis 장애 건수가 부풀려진다")
+                    .isEqualTo(0.0);
         }
     }
 }

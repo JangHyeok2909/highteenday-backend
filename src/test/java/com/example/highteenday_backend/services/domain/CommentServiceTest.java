@@ -51,7 +51,7 @@ import static org.mockito.Mockito.when;
 class CommentServiceTest {
 
     @Mock private CommentRepository commentRepository;
-    // 댓글 수는 엔티티가 아니라 DB에서 원자적으로 증감한다(KI-53). 그래서 이 테스트들은
+    // 댓글 수는 엔티티가 아니라 DB에서 원자적으로 증감한다. 그래서 이 테스트들은
     // post.getCommentCount() 가 아니라 **리포지토리 호출**을 검증한다 — 엔티티 값을 보면
     // 갱신 유실을 못 잡고, 실제로 그래서 large 데이터셋의 카운터가 13,284건 어긋났다.
     @Mock private PostRepository postRepository;
@@ -270,7 +270,7 @@ class CommentServiceTest {
         @DisplayName("작성자 본인의 수정은 통과하고 updatedBy 에 본인 id 가 남는다")
         void ownerCanUpdate() {
             // 이 자리에는 원래 "서비스는 소유권을 확인하지 않는다"를 고정하는 테스트가 있었다.
-            // 그러나 컨트롤러에도 검증이 없어 실제로는 아무도 막지 않는 상태였고(KI-05),
+            // 그러나 컨트롤러에도 검증이 없어 실제로는 아무도 막지 않는 상태였고,
             // 검증을 서비스로 들여오면서 그 전제 자체가 폐기됐다.
             Comment comment = Comment.create(author, post, "원래 내용", true, null);
             ReflectionTestUtils.setField(comment, "id", 500L);
@@ -355,7 +355,7 @@ class CommentServiceTest {
     }
 
     /**
-     * IDOR 회귀 방지 (docs/KNOWN-ISSUES.md KI-05).
+     * 다른 사용자의 댓글 변경을 막는지 검증한다.
      * 소유권 검사를 지우면 남의 댓글이 수정·삭제되므로 아래 테스트가 실패한다.
      */
     @Nested

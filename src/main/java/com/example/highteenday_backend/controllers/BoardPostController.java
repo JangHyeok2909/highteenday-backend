@@ -22,23 +22,6 @@ public class BoardPostController {
     private final PostService postService;
     static final int DEFAULT_SIZE = 10;
 
-//    @Operation(summary = "게시글 리스트 조회",description = "boardId의 게시판에 해당되는 게시글 리스트 조회")
-//    @GetMapping()
-//    public ResponseEntity<PageResponse> getPostsByBoardId(@PathVariable Long boardId,
-//                                                           @RequestParam Integer page,
-//                                                           @RequestParam SortType sortType){
-//        if(page == null) page = 0;
-//         PostListingDto dto= PostListingDto.builder()
-//                .boardId(boardId)
-//                .page(page)
-//                 .sortType(sortType)
-//                 .size(PAGE_SIZE)
-//                 .build();
-//        PageResponse<PostPreviewDto> pagedPostDResponseDto = postService.getPagedPostsByBoardId(dto);
-//
-//
-//        return ResponseEntity.ok(pagedPostDResponseDto);
-//    }
     @Operation(summary = "게시글 리스트 조회",description = "boardId의 게시판에 해당되는 게시글 리스트 조회")
     @GetMapping()
     public ResponseEntity<PageResponse> getPostsByBoardId(@PathVariable Long boardId,

@@ -1,47 +1,52 @@
 package com.example.highteenday_backend.aop;
 
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
 
+/*
+ * ExecutionLoggingAspect(LOWEST_PRECEDENCE - 2)보다 안쪽에 위치하여, 서킷이 호출을 즉시
+ * 거절한 경우에도 그 소요 시간이 실행 로그에 잡히게 한다. 바깥에 두면 로그가 Redis 대기
+ * 시간을 놓쳐 서킷의 효과가 로그에서 사라진다.
+ */
 @Aspect
 @Component
-@Slf4j
+@RequiredArgsConstructor
+@Order(Ordered.LOWEST_PRECEDENCE)
 public class ResilientRedisAspect {
 
+    private final ResilientRedisExecutor executor;
+
     /**
-     * Redis 접근 실패를 삼키고 반환 타입의 기본값을 돌려준다.
+     * {@link ResilientRedis}가 붙은 메서드를 서킷브레이커에 태우고, Redis 를 쓰지 못하면
+     * 예외 대신 반환 타입에 맞는 기본값을 돌려준다.
      *
-     * <p><b>인자를 로그에 남기지 않는다.</b> 예전에는 {@code joinPoint.getArgs()} 를
-     * 그대로 찍었는데, {@code RedisTokenCacheStore.put/delete} 의 첫 인자가 리프레시
-     * 토큰 원문이라 Redis 장애가 나면 <b>유효한 토큰이 로그 파일에 평문으로 남았다</b>
-     * (docs/KNOWN-ISSUES.md KI-18). 어떤 인자가 민감한지는 호출 지점마다 다르므로
-     * 마스킹 규칙을 두는 대신 인자 자체를 찍지 않는다 — 장애 원인 파악에는 메서드
-     * 이름과 예외로 충분하다.
+     * <p>서킷 판단, 폴백 계측, 로그는 모두 {@link ResilientRedisExecutor}가 한다. 이 advice 는
+     * 폴백 값을 <b>반환 타입에서 유도</b>하는 부분만 맡는다. DB 조회 같은 값을 폴백으로 써야
+     * 하는 메서드는 이 애너테이션 대신 executor 를 직접 부른다.</p>
      *
-     * <p><b>{@link DataAccessException} 만 잡는다.</b> 예전의 {@code catch (Exception)} 은
-     * Redis 접속 오류가 아닌 코드 버그(NPE 등)까지 "Redis unavailable" 로 위장해
-     * 삼켰다. 스프링 데이터 Redis 는 Lettuce 예외를 {@code RedisConnectionFailureException}
-     * ·{@code RedisSystemException} 등 {@code DataAccessException} 계열로 번역하므로,
-     * 이 계열만 잡으면 진짜 인프라 장애와 코드 버그가 갈린다. 버그는 이제 그대로
-     * 위로 올라가 500 으로 드러난다.
+     * <p>Redis 오류로 변환된 {@link DataAccessException}만 폴백으로 처리하며, NPE 와 같은
+     * 코드 오류는 숨기지 않고 호출자에게 그대로 전달한다.</p>
+     *
+     * @param joinPoint 원래 메서드의 호출 정보
+     * @param resilientRedis 호출된 메서드에 선언된 애너테이션
+     * @return 원래 메서드의 반환값 또는 Redis 를 쓰지 못할 때 반환 타입의 기본값
+     * @throws Throwable Redis 접근 실패가 아닌 예외가 원래 메서드에서 발생한 경우
      */
     @Around("@annotation(resilientRedis)")
     public Object handle(ProceedingJoinPoint joinPoint, ResilientRedis resilientRedis) throws Throwable {
-        try {
-            return joinPoint.proceed();
-        } catch (DataAccessException e) {
-            String methodName = joinPoint.getSignature().toShortString();
-            log.warn("Redis unavailable, skipping {}. cause={}: {}",
-                    methodName, e.getClass().getSimpleName(), e.getMostSpecificCause().getMessage());
-            return defaultValue(((MethodSignature) joinPoint.getSignature()).getReturnType());
-        }
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        String method = signature.getDeclaringType().getSimpleName() + "." + signature.getName();
+        return executor.executeChecked(method, joinPoint::proceed,
+                () -> defaultValue(signature.getReturnType()));
     }
 
     private Object defaultValue(Class<?> returnType) {
@@ -50,6 +55,7 @@ public class ResilientRedisAspect {
         if (returnType == int.class || returnType == Integer.class) return 0;
         if (returnType == long.class || returnType == Long.class) return 0L;
         if (returnType == double.class || returnType == Double.class) return 0.0;
+        if (returnType == Optional.class) return Optional.empty();
         if (List.class.isAssignableFrom(returnType)) return Collections.emptyList();
         if (Set.class.isAssignableFrom(returnType)) return Collections.emptySet();
         if (Map.class.isAssignableFrom(returnType)) return Collections.emptyMap();

@@ -35,7 +35,7 @@
  *              비포화 실행과의 증감률 비교는 성립하지 않는다
  *   UNKNOWN    판정에 필요한 지표가 없다
  *
- * 근거 문서: performance/docs/findings/perf-findings-scripts.md S-27 (2026-08-20 보정 곡선)
+ * 해석 계약: performance/METHOD.md
  */
 
 /**
@@ -92,20 +92,33 @@ const SIGNALS = [
 ];
 
 /**
- * 도착률 달성도 — **open model 에서만 의미가 있다.**
+ * 도착률 달성도 — **open model 에서만, 그리고 목표가 하나일 때만 의미가 있다.**
  *
  * closed model 은 시스템이 느려지면 부하 발생기가 스스로 요청을 줄이므로(coordinated
  * omission) "목표 대비 실제"라는 개념 자체가 없다. 그래서 목표 도착률이 기록된 실행에만
  * 적용한다. 미달은 **가장 결정적인 포화 신호**다 — 부하 발생기가 계획한 부하를 넣지
  * 못했다는 직접 증거이기 때문이다.
+ *
+ * 계단식 실행(breakpoint)은 목표가 계단마다 다르다. 전체 평균 도달률을 최고 계단의 목표로
+ * 나누면 낮은 계단이 섞여 언제나 미달로 나온다. 목표가 둘 이상이면 여기서 판정하지 않고,
+ * 계단별 판정표가 계단마다 따로 답한다.
+ *
+ * 시나리오 이름은 고정하지 않는다. 예전에는 `normal_day` 만 읽어서 `breakpoint` 와
+ * `fault_window` 는 항상 null 을 받았다 — 포화 판정이 가장 필요한 두 시나리오였다.
  */
 function achievedRate(record) {
-  const sc = record.run && record.run.loadProfile && record.run.loadProfile.normal_day;
+  const profile = (record.run && record.run.loadProfile)
+    || (record.k6 && record.k6.loadProfile) || null;
+  const sc = profile
+    ? Object.values(profile).find((s) => s && s.executor === 'ramping-arrival-rate')
+    : null;
   const measure = record.k6 && record.k6.phases && record.k6.phases.measure;
-  if (!sc || !measure || sc.executor !== 'ramping-arrival-rate') return null;
-  const target = Array.isArray(sc.stages) && sc.stages.length
-    ? Math.max(...sc.stages.map((s) => Number(s.target) || 0)) : null;
-  if (!target || !measure.durationSec) return null;
+  if (!sc || !measure || !measure.durationSec) return null;
+  const targets = Array.isArray(sc.stages)
+    ? [...new Set(sc.stages.map((s) => Number(s.target)).filter((n) => Number.isFinite(n) && n > 0))]
+    : [];
+  if (targets.length !== 1) return null;
+  const target = targets[0];
   const actual = measure.iterations / measure.durationSec;
   return { target, actual, pct: (actual / target) * 100 };
 }

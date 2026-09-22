@@ -1,5 +1,7 @@
 package com.example.highteenday_backend.security;
 
+import com.example.highteenday_backend.enums.ErrorCode;
+import com.example.highteenday_backend.exceptions.CustomException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
@@ -14,16 +16,19 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -155,8 +160,8 @@ class TokenAuthenticationFilterTest {
         @Test
         @DisplayName("토큰이 없는 보호 URI도 그대로 통과한다 — 차단은 SecurityConfig 책임")
         void passesThroughProtectedUriWithoutToken() throws Exception {
-            // 필터 안의 TOKEN_NOT_FOUND 예외는 주석 처리되어 있다. 즉 토큰 없는 요청은
-            // 익명 상태로 체인을 통과하고, 최종 차단 여부는 SecurityConfig가 정한다.
+            // 인증 필터는 토큰 부재를 오류로 바꾸지 않는다. 익명 상태로 체인을 통과하고,
+            // 최종 차단 여부는 SecurityConfig가 정한다.
             request.setRequestURI("/api/mypage");
 
             filter.doFilter(request, response, filterChain);
@@ -175,6 +180,56 @@ class TokenAuthenticationFilterTest {
 
             verify(filterChain).doFilter(request, response);
             verify(tokenProvider, never()).getAuthentication(any());
+        }
+    }
+
+    /**
+     * 위 "실패 처리"와 경계를 이룬다. 거기서는 토큰이 틀린 경우를 삼키고 익명으로 통과시키는데,
+     * 여기서는 반대로 끊는다. 가르는 기준은 "인증에 실패했는가"와 "인증을 판정하지 못했는가"다.
+     * {@code getAuthentication()}은 매 요청 User를 MySQL에서 읽으므로 커넥션을 못 얻으면
+     * 판정 자체가 불가능한데, 이때 익명으로 넘기면 보호 경로에서 401이 나간다. 클라이언트는
+     * 그것을 토큰 문제로 읽고 로그아웃하거나 재발급을 시도하며, 재발급은 옛 refresh 토큰을
+     * 무효화하므로 몇십 초짜리 장애가 실제 로그아웃으로 굳는다.
+     */
+    @Nested
+    @DisplayName("인프라 실패는 삼키지 않는다")
+    class InfrastructureFailureIsNotSwallowed {
+
+        @Test
+        @DisplayName("커넥션을 못 얻으면 체인을 끊고 INFRASTRUCTURE_UNAVAILABLE 을 던진다")
+        void connectionFailureStopsChain() {
+            request.setCookies(new Cookie("accessToken", "valid-token"));
+            when(tokenProvider.getAuthentication("valid-token"))
+                    .thenThrow(new CannotCreateTransactionException("Connection is not available"));
+
+            assertThatThrownBy(() -> filter.doFilter(request, response, filterChain))
+                    .isInstanceOf(CustomException.class)
+                    .extracting(e -> ((CustomException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.INFRASTRUCTURE_UNAVAILABLE);
+        }
+
+        @Test
+        @DisplayName("Redis 명령 타임아웃도 같은 예외로 끊는다")
+        void commandTimeoutStopsChain() {
+            request.setCookies(new Cookie("accessToken", "valid-token"));
+            when(tokenProvider.getAuthentication("valid-token"))
+                    .thenThrow(new QueryTimeoutException("Redis command timed out"));
+
+            assertThatThrownBy(() -> filter.doFilter(request, response, filterChain))
+                    .isInstanceOf(CustomException.class);
+        }
+
+        @Test
+        @DisplayName("익명으로 통과시키지 않는다 — 통과하면 뒤에서 401이 된다")
+        void doesNotFallThroughAsAnonymous() throws Exception {
+            request.setCookies(new Cookie("accessToken", "valid-token"));
+            when(tokenProvider.getAuthentication("valid-token"))
+                    .thenThrow(new CannotCreateTransactionException("Connection is not available"));
+
+            assertThatThrownBy(() -> filter.doFilter(request, response, filterChain));
+
+            assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+            verify(filterChain, never()).doFilter(any(), any());
         }
     }
 

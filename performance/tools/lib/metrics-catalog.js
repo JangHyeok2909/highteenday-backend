@@ -45,8 +45,31 @@ const APP_JOB = 'spring-app';
  * 이건 자원 문제가 아니라 측정 오류였다.
  *
  * 쿼리 단계에서 접어 두면 겹친 시계열이 몇 개든 결과가 항상 1개다.
+ *
+ * ⚠ 접기만 할 뿐 **어느 쪽이 살아있는지는 고르지 못한다.** 게이지에는 oneLive 를 쓴다.
  */
 const one = (expr) => `max(${expr})`;
+
+/**
+ * 겹친 시계열 중 **지금 살아있는 컨테이너**만 남긴다. 게이지 전용이다.
+ *
+ * one() 의 max() 는 카운터에서는 저절로 맞는 답을 준다. rate()/increase() 가 멈춘
+ * 시계열에 0 을 주므로 큰 쪽이 곧 살아있는 쪽이기 때문이다. 게이지는 그렇지 않다.
+ * 죽은 컨테이너의 마지막 값은 직전 실행이 끝난 시점의 값이라 갓 뜬 컨테이너보다 크고,
+ * max() 가 죽은 쪽을 고른다. 그러면 값이 구간 내내 한 바이트도 안 변한다.
+ *
+ * 실측(2026-09-11 06:37 redis-crash 실행): 앱 메모리가 pre/fault/post 세 구간 모두
+ * 1,475,891,200 바이트로 보고됐고 avg·max·p95 까지 같았다. 같은 시각 Prometheus 에는
+ * name="perf-app" 시계열이 두 개 있었고, 살아있던 쪽은 994MB 에서 1,362MB 로 오르는
+ * 중이었다. 보고된 값은 이미 사라진 컨테이너의 마지막 값이었다.
+ *
+ * container_last_seen 은 cAdvisor 가 그 컨테이너를 마지막으로 관측한 시각이다. 컨테이너가
+ * 사라지면 이 값이 그 시점에 멈추므로, 평가 시각과의 차이가 살아있는지를 가른다. 30초는
+ * Prometheus 스크레이프 간격 5초와 cAdvisor housekeeping 주기를 함께 덮는 값이다.
+ * 서브쿼리 안에서도 time() 은 각 스텝의 시각이라, 지난 구간을 되짚어 물어도 맞게 걸러진다.
+ */
+const oneLive = (expr, name) =>
+  `max((${expr}) and on(id) (time() - container_last_seen{name="${name}"} < 30))`;
 
 /**
  * 효율 지표의 공통 분모 — 측정 구간의 요청 수.
@@ -83,6 +106,22 @@ function gaugeStats(base, expr, opts = {}) {
 }
 
 /**
+ * 시계열로도 뽑는 지표의 기저 식.
+ *
+ * 창 집계(GROUPS)와 시계열(SERIES)이 같은 메트릭을 가리키면서 식이 갈라지면, 리포트의
+ * 표와 그래프가 서로 다른 값을 보여준다. 식은 여기 한 번만 쓰고 양쪽이 참조한다.
+ */
+const EXPR = {
+  cpuCores: one(`rate(container_cpu_usage_seconds_total{name="${APP}"}[1m])`),
+  heapUsed: `sum(jvm_memory_used_bytes{job="${APP_JOB}",area="heap"})`,
+  hikariActive: `hikaricp_connections_active{job="${APP_JOB}"}`,
+  hikariPending: `hikaricp_connections_pending{job="${APP_JOB}"}`,
+  tomcatBusy: `tomcat_threads_busy_threads{job="${APP_JOB}"}`,
+  threadsBlocked: `jvm_threads_states_threads{job="${APP_JOB}",state="blocked"}`,
+  mysqlThreadsRunning: 'mysql_global_status_threads_running',
+};
+
+/**
  * 그룹별 지표 정의.
  * 각 항목: { key, label, query, reduce, scale, unit, desc }
  *   reduce — 다중 시계열이 나올 때 축약 방식 (sum: 힙 영역 합산, max: 인스턴스 중 최대)
@@ -99,13 +138,13 @@ const GROUPS = [
         desc: 'JVM이 사용한 CPU 비율. 호스트 전체 코어 기준.',
       }),
       // 컨테이너 관점 (코어 수). cgroup 한계와 직접 비교 가능한 값.
-      ...gaugeStats('cpu.cores', one(`rate(container_cpu_usage_seconds_total{name="${APP}"}[1m])`), {
+      ...gaugeStats('cpu.cores', EXPR.cpuCores, {
         label: '컨테이너 CPU', unit: 'cores', reduce: 'max',
         desc: '컨테이너가 소비한 CPU 코어 수. cgroup 한계와 직접 비교한다.',
       }),
       {
         key: 'cpu.limitCores', label: 'CPU 한계(코어)',
-        query: one(`container_spec_cpu_quota{name="${APP}"} / container_spec_cpu_period{name="${APP}"}`),
+        query: oneLive(`container_spec_cpu_quota{name="${APP}"} / container_spec_cpu_period{name="${APP}"}`, APP),
         reduce: 'max', unit: 'cores',
         desc: 'cgroup에 설정된 CPU 상한. 포화도 계산의 분모.',
       },
@@ -140,17 +179,17 @@ const GROUPS = [
     metrics: [
       // working_set 을 쓰는 이유: usage_bytes는 회수 가능한 page cache까지 포함해 과대평가된다.
       // OOM Killer가 실제로 보는 값이 working set이다.
-      ...gaugeStats('memory.workingSet', one(`container_memory_working_set_bytes{name="${APP}"}`), {
+      ...gaugeStats('memory.workingSet', oneLive(`container_memory_working_set_bytes{name="${APP}"}`, APP), {
         label: '컨테이너 메모리', unit: 'bytes', reduce: 'max',
         desc: 'OOM 판정 기준이 되는 실사용 메모리(page cache 제외).',
       }),
       {
         key: 'memory.limitBytes', label: '메모리 한계',
-        query: one(`container_spec_memory_limit_bytes{name="${APP}"}`),
+        query: oneLive(`container_spec_memory_limit_bytes{name="${APP}"}`, APP),
         reduce: 'max', unit: 'bytes',
         desc: 'cgroup 메모리 상한.',
       },
-      ...gaugeStats('memory.rss', one(`container_memory_rss{name="${APP}"}`), {
+      ...gaugeStats('memory.rss', oneLive(`container_memory_rss{name="${APP}"}`, APP), {
         label: 'RSS', unit: 'bytes', reduce: 'max',
         desc: '프로세스가 물리 메모리에 올린 양.',
       }),
@@ -161,7 +200,7 @@ const GROUPS = [
     id: 'heap',
     label: 'JVM Heap',
     metrics: [
-      ...gaugeStats('heap.used', `sum(jvm_memory_used_bytes{job="${APP_JOB}",area="heap"})`, {
+      ...gaugeStats('heap.used', EXPR.heapUsed, {
         label: 'Heap 사용', unit: 'bytes', reduce: 'max',
         desc: '힙 영역 합계 사용량.',
       }),
@@ -279,7 +318,7 @@ const GROUPS = [
         label: '살아있는 스레드', unit: 'count', reduce: 'sum',
         desc: '전체 스레드 수. 누수가 있으면 실행마다 증가한다.',
       }),
-      ...gaugeStats('jvm.threadsBlocked', `jvm_threads_states_threads{job="${APP_JOB}",state="blocked"}`, {
+      ...gaugeStats('jvm.threadsBlocked', EXPR.threadsBlocked, {
         label: 'BLOCKED 스레드', unit: 'count', reduce: 'max',
         desc: 'synchronized 락을 기다리는 스레드. >0 이 지속되면 앱 레벨 경합이다.',
       }),
@@ -294,7 +333,7 @@ const GROUPS = [
     id: 'mysql',
     label: 'MySQL',
     metrics: [
-      ...gaugeStats('mysql.threadsRunning', 'mysql_global_status_threads_running', {
+      ...gaugeStats('mysql.threadsRunning', EXPR.mysqlThreadsRunning, {
         label: 'Threads running', unit: 'count', reduce: 'max',
         desc: '실제로 쿼리를 실행 중인 스레드. DB 동시성의 직접 지표.',
       }),
@@ -315,10 +354,20 @@ const GROUPS = [
         desc: 'long_query_time(0.1s) 초과 쿼리 수. 인덱스 회귀의 1차 신호.',
       },
       {
-        key: 'mysql.qps', label: 'Queries/sec',
+        key: 'mysql.selectPerSec', label: 'SELECT/sec',
+        query: 'rate(mysql_global_status_commands_total{command="select"}[$RANGE])',
+        reduce: 'sum', unit: 'per_sec',
+        desc: '초당 SELECT 수. mysql.qps 와 달리 SET·COMMIT 을 빼서 실제 조회 작업량만 센다.',
+      },
+      {
+        key: 'mysql.qps', label: 'Statements/sec',
         query: 'rate(mysql_global_status_queries[$RANGE])',
         reduce: 'sum', unit: 'per_sec',
-        desc: '초당 쿼리 수. RPS 대비 비율이 곧 요청당 쿼리 수 = N+1 탐지기.',
+        // 예전 설명은 "RPS 대비 비율이 곧 요청당 쿼리 수 = N+1 탐지기"였다. 그렇게 못 읽는다.
+        // 2026-09-11 redis-crash 실행 pre 구간의 문장 구성이 set_option 42.0% / select 40.5%
+        // / commit 12.0% 였다. 트랜잭션 관리 문장이 SELECT 보다 많아서, 이 값이 떨어져도
+        // SELECT 는 오를 수 있다(그 실행이 실제로 그랬다: 문장 -22%, SELECT +9.4%).
+        desc: '초당 **문장** 수. SET·COMMIT 이 포함되므로 SQL 작업량이 아니다 — 조회 작업량은 mysql.selectPerSec, N+1 은 efficiency.selectPerReq 로 본다.',
       },
       {
         key: 'mysql.qpsMax', label: 'Queries/sec max',
@@ -410,7 +459,7 @@ const GROUPS = [
       },
       {
         key: 'mysql.cpuLimitCores', label: 'MySQL CPU 한계(코어)',
-        query: one(`container_spec_cpu_quota{name="${DB}"} / container_spec_cpu_period{name="${DB}"}`),
+        query: oneLive(`container_spec_cpu_quota{name="${DB}"} / container_spec_cpu_period{name="${DB}"}`, DB),
         reduce: 'max', unit: 'cores',
         desc: 'MySQL 에 걸린 cgroup CPU 상한. 여유가 있는데 느리면 CPU 부족이 아니다.',
       },
@@ -432,6 +481,38 @@ const GROUPS = [
         query: 'rate(redis_commands_processed_total[$RANGE])',
         reduce: 'sum', unit: 'per_sec',
         desc: '초당 처리 명령 수.',
+      },
+      // 아래 넷은 앱이 잰 값이고 위의 Redis 서버 지표와 다른 것을 말한다. 서버 지표는 서버가
+      // 명령을 처리한 시간만 담지만, 명령 타임아웃은 네트워크 왕복과 Lettuce 내부 대기까지
+      // 합친 시간에 걸린다. 타임아웃 값을 정할 때 근거가 되는 쪽은 앱이 잰 이 값이다.
+      // 출처는 RedisConfig.lettuceCommandLatencyMetrics 가 붙인 Micrometer 기록기다.
+      {
+        key: 'redis.cmdLatencyP95Ms', label: 'Redis 명령 지연 p95 (앱 기준)',
+        query: `1000 * histogram_quantile(0.95, sum by (le) (rate(lettuce_command_completion_seconds_bucket{job="${APP_JOB}"}[$RANGE])))`,
+        reduce: 'max', unit: 'ms',
+        desc: '앱이 Redis 명령을 보내고 응답을 다 받기까지 걸린 시간의 95분위.',
+      },
+      {
+        key: 'redis.cmdLatencyP99Ms', label: 'Redis 명령 지연 p99 (앱 기준)',
+        query: `1000 * histogram_quantile(0.99, sum by (le) (rate(lettuce_command_completion_seconds_bucket{job="${APP_JOB}"}[$RANGE])))`,
+        reduce: 'max', unit: 'ms',
+        desc: '같은 값의 99분위.',
+      },
+      {
+        // 타임아웃의 하한을 정하는 값이다. 이보다 낮게 잡으면 Redis 가 정상인데도 1000번에
+        // 한 번 이상 포기하게 되고, 이 앱은 그 실패를 삼키므로 조회수만 조용히 사라진다.
+        key: 'redis.cmdLatencyP999Ms', label: 'Redis 명령 지연 p99.9 (앱 기준)',
+        query: `1000 * histogram_quantile(0.999, sum by (le) (rate(lettuce_command_completion_seconds_bucket{job="${APP_JOB}"}[$RANGE])))`,
+        reduce: 'max', unit: 'ms',
+        desc: '같은 값의 99.9분위. 타임아웃 하한의 근거.',
+      },
+      {
+        // 요청 하나가 Redis 를 몇 번 부르는지 알아야 타임아웃의 상한을 계산할 수 있다.
+        // Redis 가 죽으면 호출마다 타임아웃만큼 기다리므로 그 횟수만큼 곱해진다.
+        key: 'redis.cmdsPerRequest', label: '요청당 Redis 명령 수',
+        query: `sum(increase(lettuce_command_completion_seconds_count{job="${APP_JOB}"}[$RANGE])) / sum(increase(http_server_requests_seconds_count{job="${APP_JOB}"}[$RANGE]))`,
+        reduce: 'max', unit: 'count',
+        desc: 'HTTP 요청 한 건이 평균 몇 번 Redis 를 부르는지. 엔드포인트별 편차는 이 평균에 가려진다.',
       },
       // MySQL 과 같은 이유로 붙인다(위 주석 참고). Redis 는 소비량이 작아 보통 결론을
       // 가르지 않지만, **셋 중 하나만 빠져 있으면 "스택 전체가 같이 느려졌나"를 못 묻는다.**
@@ -497,11 +578,11 @@ const GROUPS = [
     id: 'pool',
     label: 'Connection Pool / Threads',
     metrics: [
-      ...gaugeStats('pool.hikariActive', `hikaricp_connections_active{job="${APP_JOB}"}`, {
+      ...gaugeStats('pool.hikariActive', EXPR.hikariActive, {
         label: 'HikariCP active', unit: 'count', reduce: 'sum',
         desc: '사용 중인 DB 커넥션.',
       }),
-      ...gaugeStats('pool.hikariPending', `hikaricp_connections_pending{job="${APP_JOB}"}`, {
+      ...gaugeStats('pool.hikariPending', EXPR.hikariPending, {
         label: 'HikariCP pending', unit: 'count', reduce: 'sum',
         desc: '커넥션을 기다리는 스레드. >0 이 지속되면 풀이 병목이다.',
       }),
@@ -523,7 +604,7 @@ const GROUPS = [
         reduce: 'sum', unit: 'count',
         desc: '커넥션을 못 받고 실패한 횟수. 0이어야 정상.',
       },
-      ...gaugeStats('pool.tomcatBusy', `tomcat_threads_busy_threads{job="${APP_JOB}"}`, {
+      ...gaugeStats('pool.tomcatBusy', EXPR.tomcatBusy, {
         label: 'Tomcat busy threads', unit: 'count', reduce: 'sum',
         desc: '요청 처리 중인 워커 스레드.',
       }),
@@ -665,7 +746,7 @@ const GROUPS = [
         reduce: 'max', unit: 'percent',
         desc: '**0 이 아니면 그 실행의 지연은 서버가 아니라 부하 발생기가 만든 것일 수 있다.** 서버 포화와 발생기 포화를 가르는 값.',
       },
-      ...gaugeStats('loadgen.memBytes', one(`container_memory_working_set_bytes{name="${LOADGEN}"}`), {
+      ...gaugeStats('loadgen.memBytes', oneLive(`container_memory_working_set_bytes{name="${LOADGEN}"}`, LOADGEN), {
         label: '부하 발생기 메모리', unit: 'bytes', reduce: 'max',
         desc: 'k6 가 쓴 메모리. VU 가 많으면 여기가 먼저 터진다.',
       }),
@@ -843,13 +924,54 @@ const GROUPS = [
         key: 'efficiency.dbCpuUsPerQuery', label: '쿼리당 MySQL CPU',
         query: `1e6 * ${one(`increase(container_cpu_usage_seconds_total{name="${DB}"}[$RANGE])`)} / clamp_min(${one('increase(mysql_global_status_queries[$RANGE])')}, 1)`,
         reduce: 'max', unit: 'us',
-        desc: '쿼리 1건에 든 CPU(마이크로초). 요청당 쿼리 수는 그대로인데 이 값만 오르면 DB 자체가 비효율해진 것이다.',
+        desc: '쿼리 1건에 든 CPU(마이크로초). 분모가 SET·COMMIT 을 포함한 문장 수라 트랜잭션 수가 바뀌어도 움직인다 — SQL 작업만 보려면 efficiency.rowsPerSelect 를 같이 본다.',
       },
       {
-        key: 'efficiency.queriesPerReq', label: '요청당 쿼리 수',
+        key: 'efficiency.queriesPerReq', label: '요청당 문장 수',
         query: `${one('increase(mysql_global_status_queries[$RANGE])')} / ${REQS}`,
         reduce: 'max', unit: 'count',
-        desc: '요청 1건이 만든 쿼리 수. 급증하면 N+1 이다. 위 두 지표를 해석할 때의 기준선.',
+        // 예전 설명은 "급증하면 N+1"이었다. 그렇게 못 읽는다. 2026-09-11 redis-crash 실행에서
+        // pre 구간 문장 구성이 set_option 42.0% / select 40.5% / commit 12.0% 였다.
+        // 트랜잭션 관리 문장이 SELECT 보다 많아서, 이 값의 변화가 SQL 작업량 변화와 무관할 수 있다.
+        desc: '요청 1건이 만든 **문장** 수. SET·COMMIT 이 포함되므로 SQL 작업량이 아니다 — N+1 판단은 efficiency.selectPerReq 로 한다.',
+      },
+      {
+        // 요청이 SQL 실행을 기다린 **벽시계 시간**. CPU 도 행 수도 아닌, 사용자가 실제로
+        // 손해 본 시간이다. 캐시를 잃어 같은 행을 디스크에서 읽게 되면 CPU 와 행 수는
+        // 그대로인데 이 값만 오른다 — 그 경우를 잡는 유일한 지표다.
+        key: 'efficiency.dbTimeMsPerReq', label: '요청당 DB 시간',
+        query: `1000 * ${one(`sum(increase(http_server_query_time_seconds_sum{job="${APP_JOB}"}[$RANGE]))`)}`
+          + ` / clamp_min(${one(`sum(increase(http_server_query_time_seconds_count{job="${APP_JOB}"}[$RANGE]))`)}, 1)`,
+        reduce: 'max', unit: 'ms',
+        desc: '요청 1건이 SQL 실행에 쓴 벽시계 시간(ms). "DB 때문에 얼마나 손해 봤나"에 가장 직접 답한다. 앱이 요청 단위로 직접 잰 값이다(QueryCountFilter).',
+      },
+      {
+        key: 'efficiency.selectPerReq', label: '요청당 SELECT 수',
+        query: `${one('increase(mysql_global_status_commands_total{command="select"}[$RANGE])')} / ${REQS}`,
+        reduce: 'max', unit: 'count',
+        desc: '요청 1건이 만든 SELECT 수. 트랜잭션 관리 문장을 뺀 값이라 이것이 N+1 탐지기다.',
+      },
+      {
+        key: 'efficiency.rowsPerReq', label: '요청당 읽은 행',
+        query: `${one('increase(mysql_global_status_innodb_row_ops_total{operation="read"}[$RANGE])')} / ${REQS}`,
+        reduce: 'max', unit: 'count',
+        desc: '요청 1건에 InnoDB 가 읽은 행 수. 쿼리를 어떻게 쪼갰든 무관한 "일의 총량"이다.',
+      },
+      {
+        key: 'efficiency.rowsPerSelect', label: 'SELECT당 읽은 행',
+        query: `${one('increase(mysql_global_status_innodb_row_ops_total{operation="read"}[$RANGE])')}`
+          + ` / clamp_min(${one('increase(mysql_global_status_commands_total{command="select"}[$RANGE])')}, 1)`,
+        reduce: 'max', unit: 'count',
+        desc: 'SELECT 1건이 읽은 행 수. 요청당 SELECT 는 그대로인데 이 값만 오르면 쿼리가 풀스캔으로 바뀐 것이다.',
+      },
+      {
+        // 캐시를 잃었을 때의 진짜 대가. 버퍼풀에 다 들어가는 데이터셋에서는 0 이 나오는데,
+        // 그건 "미스가 없다"가 아니라 "미스가 메모리에서 끝난다"는 뜻이다. 그 상태에서는
+        // 캐시 상실 실험이 실제 비용을 재지 못한다(mysql.bufferPoolHitPct 와 같이 본다).
+        key: 'efficiency.diskReadPerReq', label: '요청당 디스크 읽기',
+        query: `${onePerContainer(`increase(container_fs_reads_bytes_total{name="${DB}"}[$RANGE])`)} / ${REQS}`,
+        reduce: 'max', unit: 'bytes',
+        desc: '요청 1건이 DB 디스크에서 읽은 바이트. 버퍼풀 미스가 실제로 디스크까지 내려갔는지를 본다.',
       },
       {
         key: 'efficiency.ctxSwitchPerReq', label: '요청당 컨텍스트 스위치',
@@ -859,6 +981,59 @@ const GROUPS = [
       },
     ],
   },
+];
+
+/**
+ * 시계열 카탈로그 — "언제 무엇이 변했는가"를 묻는 지표.
+ *
+ * GROUPS 와 나누는 이유
+ * ---------------------
+ * GROUPS 의 게이지 항목은 `avg_over_time((...)[$RANGE:])` 처럼 **구간 전체에서 값 하나**를
+ * 내는 식이다. 같은 식을 범위 질의에 넣으면 각 시점마다 그 앞 구간 전체의 통계가 나와,
+ * 값이 한 번 오르면 계단처럼 유지된다. 무릎이 어느 도착률에서 왔는지 보려면 그 시점의
+ * 실제 값이 필요하므로 집계 래퍼를 벗긴 기저 식을 쓴다.
+ *
+ * k6 지표는 `$RANGE` 대신 고정 30초 rate 창을 쓴다. 구간 길이에 맞춰 창을 늘리면 램프
+ * 도중의 변화가 창 안에서 평균되어 사라진다. 30초는 짧은 순간 변동을 지우면서 계단
+ * 하나(유지 90초)에 온전한 표본이 두 개 이상 들어가는 길이다.
+ *
+ * 키는 GROUPS 와 같은 이름을 쓴다. `series['pool.tomcatBusy']` 와
+ * `infra.flat['pool.tomcatBusy.max']` 가 같은 메트릭을 가리킨다는 것이 이름으로 드러나야
+ * 한다. 이름이 갈라졌던 탓에 장애 리포트와 성능 리포트가 같은 값을 다르게 불렀다.
+ */
+const SERIES = [
+  { key: 'k6ts.rps', label: '초당 요청 수', unit: 'per second', query: 'sum(rate(k6_http_reqs_total[30s]))' },
+  {
+    key: 'k6ts.errorPct', label: '실패 응답 비율', unit: 'percent',
+    query: '100 * (sum(rate(k6_http_reqs_total{expected_response="false"}[30s])) or vector(0)) / clamp_min(sum(rate(k6_http_reqs_total[30s])), 0.0001)',
+  },
+  { key: 'k6ts.p95', label: '응답 p95', unit: 'ms', query: '1000 * histogram_quantile(0.95, sum(rate(k6_http_req_duration_seconds[30s])))' },
+  // 실패의 종류를 시간축에서 가른다. 5xx 는 앱이 살아서 에러를 응답한 것이고,
+  // status="0" 은 응답 자체를 못 받은 것이다. k6 remote-write 가 status 라벨을 보존한다.
+  { key: 'k6ts.status5xx', label: '5xx', unit: 'per second', query: 'sum(rate(k6_http_reqs_total{status=~"5.."}[30s])) or vector(0)' },
+  // 계단별 도달률을 재려면 처리율이 아니라 **반복 수**가 필요하다. 계획 도착률의 단위가
+  // iterations/s 이기 때문이다. 아래 셋은 k6 remote-write 가 보내는 이름이며, remote-write 를
+  // 끈 실행에서는 빈 축으로 남는다 — 그 경우 계단 표가 "미수집"으로 표시한다.
+  { key: 'k6ts.iterations', label: '초당 반복 수', unit: 'per second', query: 'sum(rate(k6_iterations_total[30s]))' },
+  { key: 'k6ts.droppedIterations', label: '못 보낸 반복', unit: 'per second', query: 'sum(rate(k6_dropped_iterations_total[30s])) or vector(0)' },
+  { key: 'k6ts.vus', label: '사용 중인 VU', unit: 'count', query: 'max(k6_vus)' },
+  { key: 'k6ts.statusNoResponse', label: '무응답', unit: 'per second', query: 'sum(rate(k6_http_reqs_total{status="0"}[30s])) or vector(0)' },
+  { key: 'pool.tomcatBusy', label: 'Tomcat busy threads', unit: 'count', query: `sum(${EXPR.tomcatBusy})` },
+  { key: 'pool.hikariPending', label: 'HikariCP pending', unit: 'count', query: `sum(${EXPR.hikariPending})` },
+  { key: 'pool.hikariActive', label: 'HikariCP active', unit: 'count', query: `sum(${EXPR.hikariActive})` },
+  { key: 'mysql.threadsRunning', label: 'MySQL threads running', unit: 'count', query: `max(${EXPR.mysqlThreadsRunning})` },
+  // 스레드가 늘어난 것과 스레드가 막힌 것은 다르다. 무한 소켓 대기는 runnable 로 잡힌다.
+  { key: 'jvm.threadsBlocked', label: 'BLOCKED 스레드', unit: 'count', query: `sum(${EXPR.threadsBlocked})` },
+  {
+    key: 'jvm.threadsWaiting', label: 'WAITING 스레드', unit: 'count',
+    // GROUPS 의 jvm.threadsWaiting 은 state="waiting" 만 센다. 여기서 timed-waiting 을
+    // 함께 세는 것은 상한이 있는 대기(커넥션 획득 타임아웃 등)가 그쪽에 잡히기 때문이다.
+    query: `sum(jvm_threads_states_threads{job="${APP_JOB}",state=~"waiting|timed-waiting"})`,
+  },
+  // 계단식 용량 측정에서 병목 후보를 가르는 두 축. CPU 는 cgroup 한계와, 힙은 GC 일시정지와
+  // 함께 읽는다 — 힙 사용량은 도착률이 아니라 동시에 살아 있는 객체 수를 따라간다.
+  { key: 'cpu.cores', label: '컨테이너 CPU', unit: 'cores', query: EXPR.cpuCores },
+  { key: 'heap.used', label: 'Heap 사용', unit: 'bytes', query: EXPR.heapUsed },
 ];
 
 /**
@@ -915,4 +1090,4 @@ function computeDerived(flat) {
   return { derived, issues };
 }
 
-module.exports = { GROUPS, computeDerived, APP, DB, APP_JOB, LOADGEN };
+module.exports = { GROUPS, SERIES, computeDerived, APP, DB, APP_JOB, LOADGEN };

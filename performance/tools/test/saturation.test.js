@@ -53,7 +53,7 @@ test('비포화 실행을 HEADROOM 으로 판정한다', () => {
 });
 
 test('포화 실행에는 경고 배너가 붙고 비포화에는 안 붙는다', () => {
-  assert.match(sat.banner(sat.assess(SATURATED)), /애플리케이션 지연이 아니라/);
+  assert.match(sat.banner(sat.assess(SATURATED)), /응답 시간의 대부분이 큐 대기/);
   assert.equal(sat.banner(sat.assess(HEADROOM)), null);
 });
 
@@ -107,7 +107,7 @@ test('closed model 에는 도착률 신호를 만들지 않는다', () => {
 
 test('포화 영역과 비포화 영역의 비교를 막는다', () => {
   const msg = sat.regimeMismatch(sat.assess(HEADROOM), sat.assess(SATURATED));
-  assert.match(msg, /서로 다른 물리량/);
+  assert.match(msg, /증감률에 의미가 없습니다/);
 });
 
 test('같은 영역끼리는 경고하지 않는다', () => {

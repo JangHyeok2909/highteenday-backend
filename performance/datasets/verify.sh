@@ -74,7 +74,7 @@ q "SELECT
         WHERE p.is_valid=1 GROUP BY p.PST_id, p.PST_comment_count
         HAVING p.PST_comment_count <> COUNT(c.CMT_id)) x) AS mismatched_posts;"
 
-echo "   (반응·스크랩은 KI-55의 좁은 경쟁 창 때문에 몇 건이 1씩 어긋날 수 있다)"
+echo "   (반응·스크랩은 좁은 경쟁 창 때문에 몇 건이 1씩 어긋날 수 있다)"
 q "SELECT 'scrap' AS cnt, COUNT(*) AS mismatched FROM (
      SELECT p.PST_scrap_count AS a, COUNT(s.SC_id) AS b FROM posts p
      LEFT JOIN scraps s ON s.PST_id=p.PST_id AND s.is_valid=1 WHERE p.is_valid=1

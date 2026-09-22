@@ -4,8 +4,12 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import com.example.highteenday_backend.enums.ErrorCode;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.TransactionException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -26,7 +30,7 @@ import java.util.NoSuchElementException;
  * <p><b>응답 본문에 내부 예외 메시지를 싣지 않는다.</b> 예전에는 400/403/404/405/409 는 물론
  * <b>500 응답에도</b> {@code e.getMessage()} 를 그대로 이어 붙였다. 그 문자열에는 테이블·컬럼
  * 이름, 클래스 이름, 제약 조건 이름 같은 내부 구현이 그대로 들어 있어 공격자에게 스키마를
- * 알려 주는 통로가 됐다 (docs/KNOWN-ISSUES.md KI-13). 이제 클라이언트는 코드별 고정
+ * 알려 주는 통로가 됐다. 이제 클라이언트는 코드별 고정
  * 문구만 받고, 원인 문자열은 서버 로그에만 남는다.
  *
  * <p>예외는 {@link CustomException} 이다. 이쪽은 <b>개발자가 직접 쓴</b> 상세 메시지이므로
@@ -112,6 +116,33 @@ public class GlobalExceptionHandler {
         // 이 메시지에는 제약 조건 이름과 컬럼명이 들어 있다 — 절대 내보내지 않는다.
         log.warn("[409 Conflict] {}", e.getMessage());
         return body(HttpStatus.CONFLICT, "CONFLICT", "요청 충돌이 발생했습니다.");
+    }
+
+    /**
+     * 503 Service Unavailable: 의존성(MySQL·Redis)을 쓰지 못해 요청을 끝내지 못한 경우.
+     *
+     * <p>왜 500과 나누는가: 500은 "이 요청은 다시 보내도 같은 결과"라는 뜻이고, 503은
+     * "서버가 지금 처리할 수 없다"는 뜻이다. 둘을 합쳐 두면 클라이언트도 대시보드도
+     * 코드 버그와 의존성 장애를 구분하지 못한다.
+     *
+     * <p>세 타입을 고른 근거는 Spring의 예외 분류다.
+     * {@code TransientDataAccessException}은 재시도로 풀릴 수 있는 실패(쿼리 타임아웃,
+     * Redis 명령 타임아웃)이고, {@code DataAccessResourceFailureException}은 커넥션 자체를
+     * 얻지 못한 경우(HikariCP 고갈, Redis 연결 거부)이며,
+     * {@code TransactionException}은 트랜잭션을 시작하려다 커넥션을 못 얻은 경우다.
+     * 문법이 틀린 SQL처럼 재시도해도 같은 결과인 {@code NonTransientDataAccessException}은
+     * 여기 넣지 않고 아래 500으로 떨어뜨린다.
+     */
+    @ExceptionHandler({
+            TransientDataAccessException.class,
+            DataAccessResourceFailureException.class,
+            TransactionException.class
+    })
+    public ResponseEntity<?> handleInfrastructureUnavailable(Exception e) {
+        log.error("[503 Service Unavailable] {}: {}", e.getClass().getSimpleName(), e.getMessage(), e);
+        return body(HttpStatus.SERVICE_UNAVAILABLE,
+                ErrorCode.INFRASTRUCTURE_UNAVAILABLE.name(),
+                ErrorCode.INFRASTRUCTURE_UNAVAILABLE.getMessage());
     }
 
     // 500 Internal Server Error: 그 외 예상치 못한 예외

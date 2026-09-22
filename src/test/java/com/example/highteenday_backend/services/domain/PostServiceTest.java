@@ -143,11 +143,11 @@ class PostServiceTest {
             verify(postPrevCache, never()).getPostPrevs(any(), anyInt(), anyInt());
         }
 
-        // ── KI-57: 페이지 번호가 작아도 size 가 크면 캐시 밖으로 나간다 ──
+        // 페이지 번호가 작아도 size가 크면 캐시 밖으로 나간다.
         // 캐시는 최신 50건만 담으므로 판정 기준은 page 가 아니라 (page + 1) * size 다.
 
         @Test
-        @DisplayName("최신순 + 3페이지 · size 20 → DB 조회 (끝 인덱스 80 > 50, KI-57)")
+        @DisplayName("최신순 + 3페이지 · size 20 → DB 조회 (끝 인덱스 80 > 50)")
         void recentPage3Size20_usesDb() {
             PostListingDto dto = dto(3, SortType.RECENT, 20);
             when(postRepository.findByBoard(dto)).thenReturn(List.of());
@@ -233,7 +233,7 @@ class PostServiceTest {
     }
 
     /**
-     * IDOR 회귀 방지 (docs/KNOWN-ISSUES.md KI-05).
+     * 다른 사용자의 리소스 변경을 막는지 검증한다.
      * 검증이 빠지면 "남의 글이 수정/삭제된다"가 되므로, 아래 두 테스트는
      * 소유권 검사를 지우는 순간 실패한다.
      */
@@ -299,14 +299,14 @@ class PostServiceTest {
     }
 
     /**
-     * 캐시 갱신 시점 회귀 방지 (docs/KNOWN-ISSUES.md KI-22).
+     * 캐시 갱신이 DB 커밋 뒤에 실행되는지 검증한다.
      *
      * 여기서는 예약된 작업을 <b>일부러 실행하지 않는다.</b> 커밋 전에 캐시를 건드리면
      * 롤백 시 존재하지 않는 글이 목록 캐시에 남으므로, "메서드가 끝난 시점까지도
      * 캐시가 그대로여야 한다"가 고정할 내용이다.
      */
     @Nested
-    @DisplayName("캐시 갱신은 커밋 이후에만 일어난다 (KI-22)")
+    @DisplayName("캐시 갱신은 커밋 이후에만 일어난다")
     class CacheAfterCommit {
 
         private static final Long POST_ID = 7L;

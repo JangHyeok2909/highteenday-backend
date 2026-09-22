@@ -10,7 +10,8 @@
  *     CV(변동계수) = 표준편차 / 평균
  *
  *   CV는 무차원이다. 그래서 절대 지연이 달라진 환경끼리도 비교할 수 있다.
- *   측정 환경 자체를 바꾼 전후를 비교하는 유일한 축이다 (experiments/EXP-000).
+ *   측정 환경 자체를 바꾼 전후 비교에도 사용할 수 있다.
+ *   관련 기록: studies/STUDY-000-measurement-integrity.
  *
  * 사용법
  *   node tools/repeatability.js scripts/posts.js --runs 10 --vus 20 --duration 90s \

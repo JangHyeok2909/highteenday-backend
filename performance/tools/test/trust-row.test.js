@@ -78,7 +78,7 @@ test('가장 심한 자원이 먼저 나온다 — fail 이 warn 보다 앞', ()
 
 test('SATURATED 면 p95 를 앱 지연으로 인용하지 말라고 못박는다', () => {
   const signals = [{ key: 'hikariPending', label: '풀 대기', unit: '개', value: 20, level: 'fail', warn: 1, fail: 5 }];
-  assert.match(text(sectionTrust(rec(signals, 'SATURATED'))), /앱 지연으로 인용하면 안 된다/);
+  assert.match(text(sectionTrust(rec(signals, 'SATURATED'))), /비포화 실행과 비교할 수 없다/);
 });
 
 test('NEAR_LIMIT 은 아직 쓸 수 있다고 말한다 — 과잉 경고로 신호를 죽이지 않는다', () => {

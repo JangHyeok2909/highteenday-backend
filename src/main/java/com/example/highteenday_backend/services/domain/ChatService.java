@@ -294,7 +294,7 @@ public class ChatService {
                 .readAt(participant.getLastReadDate())
                 .build();
         // 커밋 이후에 발행한다. 커밋 전에 보내면 롤백 시 클라이언트만 "읽음"으로 앞서 가고
-        // DB 의 읽음 위치는 그대로인 유령 이벤트가 남는다 (docs/KNOWN-ISSUES.md KI-24).
+        // DB의 읽음 위치는 그대로인 유령 이벤트가 남는다.
         afterCommitExecutor.run(() ->
                 messagingTemplate.convertAndSend("/topic/chat/room/" + roomId + "/read", readEvent));
     }
@@ -587,7 +587,7 @@ public class ChatService {
         chatMsgRepository.saveAndFlush(systemMsg);
         room.updateLastMessage(previewOf(text, false));
 
-        // 페이로드는 지금 만든다 — 커밋 후에는 영속성 컨텍스트가 닫혀 지연 로딩이 깨진다 (KI-24).
+        // 페이로드는 지금 만든다. 커밋 후에는 영속성 컨텍스트가 닫혀 지연 로딩이 깨진다.
         ChatMessageDto payload = ChatMessageDto.fromEntity(systemMsg, 0);
         Long roomId = room.getId();
         afterCommitExecutor.run(() ->
@@ -604,7 +604,7 @@ public class ChatService {
                 .roomName(room.getName())
                 .newOwnerId(newOwnerId)
                 .build();
-        // 초대·강퇴·퇴장·방장 위임이 롤백되면 클라이언트 멤버 목록만 바뀐 채로 남는다 (KI-24).
+        // 초대·강퇴·퇴장·방장 위임이 롤백되면 클라이언트 멤버 목록만 바뀐 채로 남는다.
         Long roomId = room.getId();
         afterCommitExecutor.run(() ->
                 messagingTemplate.convertAndSend("/topic/chat/room/" + roomId + "/members", event));

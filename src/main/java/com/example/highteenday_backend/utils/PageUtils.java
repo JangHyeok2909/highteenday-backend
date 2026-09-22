@@ -46,32 +46,6 @@ public class PageUtils {
 
         return pagedDto;
     }
-//    public static PagedPostsDto postsToDto(Page<Scrap> pagedScraps){
-//        List<Post> posts = pagedScraps.getContent();
-//        List<PostDto> postDtos =new ArrayList<>();
-//        for(Post p:posts){
-//            PostDto postDto = PostDto.builder()
-//                    .id(p.getId())
-//                    .author(p.getUser().getNickname())
-//                    .title(p.getTitle())
-//                    .content(p.getContent())
-//                    .viewCount(p.getViewCount())
-//                    .likeCount(p.getLikeCount())
-//                    .dislikeCount(p.getDislikeCount())
-//                    .createdAt(p.getCreated())
-//                    .build();
-//
-//            postDtos.add(postDto);
-//        }
-//        PagedPostsDto pagedDto = PagedPostsDto.builder()
-//                .page(pagedScraps.getNumber())
-//                .totalPages(pagedScraps.getTotalPages())
-//                .totalElements(pagedScraps.getTotalElements())
-//                .postDtos(postDtos)
-//                .build();
-//
-//        return pagedDto;
-//    }
     public static <T> Page<T> createPage(List<T> list, Pageable pageable) {
         // List<T>를 Page<T>로 변환
         int start = (int) pageable.getOffset();
