@@ -170,6 +170,17 @@ jobs:
             # 포트 8081: application-prod.properties 의 management.server.port.
             # network_mode: host 라 EC2 의 localhost 로 바로 닿는다.
             # ------------------------------------------------------------
+            # 배포 게이트는 집계 경로(/actuator/health)를 그대로 쓴다. ALB 가 보는
+            # /actuator/health/readiness 로 바꾸지 않는다 — 두 곳이 묻는 질문이 다르다.
+            #
+            # ALB: "이 인스턴스에 트래픽을 보내도 되나"를 매초 묻는다. Redis 가 없어도
+            #      폴백으로 응답하므로 readiness 만 보면 된다.
+            # 여기: "방금 올린 이미지가 DB·Redis 설정까지 제대로 잡았나"를 배포 때 한 번
+            #      묻는다. DB_URL 을 잘못 넣은 이미지는 readiness 로는 UP 이라 통과하고
+            #      실제 요청에서야 전부 실패한다.
+            #
+            # 대신 배포 시점에 Redis 가 죽어 있으면 앱이 멀쩡해도 롤백한다. 배포는 사람이
+            # 시작하는 일이라 그때 멈추는 쪽을 택했다.
             HEALTH_URL="http://localhost:8081/actuator/health"
             DEADLINE=$((SECONDS + 120))
             HEALTHY=0
