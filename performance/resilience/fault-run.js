@@ -88,6 +88,10 @@
  * 환경 변수
  *   K6_BIN                        실행할 k6 파일. 기본값: k6
  *   BASE_URL                      관측할 애플리케이션 주소. 기본값: http://localhost:18080
+ *   HEALTH_PATH                   헬스 폴러가 찍을 경로. 기본값: /actuator/health
+ *                                 readiness 그룹을 분리한 뒤 그 효과를 재려면
+ *                                 /actuator/health/readiness 로 준다. 기본값을 바꾸지
+ *                                 않는 이유는 과거 실행과의 비교가 깨지기 때문이다.
  *   PROM_URL                      조회할 Prometheus 주소. 기본값: http://localhost:9090
  *   K6_RW_URL_LOCAL               k6 remote write 주소. 기본값: http://localhost:9090/api/v1/write
  *   PERF_APP_CONTAINER            앱 컨테이너 이름. 기본값: perf-app
@@ -153,6 +157,11 @@ const invariants = require('./lib/invariants');
 const K6_BIN = process.env.K6_BIN || 'k6';
 const BASE_URL = process.env.BASE_URL || 'http://localhost:18080';
 const PROM_URL = process.env.PROM_URL || 'http://localhost:9090';
+
+// 폴러가 찍을 헬스 경로. 사전 점검(preflight)은 이 값을 쓰지 않고 집계 경로를 그대로
+// 본다 — 실험을 시작하기 전에는 의존성이 모두 살아 있는지 확인해야 하기 때문이다.
+const HEALTH_PATH = process.env.HEALTH_PATH || '/actuator/health';
+const HEALTH_URL = `${BASE_URL}${HEALTH_PATH}`;
 const K6_RW_URL = process.env.K6_RW_URL_LOCAL || 'http://localhost:9090/api/v1/write';
 const APP_CONTAINER = process.env.PERF_APP_CONTAINER || 'perf-app';
 const REDIS_CONTAINER = process.env.PERF_REDIS_CONTAINER || 'perf-redis';
@@ -824,7 +833,7 @@ async function main() {
     // 5. 주입 시각 동기화 서버와 5초 간격 헬스 폴러를 준비한다.
     driver = new Driver(plan, { log });
     const driverUrl = await driver.listen();
-    health = new HealthPoller(`${BASE_URL}/actuator/health`, HEALTH_POLL);
+    health = new HealthPoller(HEALTH_URL, HEALTH_POLL);
     health.start();
 
     // 불변식 기준선(S0)은 복원·FLUSHALL이 끝난 뒤, 부하가 시작되기 전에 떠야 한다.
@@ -997,7 +1006,7 @@ async function main() {
       health: health.samples,
       healthTransitions: health.transitions(),
       healthByPhase: plans.healthByPhase(health.samples, plan.phases),
-      healthUrl: `${BASE_URL}/actuator/health`,
+      healthUrl: HEALTH_URL,
       faultMetrics,
 
       // 구간별 인프라 집계, 그래프용 전체 시계열, 일부 시계열을 못 모은 이유.
