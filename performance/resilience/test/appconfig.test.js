@@ -44,10 +44,13 @@ test('JDBC URL 파라미터는 소켓 타임아웃의 출처가 된다', () => {
 });
 
 test('아무 데도 없으면 프레임워크 기본값을 쓰되 가정으로 표시한다', () => {
+  // resolve() 는 인자로 받은 환경변수·URL 뿐 아니라 저장소의 프로퍼티 파일도 읽는다.
+  // 그래서 여기 예시로 쓴 항목을 나중에 설정하면 이 테스트가 깨진다. 실제로 socketTimeout 이
+  // 그렇게 깨졌다. 깨지면 그 항목을 설정한 사람이 아직 미설정인 다른 항목으로 바꾸면 된다.
   const { items, assumedCount } = resolve({ containerEnv: {}, dbUrl: null });
-  const sock = items.find((i) => i.key === 'jdbc.socketTimeout');
-  assert.equal(sock.assumed, true);
-  assert.match(sock.value, /무한/);
+  const unset = items.find((i) => i.key === 'hikari.validationTimeout');
+  assert.equal(unset.assumed, true);
+  assert.match(unset.source, /설정 없음/);
   assert.ok(assumedCount > 0, '가정한 값의 개수를 세지 않는다');
 });
 
