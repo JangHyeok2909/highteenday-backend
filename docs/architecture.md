@@ -48,10 +48,26 @@ Redis와 S3 작업은 MySQL 트랜잭션에 참여하지 않는다. 두 저장�
 정확한 키와 TTL은 각 Redis adapter의 상수가 정본이다. 조회수 대기 키는 `SCAN`으로
 순회하며, 반영에 성공한 증가분만 Redis에서 차감한다.
 
-`@ResilientRedis`는 Redis 호출을 즉시 중단하지 않는다. Spring Data Redis가
-`DataAccessException`을 던진 뒤 boolean은 `false`, 숫자는 `0`, 컬렉션은 빈 값,
-그 밖의 참조 타입은 `null`을 반환한다. 연결 및 명령 timeout이 길면 기본값도 늦게
-돌아온다. 현재 timeout은 명시적으로 설정되어 있지 않으며 [RES-001](issues.md)로 관리한다.
+`@ResilientRedis`가 붙은 메서드는 Redis를 쓰지 못할 때 예외 대신 기본값을 반환한다.
+boolean은 `false`, 숫자는 `0`, 컬렉션은 빈 값, `Optional`은 `Optional.empty()`, 그 밖의
+참조 타입은 `null`이다. "쓰지 못한다"에는 두 경우가 있고, 응답 시간이 다르다.
+
+| 경우 | 언제 | 기본값이 돌아오기까지 |
+| --- | --- | --- |
+| 접근 실패 | Redis에 호출을 보냈다가 `DataAccessException`을 받음 | 명령 timeout(`spring.data.redis.timeout`, 100ms)까지 대기 |
+| 서킷 거절 | 서킷브레이커가 열려 있어 호출을 보내지 않음 | 대기 없음 |
+
+서킷브레이커는 인스턴스 하나(`resilience4j.circuitbreaker.instances.redis`)를 앱 전체가
+공유한다. Redis가 프로세스 하나이므로, 한 메서드가 실패했다는 사실이 다른 메서드에도
+적용되기 때문이다. 최근 10초의 Redis 호출 중 절반 이상이 실패하면 열리고, 5초 뒤 들어오는
+호출 3건으로 회복을 확인한 다음 닫는다. 두 경우는 `redis_fallback_total`의 `reason` 태그
+(`error`, `open`)로 나눠 센다.
+
+서킷이 열려 있는 동안에는 캐시 무효화(`evictBoard`, `evictPostPrev`, 글 개수 증감)도 함께
+건너뛰어진다. 그 사이에 삭제·수정된 글은 캐시에 그대로 남고, TTL이 만료돼야 사라진다.
+게시글 미리보기는 30분, 목록과 개수는 60분이다. 서킷이 닫혀 있을 때 Redis가 죽으면 읽기와
+쓰기가 함께 막혀 캐시가 비고 다음 조회가 DB에서 재적재하지만, 서킷이 열린 구간은 읽기가
+캐시에서 되므로 이 자가 복구가 돌지 않는다.
 
 ## 일관성 선택
 
