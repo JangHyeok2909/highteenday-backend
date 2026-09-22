@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.services.domain.redisService;
 
 import com.example.highteenday_backend.aop.ResilientRedis;
+import com.example.highteenday_backend.aop.ResilientRedisExecutor;
 import com.example.highteenday_backend.domain.posts.PostRepository;
 import com.example.highteenday_backend.dtos.PostPreviewDto;
 import com.example.highteenday_backend.dtos.paged.PostListingDto;
@@ -23,10 +24,19 @@ public class RedisPostsCache implements PostPrevCache{
     private final RedisTemplate<String, Long> longRedisTemplate;
     private final RedisTemplate<String, PostPreviewDto> postTemplate;
     private final PostRepository postRepository;
+    private final ResilientRedisExecutor executor;
+
+    /**
+     * {@link #getPostPrevs}만 계측을 직접 한다. 그 메서드는 본문에 DB 호출이 섞여 있어
+     * {@link ResilientRedisExecutor#execute}로 감쌀 수 없고, 서킷 상태만 읽어 쓰기 때문이다.
+     * 나머지 경로의 계측은 executor 가 한다.
+     */
     private final RedisFallbackMetrics fallbackMetrics;
 
     /** 폴백 카운터의 태그 값. AOP 를 안 쓰는 경로라 이름을 직접 적는다. */
     private static final String GET_POST_PREVS = "RedisPostsCache.getPostPrevs";
+    private static final String GET_COUNT = "RedisPostsCache.getCount";
+    private static final String CREATE_COUNT = "RedisPostsCache.createCount";
 
     private static final Duration POST_TTL = Duration.ofMinutes(30);
     private static final Duration BOARD_TTL = Duration.ofMinutes(60);
@@ -43,9 +53,20 @@ public class RedisPostsCache implements PostPrevCache{
     private static final Duration COUNT_TTL = BOARD_TTL;
 
     // ── AOP 미적용: DB fallback + self-invocation ──
+
+    /**
+     * 본문이 Redis 와 DB 를 함께 부르므로 {@link ResilientRedisExecutor#execute}로 감싸지
+     * 않는다. 감싸면 MySQL 실패가 Redis 서킷의 실패로 기록되고, 서킷이 열리면 캐시가 꺼져
+     * 그만큼 부하가 다시 MySQL 로 몰린다. 그래서 서킷의 판단은 읽기만 하고 이 경로의 성패는
+     * 서킷 통계에 넣지 않는다. 서킷이 배울 표본은 {@code @ResilientRedis} 메서드들이 만든다.
+     */
     @Override
     public List<PostPreviewDto> getPostPrevs(Long boardId,int page,int size) {
         fallbackMetrics.register(GET_POST_PREVS);
+        if (executor.isOpen()) {
+            fallbackMetrics.recordFallback(GET_POST_PREVS, RedisFallbackMetrics.REASON_OPEN);
+            return loadFromDb(boardId, page, size);
+        }
         try {
             int start = page*size;
             int end = page*size+size-1;
@@ -113,11 +134,15 @@ public class RedisPostsCache implements PostPrevCache{
 
             return result.stream().filter(Objects::nonNull).collect(Collectors.toList());
         } catch (Exception e) {
-            fallbackMetrics.recordFallback(GET_POST_PREVS);
+            fallbackMetrics.recordFallback(GET_POST_PREVS, RedisFallbackMetrics.REASON_ERROR);
             log.warn("Redis unavailable for getPostPrevs boardId={}, falling back to DB", boardId, e);
-            return postRepository.findByBoard(PostListingDto.builder()
-                    .boardId(boardId).page(page).size(size).sortType(SortType.RECENT).build());
+            return loadFromDb(boardId, page, size);
         }
+    }
+
+    private List<PostPreviewDto> loadFromDb(Long boardId, int page, int size) {
+        return postRepository.findByBoard(PostListingDto.builder()
+                .boardId(boardId).page(page).size(size).sortType(SortType.RECENT).build());
     }
 
     // ── AOP 적용: 단순 Redis 조작 ──
@@ -190,28 +215,28 @@ public class RedisPostsCache implements PostPrevCache{
 
     // ── AOP 미적용: DB fallback 필요 ──
 
+    /**
+     * 캐시에 값이 없을 때와 Redis 를 쓰지 못할 때가 같은 경로로 간다. 둘 다
+     * {@link #createCount}가 DB 에서 다시 세기 때문이다.
+     */
     @Override
     public Long getCount(Long boardId) {
-        try {
-            String key = createCountingKey(boardId);
-            Long count = longRedisTemplate.opsForValue().get(key);
-            return (count==null) ? createCount(boardId):count;
-        } catch (Exception e) {
-            log.warn("Redis unavailable for getCount boardId={}, falling back to DB", boardId, e);
-            return postRepository.countTotal(boardId);
-        }
+        // createCount 는 DB 를 읽으므로 supplier 밖에 둔다. 안에 두면 MySQL 실패가 Redis
+        // 서킷의 실패로 기록되고, 서킷 호출 안에 서킷 호출이 중첩된다.
+        Long count = executor.execute(GET_COUNT,
+                () -> longRedisTemplate.opsForValue().get(createCountingKey(boardId)),
+                () -> null);
+        return (count == null) ? createCount(boardId) : count;
     }
 
     @Override
     public Long createCount(Long boardId) {
         Long count = postRepository.countTotal(boardId);
-        try {
-            String key = createCountingKey(boardId);
-            longRedisTemplate.opsForValue().set(key,count,COUNT_TTL);
-        } catch (Exception e) {
-            log.warn("Redis unavailable, skipping createCount cache. boardId={}", boardId, e);
-        }
-        return count;
+        // 캐시에 넣지 못해도 개수는 이미 DB 에서 얻었으므로 그 값을 그대로 돌려준다.
+        return executor.execute(CREATE_COUNT, () -> {
+            longRedisTemplate.opsForValue().set(createCountingKey(boardId), count, COUNT_TTL);
+            return count;
+        }, () -> count);
     }
 
     // ── Key 생성 ──
