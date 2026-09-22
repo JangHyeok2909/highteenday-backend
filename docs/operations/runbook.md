@@ -21,15 +21,26 @@ curl -fsS --max-time 5 http://localhost:8081/actuator/health
 
 ## Redis 장애
 
-`@ResilientRedis`는 예외가 발생한 뒤 기본값을 반환한다. timeout 전까지는 요청이 계속
-대기하므로 “프로세스가 살아 있음”을 즉시 폴백과 같은 의미로 해석하지 않는다.
+`@ResilientRedis`는 예외가 발생한 뒤 기본값을 반환한다. 서킷브레이커가 닫혀 있는 동안에는
+timeout 전까지 요청이 계속 대기하므로, “프로세스가 살아 있음”을 즉시 폴백과 같은 의미로
+해석하지 않는다. 서킷이 열리면 그때부터 대기 없이 폴백한다.
 
 1. Redis 연결 가능 여부와 장애 시작 시각을 확인한다.
-2. 앱 로그에서 Redis 예외, HikariCP 획득 실패, 인증 실패를 같은 시간대로 묶는다.
-3. HikariCP active와 pending이 증가했다면 신규 트래픽을 줄이고 Redis 복구를 우선한다.
-4. Redis를 복구한 뒤 health와 보호 API를 반복 확인한다.
-5. HikariCP pending과 응답 지연이 정상 범위로 돌아오는 시각을 기록한다.
-6. 조회수 버퍼와 일별 인기글 재구성 여부를 확인한다.
+2. 서킷 상태를 확인한다. `register-health-indicator=false`이므로 `/actuator/health`에는
+   나오지 않는다.
+   ```bash
+   curl -s localhost:8081/actuator/metrics/resilience4j.circuitbreaker.state
+   ```
+   `OPEN`이면 앱이 Redis를 아예 안 부르고 있다는 뜻이다. 이때는 캐시 무효화와 조회수 차감이
+   함께 멈추므로 5번과 6번을 반드시 확인한다.
+3. 앱 로그에서 Redis 예외, HikariCP 획득 실패, 인증 실패를 같은 시간대로 묶는다.
+4. HikariCP active와 pending이 증가했다면 신규 트래픽을 줄이고 Redis 복구를 우선한다.
+5. Redis를 복구한 뒤 health와 보호 API를 반복 확인한다. 서킷은 복구 후 들어오는 호출
+   3건으로 회복을 확인하고 닫히므로, 트래픽이 없으면 닫히지 않는다.
+6. HikariCP pending과 응답 지연이 정상 범위로 돌아오는 시각을 기록한다.
+7. 조회수 버퍼와 일별 인기글 재구성 여부를 확인한다. 서킷이 열려 있던 구간에 삭제·수정된
+   게시글은 목록 캐시에 남아 있을 수 있다. 해당 게시판의 `board:{boardId}:posts`와
+   `posts:{postId}` 키를 지워 다음 조회가 DB에서 재적재하게 한다.
 
 Redis 장애 중 조회수 증가는 기록되지 않을 수 있다. Redis 데이터가 초기화되면 DB에 아직
 반영하지 않은 `post:views:*`와 중복 방지 키도 사라진다. 이를 수동으로 추정해 DB에 더하지
