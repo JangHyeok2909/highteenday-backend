@@ -49,6 +49,8 @@ npm test
 |---|---|---|
 | [댓글 목록 쿼리 증폭](cases/comment-query-amplification.md) | closed | 반응 일괄 조회와 작성자 fetch join으로 쿼리 수를 상수화함 |
 | [Redis 장애 전파](cases/redis-failure-cascade.md) | diagnosed | 긴 Redis 대기가 DB 풀과 인증 경로로 전파됨 |
+| [서킷 개방이 조회수 정산을 건너뜀](cases/circuit-open-skips-viewcount-settlement.md) | open | MySQL 반영 뒤 Redis 차감이 서킷 거절로 빠져 같은 증가분이 다시 반영될 수 있음 |
+| [Redis 대기 중 DB 커넥션 점유](cases/db-connection-held-during-redis-wait.md) | needs-evidence | 커넥션 점유가 SQL 시간이 아니라 요청 시간을 따라감. OSIV 를 의심하나 미검증 |
 
 새 문제는 별도 “병목”, “실험”, “최적화” 문서로 나누지 않는다. 한 Case 안에서 관측,
 원인, 변경, 재검증과 남은 위험을 이어서 기록한다.
