@@ -5,6 +5,9 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.example.highteenday_backend.metrics.RedisFallbackMetrics;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
@@ -18,10 +21,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,9 +70,36 @@ class ResilientRedisAspectTest {
             return new RedisFallbackMetrics(registry);
         }
 
+        /**
+         * 절대 열리지 않는 서킷. 이 클래스는 <b>폴백 계약</b>만 검증한다.
+         *
+         * <p>운영 설정을 그대로 쓰면 컨텍스트를 공유하는 테스트들이 서로를 망가뜨린다. 실패를
+         * 주입하는 테스트가 11건이 넘어서 클래스 중간에 서킷이 열리고, 그 뒤 {@code bugOp}
+         * 은 NPE 를 던지기도 전에 거절되어 "코드 버그는 삼키지 않는다" 검증이 무너진다.
+         * 어느 테스트가 깨지는지는 실행 순서에 달려 있어 무작위 실패처럼 보인다.</p>
+         *
+         * <p>서킷이 여는 동작은 {@code ResilientRedisExecutorTest} 가 따로 검증한다.</p>
+         */
         @Bean
-        ResilientRedisAspect resilientRedisAspect(RedisFallbackMetrics metrics) {
-            return new ResilientRedisAspect(metrics);
+        CircuitBreakerRegistry circuitBreakerRegistry() {
+            CircuitBreakerRegistry registry = CircuitBreakerRegistry.of(
+                    CircuitBreakerConfig.custom()
+                            .minimumNumberOfCalls(Integer.MAX_VALUE)
+                            .recordExceptions(DataAccessException.class)
+                            .build());
+            registry.circuitBreaker("redis");
+            return registry;
+        }
+
+        @Bean
+        ResilientRedisExecutor resilientRedisExecutor(CircuitBreakerRegistry registry,
+                                                      RedisFallbackMetrics metrics) {
+            return new ResilientRedisExecutor(registry, metrics);
+        }
+
+        @Bean
+        ResilientRedisAspect resilientRedisAspect(ResilientRedisExecutor executor) {
+            return new ResilientRedisAspect(executor);
         }
 
         @Bean
@@ -149,9 +181,26 @@ class ResilientRedisAspectTest {
     @Autowired
     MeterRegistry registry;
 
+    @Autowired
+    CircuitBreakerRegistry circuitBreakerRegistry;
+
+    @BeforeEach
+    void resetCircuit() {
+        // 설정상 열리지 않지만, 실패 표본이 테스트 사이에 쌓이는 것 자체를 막는다.
+        circuitBreakerRegistry.circuitBreaker("redis").reset();
+    }
+
+    /**
+     * 한 메서드의 폴백 횟수. {@code reason} 두 계열을 합친다.
+     *
+     * <p>태그를 지정하지 않고 {@code counter()} 를 부르면 {@code error} 와 {@code open} 중
+     * 아무거나 하나가 돌아온다. Micrometer 의 검색이 여러 개가 맞을 때 하나를 임의로 고르기
+     * 때문이다. 그러면 기대값이 실행마다 달라진다.</p>
+     */
     private double fallbackCount(String method) {
-        io.micrometer.core.instrument.Counter c = registry.find("redis.fallback").tag("method", method).counter();
-        return c == null ? -1 : c.count();
+        Collection<Counter> counters = registry.find("redis.fallback").tag("method", method).counters();
+        if (counters.isEmpty()) return -1;
+        return counters.stream().mapToDouble(Counter::count).sum();
     }
 
     @Nested
@@ -218,20 +267,25 @@ class ResilientRedisAspectTest {
     class FailureHandling {
 
         private ListAppender<ILoggingEvent> appender;
-        private Logger aspectLogger;
+        private Logger executorLogger;
 
+        /**
+         * 장애 로그는 {@link ResilientRedisExecutor} 가 남긴다. 로그가 다른 클래스로 옮겨
+         * 가면 이 appender 가 빈 채로 남고, 아래 {@code doesNotContain} 검증은 아무것도
+         * 안 지키면서 통과한다. 그래서 각 테스트가 "이벤트를 받았다"를 먼저 확인한다.
+         */
         @BeforeEach
         void attachAppender() {
-            aspectLogger = (Logger) LoggerFactory.getLogger(ResilientRedisAspect.class);
+            executorLogger = (Logger) LoggerFactory.getLogger(ResilientRedisExecutor.class);
             appender = new ListAppender<>();
             appender.start();
-            aspectLogger.addAppender(appender);
-            aspectLogger.setLevel(Level.WARN);
+            executorLogger.addAppender(appender);
+            executorLogger.setLevel(Level.WARN);
         }
 
         @AfterEach
         void detachAppender() {
-            aspectLogger.detachAppender(appender);
+            executorLogger.detachAppender(appender);
         }
 
         private String loggedText() {
@@ -246,6 +300,10 @@ class ResilientRedisAspectTest {
             String refreshToken = "super-secret-refresh-token-value";
 
             client.putToken(refreshToken, "victim@example.com");
+
+            assertThat(appender.list)
+                    .as("로그를 한 줄도 못 받았으면 아래 검증이 빈 문자열을 검사하게 된다")
+                    .isNotEmpty();
 
             String logged = loggedText();
             assertThat(logged)
