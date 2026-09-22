@@ -186,10 +186,47 @@ DELETE /api/posts/{postId}/like      → 좋아요를 해제한다
 
 ---
 
-## 2. 로드밸런서가 보는 헬스 판정에서 Redis를 빼기 — 상태: 미착수
+## 2. 로드밸런서가 보는 헬스 판정에서 Redis를 빼기 — 상태: 저장소 작업 완료, AWS 콘솔만 남음
 
-> 2026-09-11에 아래 변경을 전부 구현하고 테스트까지 통과시킨 뒤 되돌렸다. 적용 시점은 미정이다.
-> 이 항목은 그때 만든 것을 그대로 다시 만들 수 있게 남긴 기록이다.
+> 2026-09-22에 아래 1~3·5와 테스트를 적용하고 효과 확인 실험까지 마쳤다.
+> 4번(deploy.yml)은 설계대로 바꾸지 않고 그 이유를 해당 줄 위 주석으로 남겼다.
+>
+> **효과 확인 실행: `redis-crash-2026-09-22T07-33-59`**
+>
+> | | 기준 `redis-crash-2026-09-11T06-37-20` | 이번 실행 |
+> |---|---|---|
+> | 폴러가 본 경로 | `/actuator/health` | `/actuator/health/readiness` |
+> | 장애 구간 헬스 | 12회 전부 DOWN | **11회 전부 UP** |
+> | 같은 구간 HTTP 오류율 | 0 | 0.12% |
+>
+> 같은 계획으로 Redis 를 60초 멈췄는데 판정이 뒤집혔다. 표본이 12회가 아니라 11회인 것은
+> 유실이 아니라 구간 경계 귀속이다. 전체 52건이 5.0초 간격으로 고르게 찍혔고, pre(60초)도
+> 11회, post(120초)도 23회로 세 구간 모두 하나씩 적다. 무응답 0건, DOWN 0건이다.
+>
+> 확인 명령:
+>
+> ```bash
+> cd performance && MSYS_NO_PATHCONV=1 HEALTH_PATH=/actuator/health/readiness \
+>   node resilience/fault-run.js resilience/faults/redis-crash.json --note "readiness 분리 후"
+> ```
+>
+> `MSYS_NO_PATHCONV=1` 이 필요하다. Git Bash 가 `/actuator/...` 를 Windows 경로로 바꿔
+> `http://localhost:18080C:/Program Files/Git/actuator/...` 를 만든다. 붙여서 확인했다.
+>
+> **부수 수정 — 헬스 폴러가 멀쩡한 응답을 실패로 기록하고 있었다.**
+>
+> 첫 실행(`redis-crash-2026-09-22T07-21-15`)에서 표본 51건 중 22건(43%)이
+> `timeout after 4000ms` 로 기록됐는데, 그 22건의 실제 소요가 0~2ms 였다. 원인은
+> `resilience/lib/http.js` 의 `req.setTimeout` 이 요청 마감이 아니라 소켓 유휴 타임아웃이고,
+> Node 기본 agent 가 소켓을 재사용하기 때문이다. 폴링 주기 5,000ms 가 타임아웃 4,000ms 보다
+> 1,000ms 길어, 유휴 소켓에서 이전 요청의 타이머가 먼저 터지고 그 소켓을 집은 다음 요청이
+> 즉시 실패했다. 요청 단위 타이머 + `agent: false` 로 고쳤고 재실행에서 무응답이 0건이 됐다.
+>
+> **이 결함은 오늘 이전의 모든 실행에 있었다.** 성공을 실패로 바꿀 뿐 반대는 아니므로 지금까지의
+> 결론은 안 바뀌지만, 과거 실행의 "무응답" 표본 수는 액면대로 읽으면 안 된다.
+>
+> **남은 것 하나.** AWS 콘솔에서 타겟 그룹 헬스체크의 경로를 /actuator/health/readiness 로,
+> 포트를 8081 로 바꾼다. 설정 파일만으로는 라우팅 판정이 바뀌지 않는다.
 
 **무엇을** — `/actuator/health` 대신 `/actuator/health/readiness` 를 로드밸런서의 판정 경로로
 쓰고, readiness 그룹에는 공유 의존성(DB·Redis)을 넣지 않는다.
