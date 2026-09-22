@@ -82,19 +82,26 @@ public class TokenService {
         if (cachedEmail.isPresent()) {
             User user = userRepository.findByEmail(cachedEmail.get())
                     .orElseThrow(() -> new CustomException(ErrorCode.INVALID_TOKEN, "리프레시 토큰이 유효하지 않습니다."));
-            return tokenRepository.findByUser(user)
+            Token cached = tokenRepository.findByUser(user)
                     .orElseThrow(() -> new CustomException(ErrorCode.INVALID_TOKEN, "리프레시 토큰이 유효하지 않습니다."));
+
+            // 캐시는 이메일만 들고 있고 DB 조회는 사용자 기준이라, 여기까지 오면 "이 사용자의
+            // 현재 토큰"이 나올 뿐 제시된 토큰이 그것과 같다는 보장이 없다. 회전할 때
+            // tokenCache.delete 가 건너뛰어지면 옛 토큰의 키가 남고, 대조하지 않으면 폐기된
+            // 리프레시 토큰이 그대로 통과한다. 남은 키는 여기서 지운다.
+            if (!refreshToken.equals(cached.getRefreshToken())) {
+                tokenCache.delete(refreshToken);
+                throw new CustomException(ErrorCode.INVALID_TOKEN, "리프레시 토큰이 유효하지 않습니다.");
+            }
+            throwIfExpired(cached);
+            return cached;
         }
 
         // 2. Redis miss → DB 조회
         Token token = tokenRepository.findByRefreshToken(refreshToken)
                 .orElseThrow(() -> new CustomException(ErrorCode.INVALID_TOKEN, "리프레시 토큰이 유효하지 않습니다."));
 
-        // 만료된 토큰이면 DB에서 삭제 후 예외
-        if (token.getExpiresAt() != null && token.getExpiresAt().isBefore(LocalDateTime.now())) {
-            tokenRepository.delete(token);
-            throw new CustomException(ErrorCode.TOKEN_EXPIRED, "리프레시 토큰이 만료되었습니다.");
-        }
+        throwIfExpired(token);
 
         // Redis 재적재 (남은 TTL 계산)
         Duration remaining = token.getExpiresAt() != null
@@ -103,6 +110,19 @@ public class TokenService {
         tokenCache.put(refreshToken, token.getUser().getEmailValue(), remaining);
 
         return token;
+    }
+
+    /**
+     * 만료된 토큰이면 DB 에서 지우고 {@code TOKEN_EXPIRED} 로 돌린다.
+     *
+     * <p>캐시 히트 경로와 DB 조회 경로가 같이 쓴다. 예전에는 DB 경로에만 있어서, 캐시에
+     * 키가 남아 있으면 만료된 토큰이 유효한 것으로 통과했다.</p>
+     */
+    private void throwIfExpired(Token token) {
+        if (token.getExpiresAt() != null && token.getExpiresAt().isBefore(LocalDateTime.now())) {
+            tokenRepository.delete(token);
+            throw new CustomException(ErrorCode.TOKEN_EXPIRED, "리프레시 토큰이 만료되었습니다.");
+        }
     }
 
     @Transactional
