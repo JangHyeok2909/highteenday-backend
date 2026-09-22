@@ -1,329 +1,115 @@
-# CLAUDE.md — HighTeenDay Backend
+# Repository rules
 
-Guidance for Claude Code when working on this repository.
+HighTeenDay Backend에서 코드 에이전트가 따라야 할 저장소 규칙이다. 제품 설명과 운영 지식은
+`docs/`, 성능 측정 계약은 `performance/`에 둔다.
 
----
-
-## Project Overview
-
-**HighTeenDay** is an anonymous community platform for high school students.  
-Stack: Java 17 · Spring Boot 3.4.5 · MySQL 8 · Redis · AWS S3 · JWT + OAuth2
-
----
-
-## Build & Run
+## 기본 명령
 
 ```bash
-# Build (skip tests)
-./gradlew build -x test
-
-# Run locally — dev profile has localhost defaults built in (see README.md)
-./gradlew bootRun --args='--spring.profiles.active=dev'
-
-# Run tests
 ./gradlew test
+./gradlew build
+./gradlew bootRun --args='--spring.profiles.active=dev'
+docker compose up -d --build
 
-# Build Docker image
-docker build -t highteenday-backend .
-
-# Start local stack (Spring app + Redis)
-docker-compose up -d
-
-# Start production stack (EC2)
-docker-compose -f docker-compose.prod.yml up -d
+cd performance
+npm test
 ```
 
----
-
-## Architecture
-
-```
-controllers/      HTTP layer — no business logic, delegate to services
-services/
-  domain/         Core business logic (@Service, @Transactional)
-  security/       Auth services (CustomOAuth2UserService, JwtCookieService)
-  global/         Cross-cutting services (S3Service, etc.)
-domain/           JPA entities, grouped by subdomain
-dtos/             Request / response objects (never expose entities directly)
-security/         Spring Security config, filters, TokenProvider
-queryDsl/         Complex dynamic queries via QueryDSL
-schedulers/       Batch jobs (view count sync, hot score calculation)
-configs/          Bean configuration (Redis, S3, Swagger, AppConfig)
-exceptions/       CustomException, ErrorCode enum, GlobalExceptionHandler
-enums/            Shared enumerations (Role, Provider, Grade, etc.)
-```
-
-### Key External Domains
-
-| Concern | Solution |
-|---------|----------|
-| Auth tokens | JWT (JJWT 0.12.3) in HttpOnly cookies, SameSite=None |
-| OAuth2 | Google via Spring Security OAuth2 Client (Kakao/Naver: provider endpoints prepared, registrations commented out) |
-| Token revocation | Refresh token stored in `Token` entity (DB) |
-| Caching | Redis — view counts, board/post lists, hot rankings |
-| File storage | AWS S3 — tmp upload then promote pattern |
-| Hot posts | Redis Sorted Set, score recalculated by scheduler |
-| Query complexity | QueryDSL custom repositories for dynamic filtering |
-
----
-
-## Authentication Flow
-
-1. User hits `/oauth2/authorization/{provider}` → provider consent screen
-2. Provider redirects to `/oauth2/login/code/{provider}` (custom redirection endpoint — see `SecurityConfig.filterChain()`)
-3. `CustomOAuth2UserService.loadUser()` — looks up user by email
-   - **New user** → auto-registers via `registerOAuthUser()` and sets `isNewUser=true` on the principal
-   - **Existing user** → `isNewUser=false` (roles are no longer used to signal newness)
-4. `OAuth2SuccessHandler` issues JWT cookies and redirects based on `isNewUser`:
-   - New user → `{frontend-url}/welcome`
-   - Existing user → `{frontend-url}`
-5. All subsequent requests carry the `accessToken` cookie
-6. `TokenAuthenticationFilter` validates the cookie and populates `SecurityContext`
-7. Expired access token? POST `/api/token/refresh` with the `refreshToken` cookie
-
-**Cookie attributes (prod):**
-`HttpOnly; Secure; SameSite=None; Domain=.highteenday.org`
-
----
-
-## Database Conventions
-
-- **Column naming:** `{DOMAIN_PREFIX}_{column}` in UPPER_SNAKE (e.g. `USR_id`, `PST_id`)
-- **FK naming:** `fk_{table}_{referenced_table}` (e.g. `fk_token_usr`)
-- **Index naming:** `idx_{table}_{fields}`
-- **Soft delete:** `is_valid` boolean in `BaseEntity` — never hard-delete rows
-- **Audit fields:** `created`, `updatedDate`, `updatedBy` from `BaseEntity`
-- **DDL:** schema is owned by Flyway (`src/main/resources/db/migration/`, see `docs/MIGRATION.md`). `ddl-auto=none` in dev and prod. Never edit an applied migration; add a new numbered one.
-- **Denormalization:** `Post` carries `nickname`, `likeCount`, `dislikeCount`, `commentCount`, `scrapCount` to avoid joins on hot paths
-
----
-
-## Code Conventions
-
-### Naming
-- Entities: singular (`Post`, `Comment`, `User`)
-- Repositories: `{Entity}Repository` + optional `{Entity}RepositoryCustom`
-- Services: `{Domain}Service`
-- Controllers: `{Domain}Controller`
-- DTOs: descriptive, e.g. `RequestPostDto`, `PostDto`, `UpdatePostDto`
-- Methods: verb-first camelCase (`createPost`, `deleteComment`)
-- Service methods that modify an entity must be prefixed with `update` (e.g. `updatePassword`, `updateSchool`) — never `modify` or `change`
-
-### Patterns
-- Use `@RequiredArgsConstructor` + `final` fields for dependency injection
-- Use `@Transactional` on all service methods that write to DB
-- Use `@Transactional(readOnly = true)` for read-only service methods
-- Convert entities to DTOs with a `fromEntity()` static factory method
-- Use `CustomException(ErrorCode)` for all domain errors — never throw raw exceptions
-- `@Value` fields must **not** be `final` (use alongside `@RequiredArgsConstructor`)
-
-### Error Handling
-```java
-// Always use ErrorCode + CustomException
-throw new CustomException(ErrorCode.USER_NOT_FOUND, "optional detail");
-
-// GlobalExceptionHandler handles all CustomException → correct HTTP status
-```
-
-### REST API Design
-- `GET` — read, no side effects
-- `POST` — create new resource
-- `PATCH` — partial update (not PUT)
-- `DELETE` — remove resource
-- Query params for filtering/sorting; path params for resource identity
-- Consolidate related actions behind a single endpoint with a `type` query param when appropriate (e.g. `/reaction?type=LIKE`)
-
----
-
-## Security Rules
-
-- **Never expose entities directly** in HTTP responses — always use DTOs
-- **Never log sensitive fields** (passwords, tokens, PII)
-- **Never hardcode credentials** — use environment variables or `@Value`
-- Validate user ownership before any mutation (`user.getId().equals(resource.getUser().getId())`)
-- `isAnonymous=true` posts/comments must **not** expose `profileUrl`, `userId`, or `author`
-
----
-
-## Performance Guidelines
-
-- Prefer **cursor-based pagination** (ID-based) over `OFFSET` for large result sets
-- Buffer write-heavy counters in Redis; flush to DB via scheduler
-- Use `FetchType.LAZY` everywhere; apply `JOIN FETCH` only in queries that need the association
-- Add composite indexes for common query patterns: `(board_id, is_valid, sort_column)`
-- Cache board lists and post lists in Redis; invalidate on write
-
----
-
-## Large Files — Never Read Wholesale
-
-Reading any of these into context costs more than a whole session of
-conversation, and the content is re-sent on every subsequent turn. Always
-extract with `grep`, `jq`, `node -e`, `head`, or `tail` instead of reading the
-file.
-
-| Path | Size |
-|------|------|
-| `performance/reports/index.json` | ~250 KB (~65k tokens) |
-| `performance/reports/runs/*/hostprobe.jsonl` | ~300 KB each, 89 runs |
-| `performance/reports/archive/**` | ~23 MB total |
-| `schoolData/**/*.json` | 400 KB – 32 MB |
-| `src/main/resources/static/testImg.png`, `testGif.gif` | ~1 MB each |
-
-`performance/reports/overnight/*.log` is no longer in the repository — it is
-runtime output of the overnight runner and is now gitignored (the reason is in
-`performance/.gitignore`). It still appears locally after a run, and it is the
-largest of all at 300 KB – 950 KB per file, so the same rule applies to it.
-
-```bash
-node -e "const r=require('./performance/reports/index.json'); console.log(r.runs.slice(-5))"
-tail -40 performance/reports/overnight/exp7.stdout.log   # local only
-```
-
-The same rule applies to command output, which also lands in context in full:
-
-- `git diff --stat` first, then `git diff <path>` for the files that matter
-- `./gradlew test 2>&1 | tail -40` instead of the full build log
-- always bound searches over the report logs (`grep -m 20`, `head`, `tail`)
-
----
-
-## Documentation Rules
-
-사람이 읽는 모든 문서(`docs/`, `performance/docs/`, ADR, README, 외부 독자용 원고)에 적용한다.
-근거·예문·검사 스크립트는 `docs/WRITING.md`. 2026-09-05 문서 리뷰에서 실제로 겪은 문제를 규칙으로 옮겼다.
-
-- **주어는 사람, 결론은 첫 문단.** 프로젝트에 무슨 일이 있었나가 아니라 누가 무엇을 했고 무엇이 남았나를 쓴다.
-- **문장 70자 이내, 문단 3문장 이내.** 넷째 문장부터는 불릿이나 표. 괄호 안에 판단을 넣지 않는다.
-- **AI 문체 금지.** "X가 아니라 Y"는 문서당 3회 이하. 절 끝 교훈·경구 금지. 문서 자기 언급("이 문서는") 금지.
-  "라벨 — 경구", "라벨. 경구" 이중 제목 금지. 줄표(—) 금지. 조사·%는 앞말에 붙인다. 굵게는 수치·제목에만.
-- **용어는 첫 등장에 정의.** 프로젝트 안에서 만든 말과 내부 식별자(OPT-·KI-·BTL-·T-)는 외부 독자용 문서에 정의 없이 쓰지 않는다.
-- **숫자는 출처와 검산.** 같은 비교에 두 숫자를 쓰지 않는다. 백분율은 문서 안의 두 값으로 검산되어야 하고, 안 맞으면 두 값만 쓴다.
-- **날것 하나 이상.** 캡처·로그·날짜·링크. 손으로 그린 표와 SVG만 있는 문서는 생성물로 읽힌다.
-- **상호참조 대신 그 자리에 다시 쓴다.** "N장 참조"는 문서당 3개 이하.
-- **원고는 하나.** 길이가 다른 판은 한 원고의 구간 마커로 빌드한다. 원고가 둘이면 수치가 갈라진다.
-- **빌드 산출물을 열어 본다.** `- ` 뒤 공백이 없는 목록, 줄에 걸친 굵게, 제목 오타, 쪽수를 확인한다.
-- **표면을 고친 뒤 다시 잰다.** `docs/WRITING.md` 6장의 스크립트로 문장 길이·대비 구문·상호참조 수를 다시 센다.
-  수치가 줄지 않았으면 고친 것이 아니다.
-- **사용자가 쓴 문장은 어조를 바꾸지 않는다.** 오타와 길이만 고친다.
-
----
-
-## Environment Properties
-
-| Property | Purpose |
-|----------|---------|
-| `app.frontend-url` | Redirect target after OAuth2 (e.g. `https://www.highteenday.org`) |
-| `app.cookie-domain` | Cookie `Domain=` attribute (e.g. `.highteenday.org`; blank in local) |
-| `app.server-url` | Swagger server URL |
-| `app.cors.allowed-origins` | Comma-separated CORS origins |
-| `jwt.key` | HMAC secret for JWT signing |
-
----
-
-## Testing
-
-- Unit tests live in `src/test/java/`
-- Most unit tests are Mockito-based and run without infrastructure (the `embedded-redis` dependency in build.gradle is currently unused)
-- Use `@Nested` classes for BDD-style grouping within a test class
-- Do **not** mock the database in service-layer tests — use a real (test) DB or `@DataJpaTest`
-- New service methods should have corresponding unit tests
-
----
-
-## Deployment
-
-```
-GitHub Actions
-  └─ Build Docker image
-  └─ Push to AWS ECR
-
-EC2 (ap-northeast-2)
-  └─ docker-compose.prod.yml
-       └─ network_mode: host  (required — Redis runs on EC2 localhost)
-       └─ Spring Boot on :8080
-
-S3 + CloudFront
-  └─ www.highteenday.org/* → S3 (정적 파일 CDN 배포)
-
-ALB
-  └─ api.highteenday.org/* → EC2 :8080 (HTTPS 처리 + 로드밸런싱)
-  └─ /swagger-ui/*         → EC2 :8080
-```
-
-**Profiles:**
-- `local` — default profile; requires a personal gitignored `application-local.properties` (not in the repo)
-- `dev` — recommended for local development; localhost defaults built in, actuator on port 8081 (`README.md`)
-- `prod` — all credentials from environment variables, actuator on port 8081
-- `perf` — layered on top of prod (`--spring.profiles.active=prod,perf`) for load testing; see `application-perf.properties` comments
-
----
-
-## Git Rules
-
-### Branching — always base on `develop`
-
-`develop` is the integration branch; `main` is the release line. All day-to-day
-work branches off `develop` and merges back into `develop`.
-
-- **Always create new branches from `develop`**, never from `main` and never from
-  whatever branch happens to be checked out:
-  ```bash
-  git fetch origin
-  git switch -c <type>/<short-description> origin/develop
-  ```
-- **Always open pull requests against `develop`** as the base branch:
-  ```bash
-  gh pr create --base develop
-  ```
-  GitHub's repository default branch is what the PR form pre-selects. If it is
-  still `main`, the base **must** be switched to `develop` manually — otherwise
-  the diff includes every commit `develop` is ahead of `main` and the PR becomes
-  unreviewable.
-- Branch names use the same prefixes as commit types: `feature/`, `fix/`,
-  `refactor/`, `test/`, `chore/`, `perf/`.
-- Never merge or rebase a branch onto `main` directly. `main` only ever receives
-  `develop`.
-- Before starting work on an existing branch, bring it up to date with
-  `develop` (`git merge origin/develop`, or rebase if the branch is unpushed).
-
-### Commits
-
-- **Commit subject and body are written in Korean** (rule changed on 2026-09-04; older commits are English and are left as they are)
-- Follow Conventional Commits format: `type: short description` — the type prefix stays in English
-  - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`
-  - Example: `feat: OAuth2 신규 사용자 자동 가입 추가`
-
-- Keep subject line under 72 characters
-- Commit description(body) must include:
-  - What was changed 
-  - Why it was changed 
-  - What benefit it brings 
-- **Always ask before committing AND pushing** — never commit or push without explicit user confirmation
-- Never force-push `main` without explicit user instruction
-- Never force-push a shared branch without explicit user instruction — a teammate
-  may have it checked out
-- Prefer one focused commit per logical change; squash noise commits before pushing
-
----
-
-## Commands
-
-- "simplify": rewrite the previous response in simple English
-
-Rules for "simplify":
-- Use short and clear sentences
-- Avoid complex vocabulary
-- Keep the original meaning
-- Do not add new information
-
----
-
-## What Not To Do
-
-- Do not add error handling for scenarios that cannot happen
-- Do not add speculative abstractions — implement only what is asked
-- Do not add docstrings or comments to code you did not change
-- Do not use `ddl-auto=update` or `ddl-auto=create` anywhere — schema changes go through Flyway migrations (`docs/MIGRATION.md`)
-- Do not add backwards-compatibility shims when the old code can simply be replaced
-- Do not design for hypothetical future requirements
+Java 17을 사용한다. 성능 도구는 Node.js 18 이상이 필요하다.
+
+## 코드 구조
+
+- `controllers/`: HTTP 매핑, 입력 검증, 응답 변환
+- `services/`: 유스케이스와 트랜잭션 조정
+- `domain/`: 엔티티, repository, 외부 저장소 port
+- `infrastructure/`: Redis 등 외부 시스템 adapter
+- `security/`: Spring Security filter와 JWT 처리
+- `schedulers/`: 주기 작업
+- `configs/`: Spring 구성
+- `exceptions/`: 오류 코드와 HTTP 예외 변환
+
+Controller에 비즈니스 규칙을 넣지 않는다. 엔티티를 HTTP 응답으로 직접 노출하지 않는다.
+
+## 구현 규칙
+
+- 생성자 주입과 `final` 필드를 사용한다.
+- 쓰기 유스케이스에는 `@Transactional`, 읽기에는 가능한 경우
+  `@Transactional(readOnly = true)`를 사용한다.
+- DB 트랜잭션 안에서 Redis, S3, 메시지 발행을 기다리지 않는다. 원자성이 필요하지 않은
+  외부 작업은 커밋 뒤 또는 트랜잭션 밖으로 분리한다.
+- 도메인 오류는 `CustomException`과 `ErrorCode`로 표현한다.
+- DTO 변환은 명시적으로 수행하고 LAZY 연관을 반복 접근하지 않는다.
+- 대량 목록은 OFFSET 비용과 응답 크기를 확인한다.
+- 추측성 추상화와 도달할 수 없는 방어 코드를 추가하지 않는다.
+
+## 데이터베이스
+
+스키마는 Flyway가 소유한다. dev와 prod에서 `ddl-auto=none`을 유지한다.
+
+- 적용된 migration 파일을 수정하지 않는다.
+- `src/main/resources/db/migration/`의 다음 번호로 새 migration을 추가한다.
+- 엔티티 변경과 migration을 같은 변경 단위에 둔다.
+- 기존 데이터가 있으면 컬럼 추가, 백필, 제약 적용 순서를 지킨다.
+- 절차는 `docs/MIGRATION.md`를 따른다.
+
+## 보안
+
+- 비밀번호, 토큰, 개인정보와 내부 비밀값을 로그나 문서에 남기지 않는다.
+- 변경 요청은 리소스 소유권을 확인한다.
+- 익명 게시물과 댓글은 작성자 식별 정보를 노출하지 않는다.
+- 인증 실패와 DB·Redis 같은 인프라 실패를 같은 상태 코드로 처리하지 않는다.
+- 자격 증명은 환경변수로 전달한다.
+
+## 주석
+
+코드가 계약과 이유를 표현하지 못할 때만 주석을 쓴다.
+
+- 한국어 현재형 문장으로 작성한다.
+- 다음 줄의 동작을 그대로 설명하지 않는다.
+- 호출자가 알아야 하는 제약과 실패 의미는 Javadoc으로 남긴다.
+- TODO에는 추적 가능한 이슈와 제거 조건을 적는다.
+- 과거 작업 번호나 변경 이력을 주석에 남기지 않는다.
+- 동작을 바꾸면 인접 주석도 함께 고친다.
+- 적용된 Flyway migration은 주석 정리를 이유로 수정하지 않는다.
+
+## 테스트
+
+- 변경한 사용자 동작을 재현하는 테스트를 우선한다.
+- 쿼리, 제약, 트랜잭션이 핵심이면 repository mock으로 대신하지 않는다.
+- JPQL과 QueryDSL은 `@DataJpaTest` 또는 실제 테스트 DB에서 검증한다.
+- 보안 변경은 공개·보호 경로와 실제 HTTP 상태를 함께 검증한다.
+- 측정 도구를 바꾸면 `performance`의 Node.js 테스트도 실행한다.
+
+## 성능 측정
+
+Before/After는 앱 이미지, 데이터셋 지문, 부하 모델, 측정 구간과 자원 한계가 같을 때만
+비교한다. 자동 생성된 `run.json`과 `report.html`은 수정하지 않는다. 자세한 계약은
+`performance/METHOD.md`를 따른다.
+
+큰 실행 파일은 통째로 읽지 않는다. `jq`, `rg`, `head`, `tail`로 필요한 범위만 추출한다.
+특히 다음 경로를 주의한다.
+
+- `performance/reports/index.json`
+- `performance/reports/**/hostprobe.jsonl`
+- `performance/resilience/reports/**`
+- `schoolData/**/*.json`
+
+## 문서
+
+- 현재 동작만 정본 문서에 쓴다.
+- 한 사실은 한 문서에서 소유하고 다른 곳에서는 링크한다.
+- 과거 수치에는 실행 ID나 원자료 경로를 붙인다.
+- 확인하지 못한 운영 절차와 추측한 대안을 정본에 넣지 않는다.
+- 해결된 이슈는 현재 이슈 장부에서 제거한다.
+
+## Git
+
+`develop`이 통합 브랜치이고 `main`은 배포 브랜치다.
+
+- 작업 브랜치는 `origin/develop`에서 만든다.
+- PR의 base는 `develop`으로 지정한다.
+- 브랜치 접두사는 `feature/`, `fix/`, `refactor/`, `test/`, `chore/`, `perf/`를 사용한다.
+- 커밋은 Conventional Commits 형식으로 작성하고 본문에 변경 이유와 효과를 적는다.
+- 커밋 제목과 본문은 한국어로 작성한다.
+- 사용자의 명시적 요청 없이 commit, push, force-push하지 않는다.
+- 사용자 작업과 무관한 dirty 파일을 되돌리거나 덮어쓰지 않는다.

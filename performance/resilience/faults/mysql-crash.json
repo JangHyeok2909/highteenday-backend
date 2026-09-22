@@ -1,0 +1,58 @@
+{
+  "id": "mysql-crash",
+  "question": "MySQL 프로세스가 죽었다 살아나면 어떻게 되나 — 연결 거부는 즉시 실패인가 30초 대기인가, 헬스는 DOWN 을 말하나, 되살아난 뒤 Hikari 는 앱 재시작 없이 회복하나",
+  "requires": {
+    "proxy": true
+  },
+  "load": {
+    "rate": 4,
+    "preVus": 100,
+    "maxVus": 1000
+  },
+  "phases": {
+    "warmupSec": 180,
+    "preSec": 60,
+    "faultSec": 60,
+    "postSec": 120
+  },
+  "inject": [
+    {
+      "at": "fault.start",
+      "tool": "docker",
+      "action": "stop",
+      "container": "perf-mysql"
+    },
+    {
+      "at": "fault.end",
+      "tool": "docker",
+      "action": "start",
+      "container": "perf-mysql"
+    }
+  ],
+  "expect": [
+    "fault: MySQL 이 연결을 받지 않으므로 Hikari 는 커넥션을 새로 만들지 못한다. HikariCP 는 생성 실패를 connection-timeout(설정 없음 → 기본 30초) 동안 재시도하며 그동안 호출자를 대기시키므로, 실패 지연이 mysql-hang 과 같은 30,000ms 근처에 몰릴 것으로 본다. 즉시 실패가 나오면 이 가정이 틀린 것이고 그게 이 실행의 답이다",
+    "fault: 위가 맞다면 사용자 입장에서 crash 와 hang 이 같은 거동이 된다. redis-crash(오류율 ~0)와 redis-hang(전면 장애)을 갈랐던 것은 죽음/멈춤의 차이가 아니라 폴백의 유무였다는 뜻이다 — MySQL 에는 폴백이 없다",
+    "fault: /actuator/health 의 db 인디케이터가 연결 거부로 빠르게 실패해 503 DOWN 을 낼 것으로 본다. mysql-slow 는 UP 을 유지했고(24표본 중 UP 19, 응답 p50 5ms → 2,465ms), mysql-hang 은 12표본 중 11이 타임아웃이라 DOWN 을 말하지 못했다. 세 형태 중 헬스가 장애를 제때 정확히 보고할 수 있는 유일한 경우다",
+    "fault: 전 기능이 실패한다. mysql-slow 에서 hot 이 가장 크게 느려졌던 것(p95 35ms → 23,075ms)은 HotPostService 가 DailyHotPostRepository 로 DB 를 읽기 때문인데, 여기서는 그 조회 자체가 막힌다",
+    "post: docker stop -t 1 이라 MySQL 은 1초 안에 정상 종료하지 못하면 SIGKILL 로 죽고, 재기동에 InnoDB 크래시 복구가 포함된다. 그래서 회복 시간은 'MySQL 이 연결을 받기까지' + 'Hikari 가 끊긴 커넥션을 교체하기까지'의 합이다. 둘을 가르려면 perf-mysql 로그의 ready 시각과 앱 오류가 멎는 시각을 비교한다",
+    "post: Hikari 는 체크아웃 시 커넥션 유효성을 확인하므로 앱 재시작 없이 스스로 회복할 것으로 본다. 회복하지 않고 오류가 계속되면 그것이 이 실행의 결과다",
+    "integrity: 장애 중 ViewCountScheduler 의 applyViewCount 가 게시글마다 예외를 받아 applied 에 들어가지 않고, 증가분은 Redis 에 남아 다음 주기에 재시도된다. 조회수 보존이 성립해야 한다",
+    "integrity: S2(장애 종료 +5초) 표본은 docker exec 로 MySQL 을 읽는데 그 시점에 아직 기동 중이면 실패한다. 그 구간은 unknown 으로 남고 전체 판정은 S0~S3 로 한다"
+  ],
+  "integrity": {
+    "probes": [
+      "counter-drift",
+      "viewcount-conservation"
+    ],
+    "drainWaitSec": 90
+  },
+  "watch": [
+    "http.failedLatency",
+    "http.byFeature",
+    "pool.hikariPending",
+    "pool.hikariTimeouts",
+    "pool.tomcatBusy",
+    "mysql.qps",
+    "health"
+  ]
+}

@@ -16,7 +16,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 핫랭킹 ZSET 키에 만료가 걸리는지 고정한다 (docs/KNOWN-ISSUES.md KI-20).
+ * 핫랭킹 ZSET 키에 만료가 걸리는지 고정한다.
  *
  * 왜 서비스가 아니라 어댑터에서 보는가: 결함은 "TTL 을 안 걸었다"였고 그 행위는
  * 이 클래스에만 있다. 서비스 테스트는 TTL 값을 넘기는지까지만 보므로,

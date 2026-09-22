@@ -26,6 +26,7 @@ require('./querycost.test.js');
 require('./appimage.test.js');
 require('./hostprobe-phase.test.js');
 require('./saturation.test.js');
+require('./capacity.test.js');
 require('./trends.test.js');
 require('./sparkline.test.js');
 require('./render-only.test.js');
@@ -40,3 +41,8 @@ require('./preflight.test.js');
 // 빌려 쓰므로 같은 테스트 진입점에서 함께 돈다.
 require('../../resilience/test/plan.test.js');
 require('../../resilience/test/report.test.js');
+require('../../resilience/test/appconfig.test.js');
+require('../../resilience/test/recovery.test.js');
+require('../../resilience/test/integrity.test.js');
+require('../../resilience/test/faultmetrics.test.js');
+require('../../resilience/test/faultrun.test.js');

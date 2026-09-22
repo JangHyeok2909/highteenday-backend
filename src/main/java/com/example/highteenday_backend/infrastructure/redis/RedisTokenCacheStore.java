@@ -3,14 +3,12 @@ package com.example.highteenday_backend.infrastructure.redis;
 import com.example.highteenday_backend.aop.ResilientRedis;
 import com.example.highteenday_backend.domain.port.TokenCachePort;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.Optional;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class RedisTokenCacheStore implements TokenCachePort {
@@ -25,15 +23,11 @@ public class RedisTokenCacheStore implements TokenCachePort {
         tokenRedisTemplate.opsForValue().set(RT_PREFIX + refreshToken, email, ttl);
     }
 
+    /** Redis 를 쓰지 못하면 {@code Optional.empty()}가 되고, 호출자는 DB 를 읽는다. */
+    @ResilientRedis
     @Override
     public Optional<String> get(String refreshToken) {
-        try {
-            String email = tokenRedisTemplate.opsForValue().get(RT_PREFIX + refreshToken);
-            return Optional.ofNullable(email);
-        } catch (Exception e) {
-            log.warn("Redis unavailable, skipping cache lookup for RT. falling back to DB", e);
-            return Optional.empty();
-        }
+        return Optional.ofNullable(tokenRedisTemplate.opsForValue().get(RT_PREFIX + refreshToken));
     }
 
     @ResilientRedis

@@ -1,95 +1,87 @@
-# operations/runbook — 시나리오별 대응 절차
+# Operations runbook
 
-## 이 문서가 답하는 질문
+운영 장애에서는 증상을 먼저 보존하고 의존성, 애플리케이션, 데이터 영향 순서로 확인한다.
+확인하지 않은 추정으로 데이터 삭제나 스키마 변경을 수행하지 않는다.
 
-- Redis가 죽으면 서비스에 무슨 일이 일어나고, 무엇이 유실되는가?
-- 배포가 실패하면 어떻게 되돌리는가?
-- 스키마 변경은 어떤 절차로 하는가?
-- 로그는 어디서 어떻게 보는가?
+## 공통 초기 확인
 
-## 3줄 요약
+```bash
+docker ps -a -f name=highteenday-app
+docker logs --tail 200 highteenday-app
+curl -fsS --max-time 5 http://localhost:8081/actuator/health
+```
 
-- Redis 장애 시 서비스는 계속 동작한다 — `@ResilientRedis`가 기본값을 반환하고 캐시·랭킹·토큰은 DB로 fallback한다. 대가는 장애 중 조회수 유실이다.
-- 배포 실패 시 워크플로가 헬스체크 뒤 직전 이미지로 자동 롤백한다. 그래도 안 되면 ECR의 이전 커밋 SHA 태그로 수동 재기동한다 (수동 절차는 `[미확인]`).
-- 스키마 변경은 Flyway 마이그레이션을 새 번호로 추가하는 것이다 ([MIGRATION.md](../MIGRATION.md)). `ddl/`의 옛 수동 스크립트는 실행하지 않는다.
+다음 정보를 함께 기록한다.
 
+- 장애 시작 시각과 최초 사용자 증상
+- 배포된 이미지 또는 커밋
+- HTTP 상태와 응답 지연
+- 앱, MySQL, Redis 상태
+- HikariCP active, pending과 Tomcat busy
 
-## 시나리오 1: Redis가 죽으면 무슨 일이 일어나는가
+## Redis 장애
 
-애플리케이션은 죽지 않는다. 격리 장치는 두 겹이다 (키별 정책은 [crosscutting/redis.md](../crosscutting/redis.md)):
+`@ResilientRedis`는 예외가 발생한 뒤 기본값을 반환한다. 서킷브레이커가 닫혀 있는 동안에는
+timeout 전까지 요청이 계속 대기하므로, “프로세스가 살아 있음”을 즉시 폴백과 같은 의미로
+해석하지 않는다. 서킷이 열리면 그때부터 대기 없이 폴백한다.
 
-1. **`@ResilientRedis` (단순 조작)** — `aop/ResilientRedisAspect.java · handle()`이 예외를 잡아 WARN 로그 후 반환 타입별 기본값을 돌려준다: void→null, boolean→false, 숫자→0, List/Set/Map→빈 컬렉션 (`defaultValue()`).
-2. **서비스 내 try/catch (복잡한 fallback)** — DB 재조회가 필요한 경로.
+1. Redis 연결 가능 여부와 장애 시작 시각을 확인한다.
+2. 서킷 상태를 확인한다. `register-health-indicator=false`이므로 `/actuator/health`에는
+   나오지 않는다.
+   ```bash
+   curl -s localhost:8081/actuator/metrics/resilience4j.circuitbreaker.state
+   ```
+   `OPEN`이면 앱이 Redis를 아예 안 부르고 있다는 뜻이다. 이때는 캐시 무효화와 조회수 차감이
+   함께 멈추므로 5번과 6번을 반드시 확인한다.
+3. 앱 로그에서 Redis 예외, HikariCP 획득 실패, 인증 실패를 같은 시간대로 묶는다.
+4. HikariCP active와 pending이 증가했다면 신규 트래픽을 줄이고 Redis 복구를 우선한다.
+5. Redis를 복구한 뒤 health와 보호 API를 반복 확인한다. 서킷은 복구 후 들어오는 호출
+   3건으로 회복을 확인하고 닫히므로, 트래픽이 없으면 닫히지 않는다.
+6. HikariCP pending과 응답 지연이 정상 범위로 돌아오는 시각을 기록한다.
+7. 조회수 버퍼와 일별 인기글 재구성 여부를 확인한다. 서킷이 열려 있던 구간에 삭제·수정된
+   게시글은 목록 캐시에 남아 있을 수 있다. 해당 게시판의 `board:{boardId}:posts`와
+   `posts:{postId}` 키를 지워 다음 조회가 DB에서 재적재하게 한다.
 
-경로별 실제 동작:
+Redis 장애 중 조회수 증가는 기록되지 않을 수 있다. Redis 데이터가 초기화되면 DB에 아직
+반영하지 않은 `post:views:*`와 중복 방지 키도 사라진다. 이를 수동으로 추정해 DB에 더하지
+않는다. 손실 정책은 [DATA-001](../issues.md), 장애 근거는
+[Redis 장애 Case](../../performance/cases/redis-failure-cascade.md)가 소유한다.
 
-| 경로 | 장애 시 동작 | 근거 |
-|---|---|---|
-| 게시글 목록 캐시 | try/catch로 DB 직접 조회 (`findByBoard`) | `services/domain/redisService/RedisPostsCache.java · getPostPrevs()` catch 블록 |
-| 게시글 count 캐시 | try/catch로 `postRepository.countTotal()` | 같은 파일 `getCount()` |
-| 일간 핫게시글 | `topPostIds()`가 `@ResilientRedis`로 빈 Set 반환 → `getLeaderboardDayHotPostsFromDb()`가 `daily_hot_post` 테이블에서 조회 (5분 주기 `syncLeaderboardDayToDb()`가 미리 적재해 둔 스냅샷) | `services/domain/HotPostService.java · getLeaderboardDayHotPosts()`, `infrastructure/redis/RedisHotPostRanking.java` |
-| 리프레시 토큰 검증 | 캐시 get이 장애 시 empty 반환 → DB `tokenRepository.findByRefreshToken()` 재조회 후 재적재 시도 | `services/domain/TokenService.java · findByRefreshTokenOrThrow()`, `infrastructure/redis/RedisTokenCacheStore.java` |
-| 조회수 | **유실** — 아래 참고 | `infrastructure/redis/RedisViewCountStore.java` |
+## 배포 실패
 
-**조회수 유실 범위** (코드 근거):
+배포 workflow는 새 컨테이너를 기동한 뒤 management port 8081의 health가 120초 안에 UP인지
+확인한다. 실패하면 컨테이너 상태와 마지막 로그 200줄을 출력하고 배포 전 이미지로
+재기동한다.
 
-- 장애 지속 중: `tryMarkViewed()`가 `@ResilientRedis`로 false를 반환 → `ViewCountService.increaseViewCount()`가 증가를 건너뜀. 장애 동안의 조회는 **집계되지 않고 영구 유실**된다.
-- Redis 데이터가 날아간 경우(재시작 등): `post:views:*`에 버퍼링돼 있던 미반영 증분이 유실된다. `ViewCountScheduler.syncViewsToDB()`가 60초 주기(fixedDelay)로 반영하므로 유실 폭은 최대 직전 sync 이후 누적분이다. 반영에 실패한 증가분은 Redis에 남겨 다음 주기에 재시도하므로 DB 쪽 실패로는 유실되지 않는다 ([KI-23](../KNOWN-ISSUES.md#ki-23-viewcountscheduler의-자기호출-트랜잭션과-드레인-유실) 갱신). 또한 `viewed:*` 중복 방지 키(1h TTL)도 사라지므로 복구 직후 같은 사용자의 조회가 한 번 더 집계될 수 있다.
+자동 롤백 뒤에도 정상화되지 않으면 다음 순서로 확인한다.
 
-- 게시글 본문의 조회수 표시는 DB 누적값 + Redis 버퍼(`getCount`, 장애 시 0)로 조합되므로 장애 중에는 버퍼 몫만큼 낮게 보인다.
+1. workflow 로그에서 새 이미지와 이전 이미지 값을 확인한다.
+2. `docker inspect highteenday-app`으로 실제 실행 이미지를 확인한다.
+3. 애플리케이션 로그에서 Flyway, 환경변수, 포트 충돌과 외부 연결 실패를 찾는다.
+4. ECR에 존재하는 이전 정상 이미지의 불변 태그를 확인한다.
+5. `~/app/.env`의 `ECR_IMAGE`를 검증한 태그로 바꾸고 다시 기동한다.
 
-복구 후 별도 조치는 필요 없다 — 캐시는 미스 시 재적재되고, 핫 랭킹은 스케줄러가 재계산한다.
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env pull
+docker compose -f docker-compose.prod.yml --env-file .env up -d --force-recreate
+curl -fsS --max-time 5 http://localhost:8081/actuator/health
+```
 
-## 시나리오 2: 배포가 실패하면
+`latest`처럼 이동하는 태그는 수동 롤백 기준으로 사용하지 않는다.
 
-deploy job이 `docker compose up -d` 뒤 `http://localhost:8081/actuator/health`가 UP이 될 때까지 최대 120초 기다리고, 실패하면 컨테이너 상태와 로그 200줄을 출력한 뒤 **배포 직전 이미지로 되돌리고** 워크플로를 실패시킨다 (`.github/workflows/` 의 deploy job, [KI-48](../KNOWN-ISSUES.md) 갱신). 따라서 보통은 사람이 손댈 일이 없다.
+## 로그와 SQL 확인
 
-자동 롤백까지 실패했거나 정상 기동한 버전을 더 뒤로 돌려야 할 때의 수동 절차 `[미확인: 실제로 검증한 적 없는 절차다 — 아래는 파이프라인 구조에서 도출한 것]`:
+prod 애플리케이션 로그는 컨테이너 표준 출력에 남는다.
 
-1. build job이 이미지를 **커밋 SHA 태그**로 ECR에 push하므로(`.github/workflows/deploy.yml · build`), 이전 정상 커밋의 SHA 태그 이미지가 ECR에 남아 있다.
-2. EC2 접속 후 `~/app/.env`의 `ECR_IMAGE=` 값을 이전 SHA 태그 URI로 수정.
-3. `docker compose -f docker-compose.prod.yml --env-file .env pull && docker compose -f docker-compose.prod.yml --env-file .env up -d --force-recreate`.
-4. 확인: `curl http://localhost:8081/actuator/health` → `{"status":"UP"}`.
+```bash
+docker logs -f highteenday-app
+```
 
-대안: 이전 정상 커밋을 `main`에 revert-push하면 파이프라인이 그 커밋으로 재배포한다 (이미지 재빌드 시간 소요).
+dev에서 SQL을 확인하려면 `application-dev.properties`의 p6spy 로깅을 일시적으로 켠다.
+prod의 p6spy는 비활성 상태를 유지한다. 조회수 동기화는
+`View count batch sync complete` 로그로 주기와 반영 건수를 확인한다.
 
-주의: `latest` 태그는 실패한 빌드를 가리키고 있을 수 있으므로 롤백에 쓰지 말 것. ECR 이미지 보존 기간(수명주기 정책)은 `[미확인: AWS 콘솔 접근 불가]`.
+## 스키마 문제
 
-## 시나리오 3: 스키마를 변경하려면
-
-- 엔티티를 고치고 `src/main/resources/db/migration/`에 `V{다음 번호}__{설명}.sql`을 추가한다. 이미 적용된 파일은 체크섬 때문에 수정할 수 없다 — 되돌리려면 새 번호로 되돌리는 마이그레이션을 추가한다. 절차·로컬 검증 명령·`baseline-on-migrate` 동작은 [MIGRATION.md](../MIGRATION.md).
-- 기존 행이 있는 컬럼 추가는 **컬럼 추가 → 값 백필 → NOT NULL/UNIQUE 제약** 순서로 나눠 쓴다. 백필 전에 제약을 걸면 기존 행 때문에 실패한다.
-- dev·prod 모두 `ddl-auto=none`이라 엔티티만 고치면 스키마가 바뀌지 않는다. dev DB에는 예전 `ddl-auto=update` 시절의 타입 드리프트(enum vs VARCHAR)가 남아 있어, 정리한 뒤 `validate`로 올리는 것이 목표다 (`application-dev.properties` 주석).
-- `src/main/resources/ddl/`의 수동 스크립트 2개는 Flyway 도입 이전 기록이다. `V_daily_hot_post.sql`은 존재하지 않는 `post` 테이블을 참조해 그대로 실행하면 실패하고, 필요한 테이블은 V6가 만든다 ([KI-28](../KNOWN-ISSUES.md#ki-28-수동-ddl과-실제-스키마의-불일치)).
-- 배포 후 확인: `SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank;`
-
-## 시나리오 4: 로그를 보려면
-
-- **prod 컨테이너 로그**: EC2에서 `docker logs -f highteenday-app` (`docker-compose.prod.yml · container_name`). 로그 레벨은 INFO(`application-prod.properties`)라 정상 요청은 안 찍히고, 300ms 초과 요청이 `[API] Slow.` / `[Service] Slow.` WARN으로 찍힌다 (`aop/ExecutionLoggingAspect.java`). 요청당 쿼리가 20개를 넘으면 `metrics/QueryCountFilter`가 WARN을 남긴다. 파일 적재·수집 설정은 없다 — 컨테이너 재생성 시 이전 로그가 사라진다 `[미확인: EC2 도커 로깅 드라이버 설정에 따라 다를 수 있음]`.
-
-- **SQL 로그 (p6spy)**: dev는 `decorator.datasource.p6spy.enable-logging=false`로 꺼져 있다. 켜려면 dev 프로퍼티에서 `true`로 바꾸고 `logging.level.p6spy`를 `info`로 올린다. 포맷은 `src/main/resources/spy.properties`(SingleLineFormat) — 파일 주석대로 `excludecategories`가 주석 처리되어 있어 켜면 모든 SQL(N+1 관찰 포함)이 출력된다. prod는 `logging.level.p6spy=off`로 완전 차단.
-- **스케줄러 수명주기**: `@SchedulerJob` AOP(`aop/SchedulerJobAspect`)가 시작/종료를 로깅한다 — 조회수 sync는 `View count batch sync complete. synced=...` INFO 로그로 동작 여부를 확인할 수 있다 (`schedulers/ViewCountScheduler.java`).
-
-## 코드 좌표
-
-| 개념 | 위치 |
-|---|---|
-| Redis 기본값 반환 | `aop/ResilientRedisAspect.java · handle() / defaultValue()` |
-| 목록·count DB fallback | `services/domain/redisService/RedisPostsCache.java · getPostPrevs() / getCount()` |
-| 핫게시글 DB fallback | `services/domain/HotPostService.java · getLeaderboardDayHotPostsFromDb() / syncLeaderboardDayToDb()` |
-| 토큰 캐시 miss 시 DB 재조회 | `services/domain/TokenService.java · findByRefreshTokenOrThrow()` |
-| 조회수 버퍼·유실 지점 | `infrastructure/redis/RedisViewCountStore.java`, `schedulers/ViewCountScheduler.java · syncViewsToDB()` |
-| 스키마 마이그레이션 | `src/main/resources/db/migration/`, 절차는 [MIGRATION.md](../MIGRATION.md) |
-| 배포 헬스체크·롤백 | `.github/workflows/deploy.yml · deploy` 잡의 SSH 스크립트 |
-
-| p6spy 설정 | `src/main/resources/spy.properties`, `application-dev.properties`의 p6spy 키 |
-
-## 알려진 문제·미확인 사항
-
-- [KI-28](../KNOWN-ISSUES.md) `ddl/V_daily_hot_post.sql`의 FK가 존재하지 않는 `post` 테이블 참조 — 기록용 스크립트라 실행 대상이 아니며, 필요한 테이블은 V6가 만든다
-- [KI-48](../KNOWN-ISSUES.md) 배포 후 검증·자동 롤백 부재 — 해소
-- [KI-17](../KNOWN-ISSUES.md#ki-17-조회수-드레인이-블로킹-keys-명령-사용) 조회수 드레인의 `KEYS` 명령 — 키가 많아지면 60초마다 Redis 전체가 멈칫한다. 미해결
-- `[미확인]` 4건: 수동 롤백 절차의 실검증, ECR 이미지 보존 정책, prod DDL 적용 이력, EC2 도커 로깅 드라이버
-
-마지막 검증일: 2026-09-05
-
+스키마 변경과 Flyway 실패는 [MIGRATION.md](../MIGRATION.md)를 따른다.
+적용된 migration을 수정하거나 `ddl-auto`로 우회하지 않는다.

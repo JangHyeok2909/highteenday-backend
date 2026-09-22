@@ -23,6 +23,9 @@ public enum ErrorCode {
     RESOURCE_NOT_FOUND(NOT_FOUND, "요청한 자원을 찾을 수 없습니다."),
     INVALID_REQUEST(BAD_REQUEST, "올바르지 않은 요청입니다."),
     INTERNAL_ERROR(INTERNAL_SERVER_ERROR, "예상치못한 내부 에러가 발생했습니다."),
+    // DB·Redis를 쓰지 못해 요청을 처리하지 못한 경우다. 500(서버 코드가 틀렸다)이나
+    // 401(자격 증명이 틀렸다)과 구분해야 클라이언트가 재시도를 택할 수 있다.
+    INFRASTRUCTURE_UNAVAILABLE(SERVICE_UNAVAILABLE, "일시적으로 요청을 처리할 수 없습니다. 잠시 후 다시 시도해주세요."),
 
     // user
     INVALID_PASSWORD(UNAUTHORIZED, "비밀번호가 올바르지 않습니다."),

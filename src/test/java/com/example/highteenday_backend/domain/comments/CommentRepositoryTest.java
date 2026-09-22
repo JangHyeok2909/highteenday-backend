@@ -34,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 쿼리 수를 센다.
  */
 @DataJpaTest
-// JpaAuditingConfig 가 없으면 BaseEntity.created 가 null 이라 NOT NULL 제약에 걸린다(KI-52).
+// JpaAuditingConfig가 없으면 BaseEntity.created가 null이라 NOT NULL 제약에 걸린다.
 @Import({QueryDslConfig.class, JpaAuditingConfig.class})
 @TestPropertySource(properties = {
         "spring.jpa.hibernate.ddl-auto=create-drop",

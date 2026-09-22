@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 // JpaAuditingConfig 를 명시적으로 넣는다. @EnableJpaAuditing 은 애플리케이션 클래스가 아니라
-// 별도 설정 클래스에 있고(KI-52), @DataJpaTest 는 그런 @Configuration 을 자동으로 올리지 않는다.
+// 별도 설정 클래스에 있고, @DataJpaTest는 그런 @Configuration을 자동으로 올리지 않는다.
 // 빠뜨리면 BaseEntity.created 가 null 이라 NOT NULL 제약에 걸려 저장 자체가 실패한다.
 @Import({QueryDslConfig.class, JpaAuditingConfig.class})
 @TestPropertySource(properties = {
@@ -70,7 +70,7 @@ class FriendRepositoryTest {
         assertThat(friendRepository.existsFriendship(me.getId(), friend.getId())).isFalse();
     }
 
-    // ── soft delete 필터 (docs/KNOWN-ISSUES.md KI-43) ──
+    // soft delete 필터를 검증한다.
     // 친구 삭제가 물리 삭제에서 soft delete 로 바뀌었으므로, 조회 쿼리가 is_valid 를
     // 걸러 주지 않으면 **이미 끊은 친구가 계속 친구로 보인다.** 아래 네 테스트는
     // 쿼리 하나라도 필터를 빠뜨리면 깨진다.

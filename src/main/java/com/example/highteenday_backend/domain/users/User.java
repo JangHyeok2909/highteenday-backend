@@ -150,7 +150,7 @@ public class User extends BaseEntity {
     }
 
     /**
-     * 회원 탈퇴 (docs/KNOWN-ISSUES.md KI-34).
+     * 회원 탈퇴.
      *
      * <p>행을 지우지 않고 {@code isValid=false} 로 두면서, 이메일을 <b>되돌릴 수 없는
      * 표식값으로 바꾼다.</b>

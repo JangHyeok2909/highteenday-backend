@@ -749,7 +749,7 @@ class UserServiceTest {
             when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(existing));
         }
 
-        // 아래 테스트들은 KI-34 로 물리 삭제 → soft delete 전환된 뒤의 계약이다.
+        // 아래 테스트들은 물리 삭제에서 soft delete로 전환된 뒤의 계약이다.
         // 예전에는 `userRepository.delete()` 호출과 그때 나는 FK 위반·JPA 오류의
         // ErrorCode 변환을 고정하고 있었다. DELETE 를 하지 않으므로 그 예외들은
         // 더 이상 발생할 수 없어, 해당 테스트는 함께 제거했다.

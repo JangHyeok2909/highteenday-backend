@@ -50,7 +50,7 @@ public class HotPostService {
     private static final DateTimeFormatter LEADERBOARD_DAY_SUFFIX = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     /**
-     * 일자 리더보드 ZSET 수명 (KI-20).
+     * 일자 리더보드 ZSET 수명.
      *
      * 하루가 아니라 이틀인 이유: 키 이름이 날짜라 자정에 새 키로 넘어가는데, 마지막
      * 쓰기 직후 만료되면 그날 남은 조회가 DB fallback 으로 새 버린다. 이틀이면
@@ -59,7 +59,7 @@ public class HotPostService {
     private static final Duration LEADERBOARD_DAY_TTL = Duration.ofDays(2);
 
     /**
-     * 게시판별 5분 실시간 버킷 수명 (KI-20).
+     * 게시판별 5분 실시간 버킷 수명.
      *
      * 5분 버킷이므로 30분이면 최근 6개만 남는다. 버킷 하나의 수명을 5분에 딱 맞추지
      * 않은 것은, 경계 직전에 쓰인 버킷을 직후 조회가 읽을 수 있게 하기 위해서다.

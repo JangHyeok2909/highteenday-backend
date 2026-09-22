@@ -1,5 +1,6 @@
 package com.example.highteenday_backend.schedulers;
 
+import com.example.highteenday_backend.aop.ResilientRedisExecutor;
 import com.example.highteenday_backend.exceptions.ResourceNotFoundException;
 import com.example.highteenday_backend.services.domain.HotPostService;
 import com.example.highteenday_backend.services.domain.PostService;
@@ -37,6 +38,8 @@ class ViewCountSchedulerTest {
     private HotPostService hotPostService;
     @Mock
     private PostService postService;
+    @Mock
+    private ResilientRedisExecutor redisExecutor;
 
     @InjectMocks
     private ViewCountScheduler scheduler;
@@ -72,13 +75,13 @@ class ViewCountSchedulerTest {
     }
 
     /**
-     * 드레인 순서와 유실 방지 (docs/KNOWN-ISSUES.md KI-23).
+     * 드레인 순서와 DB 실패 시 증가분 보존을 검증한다.
      *
      * 예전에는 Redis 카운터를 GETDEL 로 먼저 지우고 DB 에 반영했다. 반영이 실패하면
      * 이미 지워진 증가분을 되돌릴 수 없어 통째로 유실됐다.
      */
     @Nested
-    @DisplayName("드레인 순서 (KI-23)")
+    @DisplayName("드레인 순서")
     class DrainOrder {
 
         @Test
@@ -121,6 +124,35 @@ class ViewCountSchedulerTest {
             verify(postService).applyViewCount(10L, 2);
             verify(hotPostService).updateLeaderboardDayScore(10L);
             verify(hotPostService, never()).updateLeaderboardDayScore(9L);
+        }
+
+        /**
+         * 랭킹 갱신도 Redis 호출이다. DB 반영과 차감 사이에 두면 그 호출들이 서킷을 열 수
+         * 있고, 서킷이 열리면 차감이 거절된다. 그러면 DB 에는 반영됐는데 Redis 카운터는
+         * 남아 있어 같은 증가분이 다음 주기에 또 더해진다.
+         */
+        @Test
+        @DisplayName("랭킹 갱신은 차감 뒤에 한다 — 사이에 Redis 를 부르면 차감이 막힐 수 있다")
+        void updatesRankingAfterSettling() {
+            when(viewCountService.peekPendingViewCounts()).thenReturn(Map.of(1L, 5));
+
+            scheduler.syncViewsToDB();
+
+            InOrder order = inOrder(viewCountService, hotPostService);
+            order.verify(viewCountService).settleViewCounts(anyMap());
+            order.verify(hotPostService).updateLeaderboardDayScore(1L);
+        }
+
+        @Test
+        @DisplayName("서킷이 열려 있으면 주기를 통째로 건너뛴다")
+        void skipsCycleWhenCircuitIsOpen() {
+            when(redisExecutor.isOpen()).thenReturn(true);
+
+            scheduler.syncViewsToDB();
+
+            verify(viewCountService, never()).peekPendingViewCounts();
+            verify(postService, never()).applyViewCount(anyLong(), anyInt());
+            verify(viewCountService, never()).settleViewCounts(anyMap());
         }
 
         @Test

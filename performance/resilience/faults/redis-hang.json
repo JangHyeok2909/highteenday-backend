@@ -1,21 +1,63 @@
 {
   "id": "redis-hang",
   "question": "Redis 가 응답 없이 멈추면(TCP 는 살아 있고 답만 안 옴) 어떻게 되나 — crash 와 같은가",
-  "requires": { "proxy": true },
-  "load": { "rate": 4, "preVus": 100, "maxVus": 1000 },
-  "phases": { "preSec": 300, "faultSec": 120, "postSec": 300 },
+  "requires": {
+    "proxy": true
+  },
+  "load": {
+    "rate": 4,
+    "preVus": 100,
+    "maxVus": 1000
+  },
+  "phases": {
+    "warmupSec": 180,
+    "preSec": 120,
+    "faultSec": 120,
+    "postSec": 120
+  },
   "inject": [
-    { "at": "fault.start", "tool": "toxiproxy", "action": "add", "proxy": "redis",
-      "toxic": { "name": "hang", "type": "timeout", "stream": "downstream", "toxicity": 1.0, "attributes": { "timeout": 0 } } },
-    { "at": "fault.end",   "tool": "toxiproxy", "action": "remove", "proxy": "redis", "toxicName": "hang" }
+    {
+      "at": "fault.start",
+      "tool": "toxiproxy",
+      "action": "add",
+      "proxy": "redis",
+      "toxic": {
+        "name": "hang",
+        "type": "timeout",
+        "stream": "downstream",
+        "toxicity": 1,
+        "attributes": {
+          "timeout": 0
+        }
+      }
+    },
+    {
+      "at": "fault.end",
+      "tool": "toxiproxy",
+      "action": "remove",
+      "proxy": "redis",
+      "toxicName": "hang"
+    }
   ],
   "expect": [
-    "fault: Lettuce 명령 타임아웃이 설정돼 있지 않아 기본 60초. 모든 Redis 호출이 60초 대기한다",
-    "fault: 초당 4 iteration × 여정당 Redis 호출 수만큼 요청 스레드가 묶여 tomcat busy 가 400 에 닿는다",
-    "fault: 스레드가 고갈된 뒤에는 Redis 를 안 쓰는 엔드포인트(급식·시간표·친구)도 실패한다 — 폭발 반경이 전부",
-    "fault: 실패 응답의 지연이 60,000ms 부근에 몰린다(k6 요청 타임아웃 60s). 즉시 실패가 아니라 60초 대기 후 실패",
-    "post: toxic 을 걷으면 묶인 스레드가 순차로 풀린다. 회복 시간은 60초 이상 — 얼마인지는 모른다",
-    "고친 뒤(spring.data.redis.timeout=200ms): redis-crash 와 같은 거동이어야 한다"
+    "fault: 명령 타임아웃 100ms 가 걸려 있으므로 Redis 호출은 100ms 뒤 예외가 되고 @ResilientRedis 가 기본값을 반환한다. 오류율 0%",
+    "fault: 요청 지연 증가분은 그 요청이 호출한 Redis 메서드 수 x 100ms 다. p95 는 평시의 3~4 배",
+    "fault: 스레드가 묶이지 않으므로 tomcat busy 는 한 자릿수에 머물고 hikari 대기 큐는 0 이다",
+    "fault: Redis 를 안 쓰는 기능(급식·시간표·친구·게시판 목록)의 p95 는 평시와 같다",
+    "fault: 오류율 0% 여도 조회수는 유실된다. 유실 건수는 장애 구간에 발생한 조회 수와 같아야 한다",
+    "post: Redis 프로세스가 죽지 않았으므로 캐시와 조회수 버퍼가 보존된다. redis-crash 와 달리 복구 직후 DB 스파이크가 없어야 한다"
   ],
-  "watch": ["http.byFeature", "http.failedLatency", "pool.tomcatBusy", "k6.droppedIterations", "health"]
+  "integrity": {
+    "probes": [
+      "counter-drift",
+      "viewcount-conservation"
+    ]
+  },
+  "watch": [
+    "http.byFeature",
+    "http.failedLatency",
+    "pool.tomcatBusy",
+    "k6.droppedIterations",
+    "health"
+  ]
 }

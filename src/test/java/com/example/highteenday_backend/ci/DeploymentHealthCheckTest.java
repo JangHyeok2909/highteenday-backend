@@ -13,10 +13,10 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 배포가 기동 확인 없이 끝나지 않는지 고정한다 (docs/KNOWN-ISSUES.md KI-48).
+ * 배포가 기동 확인 없이 끝나지 않는지 고정한다.
  *
  * 결함은 "컨테이너가 기동 직후 죽어도 워크플로가 성공으로 남는다"였고, 그 행위는
- * 워크플로 정의에만 존재한다. 그래서 정의 자체를 단언 대상으로 삼는다 — KI-12 의
+ * 워크플로 정의에만 존재한다. 그래서 정의 자체를 단언 대상으로 삼는다. 같은 계열의
  * {@link CiTestGateTest} 와 같은 이유다.
  */
 class DeploymentHealthCheckTest {

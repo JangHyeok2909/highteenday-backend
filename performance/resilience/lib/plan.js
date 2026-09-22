@@ -6,6 +6,10 @@
  */
 'use strict';
 
+// 계획이 고른 불변식 이름을 여기서 검증한다 — 이름이 틀린 것을 12분짜리 실행이 끝난 뒤에
+// 알게 되면 그 실행은 정확성 자료가 없는 실행이 된다. 카탈로그도 순수 모듈이다.
+const invariants = require('./invariants');
+
 const TOOLS = new Set(['toxiproxy', 'docker', 'pumba', 'shell']);
 const AT_PATTERN = /^(fault\.start|fault\.end|run\.start|run\.end)(?:([+-])(\d+(?:\.\d+)?))?$/;
 
@@ -26,8 +30,32 @@ function validatePlan(plan) {
     if (!Number.isFinite(ph[k]) || ph[k] < 0) errors.push(`phases.${k} 가 0 이상의 숫자가 아니다`);
   }
   if (Number.isFinite(ph.faultSec) && ph.faultSec === 0) errors.push('phases.faultSec 가 0 이면 장애 구간이 없다');
+  // 예열은 선택이다. 넣었다면 숫자여야 한다 — 오타로 문자열이 들어가면 예열이 조용히 꺼진다.
+  if (ph.warmupSec !== undefined && (!Number.isFinite(ph.warmupSec) || ph.warmupSec < 0)) {
+    errors.push('phases.warmupSec 가 0 이상의 숫자가 아니다');
+  }
   const load = plan.load || {};
   if (!Number.isFinite(load.rate) || load.rate <= 0) errors.push('load.rate 는 양수(초당 iteration)여야 한다');
+  // load.steps 가 있으면 장애 구간 안에서 도착률을 계단식으로 올리는 계획이다
+  // (resilience/scenarios/fault-breakpoint.js). 계단 총합이 faultSec 과 다르면 램프 도중에
+  // 장애가 걷히고, 그 뒤 계단은 무장애 상태에서 잰 값이 된다. k6 도 실행기도 이걸 오류로
+  // 보지 않아 리포트는 정상으로 나오므로 여기서 막는다.
+  if (load.steps !== undefined) {
+    if (!Array.isArray(load.steps) || load.steps.length === 0) {
+      errors.push('load.steps 는 비어 있지 않은 배열이어야 한다');
+    } else if (!load.steps.every((n) => Number.isFinite(n) && n > 0)) {
+      errors.push('load.steps 의 각 계단은 양수(초당 iteration)여야 한다');
+    } else {
+      const ramp = load.stepRampSec === undefined ? 30 : load.stepRampSec;
+      const hold = load.stepHoldSec === undefined ? 90 : load.stepHoldSec;
+      if (!Number.isFinite(ramp) || ramp < 0) errors.push('load.stepRampSec 가 0 이상의 숫자가 아니다');
+      if (!Number.isFinite(hold) || hold <= 0) errors.push('load.stepHoldSec 는 양수여야 한다');
+      const total = load.steps.length * (ramp + hold);
+      if (Number.isFinite(ph.faultSec) && total !== ph.faultSec) {
+        errors.push(`phases.faultSec(${ph.faultSec}s) 와 계단 총합(${load.steps.length}단 × (${ramp}+${hold})s = ${total}s) 이 다르다`);
+      }
+    }
+  }
   if (!Array.isArray(plan.inject) || plan.inject.length === 0) errors.push('inject 가 비어 있다');
   (plan.inject || []).forEach((step, i) => {
     const where = `inject[${i}]`;
@@ -48,6 +76,18 @@ function validatePlan(plan) {
     if (step.tool === 'shell' && !Array.isArray(step.argv)) errors.push(`${where}: shell step 에 argv 배열이 없다`);
   });
   if (!Array.isArray(plan.expect) || plan.expect.length === 0) errors.push('expect 가 비어 있다 — 가설 없는 실험은 관측이 아니라 구경이다');
+  if (plan.integrity !== undefined) {
+    const ig = plan.integrity;
+    if (!ig || typeof ig !== 'object') errors.push('integrity 가 객체가 아니다');
+    else {
+      if (!Array.isArray(ig.probes) || ig.probes.length === 0) errors.push('integrity.probes 가 비어 있다 — 검사할 불변식을 고르지 않을 거면 integrity 를 빼는 것이 맞다');
+      else {
+        const unknown = invariants.unknownProbes(ig.probes);
+        if (unknown.length) errors.push(`모르는 불변식: ${unknown.join(', ')} (있는 것: ${invariants.ids().join(', ')})`);
+      }
+      if (ig.drainWaitSec !== undefined && (!Number.isFinite(ig.drainWaitSec) || ig.drainWaitSec < 0)) errors.push('integrity.drainWaitSec 이 0 이상의 숫자가 아니다');
+    }
+  }
   return errors;
 }
 
@@ -186,8 +226,131 @@ function failedLatencyByPhase(rawMetrics) {
   return out;
 }
 
+/**
+ * 구간 × HTTP 상태 코드 — "무엇이 실패했나"가 아니라 **어떻게 실패했나**.
+ *
+ * 오류율 하나로는 500(커넥션을 못 받아 서버가 던짐)과 503(헬스가 DOWN 이라 앞단이 뺌)과
+ * 0(연결 자체가 안 됨)이 구분되지 않는다. 셋은 대응이 전혀 다르다 — 앞의 둘은 앱이 살아서
+ * 응답한 것이고, 마지막은 응답조차 못 한 것이다.
+ *
+ * `status:0` 은 k6 가 응답을 받지 못한 경우(연결 거부·요청 타임아웃)에 붙는 값이다.
+ *
+ * 값은 fault-window.js 가 threshold 로 만들어 둔 서브메트릭에서 읽는다. k6 요약은 threshold
+ * 가 걸린 축만 내보내므로, 여기서 읽는 상태 코드 목록과 그쪽 목록은 같아야 한다.
+ */
+function statusByPhase(rawMetrics, statuses) {
+  const out = {};
+  for (const [k6Name, label] of Object.entries(PHASE_LABELS)) {
+    const row = { total: 0, byStatus: {} };
+    for (const status of statuses) {
+      const reqs = rawMetrics && rawMetrics[`http_reqs{phase:${k6Name},status:${status}}`];
+      const dur = rawMetrics && rawMetrics[`http_req_duration{phase:${k6Name},status:${status}}`];
+      const count = reqs && reqs.values ? reqs.values.count : 0;
+      if (!(count > 0)) continue;
+      row.byStatus[status] = {
+        count,
+        p95: dur && dur.values ? dur.values['p(95)'] : null,
+        max: dur && dur.values ? dur.values.max : null,
+      };
+      row.total += count;
+    }
+    out[label] = row;
+  }
+  return out;
+}
+
+/** 정렬된 수 배열에서 백분위수. 표본이 적어(구간당 수십 개) 보간 없이 가까운 순위를 쓴다. */
+function percentileOf(sorted, p) {
+  if (!sorted.length) return null;
+  const i = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+  return sorted[i];
+}
+
+/**
+ * 구간별 헬스체크 요약 — 표본 수, 응답 지연, 그리고 **왜 실패로 잡혔는지**.
+ *
+ * 이 함수가 필요해진 이유가 실측에 있다. 2026-09-09 smoke 실행에서 `/actuator/health` 가
+ * `UNREACHABLE` 로 5번 잡혔는데, 그중 3번은 장애가 이미 끝난 뒤였고 전부 원인이
+ * "폴러가 4초를 못 기다림"이었다. 앱이 죽은 것이 아니라 **관측 도구의 상한을 넘긴 것**인데,
+ * 표에는 빨간 UNREACHABLE 로만 보여서 전면 장애로 읽혔다.
+ *
+ * 그래서 셋을 가른다.
+ *   down     앱이 응답했고 스스로 DOWN 이라 말했다 — 진짜 헬스 실패다
+ *   timeout  폴러가 상한(기본 4초) 안에 응답을 못 받았다 — 앱 장애의 증거가 아니다
+ *   unreachable  접속 자체가 실패했다 — 프로세스가 없거나 포트가 닫혔다
+ *
+ * @param {object[]} samples HealthPoller.samples
+ * @param {object} phases 계획의 {preSec, faultSec, postSec}
+ * @returns {object} 구간별 {count, up, down, timeout, unreachable, latency:{p50,p95,max}}
+ */
+function healthByPhase(samples, phases) {
+  const bounds = {
+    pre: [0, phases.preSec],
+    fault: [phases.preSec, phases.preSec + phases.faultSec],
+    post: [phases.preSec + phases.faultSec, totalSec(phases)],
+  };
+  const out = {};
+  for (const name of PHASE_ORDER) {
+    const [a, b] = bounds[name];
+    if (b <= a) continue;
+    // tSec 가 없는 표본은 t0 확정 전(부하 시작 전)의 것이라 어느 구간에도 넣지 않는다.
+    const inPhase = samples.filter((s) => s.tSec != null && s.tSec >= a && s.tSec < b);
+    const lat = inPhase.map((s) => s.latencyMs).filter((v) => Number.isFinite(v)).sort((x, y) => x - y);
+    out[name] = {
+      count: inPhase.length,
+      up: inPhase.filter((s) => s.status === 'UP').length,
+      down: inPhase.filter((s) => s.httpStatus != null && s.status !== 'UP').length,
+      timeout: inPhase.filter((s) => s.httpStatus == null && /timeout after/.test(s.error || '')).length,
+      unreachable: inPhase.filter((s) => s.httpStatus == null && !/timeout after/.test(s.error || '')).length,
+      latency: { p50: percentileOf(lat, 50), p95: percentileOf(lat, 95), max: lat.length ? lat[lat.length - 1] : null },
+    };
+  }
+  return out;
+}
+
+/**
+ * 구간 × 응답 내용 check — "200 이었는데 내용이 비어 있었나".
+ *
+ * 오류율과 상태 코드 표는 "요청이 실패했나"까지만 답한다. 폴백은 예외를 삼키고 빈 리스트를
+ * 돌려주므로 그 표들에서는 정상으로 보인다. 이 표만 그 경우를 잡는다.
+ *
+ * 값은 fault-window.js 가 `checks{check:...,phase:...}` 로 선언해 둔 서브메트릭에서 읽는다.
+ * 이름 목록이 그쪽과 다르면 에러 없이 빈 행이 생기므로 둘을 같이 고쳐야 한다.
+ *
+ * 표본이 없는 것(`total` 이 0)과 축 자체가 없는 것(`total` 이 null)을 구분한다. 앞은
+ * "그 구간에 그 요청이 안 갔다", 뒤는 "검사가 꺼져 있었거나 축 선언이 빠졌다"로 읽는다.
+ */
+function contentChecksByPhase(rawMetrics, names) {
+  const out = {};
+  for (const name of names) {
+    const row = {};
+    for (const [k6Name, label] of Object.entries(PHASE_LABELS)) {
+      const m = rawMetrics && rawMetrics[`checks{check:${name},phase:${k6Name}}`];
+      const v = m && m.values ? m.values : null;
+      if (!v) { row[label] = { total: null, passes: null, fails: null, rate: null }; continue; }
+      const passes = Number.isFinite(v.passes) ? v.passes : 0;
+      const fails = Number.isFinite(v.fails) ? v.fails : 0;
+      row[label] = {
+        total: passes + fails,
+        passes,
+        fails,
+        rate: Number.isFinite(v.rate) ? v.rate : null,
+      };
+    }
+    out[name] = row;
+  }
+  return out;
+}
+
+/** 헬스 표본 하나의 실패 원인 분류. 보고서의 전이 표와 구간 요약이 같은 규칙을 써야 한다. */
+function healthCause(s) {
+  if (s.httpStatus != null) return s.status === 'UP' ? 'up' : 'down';
+  return /timeout after/.test(s.error || '') ? 'timeout' : 'unreachable';
+}
+
 module.exports = {
   PHASE_LABELS, PHASE_ORDER, TOOLS,
   validatePlan, resolveAt, schedule, totalSec, phaseWindows,
   relabelPhases, relabelBreakdown, failedLatencyByPhase, featureByPhase,
+  statusByPhase, contentChecksByPhase, healthByPhase, healthCause,
 };

@@ -246,11 +246,4 @@ public class UserController {
         boolean duplCheck = !userService.existsByPhone(phone);
         return ResponseEntity.ok(duplCheck);
     }
-
-//    @PostMapping("/authentication/phone")
-//    public ResponseEntity<?> authenticationPhone(
-//            @Valid @RequestBody RequestPhoneDto phoneDto
-//    ){
-//        phoneDto.phoneNum()
-//    }
 }

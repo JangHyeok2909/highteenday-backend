@@ -69,11 +69,48 @@ const FEATURES = [
 ];
 const PHASES = ['warmup', 'measure', 'rampdown'];
 
+/**
+ * 구간별로 세는 HTTP 상태 코드.
+ *
+ * 오류율 하나로는 실패의 **종류**를 못 가른다. 장애 실험에서 갈라야 하는 것은 이렇다.
+ *   0    k6 가 응답을 못 받음 — 연결 거부 또는 요청 타임아웃. 앱이 응답조차 못 한 경우다
+ *   500  서버가 예외를 던짐 — 커넥션 획득 실패 같은 내부 실패
+ *   502·503·504  앞단이 뺐거나 게이트웨이가 포기함 — 앱은 살아 있을 수 있다
+ *   429  스로틀
+ *   401  인증 만료 — 장애와 무관한 실패가 섞이는지 확인용
+ *
+ * k6 요약은 threshold 가 걸린 서브메트릭만 내보내므로, 여기 목록에 없는 코드는 표에 안 나온다.
+ * 목록은 resilience/lib/plan.js 의 statusByPhase 를 부르는 쪽(fault-run.js WATCH_STATUS)과
+ * 같아야 한다. 값은 전부 느슨하다 — 판정이 아니라 서브메트릭 생성이 목적이다.
+ */
+const WATCH_STATUS = ['0', '401', '429', '500', '502', '503', '504'];
+
+/**
+ * 응답 **내용**을 보는 check 의 이름. `CONTENT_CHECKS=1` 일 때만 실행된다(config.js).
+ *
+ * 왜 오류율로는 부족한가. 폴백은 예외를 삼키고 빈 리스트를 돌려주므로 응답이 HTTP 200 이다.
+ * 그래서 "인기글이 하나도 안 나갔다"와 "인기글 10건이 정상으로 나갔다"가 오류율에서는 둘 다
+ * 0% 로 같다. 그 차이를 가르는 것이 이 축이다.
+ *
+ * 이름은 config.js 의 `contentCheck()` 호출부와, 읽는 쪽인 resilience/fault-run.js 의
+ * CONTENT_CHECK_NAMES 와 셋이 같아야 한다. 어긋나면 에러 없이 빈 축이 생긴다.
+ */
+const CONTENT_CHECK_NAMES = [
+  'board_list_nonempty', 'hot_daily_nonempty', 'post_list_nonempty', 'post_detail_has_id',
+];
+
 const FAULT_AXES = {};
 for (const phase of PHASES) {
+  for (const name of CONTENT_CHECK_NAMES) {
+    FAULT_AXES[buildSelector('checks', { check: name, phase })] = ['rate>=0'];
+  }
   FAULT_AXES[buildSelector('http_req_duration', { expected_response: 'false', phase })] = ['p(99)<600000'];
   FAULT_AXES[buildSelector('http_req_duration', { expected_response: 'true', phase })] = ['p(99)<600000'];
   FAULT_AXES[buildSelector('http_reqs', { expected_response: 'false', phase })] = ['count>=0'];
+  for (const status of WATCH_STATUS) {
+    FAULT_AXES[buildSelector('http_reqs', { phase, status })] = ['count>=0'];
+    FAULT_AXES[buildSelector('http_req_duration', { phase, status })] = ['p(99)<600000'];
+  }
   for (const feature of FEATURES) {
     FAULT_AXES[buildSelector('http_req_duration', { feature, phase })] = ['p(99)<600000'];
     FAULT_AXES[buildSelector('http_reqs', { feature, phase })] = ['count>=0'];

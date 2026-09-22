@@ -29,10 +29,6 @@ import java.util.List;
 public class SchoolMealController {
 
     private final SchoolMealService schoolMealService;
-//GET /meals/date?date=2025-05-30&schoolId=1
-//GET /meals/week?date=2025-05-30&schoolId=1
-//GET /meals/month?date=2025-05-30&schoolId=1
-//    형식으로 데이터 받으면 해당 급식 나옴
     @Operation(summary = "오늘 급식 조회", description = "오늘자 중/석식 조회")
     @GetMapping("/today")
     public ResponseEntity<List<SchoolMealDto>> getTodayMeal(@AuthenticationPrincipal CustomUserPrincipal userPrincipal){
@@ -50,14 +46,6 @@ public class SchoolMealController {
         validateSchoolAssigned(user.getSchool());
         return schoolMealService.getMealsByDate(user, date);
     }
-
-//    @GetMapping("/week")
-//    public List<SchoolMealDto> getMealsByWeek(
-//            @RequestParam LocalDate date,
-//            @RequestParam Long schoolId
-//    ) {
-//        return schoolMealService.getMealsByWeek(date, schoolId);
-//    }
 
     @Operation(summary = "월단위 급식표 조회", description = "중/석식 월단위 조회")
     @GetMapping("/month")
