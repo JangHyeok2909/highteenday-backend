@@ -159,7 +159,9 @@ public class SecurityConfig {
                 "/swagger-ui/**",
                 "/swagger/**",
                 "/favicon.ico",
-                "/actuator/health"
+                "/actuator/health",
+                // 로드밸런서가 매초 치는 경로다. 인증 필터 체인을 통과시킬 이유가 없다.
+                "/actuator/health/**"
         );
     }
 }
