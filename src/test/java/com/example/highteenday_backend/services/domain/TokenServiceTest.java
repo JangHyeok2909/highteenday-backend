@@ -229,6 +229,44 @@ class TokenServiceTest {
                     .hasMessageContaining("리프레시 토큰이 유효하지 않습니다");
         }
 
+        /**
+         * 회전할 때 {@code tokenCache.delete} 가 건너뛰어지면 옛 토큰의 키가 Redis 에
+         * 남는다. 캐시는 이메일만 들고 있고 DB 조회는 사용자 기준이라, 대조하지 않으면
+         * "이 사용자의 현재 토큰"이 그대로 반환되어 폐기된 리프레시 토큰이 인증을 통과한다.
+         */
+        @Test
+        @DisplayName("캐시 HIT이지만 회전으로 폐기된 토큰이면 거부하고 남은 키를 지운다")
+        void rejectsRotatedOutTokenOnCacheHit() {
+            Token current = Token.builder().user(user).refreshToken("rt-new").build();
+            when(tokenCache.get("rt-old")).thenReturn(Optional.of("u@test.com"));
+            when(userRepository.findByEmail("u@test.com")).thenReturn(Optional.of(user));
+            when(tokenRepository.findByUser(user)).thenReturn(Optional.of(current));
+
+            assertThatThrownBy(() -> tokenService.findByRefreshTokenOrThrow("rt-old"))
+                    .isInstanceOf(CustomException.class)
+                    .hasMessageContaining("리프레시 토큰이 유효하지 않습니다");
+
+            verify(tokenCache).delete("rt-old");
+        }
+
+        @Test
+        @DisplayName("캐시 HIT이어도 만료된 토큰이면 삭제하고 만료 예외를 던진다")
+        void expiredTokenOnCacheHitIsRejected() {
+            // 만료 검사가 DB 경로에만 있으면, 캐시에 키가 남아 있는 동안 만료된 토큰이
+            // 유효한 것으로 통과한다.
+            LocalDateTime past = LocalDateTime.now().minusSeconds(1);
+            Token token = Token.builder().user(user).refreshToken("rt6").expiresAt(past).build();
+            when(tokenCache.get("rt6")).thenReturn(Optional.of("u@test.com"));
+            when(userRepository.findByEmail("u@test.com")).thenReturn(Optional.of(user));
+            when(tokenRepository.findByUser(user)).thenReturn(Optional.of(token));
+
+            assertThatThrownBy(() -> tokenService.findByRefreshTokenOrThrow("rt6"))
+                    .isInstanceOf(CustomException.class)
+                    .hasMessageContaining("만료");
+
+            verify(tokenRepository).delete(token);
+        }
+
         @Test
         @DisplayName("캐시 장애 시(Optional.empty 반환) DB로 폴백하여 Token을 반환한다")
         void fallsBackToDbWhenCacheDown() {
