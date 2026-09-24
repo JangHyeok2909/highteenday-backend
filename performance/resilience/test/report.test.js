@@ -310,13 +310,41 @@ test('요약 그리드: 먼저 봐야 할 값이 맨 위에 나오고 나쁜 값
   const html = renderReport(sampleRecord(), { siblings: [] });
   const grid = html.indexOf('<div class="kpis">');
   assert.ok(grid > 0 && grid < html.indexOf('<h2>1.'), '그리드가 1번 절보다 앞에 있어야 한다');
-  for (const label of ['장애 중 오류율', '장애 중 p95', '실패까지 걸린 시간', '탐지 지연', '데이터 유실']) {
+  for (const label of ['장애 중 오류율', '장애 중 p95', '실패까지 걸린 시간', '탐지 지연', '데이터 정확성']) {
     assert.ok(html.includes(label), `${label} 타일이 없다`);
   }
   // 오류율 90% 는 눈에 띄어야 한다.
   assert.match(html, /class="kpi bad"/);
   // 타임아웃 상한은 분으로 접지 않는다 — 60,001ms 가 그대로 보여야 원인이 읽힌다.
   assert.match(html, /60,001ms/);
+});
+
+test('요약 그리드: 유실과 불일치를 다른 제목으로 적는다', () => {
+  /** S0 → S3 두 표본만 있는 최소 레코드. 프로브가 요구하는 값만 채운다. */
+  function withIntegrity(probes, values0, values3, k6extra) {
+    const rec = sampleRecord();
+    const s = (label, values) => ({ label, at: '2026-09-08T10:00:00Z', tSec: 0, ok: true, values, elapsedMs: 1, error: null });
+    rec.integrity = { probes, samples: [s('S0', values0), s('S3', values3)] };
+    Object.assign(rec.k6, k6extra || {});
+    return rec;
+  }
+
+  // counter-drift: 행은 5건 늘었는데 카운터는 3건만 늘었다 → 값이 틀린 것이지 사라진 게 아니다.
+  const mismatch = renderReport(withIntegrity(
+    ['counter-drift'],
+    { sumLike: 100, sumDislike: 0, rowsLike: 100, rowsDislike: 0 },
+    { sumLike: 103, sumDislike: 0, rowsLike: 105, rowsDislike: 0 },
+  ), { siblings: [] });
+  assert.match(mismatch, /데이터 불일치/);
+
+  // viewcount-conservation: 올랐어야 할 500 중 300 만 올랐다 → 사라진 몫이 있다.
+  const loss = renderReport(withIntegrity(
+    ['viewcount-conservation'],
+    { dbViews: 1000, bufSum: 0, bufKeys: 0, dedupKeys: 0 },
+    { dbViews: 1300, bufSum: 0, bufKeys: 0, dedupKeys: 0 },
+    { viewExpected: 500, viewUnknown: 0 },
+  ), { siblings: [] });
+  assert.match(loss, /데이터 유실/);
 });
 
 test('요약 그리드: 불변식을 안 고른 계획은 "안 쟀다" 로 남는다 — 0 건 유실이 아니다', () => {

@@ -956,15 +956,21 @@ function kpiGrid(rec, analysis) {
     const unknowns = results.flatMap((r) => r.segments.filter((s) => s.status === 'unknown'));
     if (hits.length) {
       const worst = hits[0];
+      // 제목을 판정에 따라 가른다. 둘은 다른 사건이다. `loss` 는 올랐어야 할 값이 안 오른
+      // 것이고, `mismatch` 는 값이 있긴 한데 틀린 것이다. 뒤집힌 좋아요를 "유실" 이라 적으면
+      // 위 카드만 보는 사람이 사라진 행을 찾게 된다.
+      const title = worst.c.status === 'loss' ? '데이터 유실' : '데이터 불일치';
       const amount = worst.c.status === 'loss' ? `${n(-worst.c.delta, 0)}건` : `${worst.c.delta > 0 ? '+' : ''}${n(worst.c.delta, 0)}`;
-      tiles.push(kpi('데이터 유실', amount, `${esc(worst.c.name)} · ${esc(worst.r.id)}${hits.length > 1 ? ` 외 ${hits.length - 1}건` : ''}<br>오류율과 무관하게 틀어진 값`, 'bad'));
+      tiles.push(kpi(title, amount, `${esc(worst.c.name)} · ${esc(worst.r.id)}${hits.length > 1 ? ` 외 ${hits.length - 1}건` : ''}<br>오류율과 무관하게 틀어진 값`, 'bad'));
     } else if (unknowns.length === results.reduce((a, r) => a + r.segments.length, 0)) {
-      tiles.push(kpi('데이터 유실', '확인 불가', '표본을 못 떠 판정하지 못했다', 'soft'));
+      tiles.push(kpi('데이터 정확성', '확인 불가', '표본을 못 떠 판정하지 못했다', 'soft'));
     } else {
-      tiles.push(kpi('데이터 유실', '없음', `${esc(ig.probes.join(' · '))} 검사 통과`, ''));
+      // 유실과 불일치 중 무엇을 봤는지는 고른 프로브에 달렸으므로, 통과한 경우의 제목은
+      // 둘을 아우르는 말로 둔다.
+      tiles.push(kpi('데이터 정확성', '이상 없음', `${esc(ig.probes.join(' · '))} 검사 통과`, ''));
     }
   } else {
-    tiles.push(kpi('데이터 유실', '안 쟀다', '계획이 불변식을 고르지 않았다', 'none'));
+    tiles.push(kpi('데이터 정확성', '안 쟀다', '계획이 불변식을 고르지 않았다', 'none'));
   }
 
   // 원인 — 장애 구간에 가장 먼저 찬 자원.
