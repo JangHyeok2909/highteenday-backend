@@ -27,6 +27,21 @@ docker compose \
   --env-file environment/.env.perf up -d
 ```
 
+응답 경로에 toxic 을 거는 계획(`retry-storm`)은 `BASE_URL` 을 앱 앞 프록시로 바꿔서 돌린다.
+기본값은 앱을 직접 가리키므로 toxic 이 아무것도 막지 못한다.
+
+```bash
+BASE_URL=http://localhost:18081 \
+  node resilience/fault-run.js resilience/faults/retry-storm.json --note "멱등 전환 전"
+```
+
+포트는 `TOXIPROXY_APP_HOST_PORT`(기본 18081)다. 주소를 안 바꾸면 사전 점검이 실행을 멈춘다 —
+직결로 돌아가면 재시도가 한 건도 안 생겨 결함이 없는 것처럼 보이기 때문이다.
+
+`retry-storm` 을 돌리기 전에 `retry-storm-baseline` 을 한 번 돌린다. 둘은 toxic 의 `toxicity`
+하나만 다르다(0 과 0.3). 기준선 실행에서 뒤집힘이 0 이 아니면 그건 앱 결함이 아니라 판정
+도구의 결함이고, 그걸 모르고 본 실행을 돌리면 도구 버그를 앱 결함으로 읽는다.
+
 ## 안전 조건
 
 - 주입 대상이 성능 환경의 컨테이너인지 확인한다.

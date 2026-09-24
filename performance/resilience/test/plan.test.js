@@ -47,6 +47,27 @@ test('validatePlan: toxiproxy add 에는 toxic{name,type} 이 필요하다', () 
   assert.ok(errs.some((e) => /toxic\{name,type\}/.test(e)));
 });
 
+test('validatePlan: 모르는 load.scenario 를 잡는다', () => {
+  const errs = plan.validatePlan(basePlan({ load: { rate: 4, scenario: 'retry-strom' } }));
+  assert.ok(errs.some((e) => /load\.scenario 를 모른다/.test(e)));
+  // 오타가 아니라 아는 이름이면 통과한다.
+  assert.deepEqual(plan.validatePlan(basePlan({ load: { rate: 4, scenario: 'retry-storm' } })), []);
+});
+
+test('validatePlan: 계단은 fault-breakpoint 에서만 쓴다', () => {
+  const errs = plan.validatePlan(basePlan({
+    load: { rate: 4, scenario: 'retry-storm', steps: [4, 8], stepRampSec: 30, stepHoldSec: 90 },
+    phases: { preSec: 10, faultSec: 240, postSec: 10 },
+  }));
+  assert.ok(errs.some((e) => /load\.steps 는 fault-breakpoint 에서만/.test(e)));
+});
+
+test('validatePlan: requires.appProxy 는 불리언이어야 한다', () => {
+  const errs = plan.validatePlan(basePlan({ requires: { appProxy: 'yes' } }));
+  assert.ok(errs.some((e) => /appProxy/.test(e)));
+  assert.deepEqual(plan.validatePlan(basePlan({ requires: { appProxy: true } })), []);
+});
+
 test('validatePlan: 모르는 tool·at 형식을 잡는다', () => {
   const errs = plan.validatePlan(basePlan({ inject: [{ at: 'sometime', tool: 'magic' }] }));
   assert.ok(errs.some((e) => /tool 을 모른다/.test(e)));
