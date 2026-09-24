@@ -1,0 +1,72 @@
+{
+  "id": "retry-storm",
+  "question": "응답이 유실돼 클라이언트가 한 번 더 보내면 데이터가 사용자 의도와 다르게 남는가",
+  "requires": {
+    "proxy": true,
+    "appProxy": true
+  },
+  "dataset": "medium",
+  "load": {
+    "rate": 2,
+    "preVus": 50,
+    "maxVus": 300,
+    "scenario": "retry-storm"
+  },
+  "phases": {
+    "preSec": 180,
+    "faultSec": 180,
+    "postSec": 180
+  },
+  "inject": [
+    {
+      "at": "fault.start",
+      "tool": "toxiproxy",
+      "action": "add",
+      "proxy": "app",
+      "toxic": {
+        "name": "resp-drop",
+        "type": "timeout",
+        "stream": "downstream",
+        "toxicity": 0.3,
+        "attributes": {
+          "timeout": 1000
+        }
+      }
+    },
+    {
+      "at": "fault.end",
+      "tool": "toxiproxy",
+      "action": "remove",
+      "proxy": "app",
+      "toxicName": "resp-drop"
+    }
+  ],
+  "expect": [
+    "실행: BASE_URL 이 앱 앞 프록시(기본 http://localhost:18081)를 가리켜야 한다. 앱을 직접 가리키면 toxic 이 걸려도 응답이 그대로 나가 재시도가 0 건이 되고 결함이 0 으로 나온다 — 고친 것처럼 보이는 실패다. requires.appProxy 가 사전 점검에서 이걸 막는다",
+    "실행: 예열을 넣지 않는다(phases.warmupSec 없음). 예열은 fault-window.js 로 도는 별도 k6 프로세스라 혼합 워크로드가 같은 테이블에 행을 만들고, 그러면 판정식의 우변만 늘어 오라클이 깨진다",
+    "실행: 이 계획은 응답 시간을 재지 않는다. 프록시 홉이 하나 더 붙어 있어 지연 수치를 다른 실행과 비교하면 안 된다. 판정값은 건수다",
+    "fault: 요청은 앱까지 그대로 가고 응답만 막힌다. stream 이 downstream 이라 upstream(클라이언트→서버)은 건드리지 않는다",
+    "fault: 커밋은 응답 쓰기보다 먼저 끝난다. @Transactional 은 메서드가 반환할 때 커밋되고 직렬화·소켓 쓰기는 그 뒤다. 그래서 응답이 막혀도 DB 변경은 남는다",
+    "fault: 재시도는 응답 없음을 확인한 뒤 RETRY_DELAY 0.2초 뒤에 도착한다. 첫 요청의 커밋(성공 응답 p95 수십 ms)보다 뒤이므로, 두 번째 요청은 첫 번째가 남긴 상태를 보고 동작한다",
+    "fault: toxicity 는 요청이 아니라 연결 단위 확률이라, 시나리오가 연결 재사용을 끈다(noConnectionReuse). 그래야 0.3 이 곧 요청 단위 실패 확률이 된다. 30초 스모크 실측 실패율 31.35%(118건 중 37건)로 확인했다",
+    "fault: 도착률 2건/초 × 180초 = 360 iteration 을 액션 일곱이 나눠 가지므로 액션당 약 51건이다. 그중 약 30%가 재시도로 가므로 액션당 재시도는 15건 안팎이다. 표본이 얇은 액션은 비율이 아니라 건수로 읽는다",
+    "토글 3종(게시글 좋아요·댓글 좋아요·스크랩): 재시도가 현재 상태를 읽고 뒤집으므로 증가분이 의도보다 적다. 판정식은 의도 − 증가분이다",
+    "생성 3종(게시글·댓글·단체 채팅방): 중복을 막는 제약이 없어 같은 요청이 두 번 도착하면 행이 하나 더 생긴다. 판정식은 증가분 − 의도다",
+    "세션 1종(토큰 재발급): 재발급이 성공하는 순간 옛 refresh 토큰이 무효가 되므로, 응답을 잃은 뒤 옛 토큰으로 재시도하면 401 이다. session_lost 가 그 횟수다",
+    "pre: 180초 × 2건/초 = 360 iteration 이면 활동 중인 VU 가 전부 그 사이에 로그인을 마친다. 장애 구간에 처음 로그인하는 VU 가 없어야 로그인 응답 유실이 판정에 섞이지 않는다",
+    "pre·post: toxic 이 없으므로 응답이 정상으로 오고 재시도가 0 이어야 한다. 0 이 아니면 프록시 홉 자체가 응답을 잃고 있다는 뜻이고, 그 실행의 결함 수치는 못 쓴다",
+    "전체: idempotency-divergence 가 액션별로 의도와 행 증가분의 차이를 낸다. 멱등 전환 전에는 0 보다 크고, 전환 뒤 같은 실험에서 전부 0 이 되는 것이 그 변경의 완료 기준이다",
+    "오류율은 이 실험의 판정값이 아니다. status 0 이 늘어나는 것은 고장이 의도대로 걸렸다는 확인이지 결함이 아니다",
+    "탐지 수치(헬스 UNREACHABLE, 탐지 지연)는 이 실행에서 읽지 않는다. 헬스 폴러도 같은 프록시로 치므로 같은 toxic 에 걸린다 — 토폴로지가 만든 인공물이다"
+  ],
+  "integrity": {
+    "probes": [
+      "idempotency-divergence"
+    ]
+  },
+  "watch": [
+    "http.byFeature",
+    "http.failedLatency",
+    "pool.tomcatBusy"
+  ]
+}
