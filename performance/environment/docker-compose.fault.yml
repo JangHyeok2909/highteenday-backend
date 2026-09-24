@@ -10,6 +10,17 @@
 #   app ──▶ toxiproxy:3306 ──▶ mysql:3306
 #   app ──▶ toxiproxy:6379 ──▶ redis:6379
 #
+#   k6  ──▶ toxiproxy:18080 ──▶ app:8080     ← 응답 경로에 toxic 을 걸 때만 쓴다
+#
+# 앞의 둘과 세 번째는 방향이 반대다. 앞의 둘은 앱이 의존성을 부르는 길이고, 세 번째는
+# 클라이언트가 앱을 부르는 길이다. 세 번째가 필요한 이유는 "서버는 처리를 끝냈는데 응답이
+# 클라이언트에 닿지 않는다"를 만들 자리가 그 길밖에 없기 때문이다. `stream: downstream` 의
+# timeout toxic 을 걸면 요청은 앱까지 그대로 가고 응답만 막힌다.
+#
+# 기본 실행은 이 프록시를 거치지 않는다. k6 의 BASE_URL 기본값은 앱을 직접 가리키는
+# http://localhost:18080 이고(app 의 퍼블리시 포트), 이 프록시를 쓰려면 실행할 때
+# BASE_URL=http://localhost:18081 로 바꿔 준다. faults/retry-storm.json 만 그렇게 돈다.
+#
 # 왜 tc netem 이 아니라 toxiproxy 인가
 #   netem 은 컨테이너 안에 iproute2 와 NET_ADMIN 이 필요해 Docker Desktop 에서 번거롭다.
 #   toxiproxy 는 컨테이너 하나이고, HTTP API 로 지연(latency)·응답 없음(timeout)·대역폭·
@@ -34,6 +45,9 @@ services:
     ports:
       # API 는 루프백 전용(E-14 와 같은 이유 — 인증이 없다. 열리면 누구나 DB 경로를 끊을 수 있다)
       - "127.0.0.1:${TOXIPROXY_HOST_PORT:-18474}:8474"
+      # 앱으로 가는 프록시. 호스트에서 도는 k6 가 여기로 붙는다. 앱 자신의 퍼블리시 포트
+      # (APP_HOST_PORT, 기본 18080)와 겹치지 않게 18081 을 기본으로 둔다.
+      - "127.0.0.1:${TOXIPROXY_APP_HOST_PORT:-18081}:18080"
     depends_on:
       mysql: { condition: service_healthy }
       redis: { condition: service_healthy }

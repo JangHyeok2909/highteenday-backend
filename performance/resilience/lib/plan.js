@@ -11,6 +11,16 @@
 const invariants = require('./invariants');
 
 const TOOLS = new Set(['toxiproxy', 'docker', 'pumba', 'shell']);
+
+/**
+ * `load.scenario` 로 고를 수 있는 부하 스크립트. resilience/scenarios/ 의 파일명과 같다.
+ *
+ * 목록으로 막는 이유: 이름이 틀리면 fault-run.js 가 없는 파일을 k6 에 넘겨 실행이 바로
+ * 죽는데, 그때는 이미 예열과 사전 점검을 다 지난 뒤다. 더 나쁜 경우는 키 이름을 틀리는
+ * 것이다(`scenarios`, `senario`). 그러면 조용히 fault-window 로 떨어져 혼합 워크로드가
+ * 돌고, 부하 쪽 카운터로 판정하는 실험은 오라클이 깨진 채 끝까지 간다.
+ */
+const SCENARIOS = new Set(['fault-window', 'fault-breakpoint', 'retry-storm']);
 const AT_PATTERN = /^(fault\.start|fault\.end|run\.start|run\.end)(?:([+-])(\d+(?:\.\d+)?))?$/;
 
 /**
@@ -36,6 +46,20 @@ function validatePlan(plan) {
   }
   const load = plan.load || {};
   if (!Number.isFinite(load.rate) || load.rate <= 0) errors.push('load.rate 는 양수(초당 iteration)여야 한다');
+  if (load.scenario !== undefined) {
+    if (!SCENARIOS.has(load.scenario)) {
+      errors.push(`load.scenario 를 모른다: ${load.scenario} (있는 것: ${[...SCENARIOS].join(', ')})`);
+    } else if (load.scenario !== 'fault-breakpoint' && Array.isArray(load.steps) && load.steps.length) {
+      // 계단은 fault-breakpoint 만 읽는다. 다른 시나리오에 붙이면 계단이 조용히 무시되고
+      // 도착률이 고정된 채로 도는데, 보고서에는 계단 계획이 그대로 실려 실제와 어긋난다.
+      errors.push(`load.steps 는 fault-breakpoint 에서만 쓴다 — load.scenario 가 ${load.scenario} 다`);
+    }
+  }
+  // 응답 경로에 toxic 을 거는 계획은 BASE_URL 이 앱 앞 프록시를 지나야 한다. 사전 점검이
+  // 실제 왕복으로 확인하고, 여기서는 값의 모양만 본다.
+  if (plan.requires && plan.requires.appProxy !== undefined && typeof plan.requires.appProxy !== 'boolean') {
+    errors.push('requires.appProxy 는 true 또는 false 여야 한다');
+  }
   // load.steps 가 있으면 장애 구간 안에서 도착률을 계단식으로 올리는 계획이다
   // (resilience/scenarios/fault-breakpoint.js). 계단 총합이 faultSec 과 다르면 램프 도중에
   // 장애가 걷히고, 그 뒤 계단은 무장애 상태에서 잰 값이 된다. k6 도 실행기도 이걸 오류로
@@ -227,6 +251,31 @@ function failedLatencyByPhase(rawMetrics) {
 }
 
 /**
+ * 액션 × 멱등 카운터 — "무엇을 하려 했고, 몇 번 다시 보냈나".
+ *
+ * `resilience/scenarios/retry-storm.js` 가 `idem_intent{action:post_like}` 처럼 액션을 태그로
+ * 실어 센다. 여기서는 이름을 미리 정해 두지 않고 요약에 실제로 들어온 축을 훑는다. 액션을
+ * 하나 늘릴 때 시나리오만 고치면 되고 이 파일은 안 고쳐도 되게 하기 위해서다. 목록을 두 곳에
+ * 두면 한쪽만 늘어났을 때 그 액션이 오류 없이 판정에서 빠진다.
+ *
+ * @param {object} rawMetrics k6 요약의 metrics 원본.
+ * @returns {object} `{ post_like: { intent, retried, unknown, skipped }, ... }`. 요약에 없는
+ *   항목은 0 이다. 액션 자체가 없으면 키도 없고, 그 경우 불변식이 "카운터가 없다"로 남긴다.
+ */
+function idempotencyByAction(rawMetrics) {
+  const FIELDS = { idem_intent: 'intent', idem_retried: 'retried', idem_unknown: 'unknown', idem_skipped: 'skipped' };
+  const out = {};
+  for (const [name, metric] of Object.entries(rawMetrics || {})) {
+    const m = /^(idem_[a-z]+)\{action:([a-z_]+)\}$/.exec(name);
+    if (!m || !FIELDS[m[1]]) continue;
+    const action = m[2];
+    if (!out[action]) out[action] = { intent: 0, retried: 0, unknown: 0, skipped: 0 };
+    out[action][FIELDS[m[1]]] = metric && metric.values ? metric.values.count : 0;
+  }
+  return out;
+}
+
+/**
  * 구간 × HTTP 상태 코드 — "무엇이 실패했나"가 아니라 **어떻게 실패했나**.
  *
  * 오류율 하나로는 500(커넥션을 못 받아 서버가 던짐)과 503(헬스가 DOWN 이라 앞단이 뺌)과
@@ -353,4 +402,5 @@ module.exports = {
   validatePlan, resolveAt, schedule, totalSec, phaseWindows,
   relabelPhases, relabelBreakdown, failedLatencyByPhase, featureByPhase,
   statusByPhase, contentChecksByPhase, healthByPhase, healthCause,
+  idempotencyByAction,
 };

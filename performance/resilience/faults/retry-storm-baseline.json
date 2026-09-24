@@ -1,0 +1,63 @@
+{
+  "id": "retry-storm-baseline",
+  "question": "고장이 없을 때 액션 일곱이 전부 정합으로 나오는가 — 판정 도구 자체를 확인한다",
+  "requires": {
+    "proxy": true,
+    "appProxy": true
+  },
+  "dataset": "medium",
+  "load": {
+    "rate": 2,
+    "preVus": 50,
+    "maxVus": 300,
+    "scenario": "retry-storm"
+  },
+  "phases": {
+    "preSec": 180,
+    "faultSec": 180,
+    "postSec": 180
+  },
+  "inject": [
+    {
+      "at": "fault.start",
+      "tool": "toxiproxy",
+      "action": "add",
+      "proxy": "app",
+      "toxic": {
+        "name": "resp-drop",
+        "type": "timeout",
+        "stream": "downstream",
+        "toxicity": 0,
+        "attributes": {
+          "timeout": 1000
+        }
+      }
+    },
+    {
+      "at": "fault.end",
+      "tool": "toxiproxy",
+      "action": "remove",
+      "proxy": "app",
+      "toxicName": "resp-drop"
+    }
+  ],
+  "expect": [
+    "retry-storm.json 과 toxicity 하나만 다르다(0.3 → 0). toxicity 0 은 toxic 을 어떤 연결에도 적용하지 않으므로 실행 내내 응답이 정상으로 온다",
+    "왜 이 실행이 먼저인가: 여기서 결함이 0 이 아니면 그건 앱 결함이 아니라 판정 도구의 결함이다. 그걸 모르고 retry-storm 을 돌리면 도구 버그를 앱 결함으로 읽는다",
+    "전체: idem_retried 가 모든 액션에서 0 이어야 한다. 0 이 아니면 프록시 홉 자체가 응답을 잃고 있다는 뜻이고, 그 경우 retry-storm 의 재시도 건수에도 그만큼이 섞인다",
+    "토글 3종: 의도와 증가분이 같아야 한다. 다르면 오라클의 전제 셋(켜기만 한다·대상을 두 번 안 건드린다·꺼진 것만 의도한다) 중 하나가 깨진 것이다",
+    "생성 3종: 증가분이 의도와 같아야 한다. 크면 같은 테이블에 행을 만드는 다른 부하가 섞인 것이고, 작으면 생성 자체가 실패한 것이다",
+    "세션 1종: session_lost 가 0 이어야 한다. 재시도가 없으므로 옛 토큰으로 다시 들어갈 일이 없다",
+    "toxic 을 걸고 걷는 절차 자체는 retry-storm 과 같은 경로로 돈다. 주입 배관이 아니라 판정식만 확인하는 실행이다"
+  ],
+  "integrity": {
+    "probes": [
+      "idempotency-divergence"
+    ]
+  },
+  "watch": [
+    "http.byFeature",
+    "http.failedLatency",
+    "pool.tomcatBusy"
+  ]
+}

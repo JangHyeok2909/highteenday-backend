@@ -312,3 +312,134 @@ test('경고용 항목이 없는 옛 실행도 유실 수치는 낸다 — 모�
   assert.equal(c.exact, false);
   assert.match(c.note, /남아 있었는지 모른다/);
 });
+
+
+// ---------------------------------------------------------------------------
+// 대조 — idempotency-divergence
+//
+// 액션마다 식이 다르다.
+//   토글  뒤집힘 = 의도 − 증가분      (증가분이 적으면 결함)
+//   생성  중복   = 증가분 − 의도      (증가분이 많으면 결함)
+//   세션  로그아웃 = session_lost     (DB 열이 없다)
+// ---------------------------------------------------------------------------
+
+/** 프로브가 읽는 여섯 열. 안 쓰는 액션도 열은 있어야 표본이 유효하다. */
+function rows(over = {}) {
+  return {
+    rowsLike: 0, rowsCommentLike: 0, rowsScrap: 0, rowsPost: 0, rowsComment: 0, rowsGroupRoom: 0, ...over,
+  };
+}
+
+/** 부하 쪽 집계. 액션별 {intent, retried, unknown}. */
+function idemCtx(idempotency, sessionLost = 0) {
+  return { k6: { idempotency, sessionLost }, env: {} };
+}
+
+function idemChecks(values0, values3, ctx) {
+  return invariants.reconcile(['idempotency-divergence'], [sample('S0', values0), sample('S3', values3)], ctx)[0]
+    .segments.find((x) => x.key === 'run').checks;
+}
+
+function byName(checks, name) {
+  return checks.find((c) => c.name === name);
+}
+
+test('토글: 증가분이 의도보다 적으면 그 차이가 뒤집힘이다', () => {
+  const c = byName(idemChecks(
+    rows({ rowsLike: 1000 }),
+    rows({ rowsLike: 1252 }),
+    idemCtx({ post_like: { intent: 360, retried: 108, unknown: 0 } }),
+  ), '게시글 좋아요');
+  assert.equal(c.status, 'mismatch');
+  assert.equal(c.delta, -108);
+  assert.match(c.note, /108건 뒤집힘/);
+  assert.match(c.note, /100\.0%/);
+});
+
+test('생성: 증가분이 의도보다 많으면 그 차이가 중복 생성이다', () => {
+  const c = byName(idemChecks(
+    rows({ rowsPost: 500 }),
+    rows({ rowsPost: 560 }),
+    idemCtx({ post_create: { intent: 50, retried: 10, unknown: 0 } }),
+  ), '게시글 작성');
+  assert.equal(c.status, 'mismatch');
+  assert.equal(c.delta, 10);
+  assert.match(c.note, /10건 중복 생성/);
+});
+
+test('토글과 생성은 어긋나는 방향이 반대다 — 반대로 어긋나면 판정하지 않는다', () => {
+  // 토글인데 증가분이 더 크다 → 다른 부하가 같은 테이블에 행을 만들었다.
+  const toggle = byName(idemChecks(
+    rows({ rowsScrap: 100 }), rows({ rowsScrap: 160 }),
+    idemCtx({ scrap: { intent: 50, retried: 0, unknown: 0 } }),
+  ), '스크랩');
+  assert.equal(toggle.status, 'unknown');
+  assert.match(toggle.note, /다른 부하가 섞였다/);
+
+  // 생성인데 증가분이 더 작다 → 생성이 실패했거나 행이 지워졌다.
+  const create = byName(idemChecks(
+    rows({ rowsComment: 100 }), rows({ rowsComment: 120 }),
+    idemCtx({ comment_create: { intent: 50, retried: 0, unknown: 0 } }),
+  ), '댓글 작성');
+  assert.equal(create.status, 'unknown');
+  assert.match(create.note, /생성이 실패했거나/);
+});
+
+test('세션: DB 열이 아니라 session_lost 로 판정한다', () => {
+  const c = byName(idemChecks(
+    rows(), rows(),
+    idemCtx({ token_refresh: { intent: 40, retried: 12, unknown: 12 } }, 12),
+  ), '토큰 재발급');
+  assert.equal(c.status, 'mismatch');
+  assert.equal(c.actual, 12);
+  assert.match(c.note, /12건 로그아웃/);
+});
+
+test('결함이 없으면 정합이고, 불확실이 있으면 확정으로 표시하지 않는다', () => {
+  const checks = idemChecks(
+    rows({ rowsLike: 1000, rowsGroupRoom: 10 }),
+    rows({ rowsLike: 1300, rowsGroupRoom: 30 }),
+    idemCtx({
+      post_like: { intent: 300, retried: 0, unknown: 0 },
+      group_room: { intent: 20, retried: 5, unknown: 3 },
+    }),
+  );
+  const like = byName(checks, '게시글 좋아요');
+  assert.equal(like.status, 'ok');
+  assert.equal(like.exact, true);
+  const room = byName(checks, '단체 채팅방 생성');
+  assert.equal(room.status, 'ok');
+  assert.equal(room.exact, false);
+  assert.match(room.note, /불확실 3건/);
+});
+
+test('돌리지 않은 액션은 판정하지 않는다 — 정합으로 세면 안 한 일이 통과로 보인다', () => {
+  const c = byName(idemChecks(rows(), rows(), idemCtx({ post_like: { intent: 10, retried: 0, unknown: 0 } })), '스크랩');
+  assert.equal(c.status, 'unknown');
+  assert.match(c.note, /의도 카운터가 없다/);
+});
+
+// ---------------------------------------------------------------------------
+// 부하 요약에서 액션별 카운터 뽑기
+// ---------------------------------------------------------------------------
+
+test('idempotencyByAction: 태그가 붙은 축만 액션별로 모은다', () => {
+  const raw = {
+    'idem_intent{action:post_like}': { values: { count: 360 } },
+    'idem_retried{action:post_like}': { values: { count: 108 } },
+    'idem_intent{action:post_create}': { values: { count: 50 } },
+    'idem_skipped{action:post_create}': { values: { count: 2 } },
+    // 태그 없는 동명 메트릭과 다른 메트릭은 섞이면 안 된다.
+    idem_intent: { values: { count: 999 } },
+    'http_reqs{phase:measure,status:0}': { values: { count: 37 } },
+  };
+  assert.deepEqual(plans.idempotencyByAction(raw), {
+    post_like: { intent: 360, retried: 108, unknown: 0, skipped: 0 },
+    post_create: { intent: 50, retried: 0, unknown: 0, skipped: 2 },
+  });
+});
+
+test('idempotencyByAction: 축이 하나도 없으면 빈 객체다 — 0 으로 채우지 않는다', () => {
+  assert.deepEqual(plans.idempotencyByAction({}), {});
+  assert.deepEqual(plans.idempotencyByAction(null), {});
+});
