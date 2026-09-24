@@ -26,6 +26,24 @@
 'use strict';
 
 /**
+ * `idempotency-divergence` 가 판정하는 액션. `action` 은 부하 쪽 카운터의 태그
+ * (`resilience/scenarios/retry-storm.js` 의 ACTIONS 키)와 같아야 한다. 어긋나면 오류 없이
+ * "카운터가 없다" 로만 나온다.
+ *
+ * `kind` 가 식을 정한다. toggle 은 증가분이 의도보다 **적으면** 결함이고, create 는 **많으면**
+ * 결함이다. session 은 DB 열이 없고 부하 쪽 카운터만으로 판정한다.
+ */
+const IDEMPOTENCY_ACTIONS = [
+  { action: 'post_like', name: '게시글 좋아요', kind: 'toggle', col: 'rowsLike' },
+  { action: 'comment_like', name: '댓글 좋아요', kind: 'toggle', col: 'rowsCommentLike' },
+  { action: 'scrap', name: '스크랩', kind: 'toggle', col: 'rowsScrap' },
+  { action: 'post_create', name: '게시글 작성', kind: 'create', col: 'rowsPost' },
+  { action: 'comment_create', name: '댓글 작성', kind: 'create', col: 'rowsComment' },
+  { action: 'group_room', name: '단체 채팅방 생성', kind: 'create', col: 'rowsGroupRoom' },
+  { action: 'token_refresh', name: '토큰 재발급', kind: 'session', col: null },
+];
+
+/**
  * 표본 하나에서 읽을 집계값. `integrity.js` 가 선택된 프로브의 항목을 모아 UNION ALL 로
  * 한 번에 읽는다. `from` 에 조인을 써도 된다.
  */
@@ -68,6 +86,117 @@ const CATALOG = {
         { name: '좋아요', expected: d('rowsLike'), actual: d('sumLike'), unit: '건', exact: true },
         { name: '싫어요', expected: d('rowsDislike'), actual: d('sumDislike'), unit: '건', exact: true },
       ].map((c) => ({ ...c, delta: c.actual - c.expected, status: c.actual === c.expected ? 'ok' : 'mismatch' }));
+    },
+  },
+
+  'idempotency-divergence': {
+    id: 'idempotency-divergence',
+    question: '재시도가 도착한 뒤에도 데이터가 사용자 의도대로 남았는가',
+    // 반응·스크랩·생성은 전부 요청 트랜잭션 안에서 끝나므로 드레인 주기를 기다릴 필요가 없다.
+    // 부하 쪽 의도 카운터가 필요하므로 k6 를 요구한다.
+    needs: { db: true, drain: false, k6: true },
+    // 의도 카운터가 실행 전체의 합이라 구간별로 쪼갤 수 없다. 전체만 판정한다.
+    scope: 'run',
+    columns: [
+      // 키·식·조건을 counter-drift 의 rowsLike 와 **일부러 똑같이** 둔다. columnsFor 가 키로
+      // 중복을 접으므로 두 프로브를 같이 골라도 질의는 한 번이다. 조건이 갈라지면 먼저 등록된
+      // 쪽이 조용히 이기므로, 한쪽을 고치면 다른 쪽도 같이 고쳐야 한다.
+      {
+        key: 'rowsLike',
+        expr: 'COUNT(*)',
+        from: 'posts_reactions r JOIN posts p ON r.PST_id = p.PST_id',
+        where: "r.is_valid=1 AND p.is_valid=1 AND r.PST_RCT_kind='LIKE'",
+      },
+      // 아래 다섯은 조인을 걸지 않는다. 이 프로브를 쓰는 시나리오(retry-storm)가 글·댓글을
+      // 지우지 않으므로, 부모가 소프트 삭제되어 행만 남는 상황이 생기지 않는다. 글을 지우는
+      // 부하와 함께 쓰려면 rowsLike 처럼 조인을 걸어야 한다.
+      { key: 'rowsCommentLike', expr: 'COUNT(*)', from: 'comments_reactions', where: "is_valid=1 AND CMT_RCT_kind='LIKE'" },
+      { key: 'rowsScrap', expr: 'COUNT(*)', from: 'scraps', where: 'is_valid=1' },
+      { key: 'rowsPost', expr: 'COUNT(*)', from: 'posts', where: 'is_valid=1' },
+      { key: 'rowsComment', expr: 'COUNT(*)', from: 'comments', where: 'is_valid=1' },
+      { key: 'rowsGroupRoom', expr: 'COUNT(*)', from: 'chat_rooms', where: "is_valid=1 AND CHT_RM_CAT='GROUP'" },
+    ],
+    /**
+     * 액션마다 결함의 모양이 달라 식도 다르다.
+     *
+     *   토글  뒤집힘 = (켜려고 한 횟수) − (켜진 채 남은 행의 증가분)
+     *         재시도가 `liked == true` 를 보고 취소하므로 증가분이 의도보다 **적다**.
+     *   생성  중복 = (행의 증가분) − (만들려고 한 횟수)
+     *         중복을 막는 제약이 없어 같은 요청이 두 번 도착하면 행이 하나 더 생긴다.
+     *   세션  재시도가 401 을 받은 횟수. DB 행이 아니라 부하 쪽 카운터로만 보인다.
+     *
+     * 의도는 부하 발생기가 센다({@code resilience/scenarios/retry-storm.js}). 서버는 셀 수
+     * 없다 — 두 번째 요청이 "같은 의도의 재시도"인지 "새로 누른 것"인지 구분할 수단이 계약에
+     * 없다는 것이 바로 이 결함의 정의이기 때문이다.
+     *
+     * <b>반대 방향으로 어긋나면 판정하지 않는다.</b> 토글에서 증가분이 의도보다 크거나 생성에서
+     * 작으면, 같은 테이블에 행을 만드는 다른 부하가 섞였거나 시나리오의 전제가 깨진 것이다.
+     * 그 경우 숫자를 내지 않고 오염을 보고한다.
+     *
+     * <b>불확실 구간.</b> 마지막 응답이 2xx 가 아닌 건은 서버가 어디까지 갔는지 알 수 없다.
+     * 그 수를 따로 적어 "88건 뒤집힘 (불확실 31건)" 처럼 읽게 한다.
+     */
+    evaluate(before, after, ctx) {
+      const k6 = (ctx && ctx.k6) || {};
+      const idem = k6.idempotency || {};
+      const d = (key) => after[key] - before[key];
+      const num = (v) => (Number.isFinite(v) ? v : 0);
+
+      const checks = [];
+      for (const a of IDEMPOTENCY_ACTIONS) {
+        const c = idem[a.action] || {};
+        const intent = Number.isFinite(c.intent) ? c.intent : null;
+        if (intent == null) {
+          checks.push({
+            name: a.name, expected: null, actual: null, delta: null, unit: '건', exact: true, status: 'unknown',
+            note: '부하 쪽 의도 카운터가 없다 — 이 실행은 이 액션을 돌리지 않는 스크립트로 돌았다',
+          });
+          continue;
+        }
+        const retried = num(c.retried);
+        const unknown = num(c.unknown);
+        const band = unknown ? ` · 불확실 ${unknown.toLocaleString()}건(마지막 응답이 2xx 가 아니라 서버가 어디까지 갔는지 모른다)` : '';
+        // 훼손율의 분모는 의도가 아니라 재시도다. 재시도가 없었던 요청은 틀어질 기회 자체가
+        // 없어서 분모에 넣으면 비율이 희석된다.
+        const rate = (bad) => (retried ? ` · 재시도 ${retried.toLocaleString()}건 중 ${((bad / retried) * 100).toFixed(1)}%` : '');
+
+        if (a.kind === 'session') {
+          const lost = num(k6.sessionLost);
+          checks.push({
+            name: a.name, expected: 0, actual: lost, delta: lost, unit: '건', exact: true,
+            status: lost > 0 ? 'mismatch' : 'ok',
+            note: (lost > 0 ? `<b>${lost.toLocaleString()}건 로그아웃</b>${rate(lost)}` : (retried ? '재시도했지만 로그아웃은 없음' : '재시도 없음'))
+              + ' · 재발급 재시도가 옛 토큰으로 들어가 401 을 받은 횟수다' + band,
+          });
+          continue;
+        }
+
+        const applied = d(a.col);
+        const bad = a.kind === 'toggle' ? intent - applied : applied - intent;
+        if (bad < 0) {
+          checks.push({
+            name: a.name, expected: intent, actual: applied, delta: applied - intent, unit: '건', exact: false, status: 'unknown',
+            note: a.kind === 'toggle'
+              ? `의도 ${intent.toLocaleString()}건보다 증가분 ${applied.toLocaleString()}건이 크다 — 같은 테이블에 행을 만드는 다른 부하가 섞였다. 판정식이 성립하지 않는다`
+              : `의도 ${intent.toLocaleString()}건보다 증가분 ${applied.toLocaleString()}건이 작다 — 생성이 실패했거나 행이 지워졌다. 판정식이 성립하지 않는다`,
+          });
+          continue;
+        }
+        const head = bad > 0
+          ? `<b>${bad.toLocaleString()}건 ${a.kind === 'toggle' ? '뒤집힘' : '중복 생성'}</b>`
+          : `${a.kind === 'toggle' ? '뒤집힘' : '중복'} 없음`;
+        checks.push({
+          name: a.name,
+          expected: intent,
+          actual: applied,
+          delta: applied - intent,
+          unit: '건',
+          exact: unknown === 0,
+          status: bad > 0 ? 'mismatch' : 'ok',
+          note: `${head}${rate(bad)}${band}`,
+        });
+      }
+      return checks;
     },
   },
 
@@ -221,4 +350,4 @@ function reconcile(probeIds, samples, ctx) {
   });
 }
 
-module.exports = { CATALOG, SEGMENTS, get, ids, unknownProbes, needsDrain, reconcile };
+module.exports = { CATALOG, SEGMENTS, IDEMPOTENCY_ACTIONS, get, ids, unknownProbes, needsDrain, reconcile };

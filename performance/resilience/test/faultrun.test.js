@@ -81,6 +81,14 @@ test('scenarioFor: load.steps 가 있으면 계단식 시나리오를 고른다'
   assert.match(scenarioFor(PLAN), /fault-window.js$/);
 });
 
+test('scenarioFor: load.scenario 가 있으면 그 파일을 고른다', () => {
+  const named = { ...PLAN, load: { ...PLAN.load, scenario: 'retry-storm' } };
+  assert.match(scenarioFor(named), /retry-storm\.js$/);
+  // k6 에 넘기는 인수의 두 번째 자리가 실행할 스크립트다. 여기가 어긋나면 혼합 워크로드가
+  // 돌면서 부하 쪽 카운터로 내는 판정이 조용히 무효가 된다.
+  assert.match(k6Args(named, 'http://127.0.0.1:1/', 'resilience/reports/staging')[1], /retry-storm\.js$/);
+});
+
 test('k6Args: 계단 목록과 전환·유지 길이를 넘긴다', () => {
   const args = k6Args(STEPPED, 'http://127.0.0.1:1/', 'resilience/reports/staging');
   assert.equal(envOf(args, 'STEPS'), '40,55,70');
