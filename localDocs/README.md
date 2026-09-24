@@ -50,6 +50,7 @@
 | [toss-target-role.md](career/toss-target-role.md) | 어느 직무·경로로 갈 것이고 왜인가? (병역 규정 포함) | 지원 대상을 정할 때 |
 | [toss-gap-analysis.md](career/toss-gap-analysis.md) | 부족한 것의 전체 목록은 무엇인가? | 중장기 학습 계획을 세울 때 |
 | [toss-interview-questions.md](career/toss-interview-questions.md) · [toss-interview-concepts.md](career/toss-interview-concepts.md) | 무엇을 물어보고 어떻게 답하는가? | 면접 직전 |
+| [cs/README.md](cs/README.md) | **CS 면접 질문 중 무엇을 이미 답할 수 있고 무엇이 비었는가?** 분야 9개·193문항마다 이 프로젝트와 회사 일의 사례를 짝지은 판정표. 위 개념 문서가 다루지 않는 운영체제·네트워크를 포함한다 | CS 공부 순서를 정할 때, 면접 준비 중 |
 | [toss-infra-essentials.md](career/toss-infra-essentials.md) | 인프라 쪽에서 최소한 알아야 할 것은? | 면접 준비 중 |
 | [toss-pdf-prerequisites.md](career/toss-pdf-prerequisites.md) | PDF 세트를 읽는 선행조건은 무엇인가? | 자료를 읽는 순서를 정할 때 |
 
