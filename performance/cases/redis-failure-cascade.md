@@ -1,119 +1,137 @@
-# Redis failure cascade
+# Redis 장애가 앱 전체로 전파된 사례
 
-> 상태: fixed (잔여 문제는 아래 "남은 것")
+> 상태: fixed — 60초 Redis 대기로 인한 전면 지연은 변경 후 실행에서 해소
 > 영향도: critical
-> Before 실행: `redis-crash-2026-09-11T06-06-22`
-> After 실행: `redis-crash-2026-09-11T06-15-49`
+> 변경 전 실행: `redis-crash-2026-09-11T06-06-22`
+> 변경 후 실행: `redis-crash-2026-09-11T06-15-49` (200ms), `redis-crash-2026-09-11T06-37-20` (100ms)
 
-## 결론
+## 요약
 
-Redis를 60초 중단했을 때 앱 전체가 멈춘 원인은 Lettuce 명령 타임아웃이 지정되지 않아
-기본값 60초가 적용된 것이었다. 
+Redis를 60초 중단한 변경 전 실행에서 명령 타임아웃이 지정되지 않아 요청이 최대 60초까지
+기다렸다. 장애 구간의 오류율은 31.75%, p95는 60,003ms였고 Tomcat 스레드와 MySQL
+커넥션 풀이 함께 포화됐다. 당시 명령 타임아웃을 200ms로 지정한 뒤 같은 장애 주입에서
+오류율은 0%, p95는 973ms, 장애 구간 HikariCP pending 최대는 127개에서 0개가 됐다.
+같은 조건에서 타임아웃을 100ms로 줄인 실행의 p95는 224ms였다.
 
-요청 하나가 Redis 응답을 60초 기다리는 동안 Tomcat 스레드를
-붙잡고, 그 호출이 트랜잭션 안이면 HikariCP 커넥션까지 함께 붙잡았다. 커넥션 10개가 모두
-그렇게 묶이자 Redis를 쓰지 않는 기능과 인증까지 실패했다.
+이 비교는 **긴 Redis 대기를 끊으면 전면 지연이 사라진다**는 것을 보여 준다. 커넥션이
+정확히 어떤 경로에서 반납되지 않았는지는 이 실행으로 확정하지 않았다. 조회수 유실과
+`/actuator/health`의 DOWN 응답도 변경 후 실행에 남았다. 각각
+[조회수 유실](redis-viewcount-loss-on-fallback.md)과
+[헬스 판정](redis-health-readiness.md) Case에서 다룬다.
 
-`spring.data.redis.timeout`을 200ms로 지정하자 같은 장애에서 오류율이 31.75%에서 0%로,
-장애 구간 p95가 60,003ms에서 973ms로 내려갔다. 풀 포화는 사라졌다. HikariCP pending은
-최대 145개에서 0개가 됐다.
+## 문제 개요와 영향
 
-남은 문제는 둘이다. 조회수가 조용히 사라지는 양이 오히려 늘었고, `/actuator/health`는
-앱이 정상 응답하는 동안 DOWN을 보고한다.
+장애 주입기는 Redis를 60초 중단했다. 변경 전에는 Redis 호출을 기다리는 요청이 끝나지
+않았고, Redis를 직접 쓰지 않는 기능과 보호 API까지 실패했다. 장애 구간에 무응답 31건,
+401 38건, 500 18건이 기록됐다. fault 구간 집계에서 Tomcat busy는 최대 158/400,
+HikariCP active는 최대 10/10, 커넥션 획득 대기인 pending은 최대 127개였다.
 
-## Before와 After
+두 실행은 같은 Dockerfile과 소스에 맞는 앱 이미지 계보, 같은 medium 데이터셋
+(지문 `24ddff07519b`), 같은 도착률 4/s, 같은 pre 90초·fault 60초·post 60초,
+같은 캐시 초기 상태에서 진행했다. 실행기는 시작 전 Redis를 `FLUSHALL`로 비웠다.
+비교하는 코드 변경은 아래의 명령·접속 타임아웃과 오류 상태 코드 처리다.
+100ms 실행도 이 조건과 데이터셋 지문이 같다. 실행별 완료 요청 수는 지연 때문에 달라
+조회수 유실 건수를 타임아웃 변경의 효과로 직접 비교하지 않는다.
 
-두 실행은 같은 앱 이미지 계보(같은 Dockerfile, 소스와 일치), 같은 데이터셋(medium,
-지문 24ddff07519b), 같은 부하(도착률 4/s, pre 90초·fault 60초·post 60초), 같은 캐시 초기
-상태(실행기가 FLUSHALL로 비운 뒤 시작)에서 돌았다. 바뀐 것은 아래 "무엇을 바꿨나"뿐이다.
+## 탐지와 전파 경로
 
-| 지표 | Before | After | 읽는 법 |
+변경 전 fault 구간의 p95 60,003ms와 최대 지연 60,007ms가 Redis 명령 대기 상한에
+붙었다. 같은 구간에 Tomcat busy, HikariCP active와 pending이 함께 상승했다.
+MySQL `threads_running`은 2개로 낮았다. 풀의 커넥션 10개가 모두 사용 중이었지만
+MySQL에서 실행 중인 작업은 적었다. DB 쿼리 실행량만으로 풀 점유를 설명하기 어렵다.
+
+관측된 전파는 **Redis 응답 대기 → 요청 스레드 장시간 점유 → 커넥션 풀 점유와 대기 증가
+→ 다른 요청의 지연·실패**다. 다만 모든 커넥션을 `@Transactional` 경로가 붙잡았다고
+단정할 수 없다. 뒤의 [커넥션 점유 조사](db-connection-held-during-redis-wait.md)는
+트랜잭션 밖 Redis 호출도 많고 OSIV 가능성이 남는다고 기록했다. 그 Case의 9월 17일
+실행은 부하와 풀 크기가 달라 커넥션 점유의 세부 원인을 직접 가르는 대조 실험이 아니다.
+
+## 원인과 촉발 요인
+
+**촉발 요인:** Redis를 60초 중단했다.
+
+**확인된 원인:** 당시 `spring.data.redis.timeout`이 명시되지 않아 Lettuce의 60초
+명령 타임아웃이 적용됐다. 요청이 이 대기 시간에 묶여 있었고, 타임아웃을 명시한 변경 후
+실행에서는 60초 지연과 풀 획득 대기가 사라졌다.
+
+**남은 원인 질문:** Redis 대기 중 MySQL 커넥션이 어떤 경로에서 유지됐는지 직접
+계측하지 않았다. 트랜잭션 내부 호출은 가능한 경로 중 하나지만, 커넥션 포화 전체의
+원인으로 확정하지 않는다. OSIV 가설과 검증 계획은
+[별도 Case](db-connection-held-during-redis-wait.md)에 있다.
+
+## 조치와 검증 결과
+
+1. **당시 Redis 타임아웃 명시:** `spring.data.redis.timeout=200ms`,
+   `spring.data.redis.connect-timeout=500ms`로 설정했다. 변경 전 정상 구간 90초의
+   클라이언트 측 명령 지연은 p50 0.127ms, p99 0.570ms, p99.9 1.647ms,
+   관측 최댓값 44.2ms였다. 같은 구간 GC pause 최댓값은 47.0ms였다. p99.9와
+   pause 최댓값을 더한 48.6ms에 대한 200ms의 여유는 약 4.1배다. 두 값이 실제로
+   동시에 발생했다는 뜻은 아니다. 아래 표는 200ms로 측정한 실행의 결과다.
+2. **100ms로 축소:** 현재 설정은 100ms다. 200ms 실행과 같은 4/s·cold·60초 장애
+   조건에서 fault p95는 973ms → 224ms, post p95는 435ms → 114ms였다. 두 실행
+   모두 fault HTTP 오류율 0%, HikariCP pending 최대 0개였다. 정상 Redis가 타임아웃
+   경계에 가까울 때의 오차단 범위는 이 장애 실행으로 판단할 수 없다.
+3. **인프라 실패와 인증 실패의 상태 코드 분리:** `TokenAuthenticationFilter`는 JWT
+   검증 실패를 기존처럼 익명 요청으로 처리하고, `TransientDataAccessException`,
+   `DataAccessResourceFailureException`, `TransactionException`은
+   `INFRASTRUCTURE_UNAVAILABLE`로 끊도록 바꿨다. `GlobalExceptionHandler`도
+   이 실패를 503으로 매핑하고, 비일시적 DB 오류는 500으로 남긴다.
+
+| 지표 | 변경 전 | 변경 후 | 읽는 법 |
 |---|---:|---:|---|
 | fault 오류율 | 31.75% | 0.00% | 장애 60초 동안 4xx·5xx·무응답 비율 |
-| fault 완료 요청 | 274건 | 982건 | 같은 60초에 끝난 요청 수. 3.58배 |
-| fault p95 | 60,003ms | 973ms | 61.7배 단축 |
+| fault 완료 요청 | 274건 | 982건 | 같은 60초에 끝난 요청 수 |
+| fault p95 | 60,003ms | 973ms | 60초 타임아웃에 붙던 꼬리 지연 해소 |
 | fault 최대 지연 | 60,007ms | 2,727ms | |
 | 실패 상태 분포 | 무응답 31 · 401 38 · 500 18 | 없음 | |
-| Tomcat busy 최대 | 177개 | 4개 | 400개 중 |
-| HikariCP pending 최대 | 145개 | 0개 | 커넥션을 기다리는 스레드 수 |
-| HikariCP active 최대 | 10/10 | 3/10 | Before는 풀 전체가 묶였다 |
-| MySQL threads_running | 2개 | 2개 | 둘 다 낮다. 아래 설명 참고 |
-| health 응답 | 12/12 4초 안에 응답 못 함 | 12/12 DOWN(503), p50 267ms | |
-| post p95 | 6,284ms | 435ms | 복구 직후 빈 캐시 비용 |
-| 조회수 유실 | 160건 | 481건 | 늘었다. 아래 "남은 것" |
+| Tomcat busy 최대 | 158개 | 3개 | fault 구간 집계, 최대 400개 |
+| HikariCP pending 최대 | 127개 | 0개 | fault 구간 집계, 커넥션 획득 대기 |
+| HikariCP active 최대 | 10/10 | 2/10 | fault 구간 집계 |
+| MySQL threads_running | 2개 | 2개 | 두 실행 모두 낮음 |
+| `/actuator/health` | 폴러가 12/12회 TIMEOUT 기록 | 12/12회 DOWN(503), p50 267ms | 과거 TIMEOUT에는 폴러 결함 가능성 있음 |
+| post p95 | 6,284ms | 435ms | 복구 직후 빈 캐시 비용 포함 |
+| 조회수 유실 | 160건 | 481건 | 아래 한계 참고 |
 
-**MySQL threads_running이 양쪽 다 낮은 것이 진단의 핵심이다.** Before에서 커넥션 10개가
-모두 쓰이는 동안(active 10/10) MySQL이 실제로 실행한 쿼리는 2개뿐이었다. 커넥션을 쥔
-스레드들이 DB 작업을 하고 있었던 것이 아니라 Redis 응답을 기다리고 있었다는 뜻이다.
+세 번째 변경의 503 분기 효과는 **이 장애 비교에서 실행되지 않았다.** 타임아웃을 줄인 뒤 풀이 포화되지
+않아 인증 경로의 DB 조회가 실패하지 않았다. 변경 전 401 38건이 503으로 바뀐 것이
+아니라 변경 후 실행에서 사라진 것이다. `AuthInfrastructureFailureStatusTest`는
+보호 경로의 401/503 경계를, `GlobalExceptionHandlerTest.InfrastructureVersusBug`는
+503/500 경계를 테스트로 확인한다. 장애 주입에서의 503 경로는 별도 검증이 필요하다.
 
-트랜잭션 내에서 Redis 작업이 실행되기에 redis에 타임아웃만큼 커넥션풀을 점유한 채로 기다려 이런 문제가 발생했다.
+## 배운 점과 남은 위험
 
-## 무엇을 바꿨나
+**조회수 유실:** 200ms 실행에서 기대 증가분 811건 중 481건이 DB와 Redis 버퍼에
+남지 않았다. 응답 가용성 개선과 별개의 정합성 문제이며, 재현·원인·미해결 범위는
+[조회수 유실 Case](redis-viewcount-loss-on-fallback.md)가 소유한다.
 
-1. **Redis 명령·접속 타임아웃 명시** — `spring.data.redis.timeout=200ms`,
-   `spring.data.redis.connect-timeout=500ms`. 200ms의 근거는 Before 실행 정상 구간(90초)의
-   클라이언트 측 명령 지연이다. p50 0.127ms, p99 0.570ms, p99.9 1.647ms였고 관측 최댓값은
-   44.2ms였다. 최댓값은 같은 구간 GC pause 최댓값 47.0ms와 크기가 같아 명령 위에 pause가
-   겹친 표본으로 본다. 여유는 명령 꼬리값과 pause를 더한 48.6ms에 대해 200 ÷ 48.6 = 4.1배다.
-2. **인프라 실패와 인증 실패의 상태 코드 분리** — `TokenAuthenticationFilter`가 JWT 검증
-   실패는 종전대로 삼키고 익명으로 넘기되, DB·Redis 때문에 판정을 못 한 경우
-   (`TransientDataAccessException`, `DataAccessResourceFailureException`,
-   `TransactionException`)는 `INFRASTRUCTURE_UNAVAILABLE`로 끊는다. 같은 세 타입을
-   `GlobalExceptionHandler`도 503으로 매핑한다. 재시도해도 같은 결과인
-   `NonTransientDataAccessException`(문법이 틀린 SQL 등)은 500으로 남긴다.
+**헬스 응답:** 200ms 실행의 `/actuator/health`는 Redis 장애 동안 DOWN(503)을
+반환했다. 현재 readiness 경로와 운영 적용 상태는
+[헬스 판정 Case](redis-health-readiness.md)에 기록한다. 변경 전의 폴러 TIMEOUT
+12건은 [폴러 결함](health-poller-false-timeout.md)이 수정되기 전의 표본이므로
+서버가 12회 모두 4초간 응답하지 않았다는 확증으로 쓰지 않는다.
 
-## 이번 실행이 증명하지 못한 것
+**회복 판정:** 변경 후 post 구간의 RPS는 자동 판정에서 "미회복"이었다. 기준은 pre
+중앙값 15.02/s의 대역에 30초 연속 머무는 것이지만, 60초 post 끝이 부하 종료와
+겹쳐 마지막 표본이 12.0 → 10.9 → 9.2 → 5.9 → 3.7 → 1.4/s로 감소했다.
+따라서 이 표시는 서비스가 끝까지 회복하지 못했다는 근거로 사용하지 않는다.
 
-**2번 변경은 이 실행에서 실행되지 않았다.** 타임아웃을 줄이자 풀이 포화되지 않았고,
-그래서 인증 경로의 DB 조회가 실패할 일 자체가 없었다. 
-Before의 401 38건은 503으로 바뀐 것이 아니라 사라졌다. 
-두 변경은 서로 다른 층에 있다. 타임아웃은 장애가 번지는 것을 막고, 
-상태 코드 분리는 그래도 인프라 실패가 났을 때 클라이언트가 오해하지 않게 한다.
+## 후속 조치
 
-상태 코드 분리는 테스트로만 고정돼 있다. `AuthInfrastructureFailureStatusTest`가 보호
-경로에 같은 요청을 보내며 예외 종류만 바꿔 401과 503이 갈리는지 확인하고,
-`GlobalExceptionHandlerTest.InfrastructureVersusBug`가 503과 500의 경계를 확인한다.
-장애 주입으로 이 경로를 밟으려면 MySQL을 직접 느리게 하는 계획(`mysql-slow.json`)이 필요하다.
+| 할 일 | 확인할 것 | 상태 |
+|---|---|---|
+| 조회수 유실의 허용 범위와 복구 정책 결정 | [조회수 유실 Case](redis-viewcount-loss-on-fallback.md) | 미결정 |
+| 운영 로드밸런서 헬스 경로 확인 | [헬스 판정 Case](redis-health-readiness.md) | 미검증 |
+| MySQL 인프라 오류 경로 검증 | [MySQL 중단·무응답 Case](mysql-unavailable-wait-bound.md)의 503 분포 | 별도 실행으로 관측 |
+| 커넥션 점유 원인 검증 | 트랜잭션·OSIV 가설 구분 | [별도 Case](db-connection-held-during-redis-wait.md)에서 조사 중 |
 
-## 남은 것
+타임아웃을 200ms로 둔 같은 조건에서 지연이 다시 60초에 몰리면 이 원인 설명을
+재검토해야 한다. 같은 부하에서 HikariCP pending이 다시 쌓이면 다른 장시간 점유
+경로도 찾아야 한다.
 
-**조회수 유실이 3배로 늘었다.** Before 160건, After 481건이다. 계산은
-`부하 발생기가 센 기대 증가분 − DB 조회수 실제 증가분`이고, Before는 794 − 634 = 160,
-After는 811 − 330 = 481이다. 늘어난 이유는 고쳐서 나빠진 것이 아니라 완료된 요청이
-274건에서 982건으로 3.58배 늘었기 때문이다. 요청당 유실 비율은 0.58에서 0.49로 오히려
-낮아졌다. Before에서는 요청이 60초 동안 매달려 조회수 증가 자체에 도달하지 못했고,
-After에서는 도달한 뒤 `@ResilientRedis`가 INCR 실패를 삼켰다. 응답은 양쪽 다 200이다.
-유실을 허용 범위로 받아들일지, DB 원장에 쌓아 복구할지는 아직 정하지 않았다.
+## 근거
 
-**헬스가 여전히 장애를 전면화한다.** Before에서는 헬스 응답이 4초 안에 오지 않았고
-(폴러 상한 4,000ms), After에서는 267ms 만에 DOWN(503)을 응답한다. 관측은 좋아졌지만
-로드밸런서 입장에서는 둘 다 "이 인스턴스를 빼라"다. 앱이 폴백으로 정상 응답하는 동안
-Redis 하나 때문에 인스턴스가 빠지면 부분 저하가 전면 장애가 된다. Redis를 readiness에서
-빼는 변경은 아직 하지 않았다.
-
-**post 구간 RPS는 "미회복"으로 표시됐지만 회복 실패로 읽지 않는다.** 판정 기준은 pre
-중앙값 15.02/s의 대역 안에 30초 연속 머무는 것인데, After의 post 구간은 60초뿐이고 그
-끝이 부하 종료와 겹쳐 마지막 표본들이 12.0 → 10.9 → 9.2 → 5.9 → 3.7 → 1.4/s로 단조
-감소한다. 부하 발생기가 멈추는 구간을 30초 이동창이 따라 내려온 것이다. Before가 이
-조건을 채운 것은 밀렸던 요청이 post 내내 풀리며 RPS를 pre보다 높게 유지했기 때문이고,
-더 건강해서가 아니다.
-
-## 반증 조건
-
-- 타임아웃을 200ms로 둔 채 실패가 다시 60초에 몰리면 타임아웃 설명이 틀린 것이다.
-- 같은 부하에서 HikariCP pending이 다시 쌓이면 Redis 외에 커넥션을 오래 쥐는 경로가 있다.
-- MySQL을 느리게 했을 때 인프라 에러가 아닌 401이 남으면 상태 코드 분리가 그 경로를 덮지 못한 것이다.
-
-## 다음
-
-1. 조회수 유실의 허용 범위와 복구 정책을 정한다. 정하기 전에는 `@ResilientRedis`가 삼킨
-   쓰기 실패의 건수를 지표로 남겨 유실이 보이게 한다.
-2. Redis를 readiness 그룹에서 뺀다. 원본(DB)만 readiness로 둔다.
-3. `mysql-slow.json`·`mysql-hang.json`으로 DB 쪽 실패 지연과 503 경로를 함께 측정한다.
-
-## 원자료
-
-- Before: [report.html](../resilience/reports/redis-crash-2026-09-11T06-06-22/report.html) · [run.json](../resilience/reports/redis-crash-2026-09-11T06-06-22/run.json)
-- After: [report.html](../resilience/reports/redis-crash-2026-09-11T06-15-49/report.html) · [run.json](../resilience/reports/redis-crash-2026-09-11T06-15-49/run.json)
-- 바뀐 코드: `application.properties`, `TokenAuthenticationFilter`, `TokenExceptionFilter`,
+- 변경 전: [report.html](../resilience/reports/redis-crash-2026-09-11T06-06-22/report.html) · [run.json](../resilience/reports/redis-crash-2026-09-11T06-06-22/run.json)
+- 변경 후: [report.html](../resilience/reports/redis-crash-2026-09-11T06-15-49/report.html) · [run.json](../resilience/reports/redis-crash-2026-09-11T06-15-49/run.json)
+- 100ms 재검증: [report.html](../resilience/reports/redis-crash-2026-09-11T06-37-20/report.html) · [run.json](../resilience/reports/redis-crash-2026-09-11T06-37-20/run.json)
+- 당시 변경 코드: `application.properties`, `TokenAuthenticationFilter`, `TokenExceptionFilter`,
   `GlobalExceptionHandler`, `ErrorCode`
