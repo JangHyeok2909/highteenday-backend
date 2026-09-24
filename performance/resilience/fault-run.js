@@ -305,6 +305,54 @@ function proxyRouting() {
   };
 }
 
+/** 앱 앞에 놓인 프록시 이름. environment/toxiproxy/toxiproxy.json 의 `name` 과 같아야 한다. */
+const APP_PROXY = 'app';
+
+/**
+ * BASE_URL 이 앱 앞 프록시를 실제로 지나는지 확인한다. `requires.appProxy` 인 계획에서만 돈다.
+ *
+ * <h2>왜 설정을 비교하지 않고 왕복을 재나</h2>
+ *
+ * 프록시의 listen 주소는 컨테이너 안 포트이고 k6 가 쓰는 것은 호스트에 퍼블리시된 포트라,
+ * 두 값을 문자열로 맞춰 볼 수 없다. 더 큰 이유는 틀렸을 때의 증상이다. 응답 경로에 toxic 을
+ * 거는 실험을 직결 주소로 돌리면 toxic 이 아무것도 못 막아 **재시도가 한 건도 안 생기고
+ * "뒤집힘 0"** 이 나온다. 그 결과는 결함을 고쳤을 때와 구별되지 않는다. 그래서 실행 전에
+ * 지연을 한 번 넣어 보고, 그 지연이 관측되는지로 경로를 가른다.
+ *
+ * @param {Toxiproxy} tox 이미 reset 이 끝난 클라이언트.
+ * @param {string[]} notes 확인 결과를 덧붙일 메모 배열.
+ * @throws {Error} 넣은 지연이 왕복에 나타나지 않는 경우.
+ */
+async function assertBaseUrlViaProxy(tox, notes) {
+  const NAME = 'preflight-latency';
+  const INJECT_MS = 700;
+  // 넣은 지연의 절반을 넘으면 프록시를 지난 것으로 본다. 직결이면 수 ms 라 두 경우가 멀리
+  // 떨어져 있어, 느린 장비에서 흔들려도 판정이 뒤집히지 않는다.
+  const FLOOR_MS = 400;
+  await tox.addToxic(APP_PROXY, {
+    name: NAME, type: 'latency', stream: 'downstream', toxicity: 1,
+    attributes: { latency: INJECT_MS, jitter: 0 },
+  });
+  let elapsed = null;
+  try {
+    const started = Date.now();
+    // 상태 코드는 보지 않는다. 앱이 살아 있는지는 바로 앞 헬스 점검이 이미 확인했고,
+    // 여기서 보는 것은 응답이 돌아오기까지 걸린 시간 하나다.
+    try {
+      await request('GET', `${BASE_URL}/actuator/health`, null, { timeoutMs: 5000 });
+    } catch (e) { /* 연결 오류여도 왕복 시간은 유효하다 */ }
+    elapsed = Date.now() - started;
+  } finally {
+    await tox.removeToxic(APP_PROXY, NAME);
+  }
+  if (elapsed < FLOOR_MS) {
+    throw new Error(`BASE_URL(${BASE_URL}) 이 앱 앞 프록시를 지나지 않는다 — 지연 ${INJECT_MS}ms 를 넣었는데 왕복이 ${elapsed}ms 다.\n`
+      + '  이 계획은 응답 경로에 toxic 을 걸므로 프록시를 지나야 한다. 직결로 돌리면 재시도가 한 건도 안 생겨 "뒤집힘 0" 이 나온다.\n'
+      + '  BASE_URL=http://localhost:18081 node resilience/fault-run.js <계획> (포트는 TOXIPROXY_APP_HOST_PORT)');
+  }
+  notes.push(`앱 프록시 확인: 지연 ${INJECT_MS}ms 주입 시 왕복 ${elapsed}ms — BASE_URL 이 프록시를 지난다`);
+}
+
 /**
  * 장애를 주입해도 관측 결과가 성립하는 환경인지 사전 점검한다.
  *
@@ -360,6 +408,7 @@ async function preflight(plan, o) {
       await tox.reset();
     }
     notes.push(`toxiproxy: 프록시 ${pf.proxies.join(', ')} · 깨끗함`);
+    if (plan.requires && plan.requires.appProxy) await assertBaseUrlViaProxy(tox, notes);
   }
   // 주입 대상이 없으면 실행을 막고, 다른 상태는 계획의 시작 조건일 수 있으므로 경고만 남긴다.
   for (const c of [...new Set(plan.inject.filter((s) => s.tool === 'docker').map((s) => s.container))]) {
@@ -545,6 +594,10 @@ function countDatasetUsers(dataset) {
  * @returns {string} PERF_ROOT 기준 상대 경로.
  */
 function scenarioFor(plan) {
+  // 계획이 시나리오를 직접 고르면 그대로 따른다. 판정을 부하 스크립트가 세는 값으로 내는
+  // 실험(retry-storm)은 혼합 워크로드가 섞이면 그 값이 무효가 되므로 전용 파일을 쓴다.
+  const named = plan.load && plan.load.scenario;
+  if (named) return path.join('resilience', 'scenarios', `${named}.js`);
   const stepped = Array.isArray(plan.load && plan.load.steps) && plan.load.steps.length > 0;
   return path.join('resilience', 'scenarios', stepped ? 'fault-breakpoint.js' : 'fault-window.js');
 }
@@ -997,6 +1050,10 @@ async function main() {
         // 사라진 조회는 서버에 흔적이 없어서, 이 값 없이는 유실을 셀 수 없다.
         viewExpected: raw.view_expected && raw.view_expected.values ? raw.view_expected.values.count : null,
         viewUnknown: raw.view_unknown && raw.view_unknown.values ? raw.view_unknown.values.count : null,
+        // 액션별 "무엇을 하려 했는가"(resilience/scenarios/retry-storm.js). 서버는 재시도와
+        // 새 요청을 구분할 수 없으므로, 이 값 없이는 뒤집힘도 중복 생성도 셀 수 없다.
+        idempotency: plans.idempotencyByAction(raw),
+        sessionLost: raw.session_lost && raw.session_lost.values ? raw.session_lost.values.count : null,
         loadProfile: k6Rec.run && k6Rec.run.loadProfile,
         phasePlanRaw: k6Rec.run && k6Rec.run.phasePlan,
       },
