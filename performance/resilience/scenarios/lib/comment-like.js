@@ -1,5 +1,5 @@
 /**
- * 댓글 좋아요 — 토글. 게시글 좋아요와 같은 모양이다(CommentReactionService.java:33).
+ * 댓글 좋아요 — 목표 상태 설정(PUT). 게시글 좋아요와 같은 모양이다(`ReactionService.set()`).
  *
  * 전제: 댓글 목록 응답의 `liked` 가 false 인 댓글만, 이 VU 가 처음 건드리는 댓글만 의도에
  * 넣는다. 글을 무작위로 뽑으므로 댓글이 없는 글이 걸리면 건너뛴다. medium 은 댓글 40,000건이
@@ -9,7 +9,7 @@ import http from 'k6/http';
 import { BASE_URL } from '../../../scripts/lib/config.js';
 import { randomPost } from '../../../scripts/lib/data.js';
 import { listComments } from '../../../scripts/comments.js';
-import { attempt, opts } from './attempt.js';
+import { attempt, jsonOpts } from './attempt.js';
 
 export const key = 'comment_like';
 export const kind = 'toggle';
@@ -40,7 +40,8 @@ export function run() {
   const c = pickUnliked(listComments(randomPost().id));
   if (!c) return false;
   attempted[c.id] = true;
-  const url = `${BASE_URL}/api/comments/${c.id}/reaction?type=LIKE`;
-  attempt(key, () => http.post(url, null, opts('reaction', 'write', 'comment_reaction')));
+  const url = `${BASE_URL}/api/comments/${c.id}/reaction`;
+  const body = JSON.stringify({ kind: 'LIKE' });
+  attempt(key, () => http.put(url, body, jsonOpts('reaction', 'write', 'comment_reaction')));
   return true;
 }
