@@ -14,11 +14,14 @@ import { ensureSession, withAuth } from './lib/session.js';
 import { myUser, hotPost } from './lib/data.js';
 import { makeHandleSummary } from './lib/summary.js';
 
+const JSON_HEADERS = { headers: { 'Content-Type': 'application/json' } };
+
+/** 내 반응을 type 으로 맞춘다(PUT). 같은 글에 같은 type 을 반복해도 상태는 그대로다. */
 export function reactToPost(postId, type = 'LIKE') {
   return withAuth(() => {
-    const res = http.post(
-      `${BASE_URL}/api/posts/${postId}/reaction?type=${type}`, null,
-      tags('reaction', 'write', 'post_reaction'),
+    const res = http.put(
+      `${BASE_URL}/api/posts/${postId}/reaction`, JSON.stringify({ kind: type }),
+      Object.assign({}, JSON_HEADERS, tags('reaction', 'write', 'post_reaction')),
     );
     check(res, { 'post reaction 2xx': (r) => r.status >= 200 && r.status < 300 });
     return res;
@@ -31,9 +34,9 @@ export function reactToPost(postId, type = 'LIKE') {
  */
 export function reactToComment(commentId, type = 'LIKE') {
   return withAuth(() => {
-    const res = http.post(
-      `${BASE_URL}/api/comments/${commentId}/reaction?type=${type}`, null,
-      tags('reaction', 'write', 'comment_reaction'),
+    const res = http.put(
+      `${BASE_URL}/api/comments/${commentId}/reaction`, JSON.stringify({ kind: type }),
+      Object.assign({}, JSON_HEADERS, tags('reaction', 'write', 'comment_reaction')),
     );
     // 목록에서 받은 실제 댓글 id 로만 호출된다 — 4xx 가 나올 경로가 없다.
     check(res, { 'comment reaction 200': (r) => r.status === 200 });
