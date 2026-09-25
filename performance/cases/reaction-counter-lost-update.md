@@ -41,8 +41,8 @@ LIKE 행 수를 같은 스냅샷에서 읽어 비교한다. 실행 7건 중 4건
 
 ## 원인 분석과 확신도
 
-[`PostReactionService.java:84`](../../src/main/java/com/example/highteenday_backend/services/domain/PostReactionService.java)
-의 `syncCounts`가 행을 센 뒤 그 값을 카운터에 덮어쓴다.
+[`PostReactionStore.recount`](../../src/main/java/com/example/highteenday_backend/domain/posts/PostReactionStore.java)가
+행을 센 뒤 그 값을 카운터에 덮어쓴다.
 
 ```java
 int likes = postReactionRepository.countByPostAndKindAndIsValidTrue(post, ReactionKind.LIKE);
@@ -50,7 +50,7 @@ int dislikes = postReactionRepository.countByPostAndKindAndIsValidTrue(post, Rea
 post.syncReactionCounts(likes, dislikes);
 ```
 
-`likeReact`와 `dislikeReact`가 `@Transactional`이고 그 안에서 불린다. MySQL 기본
+`ReactionService`의 쓰기 메서드가 `@Transactional`이고 그 안에서 불린다. MySQL 기본
 격리 수준 REPEATABLE READ에서 같은 게시글에 동시 요청이 오면 서로의 미커밋 변경을
 못 본다.
 
@@ -69,6 +69,12 @@ T1이 나중이면 +1, T2가 나중이면 −1이다. 읽고 나서 쓰는 사�
 있다는 것까지다. 실제로 그 경로를 밟았는지는 확인하지 않았다. 같은 게시글에 동시
 요청이 실제로 몇 번 겹쳤는지, 겹친 시점의 격리 수준이 무엇이었는지 재지 않았다.
 
+**같은 어긋남을 만드는 다른 후보 경로가 있다.** 조회수 반영(`PostService.applyViewCount`)은
+`Post`를 읽고 조회수만 바꾼 뒤 행 전체를 쓴다. `Post`에 `@DynamicUpdate`가 없기 때문이다.
+읽은 뒤 쓰기 전에 반응 추가가 커밋되면 좋아요 수가 −1, 취소가 커밋되면 +1로 남는다. 이
+경로는 [반응 쓰기의 재집계와 행 덮어쓰기 사례](reaction-write-recount-and-row-overwrite.md)가
+소유한다. 관측된 어긋남이 어느 경로에서 나왔는지는 가리지 못한다.
+
 ## 조치와 검증 계획
 
 **재현이 먼저다.** 같은 게시글에 서로 다른 사용자의 반응을 동시에 보내는 테스트를
@@ -84,8 +90,8 @@ T1이 나중이면 +1, T2가 나중이면 −1이다. 읽고 나서 쓰는 사�
   어긋나면 스스로 회복하지 못한다. 지금 방식은 다음 반응이 전체를 다시 세므로
   회복하는 성질이 있다.
 
-[`CommentReactionService`](../../src/main/java/com/example/highteenday_backend/services/domain/CommentReactionService.java)
-에 같은 `syncCounts` 패턴이 있다. 같은 문제인지 확인하고 함께 고친다.
+[`CommentReactionStore.recount`](../../src/main/java/com/example/highteenday_backend/domain/comments/CommentReactionStore.java)
+에 같은 재집계 패턴이 있다. 같은 문제인지 확인하고 함께 고친다.
 
 **검증 기준은 `counter-drift` 불변식이다.** 고친 뒤 도착률 60/s 실행에서 전체 구간
 증가분 차이가 0이면 해소로 본다.
