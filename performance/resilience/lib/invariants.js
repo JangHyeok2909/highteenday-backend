@@ -51,7 +51,7 @@ const CATALOG = {
   'counter-drift': {
     id: 'counter-drift',
     question: '비정규화된 반응 카운터가 실제 반응 행 수와 함께 움직였는가',
-    // 카운터는 반응 트랜잭션 안에서 행을 세어 다시 채워지므로(PostReactionService.syncCounts),
+    // 카운터는 반응 트랜잭션 안에서 행을 세어 다시 채워지므로(PostReactionStore.recount),
     // 드레인 주기를 기다릴 필요가 없다. 조회수 계열 프로브만 대기가 필요하다.
     needs: { db: true, drain: false },
     columns: [

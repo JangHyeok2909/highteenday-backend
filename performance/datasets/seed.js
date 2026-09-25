@@ -511,9 +511,10 @@ function isRetryable(err) {
  *   알 수 없음         ECONNRESET·EPIPE·socket hang up·fetch failed·other side closed
  *                      → 응답만 못 받았을 뿐 서버는 처리를 끝냈을 수 있다.
  *
- * 반응·스크랩은 토글이라 두 번째 경우에 그냥 재시도하면 **서버가 이미 만든 상태를 되돌린다**.
+ * 스크랩은 토글이라 두 번째 경우에 그냥 재시도하면 **서버가 이미 만든 상태를 되돌린다**.
  * 재시도할수록 데이터가 사라지는, 상식과 반대로 작동하는 구간이다.
- * 그래서 여기서 갈라내고 `ensureToggled()`가 상태를 조회해 판정한다.
+ * 그래서 여기서 갈라내고 `ensureToggled()`가 상태를 조회해 판정한다. 반응은 목표 상태를
+ * 지정하는 PUT 이라 되돌리지 않지만, 같은 경로를 거쳐도 결과가 같아 함께 쓴다.
  */
 function isAmbiguous(err) {
   const m = String(err && err.message);
@@ -524,8 +525,9 @@ function isAmbiguous(err) {
 /**
  * 토글 API를 "목표 상태로 만든다"는 의미로 호출한다.
  *
- * 반응·스크랩 엔드포인트는 "현재 상태를 뒤집어라"로 동작해서 멱등하지 않다. 응답을 못 받은
- * 요청을 그냥 재시도하면 서버가 이미 적용한 것을 취소해 버린다.
+ * 스크랩 엔드포인트는 "현재 상태를 뒤집어라"로 동작해서 멱등하지 않다. 응답을 못 받은
+ * 요청을 그냥 재시도하면 서버가 이미 적용한 것을 취소해 버린다. 반응은 PUT 이라 멱등하지만
+ * 이 함수를 거쳐도 결과가 같다.
  *
  * 그래서 응답이 없을 때 **다시 보내지 않고 현재 상태를 조회**한다. 조회 결과가:
  *   목표 상태다      → 첫 요청이 적용된 것이다. 성공으로 처리한다.
@@ -538,7 +540,7 @@ function isAmbiguous(err) {
  *
  * @param {Session} s        요청 주체(= 상태를 확인할 사용자)의 세션
  * @param {number}  postId
- * @param {Function} send    토글 요청을 보내는 함수
+ * @param {Function} send    상태를 바꾸는 요청을 보내는 함수
  * @param {Function} read    상세 응답에서 현재 상태(boolean)를 꺼내는 함수
  * @param {string}  label    오류 메시지용
  */
@@ -1099,8 +1101,8 @@ async function createEngagement(users, sessions, posts, cp) {
     return jobs;
   };
 
-  // 반응·스크랩은 토글이라 응답 유실 시 그냥 재시도하면 서버가 이미 만든 상태를
-  // 되돌린다. ensureToggled가 그 경우에만 상태를 조회해 판정한다.
+  // 응답 유실 시 ensureToggled가 상태를 조회해 판정한다. 반응은 PUT 이라 재시도해도
+  // 되돌리지 않지만 스크랩과 같은 경로를 쓴다.
   // 데드락·커넥션 고갈은 확실히 롤백된 것이므로 예전처럼 pooled 가 재시도한다.
   if (alreadyDone(cp, 'reactions', P.reactions)) {
     results.push(skipped('reactions', P.reactions, cp));
@@ -1111,7 +1113,7 @@ async function createEngagement(users, sessions, posts, cp) {
       const type = rand() < 0.85 ? 'LIKE' : 'DISLIKE';
       await ensureToggled(
         s, `/api/posts/${j.post.id}`,
-        () => s.json('POST', `/api/posts/${j.post.id}/reaction?type=${type}`),
+        () => s.json('PUT', `/api/posts/${j.post.id}/reaction`, { kind: type }),
         // 상세 응답은 요청자 기준의 `liked`/`disliked`/`scrapped` 를 평면으로 내려준다
         // (PostDetailService.applyUserContext, 실제 응답으로 키 확인함 — `likeState` 로
         // 중첩돼 있지 않다). 어느 쪽 반응이든 "이 사용자가 이 글에 반응을 남겼다"가 목표다.
@@ -1150,8 +1152,8 @@ async function createEngagement(users, sessions, posts, cp) {
    * 만드는 이유와 같다.
    *
    * `uk_comments_reactions_cmt_usr (CMT_id, USR_id)` 유니크 제약이 있으므로 조합이
-   * 유일해야 한다. 게시글 반응·스크랩과 같은 문제라 같은 방식으로 거른다. 그리고 반응은
-   * 토글 API라 응답 유실 시 그냥 재시도하면 서버가 만든 상태를 되돌린다.
+   * 유일해야 한다. 게시글 반응·스크랩과 같은 문제라 같은 방식으로 거른다. 응답 유실은
+   * 게시글 반응처럼 ensureToggled 가 확인한다.
    */
   const commentReactionTarget = P.commentReactions || 0;
   if (commentReactionTarget > 0) {
@@ -1189,7 +1191,7 @@ async function createEngagement(users, sessions, posts, cp) {
         const type = rand() < 0.85 ? 'LIKE' : 'DISLIKE';
         await ensureToggled(
           s, `/api/posts/${j.postId}/comments`,
-          () => s.json('POST', `/api/comments/${j.commentId}/reaction?type=${type}`),
+          () => s.json('PUT', `/api/comments/${j.commentId}/reaction`, { kind: type }),
           // 응답 유실 시에만 타는 확인 경로다. 댓글 목록만이 요청자의 반응 여부를
           // 내려주므로 그 안에서 이 댓글을 찾는다. Lombok 이 isLiked/isDisliked 를
           // 만들기 때문에 JSON 키는 liked/disliked 다.
