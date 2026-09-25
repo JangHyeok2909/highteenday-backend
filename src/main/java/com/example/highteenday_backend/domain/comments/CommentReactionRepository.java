@@ -1,24 +1,43 @@
 package com.example.highteenday_backend.domain.comments;
 
-import com.example.highteenday_backend.domain.posts.ReactionKind;
-import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.domain.reactions.MyReaction;
+import com.example.highteenday_backend.domain.reactions.ReactionKind;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface CommentReactionRepository extends JpaRepository<CommentReaction, Long> {
 
-    Optional<CommentReaction> findByCommentAndUser(Comment comment, User user);
-
-    boolean existsByCommentAndUserAndKindAndIsValidTrue(Comment comment, User user, ReactionKind kind);
-
     int countByCommentAndKindAndIsValidTrue(Comment comment, ReactionKind kind);
+
+    /**
+     * 반응을 지정한 종류로 설정한다. 없으면 만들고, 있으면 종류를 바꾸며 되살린다.
+     *
+     * <p>조회한 뒤 저장하면 같은 사용자의 동시 요청이 uk_comments_reactions_cmt_usr 에 걸리므로
+     * 한 문장으로 처리한다. {@code PostReactionRepository.upsertKind} 와 같은 방식이다.
+     */
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO comments_reactions (USR_id, CMT_id, created_at, is_valid, CMT_RCT_kind)
+            VALUES (:userId, :commentId, NOW(6), TRUE, :kind)
+            ON DUPLICATE KEY UPDATE CMT_RCT_kind = :kind, is_valid = TRUE, UPT_Date = NOW(6)
+            """, nativeQuery = true)
+    int upsertKind(@Param("userId") Long userId, @Param("commentId") Long commentId, @Param("kind") String kind);
+
+    /** 유효한 반응을 끈다. 행이 없거나 이미 꺼져 있으면 0행을 바꾸고 끝난다. */
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            UPDATE comments_reactions
+            SET is_valid = FALSE, UPT_Date = NOW(6)
+            WHERE CMT_id = :commentId AND USR_id = :userId AND is_valid = TRUE
+            """, nativeQuery = true)
+    int cancel(@Param("userId") Long userId, @Param("commentId") Long commentId);
 
     /**
      * 한 사용자가 주어진 댓글들에 남긴 유효한 반응을 한 번에 가져온다.
@@ -36,11 +55,11 @@ public interface CommentReactionRepository extends JpaRepository<CommentReaction
      * 붙는 순간 조회 결과가 조용히 목록보다 넓어진다.
      */
     @Query("""
-            select r from CommentReaction r
-            where r.user = :user
+            select new com.example.highteenday_backend.domain.reactions.MyReaction(r.comment.id, r.kind)
+            from CommentReaction r
+            where r.user.id = :userId
               and r.isValid = true
               and r.comment.id in :commentIds
             """)
-    List<CommentReaction> findMineByCommentIds(@Param("user") User user,
-                                               @Param("commentIds") Collection<Long> commentIds);
+    List<MyReaction> findMine(@Param("userId") Long userId, @Param("commentIds") Collection<Long> commentIds);
 }
