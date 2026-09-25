@@ -6,7 +6,8 @@ import com.example.highteenday_backend.domain.friends.FriendReq;
 import com.example.highteenday_backend.domain.friends.FriendReqRepository;
 import com.example.highteenday_backend.domain.notification.Notification;
 import com.example.highteenday_backend.domain.notification.NotificationRepository;
-import com.example.highteenday_backend.domain.posts.Post;
+import com.example.highteenday_backend.domain.reactions.ReactionKind;
+import com.example.highteenday_backend.domain.reactions.ReactionTarget;
 import com.example.highteenday_backend.domain.schools.subjects.Subject;
 import com.example.highteenday_backend.domain.schools.timetableTamplates.TimetableTemplate;
 import com.example.highteenday_backend.domain.users.User;
@@ -50,7 +51,7 @@ public class DataInitializer {
     private final PostService postService;
     private final PasswordEncoder passwordEncoder;
     private final CommentService commentService;
-    private final PostReactionService postReactionService;
+    private final ReactionService reactionService;
     private final ScrapService scrapService;
     private final UserService userService;
     private final SchoolService schoolService;
@@ -124,18 +125,17 @@ public class DataInitializer {
     public void likeAndDislikeDataInit(User user){
         int likeCount = SEED_POST_COUNT;
         for(int i=1;i<=likeCount;i++){
-            if(i%2==0) postReactionService.likeReact(postService.findById((long)i),user);
-            else postReactionService.dislikeReact(postService.findById((long)i),user);
+            ReactionKind kind = i % 2 == 0 ? ReactionKind.LIKE : ReactionKind.DISLIKE;
+            reactionService.set(ReactionTarget.POST, (long) i, user.getId(), kind);
         }
         log.info("Test reactions initialized. count={}", likeCount);
     }
 
     public void hotPostLikeDataInit(){
         int likeCount = 10;
-        Post post = postService.findById(1l);
         for (int i=1;i<=likeCount;i++){
             User user = userService.findByEmail("test" + i + "@gmail.com");
-            postReactionService.likeReact(post,user);
+            reactionService.set(ReactionTarget.POST, 1L, user.getId(), ReactionKind.LIKE);
         }
         log.info("Hot post reactions initialized. postId=1, count={}", likeCount);
     }

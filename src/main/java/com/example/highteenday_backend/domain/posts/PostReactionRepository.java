@@ -1,20 +1,18 @@
 package com.example.highteenday_backend.domain.posts;
 
-import com.example.highteenday_backend.domain.users.User;
+import com.example.highteenday_backend.domain.reactions.MyReaction;
+import com.example.highteenday_backend.domain.reactions.ReactionKind;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.Optional;
+import java.util.Collection;
+import java.util.List;
 
 @Repository
 public interface PostReactionRepository extends JpaRepository<PostReaction, Long> {
-
-    Optional<PostReaction> findByPostAndUser(Post post, User user);
-
-    boolean existsByPostAndUserAndKindAndIsValidTrue(Post post, User user, ReactionKind kind);
 
     int countByPostAndKindAndIsValidTrue(Post post, ReactionKind kind);
 
@@ -38,4 +36,22 @@ public interface PostReactionRepository extends JpaRepository<PostReaction, Long
             ON DUPLICATE KEY UPDATE PST_RCT_kind = :kind, is_valid = TRUE, UPT_Date = NOW(6)
             """, nativeQuery = true)
     int upsertKind(@Param("userId") Long userId, @Param("postId") Long postId, @Param("kind") String kind);
+
+    /** 유효한 반응을 끈다. 행이 없거나 이미 꺼져 있으면 0행을 바꾸고 끝난다. */
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            UPDATE posts_reactions
+            SET is_valid = FALSE, UPT_Date = NOW(6)
+            WHERE PST_id = :postId AND USR_id = :userId AND is_valid = TRUE
+            """, nativeQuery = true)
+    int cancel(@Param("userId") Long userId, @Param("postId") Long postId);
+
+    @Query("""
+            select new com.example.highteenday_backend.domain.reactions.MyReaction(r.post.id, r.kind)
+            from PostReaction r
+            where r.user.id = :userId
+              and r.isValid = true
+              and r.post.id in :postIds
+            """)
+    List<MyReaction> findMine(@Param("userId") Long userId, @Param("postIds") Collection<Long> postIds);
 }
