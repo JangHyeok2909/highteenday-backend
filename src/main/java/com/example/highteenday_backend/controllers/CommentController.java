@@ -1,7 +1,8 @@
 package com.example.highteenday_backend.controllers;
 
 
-import com.example.highteenday_backend.domain.posts.ReactionKind;
+import com.example.highteenday_backend.domain.reactions.ReactionKind;
+import com.example.highteenday_backend.domain.reactions.ReactionTarget;
 import jakarta.validation.Valid;
 import com.example.highteenday_backend.domain.comments.Comment;
 import com.example.highteenday_backend.domain.posts.Post;
@@ -33,7 +34,7 @@ import java.util.Map;
 public class CommentController {
     private final PostService postService;
     private final CommentService commentService;
-    private final CommentReactionService commentReactionService;
+    private final ReactionService reactionService;
     private final CommentAnonymizationService commentAnonymizationService;
 
     @Operation(summary = "댓글 리스트 조회",description = "postId에 해당하는 게시글의 댓글 리스트 조회")
@@ -52,7 +53,9 @@ public class CommentController {
             // 댓글마다 좋아요·싫어요를 따로 물으면 조회가 2N 번 나간다. 댓글 500개짜리 인기
             // 글이면 그 왕복만 1,000번이다. 부하 실측에서는 이 확인이 요청당 쿼리의 약 93%였다.
             // 한 번에 받아 맵으로 읽는다.
-            Map<Long, ReactionKind> myReactions = commentReactionService.findMyReactions(comments, user);
+            List<Long> commentIds = comments.stream().map(Comment::getId).toList();
+            Map<Long, ReactionKind> myReactions =
+                    reactionService.findMine(ReactionTarget.COMMENT, commentIds, user.getId());
             for (int i = 0; i < comments.size(); i++) {
                 Comment c = comments.get(i);
                 CommentDto dto = dtos.get(i);

@@ -1,7 +1,8 @@
 package com.example.highteenday_backend.eventEntities.eventListeners;
 
+import com.example.highteenday_backend.domain.reactions.ReactionTarget;
 import com.example.highteenday_backend.eventEntities.events.CommentCreatedEvent;
-import com.example.highteenday_backend.eventEntities.events.PostReactedEvent;
+import com.example.highteenday_backend.eventEntities.events.ReactionChangedEvent;
 import com.example.highteenday_backend.eventEntities.events.ScrapToggledEvent;
 import com.example.highteenday_backend.services.domain.HotPostService;
 import org.junit.jupiter.api.DisplayName;
@@ -45,17 +46,18 @@ class HotPostEventListenerTest {
     }
 
     @Nested
-    @DisplayName("onPostReacted")
-    class OnPostReacted {
+    @DisplayName("onReactionChanged")
+    class OnReactionChanged {
 
         @Test
         @DisplayName("게시글 반응 → 해당 게시글 Hot Score 갱신")
         void updatesHotScore() {
-            PostReactedEvent event = PostReactedEvent.builder()
-                    .postId(20L)
+            ReactionChangedEvent event = ReactionChangedEvent.builder()
+                    .target(ReactionTarget.POST)
+                    .targetId(20L)
                     .build();
 
-            listener.onPostReacted(event);
+            listener.onReactionChanged(event);
 
             verify(hotPostService).updateLeaderboardDayScore(20L);
         }

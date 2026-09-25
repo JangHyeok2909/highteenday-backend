@@ -1,7 +1,7 @@
 package com.example.highteenday_backend.domain.comments;
 
 import com.example.highteenday_backend.domain.base.BaseEntity;
-import com.example.highteenday_backend.domain.posts.ReactionKind;
+import com.example.highteenday_backend.domain.reactions.ReactionKind;
 import com.example.highteenday_backend.domain.users.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -39,13 +39,4 @@ public class CommentReaction extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "CMT_RCT_kind", nullable = false, length = 16)
     private ReactionKind kind;
-
-    public void applyActive(ReactionKind kind) {
-        this.kind = kind;
-        this.isValid = true;
-    }
-
-    public void cancel() {
-        this.isValid = false;
-    }
 }
