@@ -61,5 +61,5 @@ fetch join으로 함께 가져오도록 바꿨다. 댓글 6개, 492개, 4,040개
   `normal-day-2026-09-03T00-13-47`
 - fetch join 후: [첫 실행](../reports/runs/normal-day-2026-09-04T04-44-49/report.html)부터
   `normal-day-2026-09-04T05-33-04`
-- 관련 코드와 테스트: `CommentRepository`, `CommentReactionService`,
-  `CommentRepositoryTest`, `CommentReactionServiceTest`
+- 관련 코드와 테스트: `CommentRepository`, `CommentReactionRepository.findMine`,
+  `CommentReactionStore.findMine`, `CommentRepositoryTest`, `CommentReactionStoreTest`
