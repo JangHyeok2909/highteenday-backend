@@ -1,7 +1,8 @@
 package com.example.highteenday_backend.eventEntities.eventListeners;
 
+import com.example.highteenday_backend.domain.reactions.ReactionTarget;
 import com.example.highteenday_backend.eventEntities.events.CommentCreatedEvent;
-import com.example.highteenday_backend.eventEntities.events.PostReactedEvent;
+import com.example.highteenday_backend.eventEntities.events.ReactionChangedEvent;
 import com.example.highteenday_backend.eventEntities.events.ScrapToggledEvent;
 import com.example.highteenday_backend.services.domain.HotPostService;
 import lombok.RequiredArgsConstructor;
@@ -20,8 +21,9 @@ public class HotPostEventListener {
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onPostReacted(PostReactedEvent event) {
-        hotPostService.updateLeaderboardDayScore(event.getPostId());
+    public void onReactionChanged(ReactionChangedEvent event) {
+        if (event.getTarget() != ReactionTarget.POST) return;
+        hotPostService.updateLeaderboardDayScore(event.getTargetId());
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

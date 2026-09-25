@@ -1,6 +1,7 @@
 package com.example.highteenday_backend.services.testing;
 
 import com.example.highteenday_backend.domain.posts.*;
+import com.example.highteenday_backend.domain.reactions.ReactionKind;
 import com.example.highteenday_backend.dtos.PostConsistencyResponse;
 import com.example.highteenday_backend.services.domain.PostService;
 import lombok.RequiredArgsConstructor;
