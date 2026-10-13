@@ -1,60 +1,100 @@
-# ==============================
-# local 프로파일 템플릿
+# ==============================================================================
+# Template for the local profile.
 #
-# application.properties 의 기본 프로파일이 local 인데, 실제 파일
-# application-local.properties 는 개인 자격증명이 들어가므로 .gitignore 대상이다.
-# 그래서 저장소를 갓 클론한 상태에서는 옵션 없는 ./gradlew bootRun이 실패한다.
+# application.properties makes local the default profile, but the real
+# application-local.properties holds personal credentials and is ignored by
+# git. A fresh clone therefore fails a plain ./gradlew bootRun.
 #
-# 사용법:
+# Usage:
 #   cp src/main/resources/application-local.properties.example \
 #      src/main/resources/application-local.properties
 #
-# 개인 값만 바꿔 쓰면 된다. 값을 채우기 싫으면 dev 프로파일이 더 편하다 —
-# dev 는 아래 값들의 기본값을 이미 갖고 있다:
+# Then replace the personal values. To skip filling values, run the dev
+# profile instead; it has defaults for all of them:
 #   ./gradlew bootRun --args='--spring.profiles.active=dev'
-# 자세한 절차는 docs/00-quickstart.md 참고.
-# ==============================
+# ==============================================================================
+
 
 # ==============================
-# DB — Flyway 가 스키마를 소유하므로 Hibernate 는 스키마를 건드리지 않는다.
+# Datasource and JPA
 # ==============================
+
+# JDBC URL of the local MySQL.
 spring.datasource.url=jdbc:mysql://localhost:3306/highteenday_db
+
+# Database user.
 spring.datasource.username=root
+
+# Database password. Fill in your own.
 spring.datasource.password=
+
+# Hibernate never touches the schema; Flyway owns it (docs/MIGRATION.md).
 spring.jpa.hibernate.ddl-auto=none
+
+# Never runs schema.sql or data.sql.
 spring.sql.init.mode=never
+
 
 # ==============================
 # Redis
 # ==============================
+
+# Redis host.
 spring.data.redis.host=localhost
+
+# Redis port.
 spring.data.redis.port=6379
+
 
 # ==============================
 # CORS
 # ==============================
+
+# Not read by the code. SecurityConfig.ALLOWED_ORIGINS fixes the allowed
+# origins.
 app.cors.allowed-origins=http://localhost:3000
 
+
 # ==============================
-# JWT — HMAC-SHA512 서명 키. 64바이트 이상의 임의 문자열을 쓴다.
+# JWT
 # ==============================
+
+# HMAC key that signs access and refresh tokens. Use a random string of at
+# least 64 bytes; HS512 rejects shorter keys.
 jwt.key=local-dev-jwt-signing-key-must-be-at-least-64-bytes-long-0123456789abcdef
 
-# ==============================
-# OAuth2 — 구글 로그인을 실제로 테스트할 때만 유효한 값이 필요하다.
-# 비워 두면 Spring Boot 가 기동에 실패하므로 더미 문자열이라도 넣어야 한다.
-# ==============================
-spring.security.oauth2.client.registration.google.client-id=dummy-client-id
-spring.security.oauth2.client.registration.google.client-secret=dummy-client-secret
 
 # ==============================
-# 외부 연동 — 실제 호출을 하지 않으면 더미 값으로 충분하다.
+# OAuth2 Login (Google)
+# Real values are needed only to test Google login. Spring Boot fails to
+# start with an empty client-id, so keep a dummy string otherwise.
 # ==============================
+
+# Google OAuth client ID.
+spring.security.oauth2.client.registration.google.client-id=dummy-client-id
+
+# Google OAuth client secret.
+spring.security.oauth2.client.registration.google.client-secret=dummy-client-secret
+
+
+# ==============================
+# External Services
+# Dummy values work unless the code actually calls the service.
+# ==============================
+
+# NEIS open API key (school info, meals, and schedules).
 neis.api.key=dummy-neis-key
+
+# S3 bucket for uploaded files.
 cloud.aws.s3.bucket=highteenday-bucket-0906
+
 
 # ==============================
 # Logging
 # ==============================
+
+# Log level of the application packages.
 logging.level.com.example.highteenday_backend=DEBUG
+
+# p6spy SQL logging. Set true to print every SQL statement.
 decorator.datasource.p6spy.enable-logging=false
