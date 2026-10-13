@@ -29,6 +29,8 @@
 | 문서 | 답하는 질문 |
 |---|---|
 | [plan-2027-04.md](plan-2027-04.md) | **이직이 가능해지는 2027년 4월까지 약 30주 동안 무엇을 어떤 순서로 하는가?** 항목 15개(T-01~T-15)와 완료 기준, 구간별 배분, 하지 않기로 한 것과 그 이유 (2026-09-14). **아래 두 문서보다 먼저 읽는다** |
+| [plan-2027-04-transfer-prep.md](plan-2027-04-transfer-prep.md) | **프로젝트를 4주 안에 닫고 2027년 4월 병역특례 전직을 준비하려면 30주를 어떻게 쓰는가?** 코테·무AI 구현·실행형 CS Lab·지원 일정을 주 단위로 정한 실행 계획 (2026-09-25) |
+| [cs-lab-live-coding-project-prompts.md](cs-lab-live-coding-project-prompts.md) | `~/Desktop/project` 아래에 공개용 CS Lab과 비공개 라이브 코딩 연습 저장소를 어떤 구조와 학습 보호 규칙으로 만드는가? 복사용 생성 프롬프트 2개 (2026-09-25) |
 | [TODO.md](TODO.md) | 애플리케이션 코드를 고쳐야 끝나는 일이 무엇이고 어느 파일을 봐야 하는가? (1번: API 멱등성) |
 | [ops-simulation-plan.md](ops-simulation-plan.md) | 실사용자 없이 운영 트래픽과 장애 대응을 다뤄 보려면 무엇을 어떤 순서로 갖춰야 하는가? 검토했다 버린 대안과 이유, `performance/` 와의 격리 규칙 (2026-09-14) |
 
@@ -39,6 +41,8 @@
 
 | 문서 | 답하는 질문 | 언제 읽나 |
 |---|---|---|
+| [tokyo-bigtech-route.md](career/tokyo-bigtech-route.md) | **최종 목표(도쿄 미국계 빅테크 SWE)에서 거꾸로 보면 경로가 성립하는가?** 도쿄 공고 실측, 레벨별 합격 기준, 한국인 선례 19건, 디딤돌 비교, 격차표, 분기 게이트와 점검 기록 (2026-09-25) | **진로 순서를 정할 때, 분기 점검 때 — 이 표의 다른 문서보다 먼저** |
+| [final-goal-review.md](career/final-goal-review.md) | **도쿄 미국계 빅테크를 최종 목표로 유지할 것인가, 국내 대형 IT로 바꿀 것인가?** 일본 개발자 부족의 실체, 거점별(도쿄·싱가포르·시드니·서울) 공고 실측, 한국·일본 세후와 월세를 뺀 소득 비교, 동기별 판단 틀 (2026-09-25) | **최종 목표나 거점을 다시 따질 때** |
 | [military-service-company-ranking.md](career/military-service-company-ranking.md) | **어느 회사에 지원할 것인가?** 보충역 4급 신규편입으로 지원 가능한 병역특례 백엔드 공고 전체를 성장 가능성 순으로 줄 세운 것. 지원 불가 회사와 그 이유 포함 | **지원 대상 회사를 정할 때 — `toss-target-role.md` 보다 먼저** |
 | [resume-with-claude-code.md](career/resume-with-claude-code.md) | **AI를 써서 만든 서류가 왜 사람에게 안 읽히고 어떻게 써야 읽히는가?** 읽는 방식·AI 티 신호·구조·문장 공식·클로드의 역할 분담·작업 절차·도구를 출처 22곳으로 정리 | 원고를 다시 쓰기 전, 클로드에게 무엇을 시킬지 정할 때 |
 | [resume-assets.md](career/resume-assets.md) | 공고의 각 줄에 이 프로젝트의 무엇으로 답하는가? 답할 것이 없는 줄은 어디이고 무엇을 만들어야 채워지는가? | 이력서를 쓰기 전, **프로젝트 고도화 항목을 고를 때** |
@@ -64,6 +68,7 @@
 | [guides/perf-mastery-checklist.md](guides/perf-mastery-checklist.md) | 시스템 전체를 실제로 이해했는가? 단계별 학습 진도와 자가진단 |
 | [worklog/delegation-scope.md](worklog/delegation-scope.md) | 어떤 결함을 위임할 수 있고 어떤 것은 직접 해야 하는가 |
 | [worklog/fix-log.md](worklog/fix-log.md) | 위임한 결함이 무엇이 어떻게 고쳐졌는가 |
+| [worklog/recall-log.md](worklog/recall-log.md) | 내가 만든 변경을 기록 없이 설명할 수 있는가, 언제 다시 확인하나 |
 | [worklog/overnight-execution-fixes-2026-08-18.md](worklog/overnight-execution-fixes-2026-08-18.md) | 무인 야간 실행 중 발견해 고친 것 |
 | [worklog/roadmap-personal-ops.md](worklog/roadmap-personal-ops.md) | 성능 로드맵에서 떼어 낸 개인 실행 계획 — 다음 작업일 순서, 밤새 무인 실행 목록 (2026-09-05 분리) |
 | `guides/HighTeenDay_하드웨어_자원_병목_학습서.pdf` | 하드웨어 자원 병목 학습 자료 |
