@@ -1,5 +1,6 @@
-# Database migrations
+# DB 스키마 변경 절차
 
+이 문서는 "MySQL 스키마를 기존 데이터를 깨지 않고 어떻게 바꾸는가"에 답한다.
 MySQL 스키마는 Flyway가 변경한다. 엔티티를 수정해도 dev와 prod의
 `spring.jpa.hibernate.ddl-auto=none` 설정은 스키마를 자동 변경하지 않는다.
 
@@ -27,6 +28,9 @@ migration으로 고친다.
 
 큰 테이블의 인덱스와 컬럼 변경은 잠금 시간과 디스크 여유를 별도로 확인한다.
 
+예: [V7](../src/main/resources/db/migration/V7__scraps_unique_usr_pst.sql)은 같은 사용자·게시글의 중복 스크랩 행을
+먼저 정리하고 파생 카운터를 다시 맞춘 뒤 `UNIQUE` 제약을 건다.
+
 ## baseline 동작
 
 공통 설정은 `baseline-on-migrate=true`, `baseline-version=1`이다.
@@ -47,9 +51,17 @@ V1의 차이는 새 migration으로 수렴시킨다.
 못한다. 변경 전용 MySQL에서 애플리케이션을 시작해 Flyway 적용을 확인한다.
 
 ```bash
-docker compose up -d mysql
-./gradlew bootRun --args='--spring.profiles.active=dev'
+docker compose up -d mysql redis
+DB_PASSWORD=root ./gradlew bootRun --args='--spring.profiles.active=dev'
 ```
+
+`docker-compose.yml`의 MySQL root 비밀번호 기본값은 `root`이고 dev 프로필의 `DB_PASSWORD` 기본값은
+비어 있어서, 환경변수를 주지 않으면 접속에 실패한다. dev 프로필은 Redis도 쓰므로 함께 띄운다.
+
+Flyway는 애플리케이션 컨텍스트를 만드는 단계에서 적용되고, dev 프로필의 데모 데이터 적재는 기동이 끝난
+뒤에 실행된다. 빈 DB에서는 migration이 게시판 행을 만들지 않아 데모 게시글 적재가 실패하고 앱이
+종료된다. 이 실패는 Flyway 적용 뒤에 일어나므로, Flyway 결과는 기동 로그의 `Successfully applied` 행과
+아래 이력 표로 판정한다. 데모 데이터가 일부 들어간 이 DB는 다른 검증에 다시 쓰지 않는다.
 
 적용 결과는 MySQL에서 확인한다.
 

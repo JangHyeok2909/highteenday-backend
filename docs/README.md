@@ -1,14 +1,21 @@
-# Project documentation
+# 문서 안내
 
-이 디렉터리는 현재 시스템을 변경하거나 운영할 때 필요한 지식만 보관한다.
+이 디렉터리는 현재 시스템을 이해하고 바꾸거나 운영할 때 필요한 문서를 둔다.
 
-| 질문 | 정본 |
+처음 읽는 순서는 저장소 [README](../README.md#읽는-순서)에 있다.
+
+## 질문별 문서
+
+| 질문 | 문서 |
 |---|---|
-| DB, Redis, S3는 어떤 데이터를 소유하는가 | [architecture.md](architecture.md) |
-| 지금 해결하지 않은 문제는 무엇인가 | [issues.md](issues.md) |
-| 스키마를 어떻게 변경하는가 | [MIGRATION.md](MIGRATION.md) |
-| 장애나 배포 실패에 어떻게 대응하는가 | [runbook.md](operations/runbook.md) |
-| 성능과 장애 실험은 어떻게 수행하는가 | [performance](../performance/README.md) |
+| 어떤 문제를 실험으로 찾았고 어떻게 됐는가 | [사례 색인](../performance/cases/README.md) |
+| 왜 이렇게 만들었고 무엇을 감수했는가 | [설계 결정](decisions.md) |
+| 요청은 어디를 지나고 데이터는 어디에 있는가 | [시스템 구조](architecture.md) |
+| 지금 남아 있는 문제는 무엇인가 | [알려진 문제](issues.md) |
+| 측정 수치를 어떻게 믿을 수 있게 했는가 | [측정 방법](../performance/METHOD.md) |
+| 부하·장애 실험은 어떻게 돌리는가 | [성능·장애 실험](../performance/README.md) |
+| 스키마는 어떻게 바꾸는가 | [DB 스키마 변경 절차](MIGRATION.md) |
+| 장애나 배포 실패에 어떻게 대응하는가 | [운영 대응 절차](operations/runbook.md) |
 
-코드 작성 규칙과 테스트 원칙은 루트 [CLAUDE.md](../CLAUDE.md)가 소유한다. 해결된 문제,
-개인 학습 기록, 제출용 글쓰기 규칙은 공용 문서에 두지 않는다.
+코드 작성 규칙과 테스트 원칙은 루트의 [CLAUDE.md](../CLAUDE.md)에서 관리한다. 이 저장소는 AI 코딩
+에이전트와 함께 개발하며, 에이전트와 사람이 같은 규칙을 따르도록 그 파일 하나에 모아 두었다.
