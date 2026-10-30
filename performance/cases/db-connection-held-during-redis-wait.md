@@ -1,26 +1,18 @@
 # Redis 장애 중 DB 커넥션 점유 증가
 
-> 상태: needs-evidence — 점유 증가는 관측, OSIV 원인은 미검증
-> 영향도: high — Redis 장애와 함께 MySQL 커넥션 풀이 최대 60/60까지 사용됨
-> 대조군 실행: `redis-crash-2026-09-17T07-14-13` (서킷브레이커 없음)
-> 비교 실행: `redis-crash-2026-09-17T06-14-24` (서킷브레이커 있음)
+> 상태: 조사 중. 커넥션 점유 증가는 관측했고, 어느 코드 경로가 커넥션을 오래 쥐었는지는 확인하지 못했다.
+> 영향도: 높음. Redis 장애와 함께 MySQL 커넥션 풀이 최대 60/60까지 사용됐다.
+> 실행: 대조군 `redis-crash-2026-09-17T07-14-13`(서킷브레이커 없음), 비교 `redis-crash-2026-09-17T06-14-24`(서킷브레이커 있음)
 > 관련: [Redis 장애 전파](redis-failure-cascade.md)의 후속 조사
 
 ## 요약
 
-Redis를 60초 중단한 대조군 실행에서 HikariCP active가 최대 60/60까지 올라갔다.
-커넥션 1회 점유 시간은 정상 구간 28.36ms에서 장애 구간 57.56ms로 늘었고,
-요청 평균 소요 시간도 45.38ms에서 119.89ms로 늘었다. Redis 장애 중 요청 지연과
-커넥션 점유 증가가 함께 관측된 것이다.
+Redis를 60초 중단한 대조군 실행에서 HikariCP active가 최대 60/60까지 올랐다. 커넥션 1회
+점유 시간은 정상 구간 28.36ms에서 장애 구간 57.56ms로 늘었다. 원인 후보는 OSIV(요청이 끝날 때까지
+커넥션을 붙잡는 기본 설정)와 트랜잭션 안의 Redis 호출 두 가지이고, 어느 쪽인지 가리지 못했다. 서킷브레이커를 둔 같은 계획의 실행에서는 장애 구간 HTTP
+p95가 368ms에서 191ms로, HikariCP active 최대가 60개에서 35개로 낮아져 완화는 관측했다.
 
-서킷브레이커가 있는 같은 계획의 실행에서는 장애 구간 HTTP p95가 대조군
-368ms에서 191ms로, HikariCP active 최대가 60개에서 35개로 낮았다. 이는
-반복 Redis 대기를 줄인 완화 관측이다. **어떤 코드 경로가 커넥션을 오래 쥐었는지는
-확인하지 못했다.** OSIV가 유력한 가설이지만 커넥션 획득·반납 시각을 요청별로
-확인하지 않았다. 트랜잭션 내부 Redis 폴백은 전체 폴백의 7.8%였으나, 호출
-건수만으로 트랜잭션의 기여를 배제할 수는 없다.
-
-## 문제 개요와 영향
+## 문제와 영향
 
 대조군은 Redis 장애 구간에 HikariCP active 평균 33.5개, 최대 60개를 기록했다.
 Tomcat busy도 평균 31.5개, 최대 50개로 늘었다. 같은 구간의 커넥션 획득 대기 평균은
@@ -32,11 +24,11 @@ Tomcat busy도 평균 31.5개, 최대 50개로 늘었다. 같은 구간의 커�
 측정하지 않았다. 앞선 [Redis 장애 전파](redis-failure-cascade.md) 실행은 다른 조건에서
 커넥션 풀 대기와 인증 실패를 관측했다.
 
-## 탐지와 관측 근거
+## 탐지 과정
 
 Hikari의 `hikaricp_connections_usage_seconds`는 커넥션을 빌린 뒤 돌려주기까지의
 시간을 기록한다. 같은 구간의 `_sum ÷ _count`로 아래의 평균 점유 시간을 계산했다.
-요청 시간은 `http_server_requests_seconds`의 평균이다. 둘 다 **구간별 집계 평균**이므로
+요청 시간은 `http_server_requests_seconds`의 평균이다. 둘 다 구간별 집계 평균이므로
 표의 점유/요청 비율은 개별 요청이 커넥션을 쥔 비율이 아니다.
 
 | 실행 | 구간 | 커넥션 1회 점유 | 요청 1건 소요 | 두 평균의 비율 | 초당 체크아웃 |
@@ -53,41 +45,43 @@ Hikari의 `hikaricp_connections_usage_seconds`는 커넥션을 빌린 뒤 돌려
 
 | 지표 | 대조군 pre | 대조군 fault | 서킷 fault |
 |---|---:|---:|---:|
-| Hikari active 평균 / 관측 최대 | 7.3 / 9 | 33.5 / **60** | 19.3 / 35 |
+| Hikari active 평균 / 관측 최대 | 7.3 / 9 | 33.5 / 60 | 19.3 / 35 |
 | MySQL threads_running 평균 / 관측 최대 | 10.0 / 19 | 20.8 / 42 | 14.3 / 23 |
-| Tomcat busy 평균 / 관측 최대 | 6.5 / 8 | 31.5 / **50** | 16.3 / 35 |
-| 커넥션 획득 대기 평균 | — | 0.25ms | 0.21ms |
+| Tomcat busy 평균 / 관측 최대 | 6.5 / 8 | 31.5 / 50 | 16.3 / 35 |
+| 커넥션 획득 대기 평균 | - | 0.25ms | 0.21ms |
 
 `초당 체크아웃 × 평균 점유 시간`으로 계산하면 대조군 pre 약 13.6개, fault 약
 29.6개의 동시 점유가 추정된다. 그러나 pre의 추정값 13.6개는 게이지의 관측 최대
 9개보다 크다. 게이지 표본 간격이나 집계 구간 차이를 대조하기 전에는 이 곱을
-실제 동시 점유 수로 사용하지 않는다. 이 문서의 확정된 관측은 **점유 시간 증가와
-active 최고치 60/60**이다.
+실제 동시 점유 수로 사용하지 않는다. 이 문서의 확정된 관측은 점유 시간 증가와
+active 최고치 60/60이다.
 
-## 원인과 촉발 요인
+## 원인과 확신도
 
-**촉발 요인:** Redis를 60초 중단했다. 서킷브레이커가 없는 대조군에서 요청과
+촉발 요인: Redis를 60초 중단했다. 서킷브레이커가 없는 대조군에서 요청과
 커넥션의 평균 점유 시간이 함께 늘었다. 서킷을 사용한 비교 실행에서는 두 값이
 상대적으로 낮았지만, 그 비교만으로 커넥션 유지의 주체를 알 수 없다.
 
-**트랜잭션 경로:** 코드 조사에서 트랜잭션 안의 Redis 호출은
+트랜잭션 경로: 코드 조사에서 트랜잭션 안의 Redis 호출은
 `HotPostService.updateLeaderboardDayScore`의 `addScore`,
 `TokenService.saveOrUpdate`의 `tokenCache.delete`·`put`,
 `TokenService.deleteByUserEmail`의 `tokenCache.delete`로 분류됐다.
 대조군 장애 구간 폴백은 이 경로에서 382 + 116 + 82 = 580건,
 전체 7,400건의 7.8%였다. 나머지 경로에는 `PostService`의 커밋 뒤 캐시 갱신과
-트랜잭션이 없는 읽기·조회수 호출이 포함된다. **폴백 건수의 7.8%는 커넥션
-점유 시간의 7.8%가 아니다.** 이 수치만으로 트랜잭션이 풀 사용에 기여하지
+트랜잭션이 없는 읽기·조회수 호출이 포함된다. 폴백 건수의 7.8%는 커넥션
+점유 시간의 7.8%가 아니다. 이 수치만으로 트랜잭션이 풀 사용에 기여하지
 않았다고 결론 내릴 수 없다.
 
-**OSIV 가설:** 측정 당시 `spring.jpa.open-in-view`가 명시되지 않았고 기동 로그에
+OSIV 가설: 측정 당시 `spring.jpa.open-in-view`가 명시되지 않았고 기동 로그에
 기본 활성화 경고가 남았다. OSIV는 요청이 끝날 때까지 EntityManager를 유지한다.
 트랜잭션 밖에서 지연 로딩 쿼리가 나간다면 커넥션 반납이 요청 종료와 가까워질
 수 있어 관측과 맞는다. `PostPreviewDto.fromEntity`는 LAZY 관계인 `Post.user`와
 `Post.board`에 접근한다. 하지만 그 접근이 장애 구간에 몇 번 일어났는지,
-커넥션을 정확히 언제 반납했는지는 계측하지 않았다. 따라서 OSIV는 **원인 후보**다.
+커넥션을 정확히 언제 반납했는지는 계측하지 않았다. 따라서 OSIV는 원인 후보다.
+HikariCP active 최대 60이 Tomcat 요청 스레드 최대 50보다 크다는 점도 설명하지 못했다. 요청 밖에서
+커넥션을 쓰는 스케줄러나 비동기 작업이 있으면 가능한 값이지만, 그 경로를 확인하지 않았다.
 
-## 적용된 완화와 남은 검증
+## 조치와 검증
 
 9월 17일 두 실행은 같은 `redis-crash.json`, medium 데이터 지문 `24ddff07519b`,
 warm 캐시, 도착률 60/s, HikariCP 최대 60, Tomcat 최대 50으로 기록됐다. 앱 이미지는
@@ -103,14 +97,14 @@ warm 캐시, 도착률 60/s, HikariCP 최대 60, Tomcat 최대 50으로 기록�
 | fault Tomcat busy 최대 | 50/50 | 35/50 |
 | fault HTTP 오류율 | 0% | 0.007% |
 
-서킷이 열린 뒤 Redis 호출을 보내지 않고 폴백하는 현재 코드와 결과는 **반복 대기
-완화** 설명을 지지한다. 실행 순서, dirty 이미지, 자연 변동 때문에 이 수치 차이
+서킷이 열린 뒤 Redis 호출을 보내지 않고 폴백하는 현재 코드와 결과는 반복 대기
+완화 설명을 지지한다. 실행 순서, dirty 이미지, 자연 변동 때문에 이 수치 차이
 전부를 서킷 단독 효과로 확정하지 않는다. 서킷 도입 뒤 MySQL 반영 후 Redis 정산이
-거절된 별도 위험은 [정산 Case](circuit-open-skips-viewcount-settlement.md)가 소유한다.
+거절된 별도 위험은 [정산 사례](circuit-open-skips-viewcount-settlement.md)가 다룬다.
 
 ### 커넥션 점유 원인 검증 계획
 
-이 Case에서 OSIV 설정이나 호출 경로를 변경하지 않았다. 먼저 트랜잭션 밖 DTO
+이 사례에서 OSIV 설정이나 호출 경로를 변경하지 않았다. 먼저 트랜잭션 밖 DTO
 변환을 정리한 뒤, 서킷브레이커가 없는 대조군 조건에서
 `spring.jpa.open-in-view=false`만 바꿔 비교한다. 데이터셋은 medium 지문
 `24ddff07519b`, `HIKARI_MAX=60`, 도착률 60/s, 장애 계획은 `redis-crash.json`으로
@@ -150,11 +144,11 @@ warm 캐시, 도착률 60/s, HikariCP 최대 60, Tomcat 최대 50으로 기록�
 
 DTO를 트랜잭션 안에서 만들거나 필요한 연관을 fetch join·DTO projection으로
 가져오는 방법이 있다. `PostService.createPost`는 트랜잭션 안에서 DTO를 만들고,
-[댓글 쿼리 Case](comment-query-amplification.md)는 fetch join을 사용한 선례다.
+[댓글 쿼리 사례](comment-query-amplification.md)는 fetch join을 사용한 선례다.
 반면 `ChatService`, `NotificationService`, `FriendService` 등 트랜잭션 안에서
 DTO를 만드는 경로는 이 코드 조사에서 위험 경로로 분류하지 않았다.
 
-## 배운 점과 남은 위험
+## 남은 위험
 
 - 요청 시간과 커넥션 점유 시간의 동반 상승은 원인 후보를 좁히지만,
   집계 평균만으로 OSIV와 트랜잭션의 기여를 분리할 수 없다.
@@ -176,9 +170,10 @@ OSIV를 꺼도 점유 시간과 active가 줄지 않으면 가설을 수정한�
 
 ## 근거
 
-- 대조군: [report.html](../resilience/reports/redis-crash-2026-09-17T07-14-13/report.html) · [run.json](../resilience/reports/redis-crash-2026-09-17T07-14-13/run.json)
-- 서킷 비교: [report.html](../resilience/reports/redis-crash-2026-09-17T06-14-24/report.html) · [run.json](../resilience/reports/redis-crash-2026-09-17T06-14-24/run.json)
-- 커넥션 점유 시간은 `run.json`에 없다. 당시 Prometheus 질의:
+- 대조군: [`redis-crash-2026-09-17T07-14-13`](../resilience/reports/redis-crash-2026-09-17T07-14-13/) · [run.json](../resilience/reports/redis-crash-2026-09-17T07-14-13/run.json)
+- 서킷 비교: [`redis-crash-2026-09-17T06-14-24`](../resilience/reports/redis-crash-2026-09-17T06-14-24/) · [run.json](../resilience/reports/redis-crash-2026-09-17T06-14-24/run.json)
+- 커넥션 점유 시간과 요청 평균 소요 시간은 `run.json`에 없고, 아래 Prometheus 질의 결과도 저장소에
+  보관하지 않았다. 당시 질의:
 
   ```promql
   1000 * sum(increase(hikaricp_connections_usage_seconds_sum{job="spring-app"}[60s]))
@@ -187,4 +182,4 @@ OSIV를 꺼도 점유 시간과 active가 줄지 않으면 가설을 수정한�
       / sum(increase(http_server_requests_seconds_count{job="spring-app",uri!~"/actuator.*"}[60s]))
   ```
 
-- 관련 코드: `Post`, `PostPreviewDto.fromEntity`, `PostService`, `AfterCommitExecutor`
+- 관련 코드: [`Post`](../../src/main/java/com/example/highteenday_backend/domain/posts/Post.java), [`PostPreviewDto.fromEntity`](../../src/main/java/com/example/highteenday_backend/dtos/PostPreviewDto.java), [`PostService`](../../src/main/java/com/example/highteenday_backend/services/domain/PostService.java), [`AfterCommitExecutor`](../../src/main/java/com/example/highteenday_backend/services/global/AfterCommitExecutor.java)
