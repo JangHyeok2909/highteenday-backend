@@ -21,7 +21,7 @@ import java.util.Set;
  * {@code SameSite=Lax} 라 다른 사이트에서 보낸 쓰기 요청에는 브라우저가 인증 쿠키를 싣지 않는다.
  * 다만 <b>같은 사이트(highteenday.org 의 다른 서브도메인)에서 보낸 요청</b>과 SameSite 를
  * 지키지 않는 오래된 브라우저에는 쿠키가 실리므로, 쓰기 요청의 출처를 한 번 더 검사한다.
- * 2026-10 이전에는 쿠키가 {@code SameSite=None} 이라 이 필터가 유일한 방어였다.
+ * 쿠키를 {@code SameSite=None} 으로 바꾸면 이 필터가 유일한 CSRF 방어가 된다.
  *
  * <h2>어떻게 막는가</h2>
  * 브라우저는 교차 출처 쓰기 요청에 {@code Origin} 헤더를 <b>반드시</b> 붙이고,
