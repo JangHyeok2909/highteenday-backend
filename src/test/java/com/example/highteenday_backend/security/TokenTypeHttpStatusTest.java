@@ -26,6 +26,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -39,6 +41,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,14 +53,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * 토큰 종류 검사와 재발급 거절이 실제 HTTP 상태로 이어지는지 고정한다.
  *
  * <p>다른 웹 슬라이스 테스트는 {@link TokenProvider} 를 목으로 바꿔 끼우므로 서명·종류 검사를
- * 거치지 않는다. 여기서는 실제 TokenProvider 로 토큰을 만들고 보안 필터 체인과 컨트롤러를
- * 그대로 태운다. 저장소 쪽(TokenService, UserRepository)만 목이다.
+ * 거치지 않는다. 여기서는 실제 TokenProvider 와 JwtCookieService 로 토큰·쿠키를 만들고 보안 필터
+ * 체인과 컨트롤러를 그대로 태운다. 저장소 계층(TokenService, UserRepository)과 컨트롤러가 쓰는
+ * 서비스(PostService, PostDetailService), OAuth2 협력자 두 개는 목이다.
  *
  * <p>보호 경로는 {@code DELETE /api/posts/1}, 공개 경로는 {@code POST /api/token/refresh} 다.
  */
 @WebMvcTest(controllers = {PostController.class, TokenController.class})
 @ActiveProfiles("test")
-@Import({SecurityConfig.class, TokenProvider.class})
+@Import({SecurityConfig.class, TokenProvider.class, JwtCookieService.class})
 class TokenTypeHttpStatusTest {
 
     private static final String EMAIL = "test@test.com";
@@ -75,9 +80,6 @@ class TokenTypeHttpStatusTest {
 
     @MockitoBean
     UserRepository userRepository;
-
-    @MockitoBean
-    JwtCookieService jwtCookieService;
 
     @MockitoBean
     PostService postService;
@@ -166,13 +168,35 @@ class TokenTypeHttpStatusTest {
     }
 
     @Test
-    @DisplayName("폐기된 Refresh Token 은 사용자를 조회하지 않고 401 로 거절한다")
-    void revokedRefreshTokenIsRejectedBeforeUserLookup() throws Exception {
+    @DisplayName("저장된 Refresh Token 으로 재발급하면 200 이고 두 쿠키를 다시 심는다")
+    void storedRefreshTokenIsReissued() throws Exception {
+        String refreshToken = refreshToken();
+        when(tokenService.findByRefreshTokenOrThrow(refreshToken))
+                .thenReturn(Token.builder().refreshToken(refreshToken).user(user).build());
+
+        MockHttpServletResponse response = mockMvc
+                .perform(post("/api/token/refresh").cookie(new Cookie("refreshToken", refreshToken)))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getHeaders(HttpHeaders.SET_COOKIE))
+                .hasSize(2)
+                .anySatisfy(h -> assertThat(h).startsWith("accessToken="))
+                .anySatisfy(h -> assertThat(h).startsWith("refreshToken="));
+        // 발급(1회)과 재발급(1회)이 각각 저장한다.
+        verify(tokenService, times(2)).saveOrUpdate(eq(EMAIL), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("저장소가 거절한 Refresh Token 은 401 이고 TokenProvider 는 그 전에 사용자를 조회하지 않는다")
+    void revokedRefreshTokenIsUnauthorized() throws Exception {
         String refreshToken = refreshToken();
         when(tokenService.findByRefreshTokenOrThrow(refreshToken))
                 .thenThrow(new CustomException(ErrorCode.INVALID_TOKEN, "리프레시 토큰이 유효하지 않습니다."));
 
         assertThat(refreshWithRefreshCookie(refreshToken)).isEqualTo(401);
+        // TokenService 가 목이라 이 검증은 TokenProvider 자신의 조회 순서만 고정한다.
+        // TokenService 의 캐시 히트 경로는 토큰을 대조하기 전에 사용자를 조회한다.
         verify(userRepository, never()).findByEmail(anyString());
     }
 
