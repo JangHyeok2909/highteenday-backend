@@ -2,7 +2,7 @@ package com.example.highteenday_backend.security;
 
 import com.example.highteenday_backend.services.security.CustomOAuth2UserService;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -32,26 +32,29 @@ import java.util.List;
 @Configuration
 public class SecurityConfig {
 
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final TokenProvider tokenProvider;
+
     /**
-     * 브라우저에서 이 API 를 부를 수 있는 출처.
+     * 브라우저에서 이 API 를 부를 수 있는 출처. {@code app.cors.allowed-origins} 에서 읽으므로
+     * 프로파일마다 다르다(운영은 highteenday.org 도메인만, 로컬·dev 는 localhost).
      *
      * <p>CORS 허용 목록과 CSRF Origin 검증({@link CsrfOriginValidationFilter})이
      * <b>같은 목록</b>을 본다. 둘이 갈라지면 "CORS 는 통과하는데 쓰기는 403" 같은
-     * 설명하기 어려운 상태가 생긴다.
+     * 설명하기 어려운 상태가 생긴다. WebSocket 핸드셰이크({@code WebSocketConfig})도 같은 설정을 읽는다.
      */
-    private static final List<String> ALLOWED_ORIGINS = List.of(
-            "https://highteenday.org",
-            "https://www.highteenday.org",
-            "http://localhost:3000",
-            "http://localhost:8080"
-    );
+    private final List<String> allowedOrigins;
 
-    @Autowired
-    private CustomOAuth2UserService customOAuth2UserService;
-    @Autowired
-    private OAuth2SuccessHandler oAuth2SuccessHandler;
-    @Autowired
-    private TokenProvider tokenProvider;
+    public SecurityConfig(CustomOAuth2UserService customOAuth2UserService,
+                          OAuth2SuccessHandler oAuth2SuccessHandler,
+                          TokenProvider tokenProvider,
+                          @Value("${app.cors.allowed-origins}") List<String> allowedOrigins) {
+        this.customOAuth2UserService = customOAuth2UserService;
+        this.oAuth2SuccessHandler = oAuth2SuccessHandler;
+        this.tokenProvider = tokenProvider;
+        this.allowedOrigins = List.copyOf(allowedOrigins);
+    }
 
     @Bean
     public TokenAuthenticationFilter tokenAuthenticationFilter() {
@@ -73,7 +76,7 @@ public class SecurityConfig {
                 .cors(cors -> cors
                         .configurationSource(request -> {
                             CorsConfiguration config = new CorsConfiguration();
-                            config.setAllowedOriginPatterns(ALLOWED_ORIGINS);
+                            config.setAllowedOriginPatterns(allowedOrigins);
                             config.setAllowCredentials(true);
                             config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
                             config.setAllowedHeaders(List.of("*"));
@@ -149,7 +152,7 @@ public class SecurityConfig {
                 .addFilterBefore(tokenAuthenticationFilter(), ExceptionTranslationFilter.class)
                 .addFilterBefore(new TokenExceptionFilter(), TokenAuthenticationFilter.class)
                 // 인증 작업을 하기 전에 출처부터 끊는다.
-                .addFilterBefore(new CsrfOriginValidationFilter(ALLOWED_ORIGINS), TokenExceptionFilter.class);
+                .addFilterBefore(new CsrfOriginValidationFilter(allowedOrigins), TokenExceptionFilter.class);
         return http.build();
     }
 
