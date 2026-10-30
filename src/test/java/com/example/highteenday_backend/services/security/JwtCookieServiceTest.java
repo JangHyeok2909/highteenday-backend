@@ -135,9 +135,9 @@ class JwtCookieServiceTest {
         }
 
         @Test
-        @DisplayName("SameSite=None으로 바꿀 때는 Secure도 켜져 있어야 한다")
-        void sameSiteNoneRequiresSecure() {
-            // 브라우저는 SameSite=None 쿠키를 Secure 없이 거부한다.
+        @DisplayName("SameSite=None 과 Secure=true 를 넣으면 그대로 쿠키 속성이 된다")
+        void sameSiteNoneIsPassedThrough() {
+            // 브라우저는 SameSite=None 쿠키를 Secure 없이 거부하지만, 이 서비스는 그 조합을 검사하지 않는다.
             setProperties(".highteenday.org", true, "None");
 
             ResponseCookie cookie = service.buildAccessCookie("a");
