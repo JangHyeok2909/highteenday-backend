@@ -41,7 +41,7 @@ class JwtCookieServiceTest {
     void setUp() {
         service = new JwtCookieService(tokenProvider);
         // @Value 필드는 스프링 없이는 주입되지 않으므로 운영 기본값을 직접 넣는다.
-        setProperties(".highteenday.org", true, "None");
+        setProperties(".highteenday.org", true, "Lax");
     }
 
     private void setProperties(String domain, boolean secure, String sameSite) {
@@ -65,7 +65,7 @@ class JwtCookieServiceTest {
             assertThat(cookie.getMaxAge().getSeconds()).isEqualTo(1800);
             assertThat(cookie.isHttpOnly()).isTrue();
             assertThat(cookie.isSecure()).isTrue();
-            assertThat(cookie.getSameSite()).isEqualTo("None");
+            assertThat(cookie.getSameSite()).isEqualTo("Lax");
             assertThat(cookie.getDomain()).isEqualTo(".highteenday.org");
         }
 
@@ -121,9 +121,11 @@ class JwtCookieServiceTest {
         }
 
         @Test
-        @DisplayName("SameSite=None이면 Secure도 켜져 있어야 한다 — 운영 설정 조합 확인")
+        @DisplayName("SameSite=None으로 바꿀 때는 Secure도 켜져 있어야 한다")
         void sameSiteNoneRequiresSecure() {
             // 브라우저는 SameSite=None 쿠키를 Secure 없이 거부한다.
+            setProperties(".highteenday.org", true, "None");
+
             ResponseCookie cookie = service.buildAccessCookie("a");
 
             assertThat(cookie.getSameSite()).isEqualTo("None");
@@ -190,7 +192,7 @@ class JwtCookieServiceTest {
             assertThat(captor.getValue())
                     .contains("HttpOnly")
                     .contains("Secure")
-                    .contains("SameSite=None")
+                    .contains("SameSite=Lax")
                     .contains("Domain=.highteenday.org")
                     .contains("Path=/");
         }
