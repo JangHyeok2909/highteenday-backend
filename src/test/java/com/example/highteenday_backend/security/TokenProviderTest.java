@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -178,6 +179,68 @@ class TokenProviderTest {
         @DisplayName("완전히 잘못된 문자열 → INVALID_TOKEN 예외")
         void throwsInvalidTokenForGarbage() {
             assertThatThrownBy(() -> tokenProvider.reissueTokens("not.a.jwt"))
+                    .isInstanceOf(TokenException.class)
+                    .satisfies(ex -> assertThat(((TokenException) ex).getErrorCode())
+                            .isEqualTo(ErrorCode.INVALID_TOKEN));
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // 토큰 종류 — Refresh Token 을 Access Token 자리에 쓰지 못하게
+    // ──────────────────────────────────────────────
+    @Nested
+    @DisplayName("토큰 종류 검사")
+    class TokenType {
+
+        @Test
+        @DisplayName("Access Token → getAuthentication 이 사용자 인증을 돌려준다")
+        void acceptsAccessToken() {
+            String accessToken = tokenProvider.generateAccessToken(authentication);
+
+            Authentication result = tokenProvider.getAuthentication(accessToken);
+
+            assertThat(((CustomUserPrincipal) result.getPrincipal()).getUser().getEmailValue())
+                    .isEqualTo("test@test.com");
+        }
+
+        @Test
+        @DisplayName("Refresh Token 을 Access Token 자리에 넣으면 INVALID_TOKEN 예외")
+        void rejectsRefreshTokenAsAccessToken() {
+            String refreshToken = tokenProvider.generateRefreshToken(authentication,
+                    tokenProvider.generateAccessToken(authentication));
+
+            assertThatThrownBy(() -> tokenProvider.getAuthentication(refreshToken))
+                    .isInstanceOf(TokenException.class)
+                    .satisfies(ex -> assertThat(((TokenException) ex).getErrorCode())
+                            .isEqualTo(ErrorCode.INVALID_TOKEN));
+        }
+
+        @Test
+        @DisplayName("Access Token 으로 재발급을 요청하면 INVALID_TOKEN 예외, 저장소 조회도 하지 않는다")
+        void rejectsAccessTokenForReissue() {
+            String accessToken = tokenProvider.generateAccessToken(authentication);
+
+            assertThatThrownBy(() -> tokenProvider.reissueTokens(accessToken))
+                    .isInstanceOf(TokenException.class)
+                    .satisfies(ex -> assertThat(((TokenException) ex).getErrorCode())
+                            .isEqualTo(ErrorCode.INVALID_TOKEN));
+            verify(tokenService, never()).findByRefreshTokenOrThrow(anyString());
+        }
+
+        @Test
+        @DisplayName("종류 클레임이 없는 토큰(변경 전 발급분) → INVALID_TOKEN 예외")
+        void rejectsTokenWithoutType() {
+            String legacyToken = Jwts.builder()
+                    .setSubject(user.getEmailValue())
+                    .claim("role", "ROLE_USER")
+                    .claim("name", user.getNameValue())
+                    .claim("provider", user.getProvider().name())
+                    .setIssuedAt(new Date())
+                    .setExpiration(new Date(System.currentTimeMillis() + 60_000))
+                    .signWith(secretKey, SignatureAlgorithm.HS512)
+                    .compact();
+
+            assertThatThrownBy(() -> tokenProvider.getAuthentication(legacyToken))
                     .isInstanceOf(TokenException.class)
                     .satisfies(ex -> assertThat(((TokenException) ex).getErrorCode())
                             .isEqualTo(ErrorCode.INVALID_TOKEN));
