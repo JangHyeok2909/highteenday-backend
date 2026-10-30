@@ -52,7 +52,12 @@ public class TokenProvider {
     public String generateAccessToken(Authentication authentication){
         return generateToken(authentication, ACCESS_TOKEN_EXPIRE_TIME, TOKEN_TYPE_ACCESS);
     }
-    // refreshToken 발급 — 역할이 GUEST 인 사용자에게는 발급하지 않고 null 을 반환한다
+    /**
+     * Refresh Token 을 발급하고 저장한다.
+     *
+     * @return 발급한 토큰. 역할이 GUEST 인 사용자에게는 발급하지 않고 {@code null} 을 돌려주므로
+     *         호출자는 null 이면 refreshToken 쿠키를 심지 않는다.
+     */
     public String generateRefreshToken(Authentication authentication, String accessToken){
         log.debug("Refresh token issued. authorities={}", authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
@@ -78,14 +83,16 @@ public class TokenProvider {
         Claims claims = parseClaims(refreshToken);
         requireTokenType(claims, TOKEN_TYPE_REFRESH);
 
-        // 2. DB에 저장된 토큰인지 확인 (서버 측 폐기 여부 체크). 폐기된 토큰은 사용자를 조회하지 않고 거절한다.
+        // 2. DB에 저장된 토큰인지 확인 (서버 측 폐기 여부 체크)
         tokenService.findByRefreshTokenOrThrow(refreshToken);
+
+        // 3. 토큰의 사용자 조회. 저장 토큰 확인 뒤에 두어, 사용자가 없는 토큰이 자격 증명 실패(401)로 끝난다.
         Authentication authentication = toAuthentication(claims);
 
-        // 3. 새 accessToken 발급
+        // 4. 새 accessToken 발급
         String newAccessToken = generateAccessToken(authentication);
 
-        // 4. 새 refreshToken 발급 + DB 갱신 (rotation)
+        // 5. 새 refreshToken 발급 + DB 갱신 (rotation)
         String newRefreshToken = generateRefreshToken(authentication, newAccessToken);
 
         return new TokenPair(newAccessToken, newRefreshToken);
