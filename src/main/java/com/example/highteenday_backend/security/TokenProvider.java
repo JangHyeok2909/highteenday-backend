@@ -38,7 +38,6 @@ public class TokenProvider {
     private static final long REFRESH_TOKEN_EXPIRE_TIME = 1000 * 60 * 60L * 24 * 7; // 7일
     private static final String KEY_ROLE = "role";
     // Access·Refresh 토큰을 같은 키와 같은 클레임으로 만들므로, 종류를 클레임에 담아 용도 밖 사용을 막는다.
-    // 이 클레임이 없을 때는 Refresh Token 을 accessToken 쿠키에 넣어도 인증 필터를 통과했다.
     private static final String KEY_TOKEN_TYPE = "token_type";
     private static final String TOKEN_TYPE_ACCESS = "access";
     private static final String TOKEN_TYPE_REFRESH = "refresh";
@@ -53,7 +52,7 @@ public class TokenProvider {
     public String generateAccessToken(Authentication authentication){
         return generateToken(authentication, ACCESS_TOKEN_EXPIRE_TIME, TOKEN_TYPE_ACCESS);
     }
-    // refreshToken 발급 — DB 역할이 GUEST 인 사용자면 null 반환(현재 GUEST 를 부여하는 가입 경로는 없다)
+    // refreshToken 발급 — 역할이 GUEST 인 사용자에게는 발급하지 않고 null 을 반환한다
     public String generateRefreshToken(Authentication authentication, String accessToken){
         log.debug("Refresh token issued. authorities={}", authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
@@ -78,10 +77,10 @@ public class TokenProvider {
         // 1. 서명/만료와 토큰 종류(refresh) 검증
         Claims claims = parseClaims(refreshToken);
         requireTokenType(claims, TOKEN_TYPE_REFRESH);
-        Authentication authentication = toAuthentication(claims);
 
-        // 2. DB에 저장된 토큰인지 확인 (서버 측 폐기 여부 체크)
+        // 2. DB에 저장된 토큰인지 확인 (서버 측 폐기 여부 체크). 폐기된 토큰은 사용자를 조회하지 않고 거절한다.
         tokenService.findByRefreshTokenOrThrow(refreshToken);
+        Authentication authentication = toAuthentication(claims);
 
         // 3. 새 accessToken 발급
         String newAccessToken = generateAccessToken(authentication);
@@ -130,7 +129,7 @@ public class TokenProvider {
         return toAuthentication(claims);
     }
 
-    // 종류 클레임이 기대값과 다르거나 없으면(이 변경 전에 발급된 토큰 포함) 무효 토큰으로 본다.
+    // 종류 클레임이 없거나 기대값과 다르면 무효 토큰으로 본다.
     private void requireTokenType(Claims claims, String expected){
         if (!expected.equals(claims.get(KEY_TOKEN_TYPE, String.class))) {
             throw new TokenException(ErrorCode.INVALID_TOKEN);
@@ -149,8 +148,9 @@ public class TokenProvider {
         attributes.put("name", name);
         attributes.put("provider", provider);
 
+        // 서명이 맞아도 사용자 행이 없으면 자격 증명 실패다. 재발급 API는 이 예외를 401로 응답한다.
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("유저 없음"));
+                .orElseThrow(() -> new TokenException(ErrorCode.INVALID_TOKEN));
 
         CustomUserPrincipal principal = new CustomUserPrincipal(user, attributes, false);
 
