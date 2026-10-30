@@ -1,82 +1,109 @@
-# Performance testing
+# 성능·장애 실험
 
-이 디렉터리는 부하 실행 코드, 자동 생성 원자료, 사람이 검증한 문제 기록을 함께 둔다.
-실행 결과와 해석을 분리한다.
+이 폴더는 HighTeenDay 백엔드에 같은 조건으로 부하를 넣고, MySQL·Redis 장애와 응답 유실을 주입하는
+실험 도구와 원자료를 둔다. 실험에서 확인한 문제는 관측, 원인, 수정, 재검증 순서로 사례 문서에 남긴다.
 
-| 대상 | 위치 |
+| 보고 싶은 것 | 위치 |
 |---|---|
-| 측정 원칙과 비교 조건 | [METHOD.md](METHOD.md) |
-| 일반 실행 원자료 | [reports/](reports/) |
-| 장애 주입기와 원자료 | [resilience/](resilience/) |
-| 확인된 문제 기록 | [cases/](cases/) |
+| 확인한 문제와 결과 | [사례 색인](cases/README.md) |
+| 일반 부하 실행 기록 | [실행 기록 대시보드](https://janghyeok2909.github.io/highteenday-backend/) |
+| 두 실행을 비교해도 되는 조건 | [측정 방법](METHOD.md) |
+| 장애 주입 절차 | [장애 주입 실험](resilience/README.md) |
+
+## 실험 환경
+
+앱, MySQL, Redis와 관측 도구는 Docker Compose로 띄운다. 컨테이너 자원 한계와 포트는
+[docker-compose.perf.yml](environment/docker-compose.perf.yml)에서 관리하고, 이 문서에 값을 옮겨 적지 않는다.
+
+| 구성 요소 | 역할 |
+|---|---|
+| 앱 | 저장소 루트의 Dockerfile로 만든 Spring Boot 이미지. `prod,perf` 프로필로 실행 |
+| MySQL 8 | 버퍼 풀 크기 등 설정을 Compose의 `command` 플래그로 고정 |
+| Redis 7 | `environment/redis/`의 설정 파일로 고정 |
+| Prometheus, Grafana | 앱(Micrometer), MySQL·Redis exporter, cAdvisor, node-exporter 지표 수집과 화면 |
+| k6 | 기본(`--loadgen local`)은 Compose 밖 호스트에서 실행하고, `--loadgen docker`를 주면 같은 네트워크의 k6 컨테이너로 실행한다. 두 방식 모두 기본으로 k6 지표를 Prometheus로 보낸다(`--no-remote-write`로 끔) |
+| Toxiproxy | 장애 실험에서만 앱과 MySQL·Redis 사이, k6와 앱 사이에 두어 지연과 응답 차단을 주입 ([docker-compose.fault.yml](environment/docker-compose.fault.yml)) |
+
+`environment/mysql/perf.cnf`는 지금 마운트하지 않는 옛 설정 파일이다. 실제 MySQL 설정은 Compose의
+`command` 플래그다.
+
+## 장애 주입
+
+Redis와 MySQL의 정지·일시 정지·응답 지연·응답 차단, 앱 응답 유실 뒤 재시도를 주입한다. 계획 파일마다
+실험이 답하려는 질문을 먼저 적는다. 종류와 실행 절차는 [장애 주입 실험](resilience/README.md)에서 다룬다.
 
 ## 준비와 실행
 
 Node.js 18 이상, Docker Compose와 k6가 필요하다. 명령은 `performance/`에서 실행한다.
 
-```bash
-docker compose -f environment/docker-compose.perf.yml \
-  --env-file environment/.env.perf up -d --build
+1. 환경 파일을 만든다. `JWT_KEY`가 비어 있으면 Compose가 변수 해석 단계에서 멈춰 어떤 컨테이너도 뜨지
+   않는다. `openssl`의 Base64 출력은 64자마다 줄이 바뀌므로 줄바꿈을 지워 한 줄로 넣는다.
 
-node datasets/seed.js --profile medium
-bash datasets/verify.sh medium
-node tools/preflight.js --dataset medium --rate 4
+   ```bash
+   cp environment/.env.perf.example environment/.env.perf
+   openssl rand -base64 64 | tr -d '\n'   # 출력값을 .env.perf의 JWT_KEY에 넣는다
+   ```
 
-node tools/perf-run.js scenarios/normal-day.js \
-  --dataset medium --loadgen docker --warmup 300
+2. 스택을 띄우고 데이터셋을 적재한다. `bootstrap.js`는 게시판 기본 행 삽입, Redis 초기화, 중복 적재
+   차단을 함께 처리하므로 `seed.js`를 직접 부르지 않는다.
 
-npm test
-```
+   ```bash
+   docker compose -f environment/docker-compose.perf.yml \
+     --env-file environment/.env.perf up -d --build
+   node environment/bootstrap.js --profile medium
+   bash datasets/verify.sh medium
+   ```
 
-데이터 수량은 `datasets/profiles.json`, 컨테이너 자원과 포트는 Compose 파일, 명령 옵션은
-각 도구의 `--help`가 정본이다. README에 값을 복제하지 않는다.
+3. 상태 스냅샷을 만든다. 이 저장소는 [perf.config.json](perf.config.json)의 `datasetGuard`가 `strict`라서,
+   현재 데이터셋 생성 지문과 맞는 스냅샷이 없으면 `preflight.js`(G2)와 `perf-run.js`가 실행을 거부한다.
+   저장소의 `datasets/snapshots/*/snapshot.json`은 메타데이터뿐이고, 복원에 쓰는 볼륨 아카이브는
+   Git에서 제외돼 있으므로 처음 적재한 환경에서 직접 만든다. 실행으로 데이터가 바뀌면 같은 스냅샷으로
+   되돌린다(`node tools/snapshot.js restore medium`).
 
-## 실행 구성
+   ```bash
+   node tools/snapshot.js create medium
+   node tools/preflight.js --dataset medium --rate 4
+   ```
 
-- `environment/`: 앱, MySQL, Redis와 관측 도구
-- `datasets/`: 데이터 생성, 검증, 상태 지문과 스냅샷
-- `scripts/`: 기능 단위 k6 요청
-- `scenarios/`: 사용자 여정을 조합한 부하
-- `tools/`: 사전 점검, 실행, 수집, 비교와 렌더링
-- `metrics/`: Prometheus와 Grafana 설정
-- `regression/`: 비교 규칙과 자동 실행
-- `resilience/`: 의존성 장애 주입
-- `reports/`: 일반 실행 원자료
+4. 저장된 비교 계열과 같은 조건으로 실행한다. 아래는 도착률 4/s, 준비 구간 180초, 측정 구간 5분인
+   `normal-day` 실행([예: normal-day-2026-09-04T05-33-04](https://janghyeok2909.github.io/highteenday-backend/runs/normal-day-2026-09-04T05-33-04/report.html))의 조건이다.
+   `--rate`를 빼면 시나리오가 가상 사용자 200명의 closed model로 돌아 이 계열과 비교할 수 없다.
 
-## 현재 Case
+   ```bash
+   node tools/perf-run.js scenarios/normal-day.js \
+     --dataset medium --loadgen docker --rate 4 --warmup 180 --hold 5m
+   ```
 
-| 문제 | 상태 | 결론 |
-|---|---|---|
-| [댓글 목록 쿼리 증폭](cases/comment-query-amplification.md) | closed | 반응 일괄 조회와 작성자 fetch join으로 쿼리 수를 상수화함 |
-| [Redis 장애 전파](cases/redis-failure-cascade.md) | fixed | 명령 타임아웃 200ms, 이후 100ms로 줄여 60초 지연과 풀 획득 대기 해소 |
-| [Redis 중단 중 고부하 지연](cases/redis-crash-capacity-cliff.md) | needs-evidence | 계단형 실행에서 p95 4초와 dropped iteration 2,429건. 임계 도착률 미확정 |
-| [느린 Redis의 요청 지연](cases/redis-slow-latency-without-fallback.md) | open | 50±10ms 주입 중 HTTP p95 상승, 폴백 0회·헬스 UP. 개선 재검증 전 |
-| [Redis 장애 중 조회수 유실](cases/redis-viewcount-loss-on-fallback.md) | open | hang/crash에서 HTTP 성공 뒤에도 증가분 유실. 보존 경로 미구현 |
-| [Redis 장애 중 헬스 오판정](cases/redis-health-readiness.md) | 운영 적용 미확인 | readiness 분리 후 Redis crash에서 UP; ALB 경로·포트 미확인 |
-| [헬스 폴러의 거짓 TIMEOUT](cases/health-poller-false-timeout.md) | fixed | 폴러의 소켓 타이머 결함 수정 뒤 거짓 TIMEOUT 22건 → 0건 |
-| [서킷 개방이 조회수 정산을 건너뜀](cases/circuit-open-skips-viewcount-settlement.md) | open | MySQL 반영 뒤 Redis 차감 거절 1건 확인. 이중 반영은 미관측 |
-| [Redis 장애 중 DB 커넥션 점유](cases/db-connection-held-during-redis-wait.md) | needs-evidence | 서킷 적용 시 지연·풀 점유 완화 관측. OSIV는 원인 후보이며 미검증 |
-| [MySQL 중단·무응답의 긴 대기](cases/mysql-unavailable-wait-bound.md) | mitigated | 설정 후 실패 지연 단축. DB 장애 중 요청은 대부분 503이며 일부 5초 지연 잔존 |
-| [느린 MySQL의 전 기능 지연](cases/mysql-slow-latency-amplification.md) | open | 300±50ms 주입에서 p95 약 20초. 타임아웃 설정 후에도 재현 |
-| [MySQL 실행 중 정지의 5초 꼬리](cases/mysql-freeze-timeout-gap.md) | open | 요청 3초 상한 가정이 재현 실행에서 깨짐. 대기 단계 추적 필요 |
-| [응답 유실 뒤 재시도의 상태 훼손](cases/retry-after-lost-response.md) | open | 응답 30% 유실 주입에서 토글·생성 재시도 67건이 전부 뒤집힘·중복으로 남음. 재발급 재시도 20건 중 15건 이상 로그아웃 |
+5. 도구 테스트를 돌린다.
 
-새 문제는 별도 “병목”, “실험”, “최적화” 문서로 나누지 않는다. 한 Case 안에서 관측,
-원인, 변경, 재검증과 남은 위험을 이어서 기록한다.
-맨 앞에 상태와 짧은 요약을 두고, 본문은 문제·영향 → 탐지·진행 순서 → 원인과 확신도
-→ 조치·검증 → 남은 위험 → 후속 조치 → 근거 순으로 쓴다. 미해결 Case는 조치 결과
-대신 제안과 검증 계획을 적는다.
+   ```bash
+   npm test
+   ```
 
-`redis-crash`의 여러 실행은 하나의 사고가 아니라 타임아웃, 고부하 완화, 조회수,
-헬스 판정의 서로 다른 문제를 검증한다. `redis-slow`와 `redis-hang`도 주입 방식이
-다르므로 각각의 관측을 해당 Case에 연결했다. 조건이 다른 실행의 수치를 한 줄의
-개선율로 합치지 않는다.
-MySQL의 `slow`·`hang`·`crash`·`freeze`도 주입 방식과 완료 요청 수를 함께 읽는다.
-빠른 503은 오래 기다리던 요청의 결과가 바뀐 것이므로, 오류율만으로 변경 효과를
-판정하지 않는다.
+데이터 수량은 [datasets/profiles.json](datasets/profiles.json)에 있다. 도구 옵션은 각 파일 머리 주석의
+사용법 절에 있다(`--help`는 `preflight.js`만 지원한다). 다만 `perf-run.js`의 `--loadgen local|docker`(기본
+`local`)는 머리 주석 옵션 목록에 빠져 있다. 장애 주입 실행은 [장애 주입 실험](resilience/README.md)을 따른다.
+
+## 폴더 지도
+
+| 폴더 | 내용 |
+|---|---|
+| `environment/` | 앱, MySQL, Redis, 관측 도구, Toxiproxy Compose 설정 |
+| `datasets/` | 데이터 생성, 검증, 상태 지문과 스냅샷 |
+| `scripts/` | 기능 단위 k6 요청(인증, 게시판, 댓글, 채팅 등) |
+| `scenarios/` | 사용자 여정을 조합한 부하(평상시, 시험 기간, 급증, 장시간 등) |
+| `tools/` | 사전 점검, 실행, 수집, 비교 조건 검사, 포화 판정, 리포트 생성 |
+| `metrics/` | Grafana 대시보드 |
+| `regression/` | 회귀 판정 규칙(`rules.json`)과 CI 워크플로 예시(`.github/workflows`에 설치되지 않음) |
+| `resilience/` | 장애 주입기, 계획 파일, 장애 실험 원자료 |
+| `reports/` | 일반 부하 실행 원자료와 대시보드 |
+| `cases/` | 확인한 문제의 사례 문서 |
 
 ## 원자료 규칙
 
-`run.json`은 기계 판독 정본이고 `report.html`은 파생 화면이다. 둘 다 손으로 수정하지 않는다.
-결론은 Case에 필요한 수치만 인용하고 원자료를 링크한다. 비교 가능성과 표현 강도는
-[METHOD.md](METHOD.md)를 따른다.
+- `run.json`이 실행 결과의 기준 파일이다. `report.html`과 대시보드는 `run.json`에서 만든 화면이다.
+- 둘 다 손으로 고치지 않는다. 다시 만들 때는 생성 도구를 실행한다.
+- 사례 문서는 필요한 수치만 인용하고 원자료를 링크한다. 비교 가능 여부와 표현 강도는
+  [측정 방법](METHOD.md)을 따른다.
+- 일반 부하 실행의 `report.html`은 대시보드에서 바로 열린다. 장애 실험 리포트는 GitHub에서
+  렌더링되지 않으므로 `run.json`을 보거나 파일을 내려받아 브라우저로 연다.
