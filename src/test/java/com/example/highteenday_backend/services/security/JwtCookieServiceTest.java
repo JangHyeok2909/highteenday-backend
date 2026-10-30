@@ -12,12 +12,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.support.PropertiesLoaderUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,7 +44,7 @@ class JwtCookieServiceTest {
     void setUp() {
         service = new JwtCookieService(tokenProvider);
         // @Value 필드는 스프링 없이는 주입되지 않으므로 운영 기본값을 직접 넣는다.
-        setProperties(".highteenday.org", true, "None");
+        setProperties(".highteenday.org", true, "Lax");
     }
 
     private void setProperties(String domain, boolean secure, String sameSite) {
@@ -65,7 +68,7 @@ class JwtCookieServiceTest {
             assertThat(cookie.getMaxAge().getSeconds()).isEqualTo(1800);
             assertThat(cookie.isHttpOnly()).isTrue();
             assertThat(cookie.isSecure()).isTrue();
-            assertThat(cookie.getSameSite()).isEqualTo("None");
+            assertThat(cookie.getSameSite()).isEqualTo("Lax");
             assertThat(cookie.getDomain()).isEqualTo(".highteenday.org");
         }
 
@@ -121,9 +124,22 @@ class JwtCookieServiceTest {
         }
 
         @Test
-        @DisplayName("SameSite=None이면 Secure도 켜져 있어야 한다 — 운영 설정 조합 확인")
-        void sameSiteNoneRequiresSecure() {
-            // 브라우저는 SameSite=None 쿠키를 Secure 없이 거부한다.
+        @DisplayName("운영 프로파일의 쿠키 설정은 SameSite=Lax, Secure=true 다")
+        void prodProfileUsesLaxAndSecure() throws Exception {
+            // 이 클래스의 운영 기준값(setUp)이 실제 설정 파일과 어긋나지 않도록 파일을 직접 읽는다.
+            Properties prod = PropertiesLoaderUtils.loadProperties(new ClassPathResource("application-prod.properties"));
+
+            assertThat(prod.getProperty("app.cookie-same-site")).isEqualTo("Lax");
+            assertThat(prod.getProperty("app.cookie-secure")).isEqualTo("true");
+            assertThat(prod.getProperty("app.cookie-domain")).isEqualTo(".highteenday.org");
+        }
+
+        @Test
+        @DisplayName("SameSite=None 과 Secure=true 를 넣으면 그대로 쿠키 속성이 된다")
+        void sameSiteNoneIsPassedThrough() {
+            // 브라우저는 SameSite=None 쿠키를 Secure 없이 거부하지만, 이 서비스는 그 조합을 검사하지 않는다.
+            setProperties(".highteenday.org", true, "None");
+
             ResponseCookie cookie = service.buildAccessCookie("a");
 
             assertThat(cookie.getSameSite()).isEqualTo("None");
@@ -190,7 +206,7 @@ class JwtCookieServiceTest {
             assertThat(captor.getValue())
                     .contains("HttpOnly")
                     .contains("Secure")
-                    .contains("SameSite=None")
+                    .contains("SameSite=Lax")
                     .contains("Domain=.highteenday.org")
                     .contains("Path=/");
         }
