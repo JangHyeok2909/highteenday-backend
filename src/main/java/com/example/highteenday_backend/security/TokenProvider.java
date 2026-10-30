@@ -55,8 +55,9 @@ public class TokenProvider {
     /**
      * Refresh Token 을 발급하고 저장한다.
      *
-     * @return 발급한 토큰. 역할이 GUEST 인 사용자에게는 발급하지 않고 {@code null} 을 돌려주므로
-     *         호출자는 null 이면 refreshToken 쿠키를 심지 않는다.
+     * @return 발급한 토큰. 역할이 GUEST 인 사용자에게는 발급하지 않고 {@code null} 을 돌려준다.
+     *         {@code JwtCookieService.setJwtCookie} 는 null 이면 refreshToken 쿠키를 심지 않는다.
+     *         현재 GUEST 를 부여하는 가입 경로는 없다.
      */
     public String generateRefreshToken(Authentication authentication, String accessToken){
         log.debug("Refresh token issued. authorities={}", authentication.getAuthorities().stream()
@@ -86,7 +87,8 @@ public class TokenProvider {
         // 2. DB에 저장된 토큰인지 확인 (서버 측 폐기 여부 체크)
         tokenService.findByRefreshTokenOrThrow(refreshToken);
 
-        // 3. 토큰의 사용자 조회. 저장 토큰 확인 뒤에 두어, 사용자가 없는 토큰이 자격 증명 실패(401)로 끝난다.
+        // 3. 토큰의 사용자 조회. 저장 토큰 확인 뒤에 두어 폐기된 토큰에는 사용자 조회를 하지 않는다.
+        //    사용자가 없으면 toAuthentication 이 TokenException 으로 끝내 401 이 된다.
         Authentication authentication = toAuthentication(claims);
 
         // 4. 새 accessToken 발급
