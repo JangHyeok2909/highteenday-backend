@@ -20,7 +20,7 @@ public class JwtCookieService {
     @Value("${app.cookie-secure:true}")
     private boolean cookieSecure;
 
-    @Value("${app.cookie-same-site:None}")
+    @Value("${app.cookie-same-site:Lax}")
     private String cookieSameSite;
 
     public void setJwtCookie(Authentication authentication, HttpServletResponse response) {
