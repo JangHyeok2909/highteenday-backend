@@ -1,5 +1,4 @@
 # AGENTS.md
 
-Guidance for coding agents working on this repository lives in [CLAUDE.md](CLAUDE.md).
-It is the single source for build commands, architecture, conventions, and git rules —
-this file only points there so the two never drift.
+코딩 에이전트가 따를 저장소 규칙은 [CLAUDE.md](CLAUDE.md)에 있다. 빌드 명령, 코드 구조, 구현·테스트·Git
+규칙을 그 파일 하나에서 관리하고, 이 파일은 두 문서가 어긋나지 않도록 위치만 가리킨다.
