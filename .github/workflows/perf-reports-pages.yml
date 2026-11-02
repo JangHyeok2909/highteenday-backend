@@ -8,6 +8,7 @@
 #
 # 게시 대상은 performance/reports/ 전체다. 디렉터리 구조를 그대로 올려야
 # history.html -> runs/<runId>/report.html 상대 링크가 살아 있다.
+# 장애 주입 실행(performance/resilience/reports/)은 resilience/ 아래에 같은 구조로 올린다.
 #
 # 활성화 (저장소 설정에서 1회):
 #   Settings > Pages > Build and deployment > Source: GitHub Actions
@@ -19,6 +20,7 @@ on:
     branches: [develop, main]
     paths:
       - "performance/reports/**"
+      - "performance/resilience/reports/**"
       - "performance/tools/**"
       - ".github/workflows/perf-reports-pages.yml"
   workflow_dispatch:
@@ -70,6 +72,11 @@ jobs:
           # 저장소의 원본(performance/reports/overnight/)은 그대로 두어 분석에는 영향이 없다.
           rm -rf _site/overnight
 
+          # 사례 기록이 근거로 드는 장애 주입 실행 보고서를 링크 하나로 열 수 있게 같은 사이트에 올린다.
+          # 보고서끼리 ../<runId>/report.html 로 서로 가리키므로 디렉터리 구조를 그대로 복사한다.
+          mkdir -p _site/resilience
+          cp -r performance/resilience/reports/. _site/resilience/
+
           # Pages의 진입점은 index.html 이다. history.html 이 곧 랜딩 페이지가 된다.
           if [ -f _site/history.html ]; then
             cp _site/history.html _site/index.html
@@ -99,7 +106,10 @@ jobs:
       # 실제로 그렇게 통과했다 — 호스트명이 파일 159개에 남은 게시본을 통과시켰다.
       - name: Verify no internal metadata remains
         working-directory: performance
-        run: node tools/sanitize-reports.js ../_site --verify --source reports
+        # 장애 주입 실행의 커밋·메모는 reports/ 원본에 없는 값이라 그 원본에서도 따로 배워 검사한다.
+        run: |
+          node tools/sanitize-reports.js ../_site --verify --source reports
+          node tools/sanitize-reports.js ../_site --verify --source resilience/reports
 
       - uses: actions/upload-pages-artifact@v3
         with:
