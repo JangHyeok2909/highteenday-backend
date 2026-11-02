@@ -100,7 +100,7 @@ public class SchoolInfoService {
                 page++;
 
             } catch (Exception e) {
-                e.printStackTrace();
+                log.warn("Failed to fetch NEIS school page {}; stopping with {} schools collected.", page, schoolDtos.size(), e);
                 break;
             }
         }
@@ -124,8 +124,8 @@ public class SchoolInfoService {
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(file, schoolDtos);
             log.info("School data saved to schools.json.");
         } catch (IOException e) {
-            log.warn("Failed to save schools.json: {}", e.getMessage());
-            e.printStackTrace();        }
+            log.warn("Failed to save schools.json.", e);
+        }
     }
     @Transactional
     public void importSchoolsFromJson() {
@@ -163,8 +163,7 @@ public class SchoolInfoService {
             log.info("School data loaded from schools.json into DB.");
 
         } catch (IOException e) {
-            log.warn("Failed to read schools.json: {}", e.getMessage());
-            e.printStackTrace();
+            log.warn("Failed to read schools.json.", e);
         }
     }
 
