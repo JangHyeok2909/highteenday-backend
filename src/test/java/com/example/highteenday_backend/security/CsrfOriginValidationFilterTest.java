@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.support.PropertiesLoaderUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -17,14 +19,15 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 교차 출처 쓰기 차단을 검증한다.
  *
- * <p>쿠키 인증 + {@code SameSite=None} + CSRF 비활성 조합이라, 공격자 페이지가 사용자의
- * 브라우저로 쓰기 요청을 대신 보낼 수 있었다. 브라우저가 교차 출처 쓰기에 반드시 붙이는
+ * <p>쿠키 인증 + CSRF 비활성 조합이다. 운영 쿠키는 {@code SameSite=Lax} 지만 같은 사이트의
+ * 다른 서브도메인에서 보낸 요청에는 쿠키가 실리므로, 브라우저가 교차 출처 쓰기에 붙이는
  * {@code Origin} 을 검사해 막는다.
  *
  * <p><b>필터를 직접 호출해 검사하는 이유</b>: MockMvc 로 실제 요청을 보내면 스프링의
@@ -163,6 +166,48 @@ class CsrfOriginValidationFilterTest {
             assertThat(registered)
                     .as("체인에 없으면 판정 로직이 아무리 맞아도 요청을 못 막는다")
                     .isTrue();
+        }
+
+        @Test
+        @DisplayName("허용 출처는 app.cors.allowed-origins 설정에서 읽는다")
+        void allowedOriginsComeFromProperty() throws Exception {
+            CsrfOriginValidationFilter registered = filterChainProxy.getFilterChains().stream()
+                    .flatMap(chain -> chain.getFilters().stream())
+                    .filter(CsrfOriginValidationFilter.class::isInstance)
+                    .map(CsrfOriginValidationFilter.class::cast)
+                    .findFirst().orElseThrow();
+
+            // test 프로파일의 설정값은 http://localhost:3000 하나다. 운영 도메인이 통과하면
+            // 코드에 고정된 목록을 보고 있다는 뜻이다.
+            assertThat(statusOfWrite(registered, "http://localhost:3000")).isEqualTo(HttpStatus.OK.value());
+            assertThat(statusOfWrite(registered, "https://www.highteenday.org")).isEqualTo(HttpStatus.FORBIDDEN.value());
+        }
+
+        private static int statusOfWrite(CsrfOriginValidationFilter filter, String origin) throws Exception {
+            MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/posts");
+            request.setScheme("http");
+            request.setServerName("api.test");
+            request.setServerPort(80);
+            request.addHeader("Origin", origin);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+
+            filter.doFilter(request, response, new MockFilterChain());
+
+            return response.getStatus();
+        }
+    }
+
+    @Nested
+    @DisplayName("운영 설정")
+    class ProdConfiguration {
+
+        @Test
+        @DisplayName("운영 프로파일의 허용 출처는 highteenday.org 도메인 둘뿐이고 localhost 가 없다")
+        void prodAllowedOriginsAreProductionDomainsOnly() throws Exception {
+            Properties prod = PropertiesLoaderUtils.loadProperties(new ClassPathResource("application-prod.properties"));
+
+            assertThat(prod.getProperty("app.cors.allowed-origins").split(","))
+                    .containsExactly("https://highteenday.org", "https://www.highteenday.org");
         }
     }
 }
