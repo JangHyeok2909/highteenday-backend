@@ -121,7 +121,7 @@ toxiproxy의 확률은 연결 단위로 적용되는데, 연결을 재사용하�
 
 ### 좋아요: 목표 상태 PUT·DELETE 전환 (적용)
 
-게시글·댓글 반응의 켜기와 끄기를 목표 상태를 말하는 계약으로 바꿨다(커밋 `0ac2117b`). 켜기는
+게시글·댓글 반응의 켜기와 끄기를 목표 상태를 말하는 계약으로 바꿨다(커밋 `b0d3019d`). 켜기는
 `PUT`, 끄기는 `DELETE`이고, 이미 그 상태면 아무것도 바꾸지 않는다. 게시글 상세 응답이
 `liked`·`disliked`·`scrapped`를 내려 주므로 클라이언트가 둘 중 무엇을 부를지 고를 수 있다.
 프론트엔드 계약이 바뀌는 변경이다.
@@ -233,4 +233,4 @@ BASE_URL=http://localhost:18081 node resilience/fault-run.js resilience/faults/r
 - 수정 후: [`retry-storm-2026-10-13T04-28-08`](../resilience/reports/retry-storm-2026-10-13T04-28-08/) · [run.json](../resilience/reports/retry-storm-2026-10-13T04-28-08/run.json)
 - 수정 후 기준선: [`retry-storm-baseline-2026-10-13T04-17-00`](../resilience/reports/retry-storm-baseline-2026-10-13T04-17-00/) · [run.json](../resilience/reports/retry-storm-baseline-2026-10-13T04-17-00/run.json)
 - 계획: [retry-storm.json](../resilience/faults/retry-storm.json), [retry-storm-baseline.json](../resilience/faults/retry-storm-baseline.json), 시나리오 [retry-storm.js](../resilience/scenarios/retry-storm.js)
-- 변경 코드: [`ReactionService`](../../src/main/java/com/example/highteenday_backend/services/domain/ReactionService.java), 커밋 `0ac2117b`
+- 변경 코드: [`ReactionService`](../../src/main/java/com/example/highteenday_backend/services/domain/ReactionService.java), 커밋 `b0d3019d`

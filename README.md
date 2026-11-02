@@ -1,15 +1,13 @@
 # HighTeenDay Backend
 
 [![CI](https://github.com/JangHyeok2909/highteenday-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/JangHyeok2909/highteenday-backend/actions/workflows/ci.yml)
-[부하 실험 대시보드](https://janghyeok2909.github.io/highteenday-backend/)
 
 고등학생 익명 커뮤니티의 Spring Boot API 서버다. 이 서버에 부하와 장애(MySQL·Redis 정지와 지연, 응답
 유실)를 직접 넣어 문제를 찾고, 고친 뒤 같은 조건으로 다시 재서 확인한 기록을 함께 둔다.
 
-> 2025.05 ~ 2025.08 동아리 팀(백엔드 3명, 프론트엔드 4명)으로 개발했고, 2025.09부터 한 명이 유지보수한다.
-> 팀 기간에는 게시글·댓글·인기글·S3 파일 업로드를 맡았고, 2025.09 이후의 백엔드 전반과 부하·장애 실험,
-> 그 수정은 혼자 했다. AWS 배포는 비용 문제로 운영을 중단했고, 아래 수치는 모두 Docker 로컬 환경과 생성 데이터에서
-> 잰 값이다.
+> 2025.05 ~ 2025.08 동아리 팀(백엔드 3명, 프론트엔드 4명)에서 게시글·댓글·인기글·S3 파일 업로드를 맡았다.
+> 2025.09 ~ 2026.02는 개발을 멈췄고, 2026.03부터는 백엔드 전반과 부하·장애 실험을 혼자 한다. AWS 배포는 비용
+> 문제로 운영을 중단했고, 아래 수치는 모두 Docker 로컬 환경과 생성 데이터에서 잰 값이다.
 
 ## 핵심 결과
 
@@ -19,6 +17,10 @@
 | Redis 정지 시 Redis를 쓰지 않는 API까지 실패. 명령 타임아웃 미지정으로 Lettuce 기본값 60초 적용 | Redis 명령 타임아웃 100ms | 장애 구간 p95 60,003ms에서 224ms, 오류율 31.75%에서 0% | [redis-failure-cascade](performance/cases/redis-failure-cascade.md) |
 | MySQL 정지·무응답 시 요청 대기 | 커넥션 획득·연결·소켓·쿼리 타임아웃 | 장애 구간 p95 hang 51.3초에서 5.0초, crash 52.1초에서 1.0초. 긴 대기가 빠른 503으로 바뀜(장애 중 성공 응답은 hang 167건에서 1건, crash 121건에서 3건으로 줄었음. crash 변경 후 이미지는 다른 수정 포함) | [mysql-unavailable-wait-bound](performance/cases/mysql-unavailable-wait-bound.md) |
 | 응답 유실 뒤 재시도로 좋아요가 꺼짐 | 토글 POST를 PUT·DELETE로 전환 | 게시글·댓글 좋아요 재시도 23건 결함 0건. 스크랩·생성·토큰 재발급은 결함 남음 | [retry-after-lost-response](performance/cases/retry-after-lost-response.md) |
+
+실행별 보고서는 [부하 실험 대시보드](https://janghyeok2909.github.io/highteenday-backend/)에 있다. 대시보드의 실패 판정
+38건 중 30건은 위 표의 변경(2026년 9월부터)보다 앞선 8월 실행이고, 38건 중 37건은 p99가 절대 한계를 넘어
+실패했다. 판정 기준은 [측정 방법](performance/METHOD.md)에 있다.
 
 ## 읽는 순서
 
